@@ -1,0 +1,186 @@
+"""
+PHASE 4.1 DATA MODEL FIX: PersonBill Links (Stop Action Table Pollution)
+=========================================================================
+
+PROBLEM:
+--------
+The old ingestion system (ingest_robust.py) was inserting sponsorship/cosponsor
+list items as Action evidence rows. This caused:
+- Nonsensical counts (AOC showing 1646 "unique bills" in Action table)
+- Table bloat (thousands of fake "actions" that aren't legislative actions)
+- Confusion between relationship metadata and actual evidence
+
+SOLUTION:
+---------
+Separate concerns into proper tables:
+1. PersonBill: Link table for person↔bill relationships (Sponsored/Cosponsored)
+2. Bill: Canonical bill table with needs_enrichment flag
+3. BillAction: Bill lifecycle timeline (introduced, passed committee, etc.)
+4. Action: ONLY for true evidence actions (votes, statements, etc.) - NOT sponsorship lists
+
+
+FILES CHANGED:
+--------------
+1. models/database.py
+   - Added PersonBill model (link table)
+   - Added needs_enrichment flag to Bill model
+   - Indexes on person_id, bill_id for efficient queries
+
+2. ingest_robust_v2.py (NEW - replaces ingest_robust.py)
+   - process_bill_link() creates PersonBill links + Bill stubs
+   - Does NOT write to Action table (GUARDRAIL)
+   - Marks bills with needs_enrichment=1
+   - Full pagination + checkpointing preserved
+
+3. verify_ingestion_v2.py (NEW - replaces verify_ingestion.py)
+   - Reports PersonBill link counts (not Action counts)
+   - Shows enrichment coverage (needs_enrichment flag)
+   - Per-member sponsored/cosponsored breakdowns
+
+4. cleanup_sponsorship_actions.py (NEW - Option B dedupe)
+   - Identifies Action rows with "Sponsored bill:" or "Cosponsored bill:" markers
+   - Safe deletion with backup export
+   - Requires --confirm flag
+
+5. test_personbill_links.py (NEW)
+   - Verifies PersonBill links created
+   - Verifies Action table NOT polluted
+   - Verifies bills marked for enrichment
+
+6. test_enrich_once.py (NEW)
+   - Simulates bill enrichment
+   - Verifies bill enriched once (even if linked to multiple people)
+   - Verifies BillAction timeline created
+
+
+DATABASE MIGRATION:
+-------------------
+New tables:
+- person_bills (id, person_id, bill_id, relationship_type, source_url, created_at, updated_at)
+
+Modified tables:
+- bills (added needs_enrichment column, default=1)
+
+
+RUN COMMANDS:
+=============
+
+OPTION A: WIPE & REBUILD (RECOMMENDED)
+---------------------------------------
+This is the cleanest approach - start fresh with correct data model.
+
+Step 1: Backup current database (optional)
+    cp wethepeople.db wethepeople_backup_$(date +%Y%m%d).db
+
+Step 2: Remove old database and recreate schema
+    rm wethepeople.db
+    python -c "from models.database import Base, engine; Base.metadata.create_all(bind=engine); print('✅ Database recreated with PersonBill table')"
+
+Step 3: Run test to verify PersonBill links work
+    python test_personbill_links.py
+
+Step 4: Ingest 1 person for verification (quick test)
+    python ingest_robust_v2.py --person-id aoc --max-pages 2
+
+Step 5: Verify PersonBill counts
+    python verify_ingestion_v2.py --person-id aoc
+
+Step 6: Full ingestion (all members, no page limits)
+    python ingest_robust_v2.py --all
+
+Step 7: Verify overall coverage
+    python verify_ingestion_v2.py --all
+
+Step 8: Run enrichment job for bills that need it
+    # (Enrichment job not yet updated - needs separate work)
+    # python jobs/enrich_bills.py --only-needs-enrichment --batch-size 50
+
+Step 9: Test enrich-once logic
+    python test_enrich_once.py
+
+
+OPTION B: DEDUPE IN PLACE (ADVANCED)
+-------------------------------------
+Keep existing database, remove only sponsorship-derived Action rows.
+
+Step 1: Preview what will be deleted
+    python cleanup_sponsorship_actions.py --preview
+
+Step 2: Export backup SQL
+    python cleanup_sponsorship_actions.py --backup
+
+Step 3: Migrate schema (add PersonBill table + needs_enrichment column)
+    python -c "from models.database import Base, engine; Base.metadata.create_all(bind=engine); print('✅ Schema migrated')"
+
+Step 4: Delete sponsorship Action rows (REQUIRES CONFIRMATION)
+    python cleanup_sponsorship_actions.py --delete --confirm
+
+Step 5: Verify Action table cleaned
+    python -c "from models.database import SessionLocal, Action; db = SessionLocal(); print(f'Remaining Action rows: {db.query(Action).count()}'); db.close()"
+
+Step 6: Ingest with new system (PersonBill links)
+    python ingest_robust_v2.py --person-id aoc --max-pages 1
+
+Step 7: Verify PersonBill links created
+    python verify_ingestion_v2.py --person-id aoc
+
+Step 8: Continue full ingestion
+    python ingest_robust_v2.py --all
+
+
+VERIFICATION CHECKLIST:
+-----------------------
+After running either option:
+
+✅ PersonBill table exists and has rows:
+    python -c "from models.database import SessionLocal, PersonBill; db = SessionLocal(); print(f'PersonBill links: {db.query(PersonBill).count()}'); db.close()"
+
+✅ Bills have needs_enrichment flag:
+    python -c "from models.database import SessionLocal, Bill; db = SessionLocal(); needs = db.query(Bill).filter(Bill.needs_enrichment==1).count(); print(f'Bills needing enrichment: {needs}'); db.close()"
+
+✅ Action table NOT polluted by new ingestion:
+    # Run before and after ingest_robust_v2.py, verify Action count unchanged
+
+✅ Per-member counts correct:
+    python verify_ingestion_v2.py --all
+
+✅ Test suite passes:
+    python test_personbill_links.py
+    python test_enrich_once.py
+
+
+NEXT STEPS (AFTER DATA MODEL FIX):
+-----------------------------------
+1. Update jobs/enrich_bills.py to:
+   - Query Bill.needs_enrichment == 1
+   - Fetch full bill details from Congress.gov API
+   - Insert BillAction timeline
+   - Set needs_enrichment = 0
+   - Invalidate affected claims
+
+2. Update claim evaluation to use PersonBill for sponsorship evidence:
+   - Check PersonBill.relationship_type == 'Sponsored' for "sponsored" intent
+   - Link to Bill → BillAction timeline for status verification
+
+3. Add cron/scheduled job:
+   - Daily: Run ingest_robust_v2.py --all (incremental via checkpoints)
+   - Hourly: Run enrich_bills.py --only-needs-enrichment
+   - After enrichment: Run recompute_evaluations.py --dirty-only
+
+
+MIGRATION NOTES:
+----------------
+- Old ingest_robust.py is DEPRECATED (keep for reference only)
+- Use ingest_robust_v2.py going forward
+- Old verify_ingestion.py still works but shows inflated Action counts
+- Use verify_ingestion_v2.py for accurate PersonBill metrics
+- Action table cleanup is optional if doing wipe & rebuild
+
+
+SAFETY NOTES:
+-------------
+- PersonBill has UNIQUE constraint on (person_id, bill_id, relationship_type)
+- Bill.bill_id is PRIMARY KEY (no duplicates possible)
+- BillAction has UNIQUE dedupe_hash (no duplicate timeline entries)
+- Idempotency guaranteed at all levels
+- Checkpoints preserved for resumability

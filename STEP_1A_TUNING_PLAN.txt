@@ -1,0 +1,96 @@
+"""
+STEP 1A: SOURCE QUALITY TUNING PLAN
+====================================
+
+PROBLEM DIAGNOSIS:
+==================
+
+CHUCK SCHUMER (0% matchability, 19 claims):
+- 95% funding announcements ("secured $X for [NY location]")  
+- 1 claim mentions "introduced legislation" but truncated
+- 0 bill numbers, 0 named Acts
+- Average: 39 words/claim (truncated at ~100 words from source)
+
+RON WYDEN (0% matchability, 7 claims):
+- 71% funding/town halls
+- 2 claims mention "introduced" but truncated before bill details
+- 0 bill numbers, 0 named Acts
+- Average: 37 words/claim (truncated)
+
+ROOT CAUSES:
+============
+1. TEXT TRUNCATION: Scraper max_words appears to be ~100, cuts off bill names
+2. SOURCE POLLUTION: Press releases mix legislation with constituent service
+3. NO FILTERING: Getting all press releases, not legislation-specific
+
+TUNING STRATEGY (DO IN ORDER):
+================================
+
+PHASE 1: Fix text truncation (IMMEDIATE)
+-----------------------------------------
+Check scraper code for max_words parameter
+Test values: 150, 200, 300 words
+Goal: Capture full sentences with bill numbers/Act names
+
+Where to look:
+- connectors/federal_register.py or similar scraper
+- jobs/ingest_claims.py --max-words parameter
+- Any truncation in claim extraction logic
+
+PHASE 2: Find better sources (AFTER fixing truncation)
+--------------------------------------------------------
+For each member, test these alternatives:
+
+Schumer options:
+1. https://www.schumer.senate.gov/legislation (check if exists)
+2. Add query param filter: /newsroom/press-releases?category=legislation
+3. Search for "introduced" or "S." in press releases
+4. Congress.gov API for Schumer-sponsored bills (authoritative)
+
+Wyden options:
+1. https://www.wyden.senate.gov/news/legislation (check if exists)  
+2. Add category filter to press releases
+3. Finance Committee legislation page (he chairs it)
+4. Congress.gov API for Wyden-sponsored bills
+
+PHASE 3: Small test ingest (AFTER new sources identified)
+-----------------------------------------------------------
+For each new source:
+```
+# Dry run first
+python jobs\ingest_claims.py --person-id chuck_schumer --since-days 30 --limit-pages 3 --dry-run
+
+# If looks good, ingest 10 pages
+python jobs\ingest_claims.py --person-id chuck_schumer --since-days 30 --limit-pages 10
+
+# Check matchability
+python scripts\claim_matchability.py --person-id chuck_schumer --verbose
+```
+
+SUCCESS CRITERIA:
+=================
+- Schumer: ≥20% matchability within 30 days
+- Wyden: ≥20% matchability within 30 days
+- At least 3/10 new claims mention bill numbers or Act names
+- Text captures full sentences (200+ words/claim)
+
+FALLBACK (if sources still weak):
+==================================
+If matchability stays <10% despite source tuning:
+→ Proceed to Step 2-lite: Extract bill numbers from full-page text
+→ Add regex for H.R./S. #### patterns
+→ This is when we do code changes
+
+NEXT IMMEDIATE ACTION:
+======================
+1. Find scraper's max_words parameter
+2. Check if it's in:
+   - connectors/federal_register.py
+   - jobs/ingest_claims.py
+   - utils/normalization.py
+3. Test with 200-300 words
+4. Re-ingest Schumer + Wyden with longer text
+5. Check if bill names now captured
+"""
+
+print(__doc__)
