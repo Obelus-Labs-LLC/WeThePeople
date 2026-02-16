@@ -1,0 +1,23 @@
+[
+  {
+    "id": "trump",
+    "name": "Donald J. Trump",
+    "role": "President",
+    "party": "Republican",
+    "photo_url": "https://upload.wikimedia.org/wikipedia/commons/5/56/Donald_Trump_official_portrait.jpg"
+  },
+  {
+    "id": "schumer",
+    "name": "Chuck Schumer",
+    "role": "Senator",
+    "party": "Democratic",
+    "photo_url": "https://upload.wikimedia.org/wikipedia/commons/a/a2/Chuck_Schumer_official_photo.jpg"
+  },
+  {
+    "id": "thune",
+    "name": "John Thune",
+    "role": "Senator",
+    "party": "Republican",
+    "photo_url": "https://upload.wikimedia.org/wikipedia/commons/b/b8/John_Thune_117th_Congress.jpg"
+  }
+]

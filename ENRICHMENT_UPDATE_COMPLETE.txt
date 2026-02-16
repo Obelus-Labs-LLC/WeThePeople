@@ -1,0 +1,174 @@
+"""
+ENRICHMENT UPDATE COMPLETE - IMPLEMENTATION REPORT
+===================================================
+
+WHAT WAS FIXED:
+---------------
+❌ OLD: Enrichment job queried Action table to find bills (wrong - Action is for evidence, not metadata)
+✅ NEW: Enrichment job queries Bill.needs_enrichment flag (correct - PersonBill system)
+
+CHANGES MADE:
+-------------
+
+1. DEPRECATED OLD SCRIPTS (renamed to prevent accidental use):
+   - ingest_robust.py → ingest_robust__DEPRECATED_DO_NOT_USE.py
+   - verify_ingestion.py → verify_ingestion__DEPRECATED_DO_NOT_USE.py
+
+2. UPDATED jobs/enrich_bills.py:
+   ✅ get_bills_to_enrich() - Queries Bill.needs_enrichment == 1 instead of Action table
+   ✅ enrich_bill() - Clears needs_enrichment = 0 after successful enrichment
+   ✅ run_enrichment_batch() - Accepts --only-needs-enrichment parameter (default=True)
+   ✅ CLI - Added argparse with --limit, --only-needs-enrichment, --all, --rate-limit flags
+
+3. CREATED verify_enrichment_v2.py:
+   - Reports Bills enriched vs needs_enrichment
+   - BillAction timeline completeness
+   - Enrichment field coverage (status_bucket, policy_area)
+   - Status distribution
+   - Sample unenriched bills
+
+4. UPDATED test_enrich_once.py:
+   - Uses get_bills_to_enrich() from enrichment job
+   - Verifies needs_enrichment flag cleared
+   - Verifies BillAction timeline created
+   - Tests idempotency (bill enriched once)
+
+
+TEST RESULTS:
+-------------
+✅ Database wiped and recreated clean
+✅ test_personbill_links.py - PASSED (37 PersonBill links, 0 Action pollution)
+✅ test_enrich_once.py - PASSED (needs_enrichment cleared, timeline created)
+✅ Enrichment job tested with --limit 5:
+   - 5 bills processed
+   - 19 BillAction entries created
+   - needs_enrichment cleared for 5 bills
+   - 32 bills still need enrichment
+
+VERIFICATION:
+-------------
+Before enrichment:
+- Total bills: 37
+- Enriched: 0
+- Needs enrichment: 37
+- BillAction timeline: 0 rows
+
+After enrichment (--limit 5):
+- Total bills: 37
+- Enriched: 5 (13.5%)
+- Needs enrichment: 32
+- BillAction timeline: 19 rows (3.8 avg actions/bill)
+
+
+RUN COMMANDS:
+=============
+
+## Step 1: Verify current state
+python verify_enrichment_v2.py
+
+## Step 2: Run enrichment job (small batch test)
+python jobs/enrich_bills.py --limit 10
+
+## Step 3: Verify enrichment progress
+python verify_enrichment_v2.py
+
+## Step 4: Run full enrichment (process all needs_enrichment=1)
+python jobs/enrich_bills.py --limit 50
+
+## Step 5: Enrich all remaining bills
+python jobs/enrich_bills.py --all --limit 1000
+
+## Alternative: Process only bills with needs_enrichment=1 (default)
+python jobs/enrich_bills.py --only-needs-enrichment --limit 100
+
+
+CLI OPTIONS:
+============
+--limit N              Process max N bills (default: 50)
+--only-needs-enrichment Only process bills with needs_enrichment=1 (default: True)
+--all                  Process all bills missing enrichment fields (ignores needs_enrichment flag)
+--rate-limit N         Delay between API calls in seconds (default: 0.3)
+
+
+WORKFLOW:
+=========
+1. ingest_robust_v2.py creates Bill stubs + sets needs_enrichment=1
+2. enrich_bills.py processes bills where needs_enrichment=1:
+   - Fetches full bill details from Congress.gov API
+   - Upserts BillAction timeline (dedupe by dedupe_hash)
+   - Computes status_bucket and status_reason
+   - Sets needs_enrichment=0
+   - Invalidates related claims (marks dirty)
+3. verify_enrichment_v2.py shows enrichment coverage
+4. recompute_evaluations.py --dirty-only refreshes affected claim evaluations
+
+
+IDEMPOTENCY GUARANTEES:
+=======================
+✅ Bill.needs_enrichment flag prevents duplicate enrichment
+✅ BillAction.dedupe_hash (UNIQUE) prevents duplicate timeline entries
+✅ Running enrichment twice on same bill = 0 duplicates
+
+
+DEPRECATION WARNINGS:
+=====================
+⚠️ DO NOT USE (renamed with __DEPRECATED_DO_NOT_USE suffix):
+   - ingest_robust__DEPRECATED_DO_NOT_USE.py
+   - verify_ingestion__DEPRECATED_DO_NOT_USE.py
+
+✅ USE INSTEAD:
+   - ingest_robust_v2.py (PersonBill-based ingestion)
+   - verify_ingestion_v2.py (PersonBill counts)
+   - jobs/enrich_bills.py (needs_enrichment-based enrichment)
+   - verify_enrichment_v2.py (enrichment coverage)
+
+
+FILES CHANGED:
+==============
+MODIFIED:
+- jobs/enrich_bills.py
+  - get_bills_to_enrich() queries Bill.needs_enrichment
+  - enrich_bill() clears needs_enrichment=0 after success
+  - run_enrichment_batch() accepts only_needs_enrichment param
+  - CLI with argparse flags
+
+RENAMED:
+- ingest_robust.py → ingest_robust__DEPRECATED_DO_NOT_USE.py
+- verify_ingestion.py → verify_ingestion__DEPRECATED_DO_NOT_USE.py
+
+NEW:
+- verify_enrichment_v2.py
+
+UPDATED:
+- test_enrich_once.py (uses get_bills_to_enrich())
+
+
+NEXT STEPS:
+===========
+1. Run full enrichment:
+   python jobs/enrich_bills.py --limit 100
+
+2. Verify coverage:
+   python verify_enrichment_v2.py
+
+3. Update claim evaluation to use PersonBill:
+   - Check PersonBill.relationship_type == 'Sponsored' for sponsorship evidence
+   - Link to Bill → BillAction for status verification
+
+4. Schedule jobs:
+   - Daily: python ingest_robust_v2.py --all
+   - Hourly: python jobs/enrich_bills.py --only-needs-enrichment --limit 50
+   - After enrichment: python jobs/recompute_evaluations.py --dirty-only
+
+
+MIGRATION COMPLETE
+==================
+✅ Old scripts renamed (cannot be run by mistake)
+✅ Database wiped and recreated clean
+✅ PersonBill links working (37 links, 0 Action pollution)
+✅ Enrichment job updated to use needs_enrichment flag
+✅ Enrichment tested (5 bills enriched, 19 timeline actions)
+✅ Verification scripts working
+✅ Tests passing
+
+The system is now correct and ready for full enrichment run.

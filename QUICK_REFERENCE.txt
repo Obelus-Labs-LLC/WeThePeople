@@ -1,0 +1,110 @@
+"""
+QUICK REFERENCE - PersonBill + Enrichment System
+=================================================
+
+CORRECT WORKFLOW:
+-----------------
+1. Ingest → PersonBill links + Bill stubs (needs_enrichment=1)
+2. Enrich → BillAction timeline + clear needs_enrichment
+3. Verify → Check coverage
+4. Recompute → Update claim evaluations
+
+COMMANDS:
+---------
+# Ingest (creates PersonBill links)
+python ingest_robust_v2.py --person-id aoc --max-pages 1
+python ingest_robust_v2.py --person-id aoc --since-days 90  # Last 90 days (default)
+python ingest_robust_v2.py --person-id aoc --since-days 30  # Last 30 days
+python ingest_robust_v2.py --person-id aoc --no-freshness   # All bills (no filter)
+python ingest_robust_v2.py --all --since-days 90
+
+# Verify ingestion
+python verify_ingestion_v2.py --person-id aoc
+python verify_ingestion_v2.py --all
+
+# Enrich (processes needs_enrichment=1)
+python jobs/enrich_bills.py --limit 10
+python jobs/enrich_bills.py --limit 50
+python jobs/enrich_bills.py --all --limit 1000
+
+# Verify enrichment
+python verify_enrichment_v2.py
+
+# Tests
+python test_personbill_links.py
+python test_enrich_once.py
+
+
+KEY FILES:
+----------
+✅ USE:
+- ingest_robust_v2.py (ingestion)
+- verify_ingestion_v2.py (ingestion verification)
+- jobs/enrich_bills.py (enrichment)
+- verify_enrichment_v2.py (enrichment verification)
+- test_personbill_links.py (test ingestion)
+- test_enrich_once.py (test enrichment)
+
+❌ DO NOT USE (deprecated):
+- ingest_robust__DEPRECATED_DO_NOT_USE.py
+- verify_ingestion__DEPRECATED_DO_NOT_USE.py
+
+
+DATA MODEL:
+-----------
+PersonBill: person_id ↔ bill_id + relationship_type ('Sponsored'/'Cosponsored')
+Bill: bill_id (PK) + needs_enrichment flag + status_bucket + policy_area
+BillAction: bill_id (FK) + action_date + action_text + dedupe_hash (UNIQUE)
+Action: ONLY true evidence (NOT sponsorship lists)
+
+
+FLAGS:
+------
+Bill.needs_enrichment:
+- 1 = needs enrichment (set by ingest_robust_v2.py)
+- 0 = enriched (set by jobs/enrich_bills.py)
+
+Freshness filter (--since-days):
+- Default: 90 days (only ingest bills with latestAction in last 90 days)
+- Use --since-days 30 for more aggressive filtering
+- Use --no-freshness to disable (ingest all bills regardless of age)
+- Benefits: Faster, cheaper, real-time feel, avoids silent bloat
+
+
+VERIFICATION:
+-------------
+After ingestion:
+- PersonBill links created
+- Action table NOT polluted
+- Bill.needs_enrichment = 1
+
+After enrichment:
+- BillAction timeline populated
+- Bill.needs_enrichment = 0
+- Bill.status_bucket computed
+
+
+IDEMPOTENCY:
+------------
+✅ PersonBill: UNIQUE(person_id, bill_id, relationship_type)
+✅ Bill: bill_id PRIMARY KEY
+✅ BillAction: dedupe_hash UNIQUE
+✅ Running twice = 0 duplicates
+
+
+TROUBLESHOOTING:
+----------------
+Q: Bills not getting enriched?
+A: Check Bill.needs_enrichment = 1, then run jobs/enrich_bills.py
+
+Q: Duplicate BillAction entries?
+A: Check dedupe_hash uniqueness (should auto-prevent)
+
+Q: Action table has sponsorship rows?
+A: You ran old ingest_robust.py by mistake - use ingest_robust_v2.py
+
+Q: Old scripts still exist?
+A: They're renamed with __DEPRECATED_DO_NOT_USE suffix
+
+
+END OF QUICK REFERENCE

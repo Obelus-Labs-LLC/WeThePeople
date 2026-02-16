@@ -1,0 +1,3 @@
+from connectors.congress import ingest_member_legislation
+
+ingest_member_legislation(limit_pages=5)

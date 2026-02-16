@@ -1,0 +1,207 @@
+# Quarantine Manifest - Phase B Complete
+**Date:** 2026-02-05T01:30  
+**Archive Location:** `_archive/cleanup_2026-02-05/`  
+**Files Quarantined:** 15  
+**Rollback Command:** `Move-Item -Force ".\_archive\cleanup_2026-02-05\*" ".\" -ErrorAction SilentlyContinue`
+
+---
+
+## Quarantined Files with Safety Justification
+
+### 1. diagnose_matching.py (35 lines, modified 2026-02-05)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- One-time SQLite diagnostic for matching investigation
+- Findings incorporated into matching.py guardrails (distinctive token requirement, multi-bill disambiguation)
+
+### 2. diagnose_linkage.py (35 lines, modified 2026-02-05)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- One-time SQLite diagnostic for claim-action-bill linkage
+- System validated as working correctly, no ongoing need
+
+### 3. check_defiance_action.py (48 lines, modified 2026-02-05)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- One-time check for DEFIANCE Act BillAction existence (confirmed exists)
+- Superseded by: test_url_matching.py (systematic regression tests)
+
+### 4. debug_bill_endpoint.py (not modified recently)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- Ad-hoc API endpoint debugging
+- Superseded by: test_bill_endpoints.py (systematic API tests)
+
+### 5. debug_walkinshaw.py (modified 2026-02-04)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- One-time debugging for Walkinshaw claims
+- Specific issue resolved
+
+### 6. check_data.py (not modified recently)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- One-time generic data validation
+- Findings incorporated into normal validation flow
+
+### 7. check_bill_status.py (not modified recently)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- One-time bill status validation
+- Superseded by: test_status_rules.py (systematic status testing)
+
+### 8. check_eval_link.py (not modified recently)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- One-time evaluation linkage validation
+- Superseded by: scripts/pilot_baseline.py (comprehensive validation)
+
+### 9. check_status_reasons.py (not modified recently)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- One-time status reason validation
+- Superseded by: backfill_status_reasons.py (systematic backfill)
+
+### 10. check_tables.py (not modified recently)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- One-time database schema validation
+- Superseded by: alembic migrations (systematic schema management)
+
+### 11. check_claim_1.py (not modified recently)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs
+- One-time single claim validation
+- Superseded by: scripts/verify_claims.py (comprehensive claim validation)
+
+### 12. add_ingestion_columns.py (modified 2026-02-05)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Not mentioned in active docs (was manual migration)
+- One-time manual migration to add claim_hash column
+- Superseded by: migrations/add_evidence_fields.py (idempotent with PRAGMA checks)
+
+### 13. recompute_claim_1.py (not modified recently)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Mentioned in VERIFICATION_ENRICHED_API.txt as "quick utility"
+- One-time single claim recomputation
+- Superseded by: `jobs/recompute_evaluations.py --limit 1` (production job with limit flag)
+- **Note:** Update VERIFICATION_ENRICHED_API.txt to reference jobs/recompute_evaluations.py instead
+
+### 14. ingest_robust__DEPRECATED_DO_NOT_USE.py (not modified recently)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Explicitly marked as DEPRECATED in filename
+- Legacy Action-based ingestion
+- Superseded by: ingest_robust_v2.py (PersonBill-based, active in 12+ docs)
+
+### 15. verify_ingestion__DEPRECATED_DO_NOT_USE.py (not modified recently)
+**Why Safe:**
+- Not imported anywhere (search hits = 0)
+- Explicitly marked as DEPRECATED in filename
+- Legacy Action-based verification
+- Superseded by: verify_ingestion_v2.py (PersonBill-based, active in 12+ docs)
+
+---
+
+## Hard Keeps (NOT Quarantined)
+
+**Preserved per user constraints:**
+1. `scripts/pilot_baseline.py` - Active baseline generator
+2. `scripts/check_evidence.py` - Evidence validation (pending UI/API validation)
+3. `test_url_matching.py` - Regression tests (5 tests PASSING)
+4. `debug_matching_scores.py` - Ad-hoc scoring inspector (still fastest for top-5 component inspection)
+
+---
+
+## Phase C Verification Results
+
+### ✅ All Tests PASSED
+
+**Test 1: URL Matching Regression Tests**
+```
+[PASS] URL title match correctly promotes score
+[PASS] Generic URL correctly ignored
+[PASS] Weak match correctly has low score
+[PASS] URL bill name extraction (5 sub-tests)
+[PASS] Title normalization (4 sub-tests)
+ALL TESTS PASSED
+```
+
+**Test 2: Claim Verification**
+```
+Total claims: 6
+Per-member: aoc (4), bernie_sanders (2)
+[OK] No duplicate hashes (deduplication working)
+```
+
+**Test 3: Evaluation Recomputation**
+```
+Recomputed evaluations for 6 claims.
+```
+
+**Test 4: Pilot Baseline**
+```
+Match rate: 50.0% (3/6)
+Meaningful matches: 3 (all HR3562-119 DEFIANCE Act)
+Hash deduplication: ✓ Working
+URL evidence usage: 50.0%
+```
+
+### Metrics Unchanged (Baseline Preserved)
+- Claims: 6
+- Match rate: 50.0%
+- URL evidence usage: 50.0%
+- Zero false positives
+- All 3 matches: HR3562-119 (correct)
+
+---
+
+## Archive Statistics
+
+**Total Size:** ~15 files (~5-10KB total)  
+**Oldest File:** verify_ingestion__DEPRECATED_DO_NOT_USE.py  
+**Newest Files:** diagnose_matching.py, diagnose_linkage.py, check_defiance_action.py, add_ingestion_columns.py (all modified today during URL matching implementation)
+
+**Risk Assessment:** ✅ Zero risk - all files verified as:
+- Not imported by production code
+- Not referenced in active docs (except recompute_claim_1.py, superseded)
+- Functionality superseded by systematic implementations
+
+---
+
+## Rollback Procedure (If Needed)
+
+```powershell
+# Move all files back from archive
+Move-Item -Force ".\_archive\cleanup_2026-02-05\*" ".\" -ErrorAction SilentlyContinue
+
+# Verify rollback
+Get-ChildItem -Path ".\_archive\cleanup_2026-02-05" | Should -Be $null
+
+# Re-run Phase C verification to confirm
+python test_url_matching.py
+python scripts\verify_claims.py --all
+```
+
+---
+
+## Next Steps
+
+**Phase B:** ✅ COMPLETE - 15 files quarantined  
+**Phase C:** ✅ COMPLETE - All verification tests PASSED  
+**Phase D:** ⏸️ PENDING - Requires explicit user approval ("delete archive")
+
+**Recommendation:** Keep archive for 7+ days before deletion. Monitor production for any unexpected issues (none anticipated based on verification results).

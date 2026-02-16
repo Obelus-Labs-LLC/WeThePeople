@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Evidence Signal Array Schema",
+  "description": "JSON schema for validating evidence_json arrays stored in claim_evaluations table. Evidence signals document WHY a claim matched a legislative action.",
+  "type": "array",
+  "items": {
+    "type": "string",
+    "description": "Evidence signal in format 'type:value' where type identifies the signal category",
+    "oneOf": [
+      {
+        "pattern": "^url_match:.+",
+        "description": "URL matched bill page exactly. Format: url_match:{bill_number}"
+      },
+      {
+        "pattern": "^url_partial:.+",
+        "description": "URL partially matched bill reference. Format: url_partial:{matched_substring}"
+      },
+      {
+        "pattern": "^phrase:.+",
+        "description": "Significant phrase overlap (>3 chars). Format: phrase:{matched_phrase}"
+      },
+      {
+        "pattern": "^bill_ref:.+",
+        "description": "Explicit bill reference extracted from claim text. Format: bill_ref:{bill_number}"
+      },
+      {
+        "pattern": "^policy_area:.+",
+        "description": "Policy area alignment. Format: policy_area:{policy_area_name}"
+      },
+      {
+        "pattern": "^timing:(before|during|after|follow_through|retroactive_credit|unknown)$",
+        "description": "Timing relationship between claim date and action date. Values include: follow_through, retroactive_credit, unknown (matching engine), plus before/during/after (legacy)."
+      },
+      {
+        "pattern": "^progress:(introduced|passed_committee|passed_chamber|passed_house|passed_senate|enacted|unknown)$",
+        "description": "Legislative progress status. Values include: introduced, passed_committee, passed_chamber, enacted, unknown (matching engine), plus passed_house/passed_senate (legacy)."
+      },
+      {
+        "pattern": "^fuzzy_title_match:.+",
+        "description": "Fuzzy title match using rapidfuzz. Format: fuzzy_title_match:{score}:{threshold}"
+      },
+      {
+        "pattern": "^claim_text_bill_name:.+",
+        "description": "Bill name extracted from claim text matched action title. Format: claim_text_bill_name:{extracted_name}"
+      },
+      {
+        "pattern": "^semantic_similarity:.+",
+        "description": "Semantic embedding similarity between claim and action. Format: semantic_similarity:{cosine_score}"
+      },
+      {
+        "pattern": "^vote_record:.+",
+        "description": "Vote record matched. Format: vote_record:{vote_id}"
+      }
+    ]
+  },
+  "minItems": 0,
+  "uniqueItems": true
+}
