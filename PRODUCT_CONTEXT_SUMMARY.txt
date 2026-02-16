@@ -1,0 +1,204 @@
+WeThePeople Backend — Product / Architecture Summary
+Date: 2026-02-05
+Repo: wethepeople-backend
+
+GOAL (what this product is)
+- A backend “accountability ledger” for public officials.
+- It ingests public statements/articles, stores raw receipts, extracts/creates Claims, matches Claims to legislative evidence (bill actions, bill lifecycle, votes), and produces evidence-backed Evaluations.
+- It exposes a FastAPI JSON API designed to support a frontend dashboard (people → claims → evaluations/receipts → bill timelines → derived graphs).
+
+HIGH-LEVEL DATA FLOW (pipeline)
+1) Ingest raw sources → Bronze (audit/replay)
+2) Extract/create Claims (human-entered or ingested)
+3) Match Claims to evidence → ClaimEvaluation (cached, schema-validated)
+4) Normalize into Silver (deduped canonical rows)
+5) Materialize Gold ledger (1 row per Claim) for stable querying
+6) Derive graph views (Power Map) from Gold
+
+CORE PRINCIPLES / CONSTRAINTS (important for another AI)
+- Additive evolution: new layers/endpoints/jobs are added without breaking legacy commands or existing API routes.
+- Deterministic gate: repository quality gate runs locally and must not require a live API server or external network.
+- Evidence safety: evidence fields are validated against a schema at the write choke-point before persisting.
+- SQLite reality: tables may be created via SQLAlchemy with checkfirst=True; constraints might not retrofit on existing tables, so jobs/tests defensively create UNIQUE indexes with “CREATE UNIQUE INDEX IF NOT EXISTS …”.
+
+STORAGE
+- Default DB: SQLite file “wethepeople.db” (SQLAlchemy engine created in models/database.py).
+- Migrations: Alembic is present (alembic/ + alembic.ini). Some legacy ad-hoc migrations may exist in migrations/.
+
+LAYERED MODEL (Bronze → Silver → Gold)
+
+BRONZE (raw receipts)
+- Purpose: store raw fetched content (HTML/text) + hashes to support auditability and reprocessing.
+- Key model: BronzeDocument (models/database.py)
+- Gate coverage: test_bronze_layer.py and scripts/run_gate.ps1.
+
+CLAIMS + EVALUATIONS (operational layer)
+- Claim: the unit of “what the person asserted”. Can be created via API or batch ingestion.
+- ClaimEvaluation: cached scoring output from matching.
+  - Contains tier/score/relevance/progress/timing, matched_bill_id, best_action_id, evidence_json, why_json.
+  - why_json is a “receipt payload” used by the API; it can include enriched bill lifecycle context.
+
+SILVER (L1 — normalized & deduped)
+- Purpose: canonical, normalized records safe for downstream aggregation and API use.
+- Tables:
+  - silver_claims (SilverClaim): normalized_text, intent_type, policy_area, source_url, published_at; dedupe key (person_id, source_url, normalized_text).
+  - silver_actions (SilverAction): canonical action timeline rows derived from BillAction; dedupe key (bill_id, action_date, description).
+- Jobs:
+  - jobs/normalize_claims_to_silver.py
+  - jobs/normalize_actions_to_silver.py
+- Tests + invariants:
+  - test_silver_claims_dedupe.py
+  - test_silver_action_timeline_integrity.py
+  - scripts/check_silver_invariants.py
+- Docs: docs/SILVER_LAYER.md
+
+GOLD (L2 — materialized ledger)
+- Purpose: a stable, API-ready ledger table keyed by Claim.
+- Table:
+  - gold_ledger (GoldLedgerEntry): one row per claim_id; stores evaluation outputs + normalized context.
+  - Invariant: UNIQUE(claim_id) (plus a backing unique index ensured at runtime for SQLite safety).
+- Job:
+  - jobs/build_gold_ledger.py (idempotent upsert into gold_ledger)
+- Tests + invariants:
+  - test_gold_ledger_build.py
+  - scripts/check_gold_invariants.py
+- Docs: docs/GOLD_LAYER.md
+
+DERIVED VIEWS
+
+POWER MAP (L3 — derived graph)
+- Purpose: graph view derived from Gold for analytics/UI.
+- Endpoint (additive): GET /powermap/person/{person_id}
+- Implementation: services/power_map/core.py (build_person_power_map)
+- Validation: test_power_map_contract.py and scripts/check_power_map_invariants.py
+- Docs: docs/POWER_MAP.md
+
+MATCHING + EVIDENCE
+- Matching “source of truth”: services/matching/core.py (exposed via services/matching/__init__.py).
+- URL-based match boosting is implemented and regression-tested (test_url_matching.py).
+- Optional fuzzy title matching exists behind ENABLE_FUZZY_TITLE_MATCH=1 (services/matching/similarity.py + test_fuzzy_matching.py). Integration into the main matcher may be partial depending on the flow.
+- Evidence schema validation:
+  - services/evidence/schema.json
+  - services/evidence/validate.py
+  - enforced at the write choke-point (jobs/recompute_evaluations.py)
+
+BILL ENRICHMENT + DIRTY FLAG
+- Enrichment job populates Bill + BillAction timeline from Congress.gov:
+  - jobs/enrich_bills.py
+  - docs/ENRICHMENT_JOB.md
+- Dirty flag system:
+  - Claim.needs_recompute marks cached evaluations stale when bill lifecycle data changes.
+  - utils/invalidation.py + jobs/enrich_bills.py invalidation + jobs/recompute_evaluations.py dirty-only recompute.
+  - Summary: DIRTY_FLAG_SYSTEM_SUMMARY.txt
+
+API OVERVIEW (FastAPI, JSON)
+
+Server
+- App is defined in main.py as app = FastAPI().
+- Recommended run command (typical): uvicorn main:app --reload --port 8001
+- Startup behavior: on startup it may fetch Federal Register docs; set DISABLE_STARTUP_FETCH=1 to disable (important for tests).
+
+Key endpoints (by theme)
+
+1) People / Activity
+- GET /people
+- GET /people/{person_id}/actions
+- GET /people/{person_id}/stats
+- GET /actions/recent
+- GET /actions/search
+- GET /actions/search_simple
+- GET /actions/{action_id}
+
+2) Claims & Matching
+- POST /claims (creates a Claim, returns suggested_categories + intent)
+- GET /claims
+- GET /claims/{claim_id}
+- GET /claims/{claim_id}/matches
+- GET /claims/{claim_id}/matches_multi
+- GET /claims/{claim_id}/evaluation (full evaluation “receipt”; includes why_json if present)
+
+3) Performance / Comparison
+- GET /people/{person_id}/performance
+- GET /compare?person_id=...&person_id=...
+
+4) Ledger (Gold-backed, L4)
+- GET /ledger/person/{person_id}?tier=&limit=&offset=
+- GET /ledger/summary?person_id=
+- Docs: docs/GOLD_LEDGER_API.md
+- Contract test: test_api_gold_ledger_contract.py (in-process TestClient; no network)
+
+5) Graphs
+- GET /graph/person/{person_id} (legacy graph derived from claims/evaluations)
+- GET /powermap/person/{person_id} (Gold-derived Power Map)
+
+6) Bills
+- GET /bills/{bill_id}/timeline
+
+7) Votes (Phase 2)
+- POST /votes/ingest
+- GET /votes
+- GET /votes/{vote_id}
+
+FRONTEND INTEGRATION NOTES
+- The “most useful” UI primitives are:
+  - People list + recent actions feed
+  - Claims list (by person) → claim detail → /evaluation receipt
+  - Bill timeline drilldown via bill_id and /bills/{bill_id}/timeline
+  - Person performance summaries: /people/{person_id}/performance
+  - Gold ledger views for stable pagination/filters: /ledger/person/{person_id}
+  - Graph view: /powermap/person/{person_id}
+- Evaluation receipts are cached in ClaimEvaluation.why_json. If bill enrichment runs later, claims may be marked needs_recompute and must be recomputed for updated why_json.
+
+QUALITY GATE (what “green” means)
+- Single runner: scripts/run_gate.ps1
+- Gate includes dependency audit, invariants, Bronze/Silver/Gold tests, Power Map contract/invariants, and Gold ledger API contract test.
+
+CURATED FILE INDEX (start here)
+
+API
+- main.py
+
+Models / DB
+- models/database.py
+- alembic/ (migrations)
+
+Jobs (batch pipeline)
+- jobs/ingest_claims.py
+- jobs/enrich_bills.py
+- jobs/recompute_evaluations.py
+- jobs/normalize_claims_to_silver.py
+- jobs/normalize_actions_to_silver.py
+- jobs/build_gold_ledger.py
+
+Services
+- services/matching/core.py
+- services/matching/similarity.py
+- services/evidence/validate.py
+- services/power_map/core.py
+- services/bill_text.py
+
+Connectors
+- connectors/congress.py
+- connectors/congress_votes.py
+- connectors/federal_register.py
+
+Utils
+- utils/normalization.py
+- utils/invalidation.py
+- utils/env.py
+
+Gate / invariants
+- scripts/run_gate.ps1
+- scripts/check_silver_invariants.py
+- scripts/check_gold_invariants.py
+- scripts/check_power_map_invariants.py
+- scripts/check_canonical_imports.py
+
+Docs
+- docs/SILVER_LAYER.md
+- docs/GOLD_LAYER.md
+- docs/POWER_MAP.md
+- docs/GOLD_LEDGER_API.md
+- docs/ENRICHMENT_JOB.md
+
+If you need an AI prompt “starter”, ask for a condensed prompt template and I’ll generate it based on this file.

@@ -1,0 +1,64 @@
+"""
+VERIFICATION COMPLETE: Enriched Bill/BillAction data flows through API
+========================================================================
+
+ISSUE IDENTIFIED:
+- The /claims/{id}/evaluation endpoint returns CACHED evaluations from ClaimEvaluation table
+- Old evaluations stored "why_json" BEFORE enriched fields were added
+- Enriched fields (progress_bucket, status_reason, timeline_count, recent_actions) were missing
+
+ROOT CAUSE:
+- services/matching.py was updated to include enriched Bill data in "why" object
+- BUT existing ClaimEvaluation records had old why_json without those fields
+- The API endpoint reads why_json and returns it as-is (no recomputation)
+
+SOLUTION:
+- Recompute evaluations using jobs/recompute_evaluations.py
+- This calls compute_matches_for_claim() which NOW includes enriched fields
+- The enriched "why" data is saved to why_json via json.dumps()
+
+VERIFICATION:
+✅ Claim 1 BEFORE recompute:
+   - why_json had: claim_tokens, overlap_basic, overlap_enriched, phrase_hits
+   - Missing: latest_action_text, latest_action_date, progress_bucket, status_reason, timeline_count, recent_actions
+
+✅ Claim 1 AFTER recompute:
+   - All 6 enriched fields present:
+     • latest_action_text: "Motion to reconsider laid on the table..."
+     • latest_action_date: "2026-01-22T00:00:00"
+     • progress_bucket: "failed"
+     • status_reason: "On agreeing to the resolution Failed by the Yeas and Nays: 215 - 215..."
+     • timeline_count: 3
+     • recent_actions: [3 items]
+
+✅ API endpoint /claims/1/evaluation returns enriched data correctly
+
+ARCHITECTURE CONFIRMED:
+1. services/matching.py computes matches with enriched Bill/BillAction data
+2. jobs/recompute_evaluations.py calls matching service and saves "why" to why_json
+3. main.py /claims/{id}/evaluation reads ClaimEvaluation.why_json and returns it
+4. Enriched fields flow through entire pipeline without modification
+
+NO CODE CHANGES NEEDED:
+- The integration is working correctly
+- Existing evaluations just need recomputation to get enriched data
+- Future claims will automatically get enriched fields when evaluated
+
+PERFORMANCE NOTE:
+- /claims/{id}/matches endpoint times out (>60s) when limit=3
+- This is a separate performance issue (likely matching against all actions)
+- The evaluation endpoint works fine because it returns cached data
+- Consider adding pagination or caching to matches endpoint
+
+FILES CREATED FOR TESTING:
+- utils/env.py: Safe environment variable loader
+- .env.local: Local config with API_BASE_URL only
+- test_api_evaluation.py: Validates enriched fields in evaluation endpoint
+- test_api_matches.py: Tests matches endpoint (currently times out)
+- recompute_claim_1.py: Quick script to recompute single claim
+
+NEXT STEPS:
+1. Recompute all evaluations: python jobs/recompute_evaluations.py
+2. Verify enriched data appears for all claims
+3. Investigate matches endpoint timeout (separate performance task)
+"""

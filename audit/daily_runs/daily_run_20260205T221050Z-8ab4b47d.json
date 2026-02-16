@@ -1,0 +1,55 @@
+{
+  "run_id": "20260205T221050Z-8ab4b47d",
+  "manifest_path": "audit\\daily_runs\\daily_run_20260205T221050Z-8ab4b47d.json",
+  "started_at": "2026-02-05T22:10:50+00:00",
+  "finished_at": "2026-02-05T22:10:50+00:00",
+  "config": {
+    "since_days": 90,
+    "limit_pages": 25,
+    "congress": 119,
+    "dry_run": true
+  },
+  "steps": [
+    {
+      "name": "ingest_claims",
+      "started_at": "2026-02-05T22:10:50+00:00",
+      "finished_at": "2026-02-05T22:10:50+00:00",
+      "status": "skipped",
+      "result": null,
+      "error": null
+    },
+    {
+      "name": "enrich_bills",
+      "started_at": "2026-02-05T22:10:50+00:00",
+      "finished_at": "2026-02-05T22:10:50+00:00",
+      "status": "skipped",
+      "result": null,
+      "error": null
+    },
+    {
+      "name": "sync_member_groundtruth",
+      "started_at": "2026-02-05T22:10:50+00:00",
+      "finished_at": "2026-02-05T22:10:50+00:00",
+      "status": "skipped",
+      "result": null,
+      "error": null
+    },
+    {
+      "name": "recompute_evaluations",
+      "started_at": "2026-02-05T22:10:50+00:00",
+      "finished_at": "2026-02-05T22:10:50+00:00",
+      "status": "skipped",
+      "result": null,
+      "error": null
+    },
+    {
+      "name": "build_gold_ledger",
+      "started_at": "2026-02-05T22:10:50+00:00",
+      "finished_at": "2026-02-05T22:10:50+00:00",
+      "status": "skipped",
+      "result": null,
+      "error": null
+    }
+  ],
+  "status": "success"
+}

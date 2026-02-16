@@ -1,0 +1,133 @@
+"""
+QUICK START GUIDE - PersonBill Migration
+=========================================
+
+WHAT WAS FIXED:
+---------------
+❌ OLD: Sponsorship list items stored in Action table (wrong!)
+✅ NEW: PersonBill link table separates relationship metadata from evidence
+
+IMPACT:
+-------
+- Action table stays clean (only true evidence actions)
+- PersonBill tracks who sponsored/cosponsored what
+- Bill table has needs_enrichment flag for efficient querying
+- Each bill enriched ONCE (even if linked to multiple people)
+
+
+RUN THESE COMMANDS:
+===================
+
+## OPTION A: FRESH START (Recommended - 5 minutes)
+
+# 1. Recreate database
+rm wethepeople.db
+python -c "from models.database import Base, engine; Base.metadata.create_all(bind=engine); print('✅ Database recreated')"
+
+# 2. Run tests (verify implementation)
+python test_personbill_links.py     # Verifies PersonBill links work, no Action pollution
+python test_enrich_once.py          # Verifies bill enriched once, no duplication
+
+# 3. Ingest sample data (quick test - 1 page = 40 bills)
+python ingest_robust_v2.py --person-id aoc --max-pages 1
+
+# 4. Verify counts
+python verify_ingestion_v2.py --person-id aoc
+
+Expected output:
+  PERSON-BILL LINKS:
+     Total links: ~37
+     Sponsored: ~17
+     Cosponsored: ~20
+
+# 5. Full ingestion (all members, all pages - ~30 minutes)
+python ingest_robust_v2.py --all
+
+# 6. Verify overall coverage
+python verify_ingestion_v2.py --all
+
+
+## OPTION B: CLEANUP EXISTING DB (Advanced)
+
+# 1. Preview what will be deleted
+python cleanup_sponsorship_actions.py --preview
+
+# 2. Migrate schema (add PersonBill table)
+python -c "from models.database import Base, engine; Base.metadata.create_all(bind=engine); print('✅ Schema migrated')"
+
+# 3. Backup and delete sponsorship Action rows
+python cleanup_sponsorship_actions.py --backup
+python cleanup_sponsorship_actions.py --delete --confirm
+
+# 4. Ingest with new system
+python ingest_robust_v2.py --all
+
+
+VERIFICATION COMMANDS:
+======================
+
+# Check PersonBill links
+python -c "from models.database import SessionLocal, PersonBill; db = SessionLocal(); print(f'PersonBill links: {db.query(PersonBill).count()}'); db.close()"
+
+# Check Bills needing enrichment
+python -c "from models.database import SessionLocal, Bill; db = SessionLocal(); needs = db.query(Bill).filter(Bill.needs_enrichment==1).count(); print(f'Bills needing enrichment: {needs}'); db.close()"
+
+# Check Action table (should be 0 or unchanged after ingest_robust_v2.py)
+python -c "from models.database import SessionLocal, Action; db = SessionLocal(); print(f'Action rows: {db.query(Action).count()}'); db.close()"
+
+
+FILES CHANGED:
+==============
+✅ models/database.py - Added PersonBill, Bill.needs_enrichment
+✅ ingest_robust_v2.py - NEW (replaces ingest_robust.py)
+✅ verify_ingestion_v2.py - NEW (replaces verify_ingestion.py)
+✅ cleanup_sponsorship_actions.py - NEW (Option B cleanup)
+✅ test_personbill_links.py - NEW (test PersonBill ingestion)
+✅ test_enrich_once.py - NEW (test bill enrichment logic)
+
+
+DEPRECATION NOTICE:
+===================
+⚠️ DO NOT USE:
+   - ingest_robust.py (old version - pollutes Action table)
+   - verify_ingestion.py (old version - shows inflated Action counts)
+
+✅ USE INSTEAD:
+   - ingest_robust_v2.py (PersonBill-based ingestion)
+   - verify_ingestion_v2.py (PersonBill-based verification)
+
+
+WHAT'S NEXT:
+============
+After running ingestion, you need to:
+
+1. Enrich bills (TODO - update jobs/enrich_bills.py):
+   python jobs/enrich_bills.py --only-needs-enrichment
+
+2. Update claim evaluation to use PersonBill:
+   - Check PersonBill.relationship_type == 'Sponsored' for sponsorship evidence
+   - Link to Bill → BillAction for status verification
+
+3. Schedule jobs:
+   - Daily: python ingest_robust_v2.py --all
+   - Hourly: python jobs/enrich_bills.py --only-needs-enrichment
+   - After enrichment: python jobs/recompute_evaluations.py --dirty-only
+
+
+TROUBLESHOOTING:
+================
+
+Q: Test fails with "table person_bills already exists"?
+A: Run: rm wethepeople.db; then recreate
+
+Q: Action table still has sponsorship rows?
+A: Run Option B cleanup: python cleanup_sponsorship_actions.py --delete --confirm
+
+Q: Ingestion creates duplicate PersonBill links?
+A: UNIQUE constraint prevents this - check logs for errors
+
+Q: Bills not getting enriched?
+A: Enrichment job needs separate update (jobs/enrich_bills.py)
+
+
+END OF QUICK START GUIDE

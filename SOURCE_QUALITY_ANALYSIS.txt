@@ -1,0 +1,37 @@
+"""
+Source Quality Analysis - Schumer & Wyden
+Current state: 0% matchability for both
+
+CHUCK SCHUMER - Current Issues:
+================================
+Source: https://www.schumer.senate.gov/newsroom/press-releases
+Content: 95% funding announcements (NY earmarks/grants)
+Signal: 1/19 has "introduced", 0/19 have bill numbers
+Problem: Press releases page is mixed - constituent service drowns out legislation
+
+Recommended alternatives to test:
+1. https://www.schumer.senate.gov/legislation - if exists
+2. Filter press releases by searching for "introduced" or "bill"
+3. Use his official .gov legislation tracker if available
+
+RON WYDEN - Current Issues:
+===========================
+Source: https://www.wyden.senate.gov/news/press-releases  
+Content: 5/7 funding/town halls, 2/7 have "introduced"
+Signal: 0/7 have bill numbers despite "introduced" claims
+Problem: Text truncation at ~100 chars cutting off bill details
+
+Recommended alternatives to test:
+1. https://www.wyden.senate.gov/news/legislation - if exists
+2. Increase scraper max_words from 100 to 300+
+3. Filter for "legislation" category if available
+
+NEXT ACTIONS:
+=============
+1. Check if these sites have /legislation or /bills pages
+2. If not, tune scraper to extract more text (300+ words)
+3. Try category filters on press releases (legislation vs funding)
+4. Sample 5-10 newest from new source before full ingest
+"""
+
+print(__doc__)

@@ -1,0 +1,125 @@
+STEP 1A SOURCE TUNING - DIAGNOSTIC REPORT
+==========================================
+
+FINDINGS:
+=========
+
+1. TEXT TRUNCATION ROOT CAUSE FOUND
+------------------------------------
+File: jobs/ingest_claims.py, line 343
+Code: if word_count < 10 or word_count > 100: continue
+
+Current limit: 100 words per claim sentence
+Impact: Truncates claims mid-sentence before bill names/numbers appear
+
+Evidence from database:
+- Schumer claim #19: "...introduced bipartisan legislation to support and extend..." (28 words, incomplete)
+- Wyden claim #42: "...introduced a pair of bills that would prevent..." (31 words, no bill names)
+
+2. SOURCE QUALITY ISSUES
+-------------------------
+SCHUMER:
+- Source: schumer.senate.gov/newsroom/press-releases
+- Content mix: 95% funding announcements, 5% legislation  
+- 18/19 claims about "secured $X in federal funding"
+- Only 1/19 mentions "introduced" (but truncated)
+- URLs all point to: #aria-skip-press (pagination anchor, not actual articles)
+
+WYDEN:
+- Source: wyden.senate.gov/news/press-releases
+- Content mix: 71% funding/town halls, 29% legislation
+- 2/7 claims mention "introduced" (but truncated)
+- Better than Schumer but still low signal
+
+3. URL EXTRACTION ISSUE (SCHUMER)
+----------------------------------
+All Schumer URLs: "https://www.schumer.senate.gov/newsroom/press-releases#aria-skip-press"
+This is the index page anchor, not individual press release URLs
+Suggests link extraction failed - grabbed pagination landmark instead of article links
+
+
+IMMEDIATE FIXES REQUIRED:
+==========================
+
+FIX 1: Increase word limit (IMMEDIATE, low risk)
+------------------------------------------------
+Change: jobs/ingest_claims.py line 343
+From:   if word_count < 10 or word_count > 100:
+To:     if word_count < 10 or word_count > 200:
+
+Rationale:
+- 100 words is mid-sentence for Senate press releases
+- Warren report shows this was already increased from 60→100
+- 200 words captures full statements with bill details
+- AOC's working claims are short (28-39 words) so this won't hurt them
+
+Test after fix:
+1. Delete Schumer + Wyden claims
+2. Re-ingest with --limit-pages 5
+3. Check if claim #19 now contains full bill name
+4. Check if claim #42 now contains both bill names
+
+FIX 2: Fix Schumer URL extraction (CRITICAL)
+--------------------------------------------
+Problem: All URLs are "#aria-skip-press" anchor, not actual article links
+Debug: Check link extraction logic in jobs/ingest_claims.py
+Likely cause: Regex doesn't match Schumer's press release URL pattern
+
+Steps:
+1. Visit schumer.senate.gov/newsroom/press-releases
+2. Inspect source for press release link pattern
+3. Update link extraction regex in jobs/ingest_claims.py
+4. Test with --dry-run before full ingest
+
+
+ALTERNATIVE SOURCES TO TEST (AFTER fixes):
+===========================================
+
+Once word limit + URL extraction fixed, if matchability still <10%:
+
+Schumer:
+- Try searching for "?topic=legislation" or "?category=bills"
+- Check if he has a dedicated legislation page
+- Consider congress.gov API for bills he's sponsored (authoritative)
+
+Wyden:
+- Try "/news/legislation" endpoint
+- Filter press releases for "introduced" or "cosponsored"
+- Finance Committee legislation page (he chairs it)
+
+
+RECOMMENDED EXECUTION ORDER:
+============================
+
+PHASE 1 (do now):
+1. Increase word limit 100→200 in ingest_claims.py
+2. Fix Schumer URL extraction issue
+3. Delete existing Schumer + Wyden claims
+4. Re-ingest both with --limit-pages 10
+5. Run claim_matchability.py --person-id chuck_schumer --verbose
+6. Run claim_matchability.py --person-id ron_wyden --verbose
+
+Expected outcome:
+- Claims capture full sentences with bill names
+- Schumer URLs point to actual articles not #anchor
+- Matchability increases from 0% to 10-20%
+- At least 2-3 claims per member mention bill numbers or Act names
+
+PHASE 2 (if Phase 1 matchability still <10%):
+1. Test alternative source URLs
+2. Add source category filters
+3. Consider Congress.gov API integration
+
+PHASE 3 (if Phase 2 still <20%):
+1. Implement Step 2-lite: Bill number extraction from full text
+2. Add H.R./S. #### regex extraction
+3. Store extracted bill numbers in claims metadata
+
+
+SUCCESS METRICS:
+================
+- After Phase 1: ≥10% matchability for both members
+- After Phase 2: ≥20% matchability for both members  
+- Claims contain bill numbers or Act names
+- Text not truncated mid-sentence
+- URLs point to actual articles

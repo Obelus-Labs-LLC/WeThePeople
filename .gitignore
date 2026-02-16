@@ -1,0 +1,54 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node (frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/
+.claude/
+
+# Raw data (too large for git; fetched via ingestion pipeline)
+data/raw/
+
+# Windows reserved device names
+nul
+
+# Temp
+*.tmp
+*.bak
