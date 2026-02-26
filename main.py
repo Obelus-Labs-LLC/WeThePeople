@@ -1,8 +1,6 @@
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, Query, HTTPException, Depends
-from services.auth import require_press_key
-from services.rate_limit import RateLimitMiddleware
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from models.database import (
     SessionLocal,
@@ -18,6 +16,31 @@ from models.database import (
     PersonBill,
     GoldLedgerEntry,
     TrackedMember,
+)
+from models.finance_models import (
+    TrackedInstitution,
+    SECFiling,
+    FDICFinancial,
+    CFPBComplaint,
+    FREDObservation,
+    FedPressRelease,
+)
+from models.health_models import (
+    TrackedCompany,
+    FDAAdverseEvent,
+    FDARecall,
+    ClinicalTrial,
+    CMSPayment,
+    SECHealthFiling,
+)
+from models.market_models import StockFundamentals
+from models.tech_models import (
+    TrackedTechCompany,
+    SECTechFiling,
+    TechPatent,
+    GovernmentContract,
+    LobbyingRecord,
+    FTCEnforcement,
 )
 from sqlalchemy import func, desc
 from sqlalchemy.exc import OperationalError
@@ -67,12 +90,9 @@ if _cors_origins:
         CORSMiddleware,
         allow_origins=_cors_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "X-WTP-API-KEY"],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
-
-# Rate limiting (opt-in via WTP_RATE_LIMIT_ENABLED=1)
-app.add_middleware(RateLimitMiddleware)
 
 
 LEDGER_TIER_VALUES = ("strong", "moderate", "weak", "none")
@@ -91,7 +111,7 @@ async def startup_event():
         print(f"[WARN] Failed to load Federal Register data: {e}")
 
 
-@app.get("/ops/runtime", dependencies=[Depends(require_press_key)])
+@app.get("/ops/runtime")
 def get_runtime_info():
     """Debug endpoint: expose runtime configuration to prevent wrong-server issues"""
     from models.database import DATABASE_URL
@@ -260,7 +280,7 @@ def get_ledger_claim(claim_id: int):
         db.close()
 
 
-@app.get("/ops/coverage", dependencies=[Depends(require_press_key)])
+@app.get("/ops/coverage")
 def get_ops_coverage(
     person_id: Optional[str] = Query(
         None,
@@ -567,7 +587,7 @@ def search_actions(
 
 # --- CLAIMS API ---
 
-@app.post("/claims", dependencies=[Depends(require_press_key)])
+@app.post("/claims")
 def create_claim(
     person_id: str,
     text: str,
@@ -646,7 +666,7 @@ def create_claim(
         db.close()
 
 
-@app.get("/claims/{claim_id}", dependencies=[Depends(require_press_key)])
+@app.get("/claims/{claim_id}")
 def get_claim(claim_id: int):
     """Get a single claim by ID."""
     db = SessionLocal()
@@ -671,7 +691,7 @@ def get_claim(claim_id: int):
         db.close()
 
 
-@app.get("/claims", dependencies=[Depends(require_press_key)])
+@app.get("/claims")
 def list_claims(
     person_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
@@ -710,7 +730,7 @@ def list_claims(
         db.close()
 
 
-@app.get("/claims/{claim_id}/matches", dependencies=[Depends(require_press_key)])
+@app.get("/claims/{claim_id}/matches")
 def match_claim_to_actions(
     claim_id: int,
     limit: int = Query(25, ge=1, le=100),
@@ -731,7 +751,7 @@ def match_claim_to_actions(
         db.close()
 
 
-@app.get("/claims/{claim_id}/matches_multi", dependencies=[Depends(require_press_key)])
+@app.get("/claims/{claim_id}/matches_multi")
 def match_claim_multi_category(
     claim_id: int,
     limit: int = Query(25, ge=1, le=100),
@@ -847,7 +867,7 @@ def match_claim_multi_category(
         db.close()
 
 
-@app.get("/people/{person_id}/performance", dependencies=[Depends(require_press_key)])
+@app.get("/people/{person_id}/performance")
 def person_performance(person_id: str, top: int = Query(10, ge=1, le=50)):
     """
     Evidence-backed performance summary for a person.
@@ -1006,7 +1026,7 @@ def get_dashboard_stats():
     """Aggregate stats for the dashboard hero section."""
     db = SessionLocal()
     try:
-        total_people = db.query(func.count(Person.id)).scalar() or 0
+        total_people = db.query(func.count(TrackedMember.id)).filter(TrackedMember.is_active == 1).scalar() or 0
         total_claims = db.query(func.count(Claim.id)).scalar() or 0
         total_actions = db.query(func.count(Action.id)).scalar() or 0
         total_bills = db.query(func.count(Bill.bill_id)).scalar() or 0
@@ -1032,7 +1052,7 @@ def get_dashboard_stats():
         db.close()
 
 
-@app.get("/claims/{claim_id}/evaluation", dependencies=[Depends(require_press_key)])
+@app.get("/claims/{claim_id}/evaluation")
 def get_claim_evaluation(claim_id: int):
     """
     Drill-down endpoint: returns full evaluation receipt for a single claim.
@@ -1228,7 +1248,7 @@ def compare_performance(person_id: List[str] = Query(..., min_length=1, max_leng
         db.close()
 
 
-@app.get("/graph/person/{person_id}", dependencies=[Depends(require_press_key)])
+@app.get("/graph/person/{person_id}")
 def get_person_graph(person_id: str):
     """
     Knowledge graph for a person: nodes (person, claims, actions, categories) and edges.
@@ -1355,7 +1375,7 @@ def get_person_graph(person_id: str):
         db.close()
 
 
-@app.get("/powermap/person/{person_id}", dependencies=[Depends(require_press_key)])
+@app.get("/powermap/person/{person_id}")
 def get_person_power_map(
     person_id: str,
     limit: int = Query(200, ge=1, le=2000),
@@ -1375,7 +1395,7 @@ def get_person_power_map(
 # Vote Ingestion & Query Endpoints (Phase 2)
 # -------------------------
 
-@app.post("/votes/ingest", dependencies=[Depends(require_press_key)])
+@app.post("/votes/ingest")
 def ingest_votes(congress: int = Query(119), limit: int = Query(50)):
     """
     Ingest recent House roll call votes from Congress.gov.
@@ -1508,6 +1528,33 @@ def get_vote_detail(vote_id: int):
 # ============================================================================
 
 
+@app.get("/bills/enrichment/stats")
+def get_bill_enrichment_stats():
+    """Enrichment coverage statistics for the bills table."""
+    db = SessionLocal()
+    try:
+        total = db.query(Bill).count()
+        enriched = db.query(Bill).filter(Bill.needs_enrichment == 0).count()
+        with_summary = db.query(Bill).filter(Bill.summary_text.isnot(None)).count()
+        with_text_url = db.query(Bill).filter(Bill.full_text_url.isnot(None)).count()
+        with_status = db.query(Bill).filter(Bill.status_bucket.isnot(None)).count()
+        with_policy = db.query(Bill).filter(Bill.policy_area.isnot(None)).count()
+
+        return {
+            "total_bills": total,
+            "enriched": enriched,
+            "needs_enrichment": total - enriched,
+            "pct_enriched": round(enriched / total * 100, 1) if total else 0,
+            "with_summary": with_summary,
+            "pct_with_summary": round(with_summary / total * 100, 1) if total else 0,
+            "with_text_url": with_text_url,
+            "with_status_bucket": with_status,
+            "with_policy_area": with_policy,
+        }
+    finally:
+        db.close()
+
+
 @app.get("/bills/{bill_id}")
 def get_bill(bill_id: str):
     """Bill summary for drilldown screens.
@@ -1559,10 +1606,15 @@ def get_bill(bill_id: str):
             "introduced_date": introduced_dt.date().isoformat() if introduced_dt else None,
             "sponsor_person_id": sponsor_person_id,
             "policy_area": bill.policy_area,
+            "summary_text": bill.summary_text,
+            "summary_date": bill.summary_date,
+            "full_text_url": bill.full_text_url,
+            "is_enriched": bill.needs_enrichment == 0,
             "source_urls": source_urls_list,
         }
     finally:
         db.close()
+
 
 @app.get("/bills/{bill_id}/timeline")
 def get_bill_timeline(
@@ -1745,8 +1797,1466 @@ def get_action_detail(action_id: int):
             except Exception as e:
                 # Don't fail if receipt unavailable
                 response["receipts"] = {"error": str(e)}
-        
+
         return response
-    
+
+    finally:
+        db.close()
+
+
+# ============================================================================
+# FINANCE SECTOR ENDPOINTS
+# ============================================================================
+
+
+@app.get("/finance/dashboard/stats")
+def get_finance_dashboard_stats():
+    """Aggregate stats for the finance dashboard."""
+    db = SessionLocal()
+    try:
+        total_institutions = db.query(func.count(TrackedInstitution.id)).filter(TrackedInstitution.is_active == 1).scalar() or 0
+        total_filings = db.query(func.count(SECFiling.id)).scalar() or 0
+        total_financials = db.query(func.count(FDICFinancial.id)).scalar() or 0
+        total_complaints = db.query(func.count(CFPBComplaint.id)).scalar() or 0
+        total_fred = db.query(func.count(FREDObservation.id)).scalar() or 0
+        total_press = db.query(func.count(FedPressRelease.id)).scalar() or 0
+
+        by_sector = dict(
+            db.query(TrackedInstitution.sector_type, func.count(TrackedInstitution.id))
+            .filter(TrackedInstitution.is_active == 1)
+            .group_by(TrackedInstitution.sector_type)
+            .all()
+        )
+
+        return {
+            "total_institutions": total_institutions,
+            "total_filings": total_filings,
+            "total_financials": total_financials,
+            "total_complaints": total_complaints,
+            "total_fred_observations": total_fred,
+            "total_press_releases": total_press,
+            "by_sector": by_sector,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/finance/institutions")
+def get_finance_institutions(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    q: Optional[str] = Query(None, description="Search by name or ticker"),
+    sector_type: Optional[str] = Query(None, description="Filter by sector_type"),
+):
+    """List tracked financial institutions."""
+    db = SessionLocal()
+    try:
+        query = db.query(TrackedInstitution).filter(TrackedInstitution.is_active == 1)
+
+        if q:
+            like = f"%{q.strip().lower()}%"
+            query = query.filter(
+                func.lower(TrackedInstitution.display_name).like(like)
+                | func.lower(TrackedInstitution.ticker).like(like)
+                | func.lower(TrackedInstitution.institution_id).like(like)
+            )
+
+        if sector_type:
+            query = query.filter(TrackedInstitution.sector_type == sector_type)
+
+        total = query.count()
+        rows = query.order_by(TrackedInstitution.display_name).offset(offset).limit(limit).all()
+
+        institutions = []
+        for r in rows:
+            # Count data for each institution
+            filing_count = db.query(func.count(SECFiling.id)).filter(SECFiling.institution_id == r.institution_id).scalar() or 0
+            complaint_count = db.query(func.count(CFPBComplaint.id)).filter(CFPBComplaint.institution_id == r.institution_id).scalar() or 0
+
+            institutions.append({
+                "institution_id": r.institution_id,
+                "display_name": r.display_name,
+                "ticker": r.ticker,
+                "sector_type": r.sector_type,
+                "headquarters": r.headquarters,
+                "logo_url": r.logo_url,
+                "filing_count": filing_count,
+                "complaint_count": complaint_count,
+            })
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "institutions": institutions,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/finance/institutions/{institution_id}")
+def get_finance_institution(institution_id: str):
+    """Get detail for a single institution."""
+    db = SessionLocal()
+    try:
+        inst = db.query(TrackedInstitution).filter_by(institution_id=institution_id).first()
+        if not inst:
+            raise HTTPException(status_code=404, detail=f"Institution '{institution_id}' not found")
+
+        # Counts
+        filing_count = db.query(func.count(SECFiling.id)).filter(SECFiling.institution_id == institution_id).scalar() or 0
+        complaint_count = db.query(func.count(CFPBComplaint.id)).filter(CFPBComplaint.institution_id == institution_id).scalar() or 0
+        financial_count = db.query(func.count(FDICFinancial.id)).filter(FDICFinancial.institution_id == institution_id).scalar() or 0
+        fred_count = db.query(func.count(FREDObservation.id)).filter(FREDObservation.institution_id == institution_id).scalar() or 0
+        press_count = db.query(func.count(FedPressRelease.id)).filter(FedPressRelease.institution_id == institution_id).scalar() or 0
+
+        # Latest FDIC financial
+        latest_financial = (
+            db.query(FDICFinancial)
+            .filter_by(institution_id=institution_id)
+            .order_by(desc(FDICFinancial.report_date))
+            .first()
+        )
+
+        latest_fin_data = None
+        if latest_financial:
+            latest_fin_data = {
+                "report_date": str(latest_financial.report_date) if latest_financial.report_date else None,
+                "total_assets": latest_financial.total_assets,
+                "total_deposits": latest_financial.total_deposits,
+                "net_income": latest_financial.net_income,
+                "roa": latest_financial.roa,
+                "roe": latest_financial.roe,
+                "tier1_capital_ratio": latest_financial.tier1_capital_ratio,
+            }
+
+        # Latest stock fundamentals
+        latest_stock = (
+            db.query(StockFundamentals)
+            .filter_by(entity_type="institution", entity_id=institution_id)
+            .order_by(desc(StockFundamentals.snapshot_date))
+            .first()
+        )
+        stock_data = None
+        if latest_stock:
+            stock_data = {
+                "snapshot_date": str(latest_stock.snapshot_date) if latest_stock.snapshot_date else None,
+                "market_cap": latest_stock.market_cap,
+                "pe_ratio": latest_stock.pe_ratio,
+                "eps": latest_stock.eps,
+                "dividend_yield": latest_stock.dividend_yield,
+                "week_52_high": latest_stock.week_52_high,
+                "week_52_low": latest_stock.week_52_low,
+                "profit_margin": latest_stock.profit_margin,
+            }
+
+        return {
+            "institution_id": inst.institution_id,
+            "display_name": inst.display_name,
+            "ticker": inst.ticker,
+            "sector_type": inst.sector_type,
+            "headquarters": inst.headquarters,
+            "logo_url": inst.logo_url,
+            "sec_cik": inst.sec_cik,
+            "fdic_cert": inst.fdic_cert,
+            "filing_count": filing_count,
+            "complaint_count": complaint_count,
+            "financial_count": financial_count,
+            "fred_observation_count": fred_count,
+            "press_release_count": press_count,
+            "latest_financial": latest_fin_data,
+            "latest_stock": stock_data,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/finance/institutions/{institution_id}/filings")
+def get_institution_filings(
+    institution_id: str,
+    form_type: Optional[str] = Query(None, description="Filter by form type (10-K, 10-Q, 8-K)"),
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Get SEC filings for an institution."""
+    db = SessionLocal()
+    try:
+        query = db.query(SECFiling).filter_by(institution_id=institution_id)
+
+        if form_type:
+            query = query.filter(SECFiling.form_type == form_type)
+
+        total = query.count()
+        rows = query.order_by(desc(SECFiling.filing_date)).offset(offset).limit(limit).all()
+
+        filings = []
+        for f in rows:
+            filings.append({
+                "id": f.id,
+                "accession_number": f.accession_number,
+                "form_type": f.form_type,
+                "filing_date": str(f.filing_date) if f.filing_date else None,
+                "primary_doc_url": f.primary_doc_url,
+                "filing_url": f.filing_url,
+                "description": f.description,
+            })
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "filings": filings,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/finance/institutions/{institution_id}/financials")
+def get_institution_financials(
+    institution_id: str,
+    limit: int = Query(20, ge=1, le=80),
+    offset: int = Query(0, ge=0),
+):
+    """Get FDIC quarterly financials for an institution."""
+    db = SessionLocal()
+    try:
+        query = db.query(FDICFinancial).filter_by(institution_id=institution_id)
+
+        total = query.count()
+        rows = query.order_by(desc(FDICFinancial.report_date)).offset(offset).limit(limit).all()
+
+        financials = []
+        for f in rows:
+            financials.append({
+                "id": f.id,
+                "report_date": str(f.report_date) if f.report_date else None,
+                "total_assets": f.total_assets,
+                "total_deposits": f.total_deposits,
+                "net_income": f.net_income,
+                "net_loans": f.net_loans,
+                "roa": f.roa,
+                "roe": f.roe,
+                "tier1_capital_ratio": f.tier1_capital_ratio,
+                "efficiency_ratio": f.efficiency_ratio,
+                "noncurrent_loan_ratio": f.noncurrent_loan_ratio,
+                "net_charge_off_ratio": f.net_charge_off_ratio,
+            })
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "financials": financials,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/finance/institutions/{institution_id}/complaints")
+def get_institution_complaints(
+    institution_id: str,
+    product: Optional[str] = Query(None, description="Filter by product"),
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Get CFPB complaints for an institution."""
+    db = SessionLocal()
+    try:
+        query = db.query(CFPBComplaint).filter_by(institution_id=institution_id)
+
+        if product:
+            query = query.filter(CFPBComplaint.product == product)
+
+        total = query.count()
+        rows = query.order_by(desc(CFPBComplaint.date_received)).offset(offset).limit(limit).all()
+
+        complaints = []
+        for c in rows:
+            complaints.append({
+                "id": c.id,
+                "complaint_id": c.complaint_id,
+                "date_received": str(c.date_received) if c.date_received else None,
+                "product": c.product,
+                "sub_product": c.sub_product,
+                "issue": c.issue,
+                "sub_issue": c.sub_issue,
+                "company_response": c.company_response,
+                "timely_response": c.timely_response,
+                "consumer_disputed": c.consumer_disputed,
+                "state": c.state,
+            })
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "complaints": complaints,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/finance/institutions/{institution_id}/complaints/summary")
+def get_institution_complaint_summary(institution_id: str):
+    """Get complaint aggregation for an institution."""
+    db = SessionLocal()
+    try:
+        total = db.query(func.count(CFPBComplaint.id)).filter_by(institution_id=institution_id).scalar() or 0
+
+        by_product = dict(
+            db.query(CFPBComplaint.product, func.count(CFPBComplaint.id))
+            .filter_by(institution_id=institution_id)
+            .group_by(CFPBComplaint.product)
+            .all()
+        )
+
+        by_response = dict(
+            db.query(CFPBComplaint.company_response, func.count(CFPBComplaint.id))
+            .filter_by(institution_id=institution_id)
+            .group_by(CFPBComplaint.company_response)
+            .all()
+        )
+
+        timely_count = (
+            db.query(func.count(CFPBComplaint.id))
+            .filter_by(institution_id=institution_id, timely_response="Yes")
+            .scalar() or 0
+        )
+        timely_pct = round(timely_count / total * 100, 1) if total > 0 else None
+
+        return {
+            "total_complaints": total,
+            "by_product": by_product,
+            "by_response": by_response,
+            "timely_response_pct": timely_pct,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/finance/institutions/{institution_id}/fred")
+def get_institution_fred(
+    institution_id: str,
+    series_id: Optional[str] = Query(None, description="Filter by series (FEDFUNDS, CPIAUCSL, etc.)"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """FRED economic observations for an institution (Federal Reserve)."""
+    db = SessionLocal()
+    try:
+        query = db.query(FREDObservation).filter_by(institution_id=institution_id)
+        if series_id:
+            query = query.filter(FREDObservation.series_id == series_id)
+
+        total = query.count()
+        rows = query.order_by(desc(FREDObservation.observation_date)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "observations": [
+                {
+                    "id": o.id,
+                    "series_id": o.series_id,
+                    "series_title": o.series_title,
+                    "observation_date": str(o.observation_date) if o.observation_date else None,
+                    "value": o.value,
+                    "units": o.units,
+                }
+                for o in rows
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/finance/institutions/{institution_id}/press-releases")
+def get_institution_press_releases(
+    institution_id: str,
+    category: Optional[str] = Query(None, description="Filter by category"),
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Federal Reserve press releases for an institution."""
+    db = SessionLocal()
+    try:
+        query = db.query(FedPressRelease).filter_by(institution_id=institution_id)
+        if category:
+            query = query.filter(FedPressRelease.category == category)
+
+        total = query.count()
+        rows = query.order_by(desc(FedPressRelease.published_at)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "press_releases": [
+                {
+                    "id": p.id,
+                    "title": p.title,
+                    "link": p.link,
+                    "published_at": p.published_at.isoformat() if p.published_at else None,
+                    "category": p.category,
+                    "summary": p.summary,
+                }
+                for p in rows
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/finance/institutions/{institution_id}/stock")
+def get_institution_stock(institution_id: str):
+    """Latest stock fundamentals for an institution."""
+    db = SessionLocal()
+    try:
+        latest = (
+            db.query(StockFundamentals)
+            .filter_by(entity_type="institution", entity_id=institution_id)
+            .order_by(desc(StockFundamentals.snapshot_date))
+            .first()
+        )
+        if not latest:
+            return {"stock": None}
+
+        return {
+            "stock": {
+                "ticker": latest.ticker,
+                "snapshot_date": str(latest.snapshot_date) if latest.snapshot_date else None,
+                "market_cap": latest.market_cap,
+                "pe_ratio": latest.pe_ratio,
+                "forward_pe": latest.forward_pe,
+                "peg_ratio": latest.peg_ratio,
+                "price_to_book": latest.price_to_book,
+                "eps": latest.eps,
+                "revenue_ttm": latest.revenue_ttm,
+                "profit_margin": latest.profit_margin,
+                "operating_margin": latest.operating_margin,
+                "return_on_equity": latest.return_on_equity,
+                "dividend_yield": latest.dividend_yield,
+                "dividend_per_share": latest.dividend_per_share,
+                "week_52_high": latest.week_52_high,
+                "week_52_low": latest.week_52_low,
+                "day_50_moving_avg": latest.day_50_moving_avg,
+                "day_200_moving_avg": latest.day_200_moving_avg,
+                "sector": latest.sector,
+                "industry": latest.industry,
+            }
+        }
+    finally:
+        db.close()
+
+
+# ═══════════════════════════════════════════════════════════════
+# NEWS ENDPOINT (shared across sectors)
+# ═══════════════════════════════════════════════════════════════
+
+
+@app.get("/news/{query}")
+def get_news(query: str, limit: int = 10):
+    """Fetch recent news headlines from Google News RSS for any query."""
+    from connectors.news_feed import fetch_news
+    articles = fetch_news(query, limit=min(limit, 20))
+    return {"query": query, "articles": articles}
+
+
+# ═══════════════════════════════════════════════════════════════
+# HEALTH SECTOR ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+
+@app.get("/health/dashboard/stats")
+def get_health_dashboard_stats():
+    """Aggregate stats for the health dashboard."""
+    db = SessionLocal()
+    try:
+        total_companies = db.query(func.count(TrackedCompany.id)).filter(TrackedCompany.is_active == 1).scalar() or 0
+        total_events = db.query(func.count(FDAAdverseEvent.id)).scalar() or 0
+        total_recalls = db.query(func.count(FDARecall.id)).scalar() or 0
+        total_trials = db.query(func.count(ClinicalTrial.id)).scalar() or 0
+        total_payments = db.query(func.count(CMSPayment.id)).scalar() or 0
+        total_sec_filings = db.query(func.count(SECHealthFiling.id)).scalar() or 0
+
+        by_sector = dict(
+            db.query(TrackedCompany.sector_type, func.count(TrackedCompany.id))
+            .filter(TrackedCompany.is_active == 1)
+            .group_by(TrackedCompany.sector_type)
+            .all()
+        )
+
+        return {
+            "total_companies": total_companies,
+            "total_adverse_events": total_events,
+            "total_recalls": total_recalls,
+            "total_trials": total_trials,
+            "total_payments": total_payments,
+            "total_sec_filings": total_sec_filings,
+            "by_sector": by_sector,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/health/companies")
+def get_health_companies(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    q: Optional[str] = Query(None, description="Search by name or ticker"),
+    sector_type: Optional[str] = Query(None, description="Filter by sector_type"),
+):
+    """List tracked healthcare companies with optional search and filtering."""
+    db = SessionLocal()
+    try:
+        query = db.query(TrackedCompany).filter(TrackedCompany.is_active == 1)
+
+        if q:
+            like = f"%{q.strip().lower()}%"
+            query = query.filter(
+                func.lower(TrackedCompany.display_name).like(like)
+                | func.lower(TrackedCompany.ticker).like(like)
+            )
+
+        if sector_type:
+            query = query.filter(TrackedCompany.sector_type == sector_type)
+
+        total = query.count()
+        rows = query.order_by(TrackedCompany.display_name).offset(offset).limit(limit).all()
+
+        companies = []
+        for c in rows:
+            event_count = db.query(func.count(FDAAdverseEvent.id)).filter_by(company_id=c.company_id).scalar() or 0
+            recall_count = db.query(func.count(FDARecall.id)).filter_by(company_id=c.company_id).scalar() or 0
+            trial_count = db.query(func.count(ClinicalTrial.id)).filter_by(company_id=c.company_id).scalar() or 0
+
+            companies.append({
+                "company_id": c.company_id,
+                "display_name": c.display_name,
+                "ticker": c.ticker,
+                "sector_type": c.sector_type,
+                "headquarters": c.headquarters,
+                "logo_url": c.logo_url,
+                "adverse_event_count": event_count,
+                "recall_count": recall_count,
+                "trial_count": trial_count,
+            })
+
+        return {"total": total, "limit": limit, "offset": offset, "companies": companies}
+    finally:
+        db.close()
+
+
+@app.get("/health/companies/{company_id}")
+def get_health_company(company_id: str):
+    """Detail for a single tracked company, with safety + trial summary."""
+    db = SessionLocal()
+    try:
+        c = db.query(TrackedCompany).filter_by(company_id=company_id, is_active=1).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Company not found")
+
+        event_count = db.query(func.count(FDAAdverseEvent.id)).filter_by(company_id=company_id).scalar() or 0
+        recall_count = db.query(func.count(FDARecall.id)).filter_by(company_id=company_id).scalar() or 0
+        trial_count = db.query(func.count(ClinicalTrial.id)).filter_by(company_id=company_id).scalar() or 0
+        payment_count = db.query(func.count(CMSPayment.id)).filter_by(company_id=company_id).scalar() or 0
+        filing_count = db.query(func.count(SECHealthFiling.id)).filter_by(company_id=company_id).scalar() or 0
+
+        # Latest recall
+        latest_recall = (
+            db.query(FDARecall)
+            .filter_by(company_id=company_id)
+            .order_by(desc(FDARecall.recall_initiation_date))
+            .first()
+        )
+
+        # Trial breakdown by status
+        trials_by_status = dict(
+            db.query(ClinicalTrial.overall_status, func.count(ClinicalTrial.id))
+            .filter_by(company_id=company_id)
+            .group_by(ClinicalTrial.overall_status)
+            .all()
+        )
+
+        # Serious event count
+        serious_count = (
+            db.query(func.count(FDAAdverseEvent.id))
+            .filter_by(company_id=company_id, serious=1)
+            .scalar() or 0
+        )
+
+        # Latest stock fundamentals
+        latest_stock = (
+            db.query(StockFundamentals)
+            .filter_by(entity_type="company", entity_id=company_id)
+            .order_by(desc(StockFundamentals.snapshot_date))
+            .first()
+        )
+        stock_data = None
+        if latest_stock:
+            stock_data = {
+                "snapshot_date": str(latest_stock.snapshot_date) if latest_stock.snapshot_date else None,
+                "market_cap": latest_stock.market_cap,
+                "pe_ratio": latest_stock.pe_ratio,
+                "eps": latest_stock.eps,
+                "dividend_yield": latest_stock.dividend_yield,
+                "week_52_high": latest_stock.week_52_high,
+                "week_52_low": latest_stock.week_52_low,
+                "profit_margin": latest_stock.profit_margin,
+            }
+
+        return {
+            "company_id": c.company_id,
+            "display_name": c.display_name,
+            "ticker": c.ticker,
+            "sector_type": c.sector_type,
+            "headquarters": c.headquarters,
+            "logo_url": c.logo_url,
+            "fda_manufacturer_name": c.fda_manufacturer_name,
+            "ct_sponsor_name": c.ct_sponsor_name,
+            "sec_cik": c.sec_cik,
+            "adverse_event_count": event_count,
+            "recall_count": recall_count,
+            "trial_count": trial_count,
+            "payment_count": payment_count,
+            "filing_count": filing_count,
+            "serious_event_count": serious_count,
+            "trials_by_status": trials_by_status,
+            "latest_stock": stock_data,
+            "latest_recall": {
+                "recall_number": latest_recall.recall_number,
+                "classification": latest_recall.classification,
+                "recall_initiation_date": str(latest_recall.recall_initiation_date) if latest_recall.recall_initiation_date else None,
+                "product_description": latest_recall.product_description,
+                "reason_for_recall": latest_recall.reason_for_recall,
+                "status": latest_recall.status,
+            } if latest_recall else None,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/health/companies/{company_id}/adverse-events")
+def get_company_adverse_events(
+    company_id: str,
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """FDA adverse event reports for a company."""
+    db = SessionLocal()
+    try:
+        query = db.query(FDAAdverseEvent).filter_by(company_id=company_id)
+        total = query.count()
+        rows = query.order_by(desc(FDAAdverseEvent.receive_date)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "adverse_events": [
+                {
+                    "id": e.id,
+                    "report_id": e.report_id,
+                    "receive_date": str(e.receive_date) if e.receive_date else None,
+                    "serious": e.serious,
+                    "drug_name": e.drug_name,
+                    "reaction": e.reaction,
+                    "outcome": e.outcome,
+                }
+                for e in rows
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/health/companies/{company_id}/recalls")
+def get_company_recalls(
+    company_id: str,
+    classification: Optional[str] = Query(None, description="Filter by classification (e.g. 'Class I')"),
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """FDA recall/enforcement actions for a company."""
+    db = SessionLocal()
+    try:
+        query = db.query(FDARecall).filter_by(company_id=company_id)
+        if classification:
+            query = query.filter(FDARecall.classification == classification)
+
+        total = query.count()
+        rows = query.order_by(desc(FDARecall.recall_initiation_date)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "recalls": [
+                {
+                    "id": r.id,
+                    "recall_number": r.recall_number,
+                    "classification": r.classification,
+                    "recall_initiation_date": str(r.recall_initiation_date) if r.recall_initiation_date else None,
+                    "product_description": r.product_description,
+                    "reason_for_recall": r.reason_for_recall,
+                    "status": r.status,
+                }
+                for r in rows
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/health/companies/{company_id}/trials")
+def get_company_trials(
+    company_id: str,
+    status: Optional[str] = Query(None, description="Filter by overall_status"),
+    phase: Optional[str] = Query(None, description="Filter by phase"),
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Clinical trials sponsored by a company."""
+    db = SessionLocal()
+    try:
+        query = db.query(ClinicalTrial).filter_by(company_id=company_id)
+        if status:
+            query = query.filter(ClinicalTrial.overall_status == status)
+        if phase:
+            query = query.filter(ClinicalTrial.phase == phase)
+
+        total = query.count()
+        rows = query.order_by(desc(ClinicalTrial.start_date)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "trials": [
+                {
+                    "id": t.id,
+                    "nct_id": t.nct_id,
+                    "title": t.title,
+                    "overall_status": t.overall_status,
+                    "phase": t.phase,
+                    "start_date": str(t.start_date) if t.start_date else None,
+                    "conditions": t.conditions,
+                    "interventions": t.interventions,
+                    "enrollment": t.enrollment,
+                }
+                for t in rows
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/health/companies/{company_id}/payments")
+def get_company_payments(
+    company_id: str,
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """CMS Open Payments records for a company."""
+    db = SessionLocal()
+    try:
+        query = db.query(CMSPayment).filter_by(company_id=company_id)
+        total = query.count()
+        rows = query.order_by(desc(CMSPayment.payment_date)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "payments": [
+                {
+                    "id": p.id,
+                    "record_id": p.record_id,
+                    "payment_date": str(p.payment_date) if p.payment_date else None,
+                    "amount": p.amount,
+                    "payment_nature": p.payment_nature,
+                    "physician_name": p.physician_name,
+                    "physician_specialty": p.physician_specialty,
+                    "state": p.state,
+                }
+                for p in rows
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/health/companies/{company_id}/payments/summary")
+def get_company_payment_summary(company_id: str):
+    """Aggregated payment stats for a company."""
+    db = SessionLocal()
+    try:
+        total = db.query(func.count(CMSPayment.id)).filter_by(company_id=company_id).scalar() or 0
+        total_amount = db.query(func.sum(CMSPayment.amount)).filter_by(company_id=company_id).scalar() or 0.0
+
+        by_nature = dict(
+            db.query(CMSPayment.payment_nature, func.count(CMSPayment.id))
+            .filter_by(company_id=company_id)
+            .group_by(CMSPayment.payment_nature)
+            .all()
+        )
+
+        by_specialty = dict(
+            db.query(CMSPayment.physician_specialty, func.count(CMSPayment.id))
+            .filter_by(company_id=company_id)
+            .group_by(CMSPayment.physician_specialty)
+            .order_by(desc(func.count(CMSPayment.id)))
+            .limit(10)
+            .all()
+        )
+
+        return {
+            "total_payments": total,
+            "total_amount": round(float(total_amount), 2),
+            "by_nature": by_nature,
+            "by_specialty": by_specialty,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/health/companies/{company_id}/filings")
+def get_company_filings(
+    company_id: str,
+    form_type: Optional[str] = Query(None, description="Filter by form type (10-K, 10-Q, 8-K)"),
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """SEC EDGAR filings for a health company."""
+    db = SessionLocal()
+    try:
+        query = db.query(SECHealthFiling).filter_by(company_id=company_id)
+        if form_type:
+            query = query.filter(SECHealthFiling.form_type == form_type)
+
+        total = query.count()
+        rows = query.order_by(desc(SECHealthFiling.filing_date)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "filings": [
+                {
+                    "id": f.id,
+                    "accession_number": f.accession_number,
+                    "form_type": f.form_type,
+                    "filing_date": str(f.filing_date) if f.filing_date else None,
+                    "primary_doc_url": f.primary_doc_url,
+                    "filing_url": f.filing_url,
+                    "description": f.description,
+                }
+                for f in rows
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/health/companies/{company_id}/stock")
+def get_company_stock(company_id: str):
+    """Latest stock fundamentals for a health company."""
+    db = SessionLocal()
+    try:
+        latest = (
+            db.query(StockFundamentals)
+            .filter_by(entity_type="company", entity_id=company_id)
+            .order_by(desc(StockFundamentals.snapshot_date))
+            .first()
+        )
+        if not latest:
+            return {"stock": None}
+
+        return {
+            "stock": {
+                "ticker": latest.ticker,
+                "snapshot_date": str(latest.snapshot_date) if latest.snapshot_date else None,
+                "market_cap": latest.market_cap,
+                "pe_ratio": latest.pe_ratio,
+                "forward_pe": latest.forward_pe,
+                "peg_ratio": latest.peg_ratio,
+                "price_to_book": latest.price_to_book,
+                "eps": latest.eps,
+                "revenue_ttm": latest.revenue_ttm,
+                "profit_margin": latest.profit_margin,
+                "operating_margin": latest.operating_margin,
+                "return_on_equity": latest.return_on_equity,
+                "dividend_yield": latest.dividend_yield,
+                "dividend_per_share": latest.dividend_per_share,
+                "week_52_high": latest.week_52_high,
+                "week_52_low": latest.week_52_low,
+                "day_50_moving_avg": latest.day_50_moving_avg,
+                "day_200_moving_avg": latest.day_200_moving_avg,
+                "sector": latest.sector,
+                "industry": latest.industry,
+            }
+        }
+    finally:
+        db.close()
+
+
+# ============================================================================
+# TECHNOLOGY SECTOR ENDPOINTS
+# ============================================================================
+
+@app.get("/tech/dashboard/stats")
+def get_tech_dashboard_stats():
+    """Aggregate stats for the technology dashboard."""
+    db = SessionLocal()
+    try:
+        total_companies = db.query(TrackedTechCompany).filter(TrackedTechCompany.is_active == 1).count()
+        total_filings = db.query(SECTechFiling).count()
+        total_patents = db.query(TechPatent).count()
+        total_contracts = db.query(GovernmentContract).count()
+
+        by_sector = {}
+        rows = db.query(TrackedTechCompany.sector_type, func.count()).filter(
+            TrackedTechCompany.is_active == 1
+        ).group_by(TrackedTechCompany.sector_type).all()
+        for sector_type, count in rows:
+            by_sector[sector_type] = count
+
+        return {
+            "total_companies": total_companies,
+            "total_filings": total_filings,
+            "total_patents": total_patents,
+            "total_contracts": total_contracts,
+            "by_sector": by_sector,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies")
+def get_tech_companies(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    q: Optional[str] = Query(None),
+    sector_type: Optional[str] = Query(None),
+):
+    """List tracked tech companies with optional search and filtering."""
+    db = SessionLocal()
+    try:
+        query = db.query(TrackedTechCompany).filter(TrackedTechCompany.is_active == 1)
+
+        if q:
+            pattern = f"%{q}%"
+            query = query.filter(
+                (TrackedTechCompany.display_name.ilike(pattern))
+                | (TrackedTechCompany.company_id.ilike(pattern))
+                | (TrackedTechCompany.ticker.ilike(pattern))
+            )
+
+        if sector_type:
+            query = query.filter(TrackedTechCompany.sector_type == sector_type)
+
+        total = query.count()
+        companies = query.order_by(TrackedTechCompany.display_name).offset(offset).limit(limit).all()
+
+        results = []
+        for co in companies:
+            patent_count = db.query(TechPatent).filter_by(company_id=co.company_id).count()
+            contract_count = db.query(GovernmentContract).filter_by(company_id=co.company_id).count()
+            filing_count = db.query(SECTechFiling).filter_by(company_id=co.company_id).count()
+
+            results.append({
+                "company_id": co.company_id,
+                "display_name": co.display_name,
+                "ticker": co.ticker,
+                "sector_type": co.sector_type,
+                "headquarters": co.headquarters,
+                "logo_url": co.logo_url,
+                "patent_count": patent_count,
+                "contract_count": contract_count,
+                "filing_count": filing_count,
+            })
+
+        return {"total": total, "limit": limit, "offset": offset, "companies": results}
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies/{company_id}")
+def get_tech_company(company_id: str):
+    """Detail for a single tracked tech company with summary stats."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        patent_count = db.query(TechPatent).filter_by(company_id=company_id).count()
+        contract_count = db.query(GovernmentContract).filter_by(company_id=company_id).count()
+        filing_count = db.query(SECTechFiling).filter_by(company_id=company_id).count()
+
+        total_contract_value = db.query(func.sum(GovernmentContract.award_amount)).filter_by(
+            company_id=company_id
+        ).scalar() or 0
+
+        # Latest stock fundamentals
+        latest_stock = None
+        latest = db.query(StockFundamentals).filter_by(
+            entity_type="tech_company", entity_id=company_id
+        ).order_by(desc(StockFundamentals.snapshot_date)).first()
+        if latest:
+            latest_stock = {
+                "snapshot_date": str(latest.snapshot_date) if latest.snapshot_date else None,
+                "market_cap": latest.market_cap,
+                "pe_ratio": latest.pe_ratio,
+                "eps": latest.eps,
+                "dividend_yield": latest.dividend_yield,
+                "week_52_high": latest.week_52_high,
+                "week_52_low": latest.week_52_low,
+                "profit_margin": latest.profit_margin,
+            }
+
+        return {
+            "company_id": co.company_id,
+            "display_name": co.display_name,
+            "ticker": co.ticker,
+            "sector_type": co.sector_type,
+            "headquarters": co.headquarters,
+            "logo_url": co.logo_url,
+            "sec_cik": co.sec_cik,
+            "patent_count": patent_count,
+            "contract_count": contract_count,
+            "filing_count": filing_count,
+            "total_contract_value": total_contract_value,
+            "latest_stock": latest_stock,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies/{company_id}/filings")
+def get_tech_company_filings(
+    company_id: str,
+    form_type: Optional[str] = Query(None),
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """SEC EDGAR filings for a tech company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        query = db.query(SECTechFiling).filter_by(company_id=company_id)
+        if form_type:
+            query = query.filter(SECTechFiling.form_type == form_type)
+
+        total = query.count()
+        filings = query.order_by(desc(SECTechFiling.filing_date)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "filings": [
+                {
+                    "id": f.id,
+                    "accession_number": f.accession_number,
+                    "form_type": f.form_type,
+                    "filing_date": str(f.filing_date) if f.filing_date else None,
+                    "primary_doc_url": f.primary_doc_url,
+                    "filing_url": f.filing_url,
+                    "description": f.description,
+                }
+                for f in filings
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies/{company_id}/patents")
+def get_tech_company_patents(
+    company_id: str,
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """USPTO patents for a tech company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        query = db.query(TechPatent).filter_by(company_id=company_id)
+        total = query.count()
+        patents = query.order_by(desc(TechPatent.patent_date)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "patents": [
+                {
+                    "id": p.id,
+                    "patent_number": p.patent_number,
+                    "patent_title": p.patent_title,
+                    "patent_date": str(p.patent_date) if p.patent_date else None,
+                    "patent_abstract": p.patent_abstract,
+                    "num_claims": p.num_claims,
+                    "cpc_codes": p.cpc_codes,
+                }
+                for p in patents
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies/{company_id}/contracts")
+def get_tech_company_contracts(
+    company_id: str,
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Federal government contracts for a tech company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        query = db.query(GovernmentContract).filter_by(company_id=company_id)
+        total = query.count()
+        contracts = query.order_by(desc(GovernmentContract.award_amount)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "contracts": [
+                {
+                    "id": ct.id,
+                    "award_id": ct.award_id,
+                    "award_amount": ct.award_amount,
+                    "awarding_agency": ct.awarding_agency,
+                    "description": ct.description,
+                    "start_date": str(ct.start_date) if ct.start_date else None,
+                    "end_date": str(ct.end_date) if ct.end_date else None,
+                    "contract_type": ct.contract_type,
+                }
+                for ct in contracts
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies/{company_id}/contracts/summary")
+def get_tech_company_contract_summary(company_id: str):
+    """Aggregated contract stats for a tech company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        total_contracts = db.query(GovernmentContract).filter_by(company_id=company_id).count()
+        total_amount = db.query(func.sum(GovernmentContract.award_amount)).filter_by(
+            company_id=company_id
+        ).scalar() or 0
+
+        by_agency = {}
+        rows = db.query(
+            GovernmentContract.awarding_agency, func.count()
+        ).filter_by(company_id=company_id).group_by(
+            GovernmentContract.awarding_agency
+        ).order_by(func.count().desc()).limit(10).all()
+        for agency, count in rows:
+            if agency:
+                by_agency[agency] = count
+
+        by_type = {}
+        rows = db.query(
+            GovernmentContract.contract_type, func.count()
+        ).filter_by(company_id=company_id).group_by(GovernmentContract.contract_type).all()
+        for ctype, count in rows:
+            if ctype:
+                by_type[ctype] = count
+
+        return {
+            "total_contracts": total_contracts,
+            "total_amount": total_amount,
+            "by_agency": by_agency,
+            "by_type": by_type,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies/{company_id}/stock")
+def get_tech_company_stock(company_id: str):
+    """Latest stock fundamentals for a tech company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        latest = db.query(StockFundamentals).filter_by(
+            entity_type="tech_company", entity_id=company_id
+        ).order_by(desc(StockFundamentals.snapshot_date)).first()
+
+        if not latest:
+            return {"latest_stock": None}
+
+        return {
+            "latest_stock": {
+                "snapshot_date": str(latest.snapshot_date) if latest.snapshot_date else None,
+                "market_cap": latest.market_cap,
+                "pe_ratio": latest.pe_ratio,
+                "forward_pe": latest.forward_pe,
+                "peg_ratio": latest.peg_ratio,
+                "price_to_book": latest.price_to_book,
+                "eps": latest.eps,
+                "revenue_ttm": latest.revenue_ttm,
+                "profit_margin": latest.profit_margin,
+                "operating_margin": latest.operating_margin,
+                "return_on_equity": latest.return_on_equity,
+                "dividend_yield": latest.dividend_yield,
+                "dividend_per_share": latest.dividend_per_share,
+                "week_52_high": latest.week_52_high,
+                "week_52_low": latest.week_52_low,
+                "day_50_moving_avg": latest.day_50_moving_avg,
+                "day_200_moving_avg": latest.day_200_moving_avg,
+                "sector": latest.sector,
+                "industry": latest.industry,
+            }
+        }
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies/{company_id}/lobbying")
+def get_tech_company_lobbying(
+    company_id: str,
+    filing_year: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """Lobbying disclosure filings for a tech company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        query = db.query(LobbyingRecord).filter_by(company_id=company_id)
+        if filing_year:
+            query = query.filter(LobbyingRecord.filing_year == filing_year)
+
+        total = query.count()
+        records = query.order_by(desc(LobbyingRecord.filing_year), LobbyingRecord.filing_period).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "filings": [
+                {
+                    "id": r.id,
+                    "filing_uuid": r.filing_uuid,
+                    "filing_year": r.filing_year,
+                    "filing_period": r.filing_period,
+                    "income": r.income,
+                    "expenses": r.expenses,
+                    "registrant_name": r.registrant_name,
+                    "client_name": r.client_name,
+                    "lobbying_issues": r.lobbying_issues,
+                    "government_entities": r.government_entities,
+                }
+                for r in records
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies/{company_id}/lobbying/summary")
+def get_tech_company_lobbying_summary(company_id: str):
+    """Aggregated lobbying stats for a tech company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        total_filings = db.query(LobbyingRecord).filter_by(company_id=company_id).count()
+        total_income = db.query(func.sum(LobbyingRecord.income)).filter_by(
+            company_id=company_id
+        ).scalar() or 0
+
+        by_year = {}
+        rows = db.query(
+            LobbyingRecord.filing_year,
+            func.sum(LobbyingRecord.income),
+            func.count(),
+        ).filter_by(company_id=company_id).group_by(
+            LobbyingRecord.filing_year
+        ).order_by(LobbyingRecord.filing_year).all()
+        for year, income, count in rows:
+            by_year[str(year)] = {"income": income or 0, "filings": count}
+
+        top_firms = {}
+        rows = db.query(
+            LobbyingRecord.registrant_name,
+            func.sum(LobbyingRecord.income),
+            func.count(),
+        ).filter_by(company_id=company_id).group_by(
+            LobbyingRecord.registrant_name
+        ).order_by(func.sum(LobbyingRecord.income).desc()).limit(10).all()
+        for name, income, count in rows:
+            if name:
+                top_firms[name] = {"income": income or 0, "filings": count}
+
+        return {
+            "total_filings": total_filings,
+            "total_income": total_income,
+            "by_year": by_year,
+            "top_firms": top_firms,
+        }
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies/{company_id}/enforcement")
+def get_tech_company_enforcement(
+    company_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """FTC/DOJ enforcement actions for a tech company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        query = db.query(FTCEnforcement).filter_by(company_id=company_id)
+        total = query.count()
+        actions = query.order_by(desc(FTCEnforcement.case_date)).offset(offset).limit(limit).all()
+
+        total_penalties = db.query(func.sum(FTCEnforcement.penalty_amount)).filter_by(
+            company_id=company_id
+        ).scalar() or 0
+
+        return {
+            "total": total,
+            "total_penalties": total_penalties,
+            "limit": limit,
+            "offset": offset,
+            "actions": [
+                {
+                    "id": a.id,
+                    "case_title": a.case_title,
+                    "case_date": str(a.case_date) if a.case_date else None,
+                    "case_url": a.case_url,
+                    "enforcement_type": a.enforcement_type,
+                    "penalty_amount": a.penalty_amount,
+                    "description": a.description,
+                    "source": a.source,
+                }
+                for a in actions
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/tech/companies/{company_id}/contracts/trends")
+def get_tech_company_contract_trends(company_id: str):
+    """Contract value trends by year for a tech company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        contracts = db.query(GovernmentContract).filter_by(company_id=company_id).all()
+
+        by_year: Dict[str, Any] = {}
+        for ct in contracts:
+            year = str(ct.start_date.year) if ct.start_date else "Unknown"
+            if year not in by_year:
+                by_year[year] = {"total_amount": 0, "count": 0}
+            by_year[year]["total_amount"] += ct.award_amount or 0
+            by_year[year]["count"] += 1
+
+        sorted_years = sorted(
+            [{"year": y, **d} for y, d in by_year.items() if y != "Unknown"],
+            key=lambda x: x["year"],
+        )
+        if "Unknown" in by_year:
+            sorted_years.append({"year": "Unknown", **by_year["Unknown"]})
+
+        return {"trends": sorted_years}
+    finally:
+        db.close()
+
+
+@app.get("/tech/compare")
+def get_tech_comparison(
+    ids: str = Query(..., description="Comma-separated company IDs"),
+):
+    """Cross-company comparison for tech sector."""
+    db = SessionLocal()
+    try:
+        company_ids = [cid.strip() for cid in ids.split(",") if cid.strip()]
+        if not company_ids or len(company_ids) > 10:
+            raise HTTPException(status_code=400, detail="Provide 2-10 company IDs")
+
+        results = []
+        for cid in company_ids:
+            co = db.query(TrackedTechCompany).filter_by(company_id=cid).first()
+            if not co:
+                continue
+
+            patent_count = db.query(TechPatent).filter_by(company_id=cid).count()
+            contract_count = db.query(GovernmentContract).filter_by(company_id=cid).count()
+            filing_count = db.query(SECTechFiling).filter_by(company_id=cid).count()
+            total_contract_value = db.query(func.sum(GovernmentContract.award_amount)).filter_by(
+                company_id=cid
+            ).scalar() or 0
+            lobbying_total = db.query(func.sum(LobbyingRecord.income)).filter_by(
+                company_id=cid
+            ).scalar() or 0
+            enforcement_count = db.query(FTCEnforcement).filter_by(company_id=cid).count()
+            total_penalties = db.query(func.sum(FTCEnforcement.penalty_amount)).filter_by(
+                company_id=cid
+            ).scalar() or 0
+
+            latest = db.query(StockFundamentals).filter_by(
+                entity_type="tech_company", entity_id=cid
+            ).order_by(desc(StockFundamentals.snapshot_date)).first()
+
+            results.append({
+                "company_id": co.company_id,
+                "display_name": co.display_name,
+                "ticker": co.ticker,
+                "sector_type": co.sector_type,
+                "patent_count": patent_count,
+                "contract_count": contract_count,
+                "filing_count": filing_count,
+                "total_contract_value": total_contract_value,
+                "lobbying_total": lobbying_total,
+                "enforcement_count": enforcement_count,
+                "total_penalties": total_penalties,
+                "market_cap": latest.market_cap if latest else None,
+                "pe_ratio": latest.pe_ratio if latest else None,
+                "profit_margin": latest.profit_margin if latest else None,
+            })
+
+        return {"companies": results}
     finally:
         db.close()

@@ -194,6 +194,74 @@ def ingest_member_legislation(limit_pages=5, person_ids=None):
     print(f"{'='*60}")
 
 
+# ============================================================================
+# BILL ENRICHMENT ENDPOINTS
+# ============================================================================
+
+def fetch_bill_summary(congress: int, bill_type: str, bill_number: int) -> dict | None:
+    """
+    Fetch CRS summary for a bill from Congress.gov API.
+    Returns {"text": "...", "date": "YYYY-MM-DD"} or None.
+    """
+    bt = bill_type.lower()
+    url = f"https://api.congress.gov/v3/bill/{congress}/{bt}/{bill_number}/summaries"
+    r = robust_get(url, HEADERS, params={"format": "json"})
+    if not r or r.status_code != 200:
+        return None
+
+    data = r.json()
+    summaries = data.get("summaries", [])
+    if not summaries:
+        return None
+
+    # Pick the latest/most detailed summary (last in list is usually most recent)
+    best = summaries[-1]
+    text = best.get("text", "")
+    # Strip HTML tags from CRS summaries (they come as HTML)
+    import re
+    text = re.sub(r"<[^>]+>", "", text).strip()
+    if not text:
+        return None
+
+    return {
+        "text": text,
+        "date": best.get("updateDate") or best.get("actionDate"),
+    }
+
+
+def fetch_bill_text_url(congress: int, bill_type: str, bill_number: int) -> str | None:
+    """
+    Fetch URL to the latest text version of a bill from Congress.gov API.
+    Returns a congress.gov URL string or None.
+    """
+    bt = bill_type.lower()
+    url = f"https://api.congress.gov/v3/bill/{congress}/{bt}/{bill_number}/text"
+    r = robust_get(url, HEADERS, params={"format": "json"})
+    if not r or r.status_code != 200:
+        return None
+
+    data = r.json()
+    text_versions = data.get("textVersions", [])
+    if not text_versions:
+        return None
+
+    # Pick the latest text version (last in list)
+    latest = text_versions[-1]
+    formats = latest.get("formats", [])
+
+    # Prefer HTML format for readability, then PDF
+    for fmt in formats:
+        if fmt.get("type") == "Formatted Text":
+            return fmt.get("url")
+    for fmt in formats:
+        if fmt.get("type") == "PDF":
+            return fmt.get("url")
+    # Fallback: any URL
+    if formats:
+        return formats[0].get("url")
+    return None
+
+
 def find_or_create_source(session, url):
     """Find existing SourceDocument or create new one"""
     source = session.query(SourceDocument).filter(SourceDocument.url == url).first()
