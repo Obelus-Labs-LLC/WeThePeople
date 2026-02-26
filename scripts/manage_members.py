@@ -109,6 +109,47 @@ HIGH_IMPACT_50 = [
     {"person_id": "mitt_romney", "bioguide": "R000615", "name": "Mitt Romney", "chamber": "senate", "state": "UT", "party": "R"},
 ]
 
+# Expansion cohort: 30 additional high-profile 119th Congress members
+EXPANSION_30 = [
+    # Senate — Republican
+    {"person_id": "tim_scott", "bioguide": "S001184", "name": "Tim Scott", "chamber": "senate", "state": "SC", "party": "R"},
+    {"person_id": "lindsey_graham", "bioguide": "G000359", "name": "Lindsey Graham", "chamber": "senate", "state": "SC", "party": "R"},
+    {"person_id": "mitch_mcconnell", "bioguide": "M000355", "name": "Mitch McConnell", "chamber": "senate", "state": "KY", "party": "R"},
+    {"person_id": "john_cornyn", "bioguide": "C001056", "name": "John Cornyn", "chamber": "senate", "state": "TX", "party": "R"},
+    {"person_id": "tom_cotton", "bioguide": "C001095", "name": "Tom Cotton", "chamber": "senate", "state": "AR", "party": "R"},
+    {"person_id": "joni_ernst", "bioguide": "E000295", "name": "Joni Ernst", "chamber": "senate", "state": "IA", "party": "R"},
+    {"person_id": "pete_ricketts", "bioguide": "R000618", "name": "Pete Ricketts", "chamber": "senate", "state": "NE", "party": "R"},
+    {"person_id": "katie_britt", "bioguide": "B001319", "name": "Katie Britt", "chamber": "senate", "state": "AL", "party": "R"},
+
+    # Senate — Democrat
+    {"person_id": "cory_booker", "bioguide": "B001288", "name": "Cory Booker", "chamber": "senate", "state": "NJ", "party": "D"},
+    {"person_id": "chris_murphy", "bioguide": "M001169", "name": "Chris Murphy", "chamber": "senate", "state": "CT", "party": "D"},
+    {"person_id": "mark_warner", "bioguide": "W000805", "name": "Mark Warner", "chamber": "senate", "state": "VA", "party": "D"},
+    {"person_id": "tammy_duckworth", "bioguide": "D000622", "name": "Tammy Duckworth", "chamber": "senate", "state": "IL", "party": "D"},
+    {"person_id": "raphael_warnock", "bioguide": "W000790", "name": "Raphael Warnock", "chamber": "senate", "state": "GA", "party": "D"},
+    {"person_id": "john_fetterman", "bioguide": "F000479", "name": "John Fetterman", "chamber": "senate", "state": "PA", "party": "D"},
+    {"person_id": "sheldon_whitehouse", "bioguide": "W000802", "name": "Sheldon Whitehouse", "chamber": "senate", "state": "RI", "party": "D"},
+
+    # House — Republican
+    {"person_id": "dan_crenshaw", "bioguide": "C001120", "name": "Dan Crenshaw", "chamber": "house", "state": "TX", "party": "R"},
+    {"person_id": "byron_donalds", "bioguide": "D000032", "name": "Byron Donalds", "chamber": "house", "state": "FL", "party": "R"},
+    {"person_id": "andy_biggs", "bioguide": "B001302", "name": "Andy Biggs", "chamber": "house", "state": "AZ", "party": "R"},
+    {"person_id": "scott_perry", "bioguide": "P000605", "name": "Scott Perry", "chamber": "house", "state": "PA", "party": "R"},
+    {"person_id": "anna_paulina_luna", "bioguide": "L000596", "name": "Anna Paulina Luna", "chamber": "house", "state": "FL", "party": "R"},
+    {"person_id": "wesley_hunt", "bioguide": "H001095", "name": "Wesley Hunt", "chamber": "house", "state": "TX", "party": "R"},
+    {"person_id": "maria_salazar", "bioguide": "S000168", "name": "Maria Salazar", "chamber": "house", "state": "FL", "party": "R"},
+
+    # House — Democrat
+    {"person_id": "nancy_pelosi", "bioguide": "P000197", "name": "Nancy Pelosi", "chamber": "house", "state": "CA", "party": "D"},
+    {"person_id": "maxine_waters", "bioguide": "W000187", "name": "Maxine Waters", "chamber": "house", "state": "CA", "party": "D"},
+    {"person_id": "jerry_nadler", "bioguide": "N000002", "name": "Jerry Nadler", "chamber": "house", "state": "NY", "party": "D"},
+    {"person_id": "pete_aguilar", "bioguide": "A000371", "name": "Pete Aguilar", "chamber": "house", "state": "CA", "party": "D"},
+    {"person_id": "jim_himes", "bioguide": "H001047", "name": "Jim Himes", "chamber": "house", "state": "CT", "party": "D"},
+    {"person_id": "ro_khanna", "bioguide": "K000389", "name": "Ro Khanna", "chamber": "house", "state": "CA", "party": "D"},
+    {"person_id": "maxwell_frost", "bioguide": "F000476", "name": "Maxwell Frost", "chamber": "house", "state": "FL", "party": "D"},
+    {"person_id": "ritchie_torres", "bioguide": "T000486", "name": "Ritchie Torres", "chamber": "house", "state": "NY", "party": "D"},
+]
+
 
 def list_members(active_only=True):
     """List all tracked members."""
@@ -142,7 +183,7 @@ def list_members(active_only=True):
         db.close()
 
 
-def add_member(person_id, bioguide_id, name, chamber, state=None, party=None):
+def add_member(person_id, bioguide_id, name, chamber, state=None, party=None, photo_url=None):
     """Add a single member."""
     db = SessionLocal()
     try:
@@ -150,11 +191,11 @@ def add_member(person_id, bioguide_id, name, chamber, state=None, party=None):
         existing = db.query(TrackedMember).filter(
             (TrackedMember.person_id == person_id) | (TrackedMember.bioguide_id == bioguide_id)
         ).first()
-        
+
         if existing:
             print(f"[SKIP] Member already exists: {existing.display_name} ({existing.person_id})")
             return False
-        
+
         member = TrackedMember(
             person_id=person_id,
             bioguide_id=bioguide_id,
@@ -162,14 +203,15 @@ def add_member(person_id, bioguide_id, name, chamber, state=None, party=None):
             chamber=chamber.lower(),
             state=state,
             party=party,
+            photo_url=photo_url,
             is_active=1
         )
         db.add(member)
         db.commit()
-        
+
         print(f"[OK] Added: {name} ({person_id})")
         return True
-        
+
     except Exception as e:
         db.rollback()
         print(f"[ERROR] Error adding member: {e}")
@@ -180,12 +222,15 @@ def add_member(person_id, bioguide_id, name, chamber, state=None, party=None):
 
 def bulk_load_preset(preset_name):
     """Bulk load a preset list of members."""
-    if preset_name == "high_impact_50":
-        members_data = HIGH_IMPACT_50
-    else:
+    presets = {
+        "high_impact_50": HIGH_IMPACT_50,
+        "expansion_30": EXPANSION_30,
+    }
+    if preset_name not in presets:
         print(f"[ERROR] Unknown preset: {preset_name}")
-        print("Available presets: high_impact_50")
+        print(f"Available presets: {', '.join(presets.keys())}")
         return
+    members_data = presets[preset_name]
     
     print("=" * 70)
     print(f"BULK LOADING PRESET: {preset_name}")
@@ -217,6 +262,138 @@ def bulk_load_preset(preset_name):
     print(f"  Skipped (already exists): {skipped}")
     print(f"  Total: {len(members_data)}")
     print("=" * 70)
+
+
+def bulk_load_from_file(filepath):
+    """Bulk load members from a JSON seed file."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            members_data = json.load(f)
+    except FileNotFoundError:
+        print(f"[ERROR] Seed file not found: {filepath}")
+        return
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] Invalid JSON in seed file: {e}")
+        return
+
+    if not isinstance(members_data, list):
+        print("[ERROR] Seed file must contain a JSON array")
+        return
+
+    print("=" * 70)
+    print(f"BULK LOADING FROM FILE: {filepath}")
+    print("=" * 70)
+    print(f"Members in file: {len(members_data)}")
+    print()
+
+    added = 0
+    skipped = 0
+    errors = 0
+
+    for data in members_data:
+        try:
+            success = add_member(
+                person_id=data["person_id"],
+                bioguide_id=data.get("bioguide_id") or data.get("bioguide"),
+                name=data.get("display_name") or data.get("name"),
+                chamber=data["chamber"],
+                state=data.get("state"),
+                party=data.get("party"),
+                photo_url=data.get("photo_url"),
+            )
+            if success:
+                added += 1
+            else:
+                skipped += 1
+        except KeyError as e:
+            print(f"[ERROR] Missing required field {e} in entry: {data.get('person_id', '?')}")
+            errors += 1
+        except Exception as e:
+            print(f"[ERROR] Failed to add {data.get('person_id', '?')}: {e}")
+            errors += 1
+
+    print()
+    print("=" * 70)
+    print(f"SUMMARY:")
+    print(f"  Added:   {added}")
+    print(f"  Skipped: {skipped} (already exist)")
+    print(f"  Errors:  {errors}")
+    print(f"  Total:   {len(members_data)}")
+    print("=" * 70)
+
+
+def auto_set_sources():
+    """Auto-generate press release URLs for members missing claim_sources_json."""
+    # Custom URL overrides for non-standard patterns
+    CUSTOM_URLS = {
+        # Senate
+        "tim_scott": "https://www.scott.senate.gov/media-center/press-releases",
+        "lindsey_graham": "https://www.lgraham.senate.gov/public/index.cfm/press-releases",
+        "mitch_mcconnell": "https://www.mcconnell.senate.gov/public/index.cfm/pressreleases",
+        "john_cornyn": "https://www.cornyn.senate.gov/news",
+        "tom_cotton": "https://www.cotton.senate.gov/news/press-releases",
+        "joni_ernst": "https://www.ernst.senate.gov/news/press-releases",
+        "pete_ricketts": "https://www.ricketts.senate.gov/news/press-releases",
+        "katie_britt": "https://www.britt.senate.gov/news/press-releases",
+        "cory_booker": "https://www.booker.senate.gov/news/press",
+        "chris_murphy": "https://www.murphy.senate.gov/newsroom/press-releases",
+        "mark_warner": "https://www.warner.senate.gov/public/index.cfm/pressreleases",
+        "tammy_duckworth": "https://www.duckworth.senate.gov/news/press-releases",
+        "raphael_warnock": "https://www.warnock.senate.gov/newsroom/press-releases",
+        "john_fetterman": "https://www.fetterman.senate.gov/newsroom/press-releases",
+        "sheldon_whitehouse": "https://www.whitehouse.senate.gov/news/press-releases",
+        # House
+        "dan_crenshaw": "https://crenshaw.house.gov/media/press-releases",
+        "byron_donalds": "https://donalds.house.gov/media/press-releases",
+        "andy_biggs": "https://biggs.house.gov/media/press-releases",
+        "scott_perry": "https://perry.house.gov/media/press-releases",
+        "anna_paulina_luna": "https://luna.house.gov/media/press-releases",
+        "wesley_hunt": "https://hunt.house.gov/media/press-releases",
+        "maria_salazar": "https://salazar.house.gov/media/press-releases",
+        "nancy_pelosi": "https://pelosi.house.gov/news/press-releases",
+        "maxine_waters": "https://waters.house.gov/media-center/press-releases",
+        "jerry_nadler": "https://nadler.house.gov/press-releases",
+        "pete_aguilar": "https://aguilar.house.gov/media-center/press-releases",
+        "jim_himes": "https://himes.house.gov/media/press-releases",
+        "ro_khanna": "https://khanna.house.gov/media/press-releases",
+        "maxwell_frost": "https://frost.house.gov/media/press-releases",
+        "ritchie_torres": "https://torres.house.gov/media/press-releases",
+    }
+
+    db = SessionLocal()
+    try:
+        members = db.query(TrackedMember).filter(
+            TrackedMember.is_active == True,
+            TrackedMember.claim_sources_json.is_(None)
+        ).all()
+
+        if not members:
+            print("All active members already have claim sources configured.")
+            return
+
+        print(f"Found {len(members)} members without claim sources.\n")
+
+        updated = 0
+        for member in members:
+            pid = member.person_id
+            if pid in CUSTOM_URLS:
+                url = CUSTOM_URLS[pid]
+            elif member.chamber == "senate":
+                last = member.display_name.split()[-1].lower()
+                url = f"https://www.{last}.senate.gov/newsroom/press-releases"
+            else:
+                last = member.display_name.split()[-1].lower()
+                url = f"https://{last}.house.gov/media/press-releases"
+
+            sources = [{"type": "press", "url": url}]
+            member.claim_sources_json = json.dumps(sources)
+            updated += 1
+            print(f"[OK] {member.display_name}: {url}")
+
+        db.commit()
+        print(f"\nUpdated {updated} members with claim sources.")
+    finally:
+        db.close()
 
 
 def deactivate_member(person_id):
@@ -379,8 +556,9 @@ if __name__ == "__main__":
     add_parser.add_argument("--party", help="Party (D/R/I)")
     
     # bulk-load command
-    bulk_parser = subparsers.add_parser("bulk-load", help="Bulk load a preset")
-    bulk_parser.add_argument("--preset", required=True, help="Preset name (e.g., 'high_impact_50')")
+    bulk_parser = subparsers.add_parser("bulk-load", help="Bulk load from preset or seed file")
+    bulk_parser.add_argument("--preset", help="Preset name (e.g., 'high_impact_50')")
+    bulk_parser.add_argument("--seed-file", help="Path to JSON seed file (e.g., data/congress_119_seed.json)")
     
     # deactivate command
     deactivate_parser = subparsers.add_parser("deactivate", help="Deactivate a member")
@@ -399,7 +577,9 @@ if __name__ == "__main__":
     show_sources_parser = subparsers.add_parser("show-sources", help="Show claim sources")
     show_sources_parser.add_argument("--person-id", help="Show sources for specific person")
     show_sources_parser.add_argument("--all", action="store_true", help="Show all members")
-    
+
+    subparsers.add_parser("auto-sources", help="Auto-generate press URLs for members missing claim sources")
+
     args = parser.parse_args()
     
     if args.command == "list":
@@ -416,7 +596,13 @@ if __name__ == "__main__":
         )
     
     elif args.command == "bulk-load":
-        bulk_load_preset(args.preset)
+        if args.seed_file:
+            bulk_load_from_file(args.seed_file)
+        elif args.preset:
+            bulk_load_preset(args.preset)
+        else:
+            print("[ERROR] Must specify --preset or --seed-file")
+            sys.exit(1)
     
     elif args.command == "deactivate":
         deactivate_member(args.person_id)
@@ -432,6 +618,9 @@ if __name__ == "__main__":
             print("[!] Error: Must specify --person-id or --all")
         else:
             show_sources(person_id=args.person_id, show_all=args.all)
-    
+
+    elif args.command == "auto-sources":
+        auto_set_sources()
+
     else:
         parser.print_help()
