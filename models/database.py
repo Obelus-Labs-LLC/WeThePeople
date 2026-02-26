@@ -354,7 +354,12 @@ class Bill(Base):
     
     # Enrichment flag: mark bills that need full detail fetch
     needs_enrichment = Column(Integer, nullable=False, server_default="1", index=True)  # SQLite: 0=enriched, 1=needs_enrichment
-    
+
+    # Enrichment data (populated by enrich_bills job)
+    summary_text = Column(Text, nullable=True)                    # CRS summary from Congress API
+    summary_date = Column(String, nullable=True)                  # Date of the summary version
+    full_text_url = Column(String, nullable=True)                 # URL to latest text version on congress.gov
+
     # Raw data
     metadata_json = Column(JSON, nullable=True)
     
@@ -519,6 +524,12 @@ class PipelineRun(Base):
 
     status = Column(String, nullable=False, index=True)  # running|success|failed
     error = Column(Text, nullable=True)
+
+
+import models.finance_models  # noqa: F401 — register finance tables for Alembic
+import models.health_models  # noqa: F401 — register health tables for Alembic
+import models.market_models  # noqa: F401 — register market/stock tables for Alembic
+import models.tech_models  # noqa: F401 — register tech tables for Alembic
 
 
 if __name__ == "__main__":

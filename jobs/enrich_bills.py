@@ -23,6 +23,7 @@ from jobs.enrich_actions import (
     upsert_bill,
     ingest_bill_actions
 )
+from connectors.congress import fetch_bill_summary, fetch_bill_text_url
 from utils.normalization import normalize_bill_id
 
 
@@ -206,7 +207,32 @@ def enrich_bill(congress: int, bill_type: str, bill_number: int, db) -> dict:
         
         # 2. Upsert Bill summary
         bill = upsert_bill(congress, bill_type, bill_number, bill_data, db)
-        
+
+        # 2b. Fetch CRS summary
+        try:
+            summary = fetch_bill_summary(congress, bill_type, bill_number)
+            if summary:
+                bill.summary_text = summary["text"]
+                bill.summary_date = summary.get("date")
+                result["has_summary"] = True
+            else:
+                result["has_summary"] = False
+            time.sleep(0.3)  # polite delay between API calls
+        except Exception as e:
+            result["summary_error"] = str(e)
+
+        # 2c. Fetch full text URL
+        try:
+            text_url = fetch_bill_text_url(congress, bill_type, bill_number)
+            if text_url:
+                bill.full_text_url = text_url
+                result["has_text_url"] = True
+            else:
+                result["has_text_url"] = False
+            time.sleep(0.3)
+        except Exception as e:
+            result["text_url_error"] = str(e)
+
         # 3. Ingest BillAction timeline (with retry)
         actions_inserted = retry_with_backoff(
             lambda: ingest_bill_actions(
@@ -346,6 +372,8 @@ def run_enrichment_batch(
                     
                     print(f"  └─ Success")
                     print(f"     ├─ Actions inserted: {result['actions_inserted']}")
+                    print(f"     ├─ Summary: {'yes' if result.get('has_summary') else 'no'}")
+                    print(f"     ├─ Text URL: {'yes' if result.get('has_text_url') else 'no'}")
                     print(f"     └─ Status: {status}")
                 else:
                     stats["failed"] += 1
@@ -415,6 +443,8 @@ def verify_enrichment_coverage():
         total_bills = db.query(Bill).count()
         bills_with_status = db.query(Bill).filter(Bill.status_bucket.isnot(None)).count()
         bills_with_policy = db.query(Bill).filter(Bill.policy_area.isnot(None)).count()
+        bills_with_summary = db.query(Bill).filter(Bill.summary_text.isnot(None)).count()
+        bills_with_text_url = db.query(Bill).filter(Bill.full_text_url.isnot(None)).count()
         
         # BillAction stats
         total_actions = db.query(BillAction).count()
@@ -434,7 +464,9 @@ def verify_enrichment_coverage():
         print(f"  Total bills: {total_bills}")
         print(f"  With status_bucket: {bills_with_status} ({bills_with_status/total_bills*100 if total_bills else 0:.1f}%)")
         print(f"  With policy_area: {bills_with_policy} ({bills_with_policy/total_bills*100 if total_bills else 0:.1f}%)")
-        
+        print(f"  With summary: {bills_with_summary} ({bills_with_summary/total_bills*100 if total_bills else 0:.1f}%)")
+        print(f"  With text URL: {bills_with_text_url} ({bills_with_text_url/total_bills*100 if total_bills else 0:.1f}%)")
+
         print(f"\n📅 BillAction Table:")
         print(f"  Total actions: {total_actions}")
         print(f"  Bills with actions: {bills_with_actions}")
