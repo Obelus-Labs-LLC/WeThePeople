@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Animated,
   Dimensions,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -50,20 +51,13 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeOut }]}>
-      {/* Obelus Labs logo — stylized obelisk */}
+      {/* Obelus Labs logo */}
       <Animated.View style={[styles.logoContainer, { opacity: fadeAnim }]}>
-        <LinearGradient
-          colors={['#0EA5A0', '#0D8A86']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.obelisk}
-        >
-          <View style={styles.obeliskInner}>
-            <View style={styles.obeliskTop} />
-            <View style={styles.obeliskBody} />
-          </View>
-        </LinearGradient>
-
+        <Image
+          source={require('../../assets/obelus-logo.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
         <Text style={styles.companyName}>OBELUS LABS</Text>
       </Animated.View>
 
@@ -101,33 +95,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  obelisk: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 20,
     marginBottom: 16,
-  },
-  obeliskInner: {
-    alignItems: 'center',
-  },
-  obeliskTop: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 10,
-    borderRightWidth: 10,
-    borderBottomWidth: 14,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#F5F0E1',
-  },
-  obeliskBody: {
-    width: 12,
-    height: 22,
-    backgroundColor: '#F5F0E1',
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
   },
   companyName: {
     color: '#F5F0E1',

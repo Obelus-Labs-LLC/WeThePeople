@@ -55,7 +55,7 @@ export default function HomeScreen() {
           <View style={styles.divider} />
           <Text style={styles.headline}>Which sector are you interested in?</Text>
           <Text style={styles.subtitle}>
-            We track what the powerful actually do — actions, votes, and legislation.
+            We track what the powerful actually do — politics, finance, health, and tech.
           </Text>
         </View>
 

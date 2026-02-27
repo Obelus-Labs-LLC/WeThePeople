@@ -19,8 +19,17 @@ import type { DashboardStats, Person, RecentAction } from '../api/types';
 import { LoadingSpinner, StatCard, TierProgressBar, PartyBadge, ChamberBadge, EmptyState, TierBadge } from '../components/ui';
 
 // ── Expandable Activity Row ──
-function ExpandableActivity({ action, isLast }: { action: RecentAction; isLast: boolean }) {
+function ExpandableActivity({ action, isLast, onBillPress, onPersonPress }: {
+  action: RecentAction;
+  isLast: boolean;
+  onBillPress?: (billId: string) => void;
+  onPersonPress?: (personId: string) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+
+  const billId = action.bill_type && action.bill_number
+    ? `${action.bill_type}${action.bill_number}`
+    : null;
 
   return (
     <TouchableOpacity
@@ -30,7 +39,9 @@ function ExpandableActivity({ action, isLast }: { action: RecentAction; isLast: 
     >
       <View style={styles.activityContent}>
         <View style={styles.activityHeader}>
-          <Text style={styles.activityTitle} numberOfLines={expanded ? undefined : 1}>{action.title}</Text>
+          <Text style={styles.activityTitle} numberOfLines={expanded ? undefined : 1}>
+            {action.title ? action.title.charAt(0).toUpperCase() + action.title.slice(1) : ''}
+          </Text>
           <Ionicons
             name={expanded ? 'chevron-up' : 'chevron-down'}
             size={14}
@@ -46,15 +57,25 @@ function ExpandableActivity({ action, isLast }: { action: RecentAction; isLast: 
               <Text style={styles.expandedSummary}>{action.summary}</Text>
             )}
             <View style={styles.expandedMeta}>
-              <View style={styles.metaRow}>
-                <Ionicons name="person-outline" size={12} color={UI_COLORS.TEXT_MUTED} />
-                <Text style={styles.metaLabel}>{action.person_id.replace(/_/g, ' ')}</Text>
-              </View>
-              {action.bill_type && action.bill_number && (
-                <View style={styles.metaRow}>
-                  <Ionicons name="document-text-outline" size={12} color={UI_COLORS.TEXT_MUTED} />
-                  <Text style={styles.metaLabel}>{action.bill_type.toUpperCase()} {action.bill_number}</Text>
-                </View>
+              <TouchableOpacity
+                style={styles.metaRow}
+                onPress={() => onPersonPress?.(action.person_id)}
+              >
+                <Ionicons name="person-outline" size={12} color={UI_COLORS.ACCENT} />
+                <Text style={[styles.metaLabel, { color: UI_COLORS.ACCENT }]}>
+                  {action.person_id.replace(/_/g, ' ')}
+                </Text>
+              </TouchableOpacity>
+              {billId && (
+                <TouchableOpacity
+                  style={styles.metaRow}
+                  onPress={() => onBillPress?.(billId)}
+                >
+                  <Ionicons name="document-text-outline" size={12} color={UI_COLORS.ACCENT} />
+                  <Text style={[styles.metaLabel, { color: UI_COLORS.ACCENT, textDecorationLine: 'underline' }]}>
+                    {action.bill_type!.toUpperCase()} {action.bill_number}
+                  </Text>
+                </TouchableOpacity>
               )}
               {action.date && (
                 <View style={styles.metaRow}>
@@ -150,11 +171,11 @@ export default function PoliticsDashboardScreen() {
         {/* Hero */}
         <View style={styles.hero}>
           <Text style={styles.heroTitle}>
-            Tracking what politicians do — not just what they say
+            See what Congress is actually doing
           </Text>
           <Text style={styles.heroSubtitle}>
-            We track legislative actions, votes, and bills to show you
-            what your representatives are actually doing in office.
+            Every bill introduced, cosponsored, and voted on — tracked across
+            all 535+ members of the 119th Congress.
           </Text>
         </View>
 
@@ -177,14 +198,6 @@ export default function PoliticsDashboardScreen() {
                 <StatCard label="Match Rate" value={`${stats.match_rate}%`} accent="amber" subtitle="Tap for breakdown" />
               </TouchableOpacity>
             </View>
-          </View>
-        )}
-
-        {/* Tier distribution */}
-        {stats && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Accountability Tier Distribution</Text>
-            <TierProgressBar segments={tierSegments} />
           </View>
         )}
 
@@ -240,6 +253,8 @@ export default function PoliticsDashboardScreen() {
                   key={action.id}
                   action={action}
                   isLast={i === actions.length - 1}
+                  onBillPress={(billId) => navigation.navigate('BillDetail', { bill_id: billId })}
+                  onPersonPress={(personId) => navigation.navigate('PersonDetail', { person_id: personId })}
                 />
               ))}
             </View>
@@ -287,13 +302,13 @@ export default function PoliticsDashboardScreen() {
       <Modal visible={statModal === 'match'} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Match Rate Breakdown</Text>
+            <Text style={styles.modalTitle}>How We Track Bills</Text>
             <TouchableOpacity onPress={() => setStatModal(null)}>
               <Ionicons name="close" size={24} color={UI_COLORS.TEXT_PRIMARY} />
             </TouchableOpacity>
           </View>
           <Text style={styles.modalSubtitle}>
-            How well does activity match against legislative actions?
+            Our data comes directly from the Congress.gov API — the official public record of all legislative activity.
           </Text>
           {stats && (
             <View style={styles.modalStats}>
@@ -302,7 +317,7 @@ export default function PoliticsDashboardScreen() {
                 <Text style={[styles.modalStatValue, { color: UI_COLORS.ACCENT }]}>{stats.match_rate}%</Text>
               </View>
               <View style={styles.modalStatRow}>
-                <Text style={styles.modalStatLabel}>Bills Tracked</Text>
+                <Text style={styles.modalStatLabel}>Bills in Database</Text>
                 <Text style={styles.modalStatValue}>{stats.total_bills.toLocaleString()}</Text>
               </View>
               <View style={styles.modalStatRow}>
@@ -311,12 +326,15 @@ export default function PoliticsDashboardScreen() {
               </View>
             </View>
           )}
-          {stats && (
-            <View style={styles.modalTierSection}>
-              <Text style={styles.modalSectionTitle}>By Accountability Tier</Text>
-              <TierProgressBar segments={tierSegments} />
-            </View>
-          )}
+          <View style={styles.modalTierSection}>
+            <Text style={styles.modalSectionTitle}>Methodology</Text>
+            <Text style={styles.modalMethodText}>
+              {'1. We pull every bill a member sponsors or cosponsors from Congress.gov.\n\n'}
+              {'2. Each bill is enriched with CRS summaries, full text URLs, and policy area classification.\n\n'}
+              {'3. Match Rate = the percentage of tracked legislative actions that are linked to a specific bill in our database.\n\n'}
+              {'4. All data is public record — no editorials, no spin.'}
+            </Text>
+          </View>
         </View>
       </Modal>
     </>
@@ -585,6 +603,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 12,
+  },
+  modalMethodText: {
+    color: UI_COLORS.TEXT_SECONDARY,
+    fontSize: 13,
+    lineHeight: 20,
   },
   // Error
   errorContainer: {
