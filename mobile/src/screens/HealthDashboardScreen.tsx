@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { HealthDashboardStats, Company } from '../api/types';
@@ -16,6 +17,8 @@ const SECTOR_COLORS: Record<string, string> = {
   pharmacy: '#10B981',
   distributor: '#64748B',
 };
+
+const ACCENT = '#DC2626';
 
 export default function HealthDashboardScreen() {
   const navigation = useNavigation<any>();
@@ -53,19 +56,33 @@ export default function HealthDashboardScreen() {
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
     >
       {/* Hero */}
-      <View style={styles.hero}>
-        <Text style={styles.heroEmoji}>🏥</Text>
-        <Text style={styles.heroTitle}>Health Sector</Text>
-        <Text style={styles.heroSub}>FDA recalls, adverse events, clinical trials</Text>
-      </View>
+      <LinearGradient
+        colors={['#DC2626', '#B91C1C', '#991B1B']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <View style={styles.heroOrb} />
+        <View style={styles.heroInner}>
+          <View style={styles.heroIconRow}>
+            <Ionicons name="heart" size={24} color="#FFFFFF" />
+            <Text style={styles.heroTitle}>Health Sector</Text>
+          </View>
+          <Text style={styles.heroSubtitle}>
+            FDA recalls, adverse events, and clinical trials
+          </Text>
+        </View>
+      </LinearGradient>
 
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <View style={styles.statHalf}>
-          <StatCard label="Companies" value={stats.total_companies} accent="blue" />
+          <StatCard label="Companies" value={stats.total_companies} accent="red" />
         </View>
         <View style={styles.statHalf}>
           <StatCard label="Adverse Events" value={stats.total_adverse_events} accent="rose" />
@@ -81,7 +98,10 @@ export default function HealthDashboardScreen() {
       {/* Sector Distribution */}
       {Object.keys(stats.by_sector).length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>By Sector Type</Text>
+          <View style={[styles.sectionTitleRow, { marginBottom: 12 }]}>
+            <View style={[styles.accentBar, { backgroundColor: ACCENT }]} />
+            <Text style={styles.sectionTitle}>By Sector Type</Text>
+          </View>
           <View style={styles.chipRow}>
             {Object.entries(stats.by_sector).map(([key, count]) => (
               <View key={key} style={[styles.chip, { backgroundColor: (SECTOR_COLORS[key] || '#6B7280') + '15' }]}>
@@ -98,7 +118,10 @@ export default function HealthDashboardScreen() {
       {/* Featured Companies */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Featured Companies</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={[styles.accentBar, { backgroundColor: ACCENT }]} />
+            <Text style={styles.sectionTitle}>Featured Companies</Text>
+          </View>
           <TouchableOpacity onPress={() => navigation.navigate('CompaniesDirectory')}>
             <Text style={styles.seeAll}>See All →</Text>
           </TouchableOpacity>
@@ -139,25 +162,72 @@ export default function HealthDashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: UI_COLORS.SECONDARY_BG },
-  hero: { alignItems: 'center', paddingVertical: 24, backgroundColor: UI_COLORS.HERO_BG },
-  heroEmoji: { fontSize: 40 },
-  heroTitle: { fontSize: 24, fontWeight: '800', color: UI_COLORS.TEXT_PRIMARY, marginTop: 8 },
-  heroSub: { fontSize: 14, color: UI_COLORS.TEXT_SECONDARY, marginTop: 4 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', padding: 16, gap: 10 },
-  statHalf: { width: '48%' },
-  section: { paddingHorizontal: 16, marginTop: 8, marginBottom: 8 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  scrollContent: { paddingBottom: 24 },
+  hero: {
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  heroOrb: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  heroInner: {
+    position: 'relative',
+  },
+  heroIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  statsGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10, marginTop: 12, marginBottom: 16,
+  },
+  statHalf: { width: '48%' as any, flexGrow: 1 },
+  section: { paddingHorizontal: 16, marginBottom: 16 },
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  accentBar: {
+    width: 4,
+    height: 20,
+    borderRadius: 2,
+  },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY },
-  seeAll: { fontSize: 13, fontWeight: '600', color: UI_COLORS.ACCENT },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16 },
-  chipDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  seeAll: { fontSize: 13, fontWeight: '600', color: ACCENT },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, gap: 6 },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
   chipText: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
   companyCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: UI_COLORS.CARD_BG, borderRadius: 12, padding: 14,
-    marginBottom: 8, elevation: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2,
+    marginBottom: 8, borderWidth: 1, borderColor: UI_COLORS.BORDER,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
   },
   iconWrap: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   companyInfo: { flex: 1 },

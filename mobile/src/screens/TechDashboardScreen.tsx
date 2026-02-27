@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { TechDashboardStats, TechCompany } from '../api/types';
@@ -16,6 +17,8 @@ const SECTOR_COLORS: Record<string, string> = {
   automotive: '#10B981',
   media: '#EC4899',
 };
+
+const ACCENT = '#2563EB';
 
 export default function TechDashboardScreen() {
   const navigation = useNavigation<any>();
@@ -53,25 +56,39 @@ export default function TechDashboardScreen() {
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
     >
       {/* Hero */}
-      <View style={styles.hero}>
-        <Text style={styles.heroEmoji}>{'\uD83D\uDCBB'}</Text>
-        <Text style={styles.heroTitle}>Technology Sector</Text>
-        <Text style={styles.heroSub}>Patents, SEC filings, contracts, lobbying, enforcement</Text>
-      </View>
+      <LinearGradient
+        colors={['#2563EB', '#1D4ED8', '#1E40AF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <View style={styles.heroOrb} />
+        <View style={styles.heroInner}>
+          <View style={styles.heroIconRow}>
+            <Ionicons name="hardware-chip" size={24} color="#FFFFFF" />
+            <Text style={styles.heroTitle}>Technology Sector</Text>
+          </View>
+          <Text style={styles.heroSubtitle}>
+            Patents, SEC filings, contracts, lobbying, enforcement
+          </Text>
+        </View>
+      </LinearGradient>
 
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <View style={styles.statHalf}>
-          <StatCard label="Companies" value={stats.total_companies} accent="purple" />
+          <StatCard label="Companies" value={stats.total_companies} accent="blue" />
         </View>
         <View style={styles.statHalf}>
           <StatCard label="Patents" value={stats.total_patents} accent="amber" />
         </View>
         <View style={styles.statHalf}>
-          <StatCard label="SEC Filings" value={stats.total_filings} accent="blue" />
+          <StatCard label="SEC Filings" value={stats.total_filings} accent="purple" />
         </View>
         <View style={styles.statHalf}>
           <StatCard label="Gov Contracts" value={stats.total_contracts} accent="emerald" />
@@ -81,7 +98,10 @@ export default function TechDashboardScreen() {
       {/* Sector Distribution */}
       {Object.keys(stats.by_sector).length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>By Sector Type</Text>
+          <View style={[styles.sectionTitleRow, { marginBottom: 12 }]}>
+            <View style={[styles.accentBar, { backgroundColor: ACCENT }]} />
+            <Text style={styles.sectionTitle}>By Sector Type</Text>
+          </View>
           <View style={styles.chipRow}>
             {Object.entries(stats.by_sector).map(([key, count]) => (
               <View key={key} style={[styles.chip, { backgroundColor: (SECTOR_COLORS[key] || '#6B7280') + '15' }]}>
@@ -98,9 +118,12 @@ export default function TechDashboardScreen() {
       {/* Featured Companies */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Featured Companies</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={[styles.accentBar, { backgroundColor: ACCENT }]} />
+            <Text style={styles.sectionTitle}>Featured Companies</Text>
+          </View>
           <TouchableOpacity onPress={() => navigation.navigate('TechCompaniesDirectory')}>
-            <Text style={styles.seeAll}>See All {'\u2192'}</Text>
+            <Text style={styles.seeAll}>See All →</Text>
           </TouchableOpacity>
         </View>
         {companies.map((c) => (
@@ -121,7 +144,7 @@ export default function TechDashboardScreen() {
                 </View>
               </View>
               <Text style={styles.companyStats}>
-                {c.patent_count} patents {'\u00B7'} {c.contract_count} contracts {'\u00B7'} {c.filing_count} filings
+                {c.patent_count} patents · {c.contract_count} contracts · {c.filing_count} filings
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={UI_COLORS.TEXT_MUTED} />
@@ -146,7 +169,7 @@ export default function TechDashboardScreen() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Data: USPTO PatentsView {'\u00B7'} SEC EDGAR {'\u00B7'} USASpending.gov {'\u00B7'} Senate LDA {'\u00B7'} FTC</Text>
+        <Text style={styles.footerText}>Data: USPTO PatentsView · SEC EDGAR · USASpending.gov · Senate LDA · FTC</Text>
       </View>
     </ScrollView>
   );
@@ -154,25 +177,72 @@ export default function TechDashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: UI_COLORS.SECONDARY_BG },
-  hero: { alignItems: 'center', paddingVertical: 24, backgroundColor: UI_COLORS.HERO_BG },
-  heroEmoji: { fontSize: 40 },
-  heroTitle: { fontSize: 24, fontWeight: '800', color: UI_COLORS.TEXT_PRIMARY, marginTop: 8 },
-  heroSub: { fontSize: 14, color: UI_COLORS.TEXT_SECONDARY, marginTop: 4 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', padding: 16, gap: 10 },
-  statHalf: { width: '48%' },
-  section: { paddingHorizontal: 16, marginTop: 8, marginBottom: 8 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  scrollContent: { paddingBottom: 24 },
+  hero: {
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  heroOrb: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  heroInner: {
+    position: 'relative',
+  },
+  heroIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  statsGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10, marginTop: 12, marginBottom: 16,
+  },
+  statHalf: { width: '48%' as any, flexGrow: 1 },
+  section: { paddingHorizontal: 16, marginBottom: 16 },
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  accentBar: {
+    width: 4,
+    height: 20,
+    borderRadius: 2,
+  },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY },
-  seeAll: { fontSize: 13, fontWeight: '600', color: UI_COLORS.ACCENT },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16 },
-  chipDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  seeAll: { fontSize: 13, fontWeight: '600', color: ACCENT },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, gap: 6 },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
   chipText: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
   companyCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: UI_COLORS.CARD_BG, borderRadius: 12, padding: 14,
-    marginBottom: 8, elevation: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2,
+    marginBottom: 8, borderWidth: 1, borderColor: UI_COLORS.BORDER,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
   },
   iconWrap: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   companyInfo: { flex: 1 },
@@ -184,7 +254,7 @@ const styles = StyleSheet.create({
   companyStats: { fontSize: 11, color: UI_COLORS.TEXT_MUTED, marginTop: 3 },
   compareCta: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#8B5CF6', borderRadius: 12, padding: 16,
+    backgroundColor: ACCENT, borderRadius: 12, padding: 16,
   },
   compareCtaTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
   compareCtaSub: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },

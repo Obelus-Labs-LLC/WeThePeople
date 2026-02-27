@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { FinanceDashboardStats, Institution } from '../api/types';
@@ -18,6 +19,8 @@ const SECTOR_COLORS: Record<string, string> = {
   fintech: '#10B981',
   central_bank: '#DC2626',
 };
+
+const ACCENT = '#D4A017';
 
 export default function FinanceDashboardScreen() {
   const navigation = useNavigation<any>();
@@ -67,30 +70,38 @@ export default function FinanceDashboardScreen() {
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
     >
       {/* Hero */}
-      <View style={styles.hero}>
-        <View style={styles.heroIconWrap}>
-          <Ionicons name="trending-up" size={28} color="#10B981" />
+      <LinearGradient
+        colors={['#D4A017', '#B8860B', '#8B6914']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <View style={styles.heroOrb} />
+        <View style={styles.heroInner}>
+          <View style={styles.heroIconRow}>
+            <Ionicons name="trending-up" size={24} color="#FFFFFF" />
+            <Text style={styles.heroTitle}>Finance Sector</Text>
+          </View>
+          <Text style={styles.heroSubtitle}>
+            SEC filings, FDIC financials, and consumer complaints
+          </Text>
         </View>
-        <Text style={styles.heroTitle}>Finance Sector</Text>
-        <Text style={styles.heroSubtitle}>
-          SEC filings, FDIC financials, and consumer complaints
-        </Text>
-      </View>
+      </LinearGradient>
 
       {/* Stats Grid */}
       {stats && (
         <View style={styles.statsGrid}>
           <View style={styles.statHalf}>
-            <StatCard label="Institutions" value={stats.total_institutions} accent="green" />
+            <StatCard label="Institutions" value={stats.total_institutions} accent="gold" />
           </View>
           <View style={styles.statHalf}>
             <StatCard label="SEC Filings" value={stats.total_filings} accent="blue" />
           </View>
           <View style={styles.statHalf}>
-            <StatCard label="FDIC Reports" value={stats.total_financials} accent="gold" />
+            <StatCard label="FDIC Reports" value={stats.total_financials} accent="amber" />
           </View>
           <View style={styles.statHalf}>
             <StatCard label="Complaints" value={stats.total_complaints} accent="red" />
@@ -101,7 +112,10 @@ export default function FinanceDashboardScreen() {
       {/* Sector Distribution */}
       {stats && Object.keys(stats.by_sector).length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>By Sector Type</Text>
+          <View style={[styles.sectionTitleRow, { marginBottom: 12 }]}>
+            <View style={[styles.accentBar, { backgroundColor: ACCENT }]} />
+            <Text style={styles.sectionTitle}>By Sector Type</Text>
+          </View>
           <View style={styles.sectorRow}>
             {Object.entries(stats.by_sector).map(([type, count]) => (
               <View key={type} style={[styles.sectorChip, { backgroundColor: (SECTOR_COLORS[type] || '#6B7280') + '15' }]}>
@@ -118,7 +132,10 @@ export default function FinanceDashboardScreen() {
       {/* Featured Institutions */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Featured Institutions</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={[styles.accentBar, { backgroundColor: ACCENT }]} />
+            <Text style={styles.sectionTitle}>Featured Institutions</Text>
+          </View>
           <TouchableOpacity onPress={() => navigation.navigate('InstitutionsDirectory')}>
             <Text style={styles.seeAll}>See All →</Text>
           </TouchableOpacity>
@@ -178,27 +195,61 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: UI_COLORS.SECONDARY_BG },
   scrollContent: { paddingBottom: 24 },
   hero: {
-    alignItems: 'center', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20,
-    backgroundColor: UI_COLORS.HERO_BG,
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 12,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  heroIconWrap: {
-    width: 56, height: 56, borderRadius: 28, backgroundColor: '#10B981' + '15',
-    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+  heroOrb: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  heroTitle: { color: UI_COLORS.TEXT_PRIMARY, fontSize: 24, fontWeight: '800', marginBottom: 6 },
+  heroInner: {
+    position: 'relative',
+  },
+  heroIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
   heroSubtitle: {
-    color: UI_COLORS.TEXT_SECONDARY, fontSize: 14, textAlign: 'center', lineHeight: 20, maxWidth: 320,
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+    lineHeight: 19,
   },
   statsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10, marginBottom: 16, marginTop: 4,
+    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10, marginBottom: 16, marginTop: 12,
   },
   statHalf: { width: '48%' as any, flexGrow: 1 },
   section: { paddingHorizontal: 16, marginBottom: 16 },
   sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
   },
-  sectionTitle: { color: UI_COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: '700', marginBottom: 10 },
-  seeAll: { color: UI_COLORS.ACCENT, fontSize: 13, fontWeight: '600', marginBottom: 10 },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  accentBar: {
+    width: 4,
+    height: 20,
+    borderRadius: 2,
+  },
+  sectionTitle: { color: UI_COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: '700' },
+  seeAll: { color: ACCENT, fontSize: 13, fontWeight: '600' },
   sectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   sectorChip: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, gap: 6,
@@ -208,7 +259,7 @@ const styles = StyleSheet.create({
   instCard: {
     backgroundColor: UI_COLORS.CARD_BG, borderRadius: 12, padding: 14, marginBottom: 8,
     borderWidth: 1, borderColor: UI_COLORS.BORDER,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
   },
   instRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   instLogo: {
@@ -228,7 +279,7 @@ const styles = StyleSheet.create({
   },
   errorText: { color: '#DC2626', fontSize: 14, marginTop: 12, textAlign: 'center' },
   retryBtn: {
-    marginTop: 16, backgroundColor: UI_COLORS.ACCENT, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 8,
+    marginTop: 16, backgroundColor: ACCENT, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 8,
   },
   retryText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
   footer: { marginTop: 16, alignItems: 'center', paddingHorizontal: 24 },
