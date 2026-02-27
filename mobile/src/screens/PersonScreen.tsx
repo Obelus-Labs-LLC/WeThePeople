@@ -48,7 +48,7 @@ function ExpandableClaim({ entry, onBillPress }: { entry: LedgerEntry; onBillPre
       {/* Collapsed header — always visible */}
       <View style={styles.claimHeader}>
         <Text style={styles.claimText} numberOfLines={expanded ? undefined : 3}>
-          {entry.normalized_text}
+          {entry.normalized_text ? entry.normalized_text.charAt(0).toUpperCase() + entry.normalized_text.slice(1) : ''}
         </Text>
         <View style={styles.claimHeaderRight}>
           <TierBadge tier={entry.tier} />
@@ -189,6 +189,7 @@ export default function PersonScreen() {
   const [finance, setFinance] = useState<PersonFinance | null>(null);
   const [financeLoading, setFinanceLoading] = useState(false);
   const [tierFilter, setTierFilter] = useState<string>('all');
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   useEffect(() => {
     if (!person_id) return;
@@ -303,10 +304,10 @@ export default function PersonScreen() {
             <View style={styles.statsGrid}>
               <View style={styles.statsRow}>
                 <View style={styles.statsHalf}>
-                  <StatCard label="Activity Entries" value={perf.total_claims} accent="green" />
+                  <StatCard label="Bills Tracked" value={perf.total_claims} accent="green" subtitle="Legislative actions" />
                 </View>
                 <View style={styles.statsHalf}>
-                  <StatCard label="Scored" value={perf.total_scored} accent="emerald" />
+                  <StatCard label="Matched" value={perf.total_scored} accent="emerald" subtitle="Linked to legislation" />
                 </View>
               </View>
               <View style={styles.statsRow}>
@@ -315,31 +316,64 @@ export default function PersonScreen() {
                     label="Match Rate"
                     value={perf.total_claims > 0 ? `${Math.round((perf.total_scored / perf.total_claims) * 100)}%` : '0%'}
                     accent="gold"
+                    subtitle="Bills with evidence"
                   />
                 </View>
-                <View style={styles.statsHalf}>
-                  <StatCard label="Categories" value={Object.keys(perf.by_category).length} accent="slate" />
-                </View>
+                <TouchableOpacity style={styles.statsHalf} onPress={() => setCategoriesOpen(!categoriesOpen)}>
+                  <StatCard label="Policy Areas" value={Object.keys(perf.by_category).length} accent="slate" subtitle="Tap to view" />
+                </TouchableOpacity>
               </View>
             </View>
           )}
 
-          {perf && perf.total_scored > 0 && (
+          {/* Categories expansion */}
+          {categoriesOpen && perf && Object.keys(perf.by_category).length > 0 && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Accountability Breakdown</Text>
-              <TierProgressBar segments={tierSegments} />
+              <Text style={styles.cardTitle}>Policy Areas</Text>
+              <Text style={styles.summaryText}>Policy areas this member has introduced or cosponsored legislation in:</Text>
+              {Object.entries(perf.by_category)
+                .sort(([, a], [, b]) => b - a)
+                .map(([category, count]) => (
+                  <View key={category} style={styles.factRow}>
+                    <Text style={styles.factLabel}>{category}:</Text>
+                    <Text style={styles.factValue}>{count} bill{count !== 1 ? 's' : ''}</Text>
+                  </View>
+                ))}
+            </View>
+          )}
+
+          {/* Legislative summary replaces old accountability breakdown */}
+          {perf && perf.total_claims > 0 && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Legislative Summary</Text>
+              <Text style={styles.summaryText}>
+                {perf.total_claims} legislative actions tracked across{' '}
+                {Object.keys(perf.by_category).length} policy areas.
+                {perf.total_scored > 0
+                  ? ` ${perf.total_scored} matched to specific legislation (${Math.round((perf.total_scored / perf.total_claims) * 100)}% match rate).`
+                  : ' Activity data is still being processed.'}
+              </Text>
             </View>
           )}
 
           {profile?.infobox && Object.keys(profile.infobox).length > 0 && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Quick Facts</Text>
-              {Object.entries(profile.infobox).slice(0, 10).map(([key, val]) => (
-                <View key={key} style={styles.factRow}>
-                  <Text style={styles.factLabel}>{key.replace(/_/g, ' ')}:</Text>
-                  <Text style={styles.factValue} numberOfLines={1}>{val}</Text>
-                </View>
-              ))}
+              {Object.entries(profile.infobox)
+                .filter(([key, val]) => {
+                  const skip = ['name', 'image', 'image_size', 'caption', 'imagesize', 'alt'];
+                  if (skip.includes(key.toLowerCase())) return false;
+                  if (val === null || val === undefined || val === '' || val === 'null') return false;
+                  if (key === 'junior_senior' && (!val || val === 'null')) return false;
+                  return true;
+                })
+                .slice(0, 10)
+                .map(([key, val]) => (
+                  <View key={key} style={styles.factRow}>
+                    <Text style={styles.factLabel}>{key.replace(/_/g, ' ')}:</Text>
+                    <Text style={styles.factValue} numberOfLines={1}>{val}</Text>
+                  </View>
+                ))}
             </View>
           )}
         </View>
@@ -398,17 +432,17 @@ export default function PersonScreen() {
               <View style={styles.statsGrid}>
                 <StatCard
                   label="Total Raised"
-                  value={`$${(finance.totals.receipts / 1_000_000).toFixed(1)}M`}
+                  value={`$${((finance.totals.receipts || 0) / 1_000_000).toFixed(1)}M`}
                   accent="emerald"
                 />
                 <StatCard
                   label="Total Spent"
-                  value={`$${(finance.totals.disbursements / 1_000_000).toFixed(1)}M`}
+                  value={`$${((finance.totals.disbursements || 0) / 1_000_000).toFixed(1)}M`}
                   accent="amber"
                 />
                 <StatCard
                   label="Cash on Hand"
-                  value={`$${(finance.totals.cash_on_hand / 1_000_000).toFixed(1)}M`}
+                  value={`$${((finance.totals.cash_on_hand || 0) / 1_000_000).toFixed(1)}M`}
                   accent="green"
                 />
               </View>
@@ -424,9 +458,9 @@ export default function PersonScreen() {
                   </View>
                   {finance.top_donors.map((donor, i) => (
                     <View key={i} style={[styles.donorRow, i < finance.top_donors.length - 1 && styles.donorBorder]}>
-                      <Text style={[styles.donorName, { flex: 1.2 }]} numberOfLines={1}>{donor.name}</Text>
-                      <Text style={[styles.donorEmployer, { flex: 1 }]} numberOfLines={1}>{donor.employer}</Text>
-                      <Text style={[styles.donorAmount, { flex: 0.6 }]}>${donor.amount.toLocaleString()}</Text>
+                      <Text style={[styles.donorName, { flex: 1.2 }]} numberOfLines={1}>{donor.name || 'Unknown'}</Text>
+                      <Text style={[styles.donorEmployer, { flex: 1 }]} numberOfLines={1}>{donor.employer || '—'}</Text>
+                      <Text style={[styles.donorAmount, { flex: 0.6 }]}>${(donor.amount || 0).toLocaleString()}</Text>
                     </View>
                   ))}
                 </View>
@@ -561,6 +595,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 12,
+  },
+  summaryText: {
+    color: UI_COLORS.TEXT_SECONDARY,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 8,
   },
   factRow: {
     flexDirection: 'row',
