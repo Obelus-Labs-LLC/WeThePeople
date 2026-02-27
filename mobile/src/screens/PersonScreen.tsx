@@ -12,6 +12,7 @@ import {
   UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
@@ -251,8 +252,18 @@ export default function PersonScreen() {
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Profile header */}
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      {/* Gradient banner */}
+      <LinearGradient
+        colors={['#1B7A3D', '#15693A', '#0F5831']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.profileBanner}
+      >
+        <View style={styles.bannerOrb} />
+      </LinearGradient>
+
+      {/* Overlapping profile card */}
       <View style={styles.profileCard}>
         <View style={styles.profileRow}>
           {profile?.thumbnail ? (
@@ -282,15 +293,15 @@ export default function PersonScreen() {
         </View>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabBar}>
+      {/* Pill Tabs */}
+      <View style={styles.pillTabBar}>
         {tabs.map((t) => (
           <TouchableOpacity
             key={t.key}
-            style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
+            style={[styles.pillTab, tab === t.key && styles.pillTabActive]}
             onPress={() => setTab(t.key)}
           >
-            <Text style={[styles.tabBtnText, tab === t.key && styles.tabBtnTextActive]}>
+            <Text style={[styles.pillTabText, tab === t.key && styles.pillTabTextActive]}>
               {t.label}
             </Text>
           </TouchableOpacity>
@@ -478,22 +489,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: UI_COLORS.SECONDARY_BG,
   },
-  content: {
-    padding: 16,
+  scrollContent: {
     paddingBottom: 32,
   },
+  // ── Gradient banner ──
+  profileBanner: {
+    height: 100,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  bannerOrb: {
+    position: 'absolute',
+    top: -50,
+    right: -30,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  // ── Overlapping profile card ──
   profileCard: {
     backgroundColor: UI_COLORS.CARD_BG,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
+    marginTop: -32,
+    marginHorizontal: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: UI_COLORS.BORDER,
-    marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
   },
   profileRow: {
     flexDirection: 'row',
@@ -503,6 +531,8 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   profilePhotoPlaceholder: {
     width: 72,
@@ -511,6 +541,8 @@ const styles = StyleSheet.create({
     backgroundColor: UI_COLORS.ACCENT_LIGHT,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   profilePhotoText: {
     color: UI_COLORS.ACCENT,
@@ -542,31 +574,41 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 4,
   },
-  tabBar: {
+  // ── Pill Tabs ──
+  pillTabBar: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: UI_COLORS.BORDER,
-    marginBottom: 12,
+    marginHorizontal: 16,
+    marginBottom: 14,
+    backgroundColor: UI_COLORS.CARD_BG_ELEVATED,
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
   },
-  tabBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+  pillTab: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 10,
+    alignItems: 'center',
   },
-  tabBtnActive: {
-    borderBottomColor: UI_COLORS.ACCENT,
+  pillTabActive: {
+    backgroundColor: UI_COLORS.ACCENT,
+    shadowColor: UI_COLORS.ACCENT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  tabBtnText: {
+  pillTabText: {
     color: UI_COLORS.TEXT_MUTED,
     fontSize: 13,
     fontWeight: '600',
   },
-  tabBtnTextActive: {
-    color: UI_COLORS.ACCENT,
+  pillTabTextActive: {
+    color: '#FFFFFF',
   },
   tabContent: {
     gap: 12,
+    paddingHorizontal: 16,
   },
   statsGrid: {
     gap: 8,
@@ -580,15 +622,15 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: UI_COLORS.CARD_BG,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     borderWidth: 1,
     borderColor: UI_COLORS.BORDER,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   cardTitle: {
     color: UI_COLORS.TEXT_PRIMARY,
@@ -625,9 +667,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   filterBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
     backgroundColor: UI_COLORS.CARD_BG,
     borderWidth: 1,
     borderColor: UI_COLORS.BORDER,
@@ -635,6 +677,11 @@ const styles = StyleSheet.create({
   filterBtnActive: {
     backgroundColor: UI_COLORS.ACCENT,
     borderColor: UI_COLORS.ACCENT,
+    shadowColor: UI_COLORS.ACCENT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
   },
   filterBtnText: {
     color: UI_COLORS.TEXT_MUTED,
@@ -646,15 +693,15 @@ const styles = StyleSheet.create({
   },
   claimCard: {
     backgroundColor: UI_COLORS.CARD_BG,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
     borderWidth: 1,
     borderColor: UI_COLORS.BORDER,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   claimHeader: {
     flexDirection: 'row',
