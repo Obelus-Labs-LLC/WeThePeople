@@ -1,14 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Constants from 'expo-constants';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
+  TouchableOpacity,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 function InfoRow({ icon, label, value, last }: { icon: string; label: string; value: string; last?: boolean }) {
   return (
@@ -22,21 +30,124 @@ function InfoRow({ icon, label, value, last }: { icon: string; label: string; va
   );
 }
 
-function SourceRow({ icon, color, label, detail, last }: { icon: string; color: string; label: string; detail: string; last?: boolean }) {
+function SourceRow({ icon, color, label, detail, coming, last }: { icon: string; color: string; label: string; detail: string; coming?: boolean; last?: boolean }) {
   return (
     <View style={[settingsStyles.sourceRow, !last && settingsStyles.sourceRowBorder]}>
       <View style={[settingsStyles.sourceIcon, { backgroundColor: color + '12' }]}>
         <Ionicons name={icon as any} size={14} color={color} />
       </View>
       <View style={settingsStyles.sourceInfo}>
-        <Text style={settingsStyles.sourceLabel}>{label}</Text>
+        <View style={settingsStyles.sourceLabelRow}>
+          <Text style={settingsStyles.sourceLabel}>{label}</Text>
+          {coming && (
+            <View style={settingsStyles.comingSoonBadge}>
+              <Text style={settingsStyles.comingSoonText}>Coming Soon</Text>
+            </View>
+          )}
+        </View>
         <Text style={settingsStyles.sourceDetail}>{detail}</Text>
       </View>
     </View>
   );
 }
 
+type SectorKey = 'politics' | 'finance' | 'health' | 'tech' | 'environment' | 'other';
+
+const DATA_SOURCES: { sector: SectorKey; title: string; color: string; icon: string; sources: { icon: string; label: string; detail: string; coming?: boolean }[] }[] = [
+  {
+    sector: 'politics',
+    title: 'Politics',
+    color: '#1B7A3D',
+    icon: 'flag',
+    sources: [
+      { icon: 'document-text', label: 'Congress.gov API', detail: 'Bills, votes, member profiles, committee data' },
+      { icon: 'cash', label: 'FEC', detail: 'Campaign finance, donor records, PAC filings' },
+      { icon: 'megaphone', label: 'OpenSecrets / Senate LDA', detail: 'Lobbying disclosures, revolving door data' },
+      { icon: 'analytics', label: 'GovTrack.us', detail: 'Bill tracking, legislator analysis, vote records' },
+      { icon: 'newspaper', label: 'ProPublica Congress API', detail: 'Vote roll calls, floor actions, statements' },
+      { icon: 'business', label: 'White House Briefings', detail: 'Executive orders, presidential actions' },
+    ],
+  },
+  {
+    sector: 'finance',
+    title: 'Finance',
+    color: '#D4A017',
+    icon: 'trending-up',
+    sources: [
+      { icon: 'document', label: 'SEC EDGAR', detail: '10-K, 10-Q, 8-K filings, insider transactions' },
+      { icon: 'shield-checkmark', label: 'FDIC BankFind', detail: 'Bank financials, capital ratios, asset reports' },
+      { icon: 'alert-circle', label: 'CFPB', detail: 'Consumer complaints, enforcement actions' },
+      { icon: 'stats-chart', label: 'Federal Reserve (FRED)', detail: 'Interest rates, GDP, employment, CPI' },
+      { icon: 'wallet', label: 'Treasury Department', detail: 'Fiscal data, national debt, spending' },
+      { icon: 'bar-chart', label: 'Alpha Vantage', detail: 'Stock quotes, fundamentals, market data' },
+    ],
+  },
+  {
+    sector: 'health',
+    title: 'Health',
+    color: '#DC2626',
+    icon: 'heart',
+    sources: [
+      { icon: 'medkit', label: 'FDA openFDA', detail: 'Drug adverse events, device recalls, inspections' },
+      { icon: 'flask', label: 'ClinicalTrials.gov', detail: 'Active trials, phases, enrollment, results' },
+      { icon: 'card', label: 'CMS Open Payments', detail: 'Industry payments to physicians' },
+      { icon: 'pulse', label: 'CDC WONDER', detail: 'Mortality, disease surveillance, health statistics', coming: true },
+      { icon: 'school', label: 'NIH RePORTER', detail: 'Federal research grants, project data', coming: true },
+    ],
+  },
+  {
+    sector: 'tech',
+    title: 'Technology',
+    color: '#2563EB',
+    icon: 'hardware-chip',
+    sources: [
+      { icon: 'bulb', label: 'USPTO PatentsView', detail: 'Patents, inventors, assignees, classifications' },
+      { icon: 'cash', label: 'USASpending.gov', detail: 'Federal contracts, grants, subawards' },
+      { icon: 'megaphone', label: 'Senate LDA', detail: 'Tech lobbying disclosures, expenditures' },
+      { icon: 'warning', label: 'FTC', detail: 'Antitrust enforcement, consent decrees, fines' },
+      { icon: 'radio', label: 'FCC', detail: 'Spectrum auctions, telecom regulations', coming: true },
+    ],
+  },
+  {
+    sector: 'environment',
+    title: 'Environment & Energy',
+    color: '#10B981',
+    icon: 'leaf',
+    sources: [
+      { icon: 'globe', label: 'EPA Envirofacts', detail: 'Emissions, violations, Superfund sites', coming: true },
+      { icon: 'flame', label: 'EIA (Energy)', detail: 'Production, consumption, prices, forecasts', coming: true },
+      { icon: 'construct', label: 'OSHA', detail: 'Workplace safety violations, inspections', coming: true },
+    ],
+  },
+  {
+    sector: 'other',
+    title: 'Agriculture & Defense',
+    color: '#64748B',
+    icon: 'layers',
+    sources: [
+      { icon: 'nutrition', label: 'USDA NASS', detail: 'Crop reports, livestock data, farm economics', coming: true },
+      { icon: 'shield', label: 'DOD / DSCA', detail: 'Defense contracts, arms sales, base closures', coming: true },
+      { icon: 'people', label: 'BLS', detail: 'Employment, wages, CPI, productivity', coming: true },
+      { icon: 'map', label: 'Census Bureau', detail: 'Demographics, economic indicators, trade', coming: true },
+    ],
+  },
+];
+
+const TOTAL_SOURCES = DATA_SOURCES.reduce((sum, s) => sum + s.sources.length, 0);
+
 export default function SettingsScreen() {
+  const [expanded, setExpanded] = useState<Set<SectorKey>>(new Set(['politics']));
+
+  const toggle = (key: SectorKey) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Hero */}
@@ -89,22 +200,54 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* Data Sources */}
+      {/* Data Sources — Collapsible by Sector */}
       <View style={styles.section}>
         <View style={styles.sectionTitleRow}>
           <View style={[styles.accentBar, { backgroundColor: UI_COLORS.GOLD }]} />
           <Text style={styles.sectionTitle}>Data Sources</Text>
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{TOTAL_SOURCES}</Text>
+          </View>
         </View>
-        <View style={styles.card}>
-          <SourceRow icon="flag" color="#1B7A3D" label="Congress.gov API" detail="Bills, votes, members" />
-          <SourceRow icon="trending-up" color="#D4A017" label="SEC EDGAR" detail="Financial filings" />
-          <SourceRow icon="shield-checkmark" color="#D4A017" label="FDIC BankFind" detail="Bank financials" />
-          <SourceRow icon="alert-circle" color="#D4A017" label="CFPB" detail="Consumer complaints" />
-          <SourceRow icon="heart" color="#DC2626" label="FDA openFDA" detail="Recalls, adverse events" />
-          <SourceRow icon="flask" color="#DC2626" label="ClinicalTrials.gov" detail="Clinical trials" />
-          <SourceRow icon="hardware-chip" color="#2563EB" label="USPTO PatentsView" detail="Patents" />
-          <SourceRow icon="cash" color="#2563EB" label="USASpending.gov" detail="Government contracts" last />
-        </View>
+
+        {DATA_SOURCES.map((group) => {
+          const isExpanded = expanded.has(group.sector);
+          return (
+            <View key={group.sector} style={styles.sourceGroup}>
+              <TouchableOpacity
+                style={styles.sourceGroupHeader}
+                onPress={() => toggle(group.sector)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.sourceGroupIcon, { backgroundColor: group.color + '12' }]}>
+                  <Ionicons name={group.icon as any} size={16} color={group.color} />
+                </View>
+                <Text style={styles.sourceGroupTitle}>{group.title}</Text>
+                <Text style={styles.sourceGroupCount}>{group.sources.length}</Text>
+                <Ionicons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={UI_COLORS.TEXT_MUTED}
+                />
+              </TouchableOpacity>
+              {isExpanded && (
+                <View style={styles.sourceGroupBody}>
+                  {group.sources.map((src, i) => (
+                    <SourceRow
+                      key={src.label}
+                      icon={src.icon}
+                      color={group.color}
+                      label={src.label}
+                      detail={src.detail}
+                      coming={src.coming}
+                      last={i === group.sources.length - 1}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+          );
+        })}
       </View>
 
       {/* Legal */}
@@ -170,6 +313,11 @@ const settingsStyles = StyleSheet.create({
   sourceInfo: {
     flex: 1,
   },
+  sourceLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   sourceLabel: {
     color: UI_COLORS.TEXT_PRIMARY,
     fontSize: 13,
@@ -179,6 +327,19 @@ const settingsStyles = StyleSheet.create({
     color: UI_COLORS.TEXT_MUTED,
     fontSize: 11,
     marginTop: 1,
+  },
+  comingSoonBadge: {
+    backgroundColor: '#F59E0B15',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#F59E0B25',
+  },
+  comingSoonText: {
+    color: '#F59E0B',
+    fontSize: 9,
+    fontWeight: '700',
   },
 });
 
@@ -247,6 +408,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  countBadge: {
+    backgroundColor: UI_COLORS.GOLD + '18',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: UI_COLORS.GOLD + '30',
+  },
+  countBadgeText: {
+    color: UI_COLORS.GOLD,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   card: {
     backgroundColor: UI_COLORS.CARD_BG,
     borderRadius: 12,
@@ -280,5 +454,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 10,
     fontWeight: '500',
+  },
+  sourceGroup: {
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: UI_COLORS.BORDER,
+    marginBottom: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  sourceGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 10,
+  },
+  sourceGroupIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sourceGroupTitle: {
+    flex: 1,
+    color: UI_COLORS.TEXT_PRIMARY,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  sourceGroupCount: {
+    color: UI_COLORS.TEXT_MUTED,
+    fontSize: 12,
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  sourceGroupBody: {
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: UI_COLORS.BORDER,
   },
 });
