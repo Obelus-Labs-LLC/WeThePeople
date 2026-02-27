@@ -16,7 +16,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { DashboardStats, Person, RecentAction } from '../api/types';
+import { LinearGradient } from 'expo-linear-gradient';
 import { LoadingSpinner, StatCard, TierProgressBar, PartyBadge, ChamberBadge, EmptyState, TierBadge } from '../components/ui';
+
+// ── Activity type color coding ──
+const ACTIVITY_TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  hr: { bg: '#2563EB18', text: '#2563EB', label: 'House Bill' },
+  hres: { bg: '#2563EB18', text: '#2563EB', label: 'House Res' },
+  hconres: { bg: '#2563EB18', text: '#2563EB', label: 'House Con Res' },
+  hjres: { bg: '#2563EB18', text: '#2563EB', label: 'House Jnt Res' },
+  s: { bg: '#7C3AED18', text: '#7C3AED', label: 'Senate Bill' },
+  sres: { bg: '#7C3AED18', text: '#7C3AED', label: 'Senate Res' },
+  sconres: { bg: '#7C3AED18', text: '#7C3AED', label: 'Senate Con Res' },
+  sjres: { bg: '#7C3AED18', text: '#7C3AED', label: 'Senate Jnt Res' },
+};
 
 // ── Expandable Activity Row ──
 function ExpandableActivity({ action, isLast, onBillPress, onPersonPress }: {
@@ -31,6 +44,10 @@ function ExpandableActivity({ action, isLast, onBillPress, onPersonPress }: {
     ? `${action.bill_type}${action.bill_number}`
     : null;
 
+  const typeInfo = action.bill_type
+    ? ACTIVITY_TYPE_COLORS[action.bill_type.toLowerCase()] || { bg: '#C5960C18', text: '#C5960C', label: action.bill_type.toUpperCase() }
+    : null;
+
   return (
     <TouchableOpacity
       activeOpacity={0.7}
@@ -39,6 +56,11 @@ function ExpandableActivity({ action, isLast, onBillPress, onPersonPress }: {
     >
       <View style={styles.activityContent}>
         <View style={styles.activityHeader}>
+          {typeInfo && (
+            <View style={[styles.typeBadge, { backgroundColor: typeInfo.bg }]}>
+              <Text style={[styles.typeBadgeText, { color: typeInfo.text }]}>{typeInfo.label}</Text>
+            </View>
+          )}
           <Text style={styles.activityTitle} numberOfLines={expanded ? undefined : 1}>
             {action.title ? action.title.charAt(0).toUpperCase() + action.title.slice(1) : ''}
           </Text>
@@ -168,16 +190,24 @@ export default function PoliticsDashboardScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
       >
-        {/* Hero */}
-        <View style={styles.hero}>
-          <Text style={styles.heroTitle}>
-            See what Congress is actually doing
-          </Text>
-          <Text style={styles.heroSubtitle}>
-            Every bill introduced, cosponsored, and voted on — tracked across
-            all 535+ members of the 119th Congress.
-          </Text>
-        </View>
+        {/* Gradient Hero Banner */}
+        <LinearGradient
+          colors={['#1B7A3D', '#15693A', '#0F5831']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          <View style={styles.heroOrb} />
+          <View style={styles.heroInner}>
+            <View style={styles.heroIconRow}>
+              <Ionicons name="stats-chart" size={22} color="#C5960C" />
+              <Text style={styles.heroTitle}>Congressional Tracker</Text>
+            </View>
+            <Text style={styles.heroSubtitle}>
+              Every bill introduced, cosponsored, and voted on — tracked across all 535+ members of the 119th Congress.
+            </Text>
+          </View>
+        </LinearGradient>
 
         {/* Stats grid — tappable */}
         {stats && (
@@ -203,7 +233,10 @@ export default function PoliticsDashboardScreen() {
 
         {/* Featured members */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Featured Members</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={[styles.accentBar, { backgroundColor: UI_COLORS.ACCENT }]} />
+            <Text style={styles.sectionTitle}>Featured Members</Text>
+          </View>
           <TouchableOpacity onPress={() => navigation.navigate('PeopleDirectory')}>
             <Text style={styles.viewAll}>View all</Text>
           </TouchableOpacity>
@@ -216,26 +249,41 @@ export default function PoliticsDashboardScreen() {
             <TouchableOpacity
               key={person.person_id}
               style={styles.memberCard}
+              activeOpacity={0.85}
               onPress={() => navigation.navigate('PersonDetail', { person_id: person.person_id })}
             >
-              <View style={styles.memberRow}>
-                {person.photo_url ? (
-                  <Image source={{ uri: person.photo_url }} style={styles.avatar} />
-                ) : (
+              {/* Photo + gradient overlay */}
+              {person.photo_url ? (
+                <View style={styles.memberPhotoContainer}>
+                  <Image source={{ uri: person.photo_url }} style={styles.memberPhoto} />
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.6)']}
+                    style={styles.memberPhotoOverlay}
+                  >
+                    <Text style={styles.memberNameOverlay}>{person.display_name}</Text>
+                    <View style={styles.badgeRow}>
+                      <PartyBadge party={person.party} />
+                      <ChamberBadge chamber={person.chamber} />
+                      <Text style={styles.memberStateOverlay}>{person.state}</Text>
+                    </View>
+                  </LinearGradient>
+                </View>
+              ) : (
+                <View style={styles.memberRow}>
                   <View style={styles.avatarPlaceholder}>
                     <Text style={styles.avatarText}>{person.display_name.charAt(0)}</Text>
                   </View>
-                )}
-                <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>{person.display_name}</Text>
-                  <Text style={styles.memberState}>{person.state}</Text>
-                  <View style={styles.badgeRow}>
-                    <PartyBadge party={person.party} />
-                    <ChamberBadge chamber={person.chamber} />
+                  <View style={styles.memberInfo}>
+                    <Text style={styles.memberName}>{person.display_name}</Text>
+                    <Text style={styles.memberState}>{person.state}</Text>
+                    <View style={styles.badgeRow}>
+                      <PartyBadge party={person.party} />
+                      <ChamberBadge chamber={person.chamber} />
+                    </View>
                   </View>
+                  <Ionicons name="chevron-forward" size={18} color={UI_COLORS.TEXT_MUTED} />
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={UI_COLORS.TEXT_MUTED} />
-              </View>
+              )}
             </TouchableOpacity>
           ))
         )}
@@ -244,7 +292,10 @@ export default function PoliticsDashboardScreen() {
         {actions.length > 0 && (
           <>
             <View style={[styles.sectionHeader, { marginTop: 12 }]}>
-              <Text style={styles.sectionTitle}>Recent Activity</Text>
+              <View style={styles.sectionTitleRow}>
+                <View style={[styles.accentBar, { backgroundColor: UI_COLORS.GOLD }]} />
+                <Text style={styles.sectionTitle}>Recent Activity</Text>
+              </View>
               <Text style={styles.tapHint}>Tap to expand</Text>
             </View>
             <View style={styles.card}>
@@ -353,19 +404,35 @@ const styles = StyleSheet.create({
   },
   hero: {
     borderRadius: 16,
-    backgroundColor: UI_COLORS.HERO_BG,
     padding: 20,
-    borderWidth: 1,
-    borderColor: UI_COLORS.BORDER,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  heroTitle: {
-    color: UI_COLORS.TEXT_PRIMARY,
-    fontSize: 20,
-    fontWeight: '800',
+  heroOrb: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  heroInner: {
+    position: 'relative',
+  },
+  heroIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 8,
   },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
   heroSubtitle: {
-    color: UI_COLORS.TEXT_SECONDARY,
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 13,
     lineHeight: 19,
   },
@@ -381,15 +448,15 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: UI_COLORS.CARD_BG,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     borderWidth: 1,
     borderColor: UI_COLORS.BORDER,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   cardTitle: {
     color: UI_COLORS.TEXT_PRIMARY,
@@ -403,6 +470,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
     marginBottom: -4,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  accentBar: {
+    width: 4,
+    height: 20,
+    borderRadius: 2,
   },
   sectionTitle: {
     color: UI_COLORS.TEXT_PRIMARY,
@@ -421,20 +498,54 @@ const styles = StyleSheet.create({
   },
   memberCard: {
     backgroundColor: UI_COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: UI_COLORS.BORDER,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  memberPhotoContainer: {
+    height: 160,
+    position: 'relative',
+  },
+  memberPhoto: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  memberPhotoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    paddingTop: 40,
+    justifyContent: 'flex-end',
+  },
+  memberNameOverlay: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 6,
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  memberStateOverlay: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontWeight: '500',
   },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    padding: 14,
   },
   avatar: {
     width: 44,
@@ -485,6 +596,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: 8,
+    flexWrap: 'wrap',
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  typeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   activityContent: {
     flex: 1,
