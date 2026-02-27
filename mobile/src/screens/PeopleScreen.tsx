@@ -43,7 +43,7 @@ export default function PeopleScreen() {
   useEffect(() => {
     setLoading(true);
     apiClient
-      .getPeople({ limit: 200 })
+      .getPeople({ limit: 600 })
       .then((res) => {
         setPeople(res.people || []);
         setLoading(false);
