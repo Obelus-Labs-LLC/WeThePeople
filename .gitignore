@@ -30,10 +30,22 @@ venv/
 Thumbs.db
 desktop.ini
 
-# Node (frontend)
+# Node
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+
+# React Native / Expo
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+_figma_export/
 
 # Logs
 *.log
@@ -52,3 +64,8 @@ nul
 # Temp
 *.tmp
 *.bak
+
+# Debug scripts
+_check_db.py
+_sync_*.py
+_chain_*.py

@@ -238,7 +238,9 @@ def main():
     identity_group.add_argument('--bioguide', help='Member bioguide ID (e.g., O000172 for AOC)')
     identity_group.add_argument('--person-id', help='Member person_id (e.g., alexandria_ocasio_cortez)')
     identity_group.add_argument('--all-active', action='store_true',
-                               help='Sync all active tracked members')
+                               help='Sync active members that already have claims')
+    identity_group.add_argument('--all-members', action='store_true',
+                               help='Sync ALL active tracked members with bioguide IDs')
     
     parser.add_argument('--congress', type=int, required=True, help='Congress number (e.g., 119)')
     parser.add_argument('--role', default='both', choices=['sponsored', 'cosponsored', 'both'],
@@ -278,16 +280,27 @@ def main():
             members_to_sync = [(member.bioguide_id, args.person_id)]
         finally:
             db.close()
+    elif args.all_members:
+        # Sync ALL active tracked members with bioguide IDs
+        db = SessionLocal()
+        try:
+            members = db.query(TrackedMember).filter(
+                TrackedMember.is_active == True,
+                TrackedMember.bioguide_id.isnot(None),
+            ).all()
+            members_to_sync = [(m.bioguide_id, m.person_id) for m in members]
+            print(f"Found {len(members_to_sync)} active members to sync\n")
+        finally:
+            db.close()
     elif args.all_active:
         # Sync only pilot members (those with claims)
-        # These are our 5 active tracked members: AOC, Sanders, Schumer, Warren, Wyden
         db = SessionLocal()
         try:
             from models.database import Claim
             # Get distinct person_ids from claims
             person_ids_with_claims = db.query(Claim.person_id).distinct().all()
             person_ids_with_claims = [p[0] for p in person_ids_with_claims]
-            
+
             # Get members with bioguide_id who have claims
             members = db.query(TrackedMember).filter(
                 TrackedMember.bioguide_id.isnot(None),
