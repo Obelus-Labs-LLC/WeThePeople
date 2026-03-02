@@ -16,6 +16,7 @@ from models.database import (
     PersonBill,
     GoldLedgerEntry,
     TrackedMember,
+    MemberBillGroundTruth,
 )
 from models.finance_models import (
     TrackedInstitution,
@@ -42,7 +43,7 @@ from models.tech_models import (
     LobbyingRecord,
     FTCEnforcement,
 )
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, case
 from sqlalchemy.exc import OperationalError
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import date, datetime
@@ -328,9 +329,11 @@ def get_people(
         False,
         description="If true, returns only people that have at least one gold_ledger entry.",
     ),
-    limit: int = Query(50, ge=1, le=500),
+    party: Optional[str] = Query(None, description="Filter by party: D, R, or I"),
+    chamber: Optional[str] = Query(None, description="Filter by chamber: house or senate"),
+    limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    q: Optional[str] = Query(None, description="Case-insensitive search over person_id/display_name/bioguide_id"),
+    q: Optional[str] = Query(None, description="Case-insensitive search over person_id/display_name/bioguide_id/state"),
 ):
     """People directory for frontend.
 
@@ -350,12 +353,19 @@ def get_people(
                 .exists()
             )
 
+        if party:
+            query = query.filter(TrackedMember.party.like(f"{party}%"))
+
+        if chamber:
+            query = query.filter(func.lower(TrackedMember.chamber) == chamber.lower())
+
         if q:
             like = f"%{q.strip().lower()}%"
             query = query.filter(
                 func.lower(TrackedMember.person_id).like(like)
                 | func.lower(TrackedMember.display_name).like(like)
                 | func.lower(TrackedMember.bioguide_id).like(like)
+                | func.lower(TrackedMember.state).like(like)
             )
 
         # Get total before pagination
@@ -442,6 +452,151 @@ def get_actions(
         } for a, url in rows]
     finally:
         db.close()
+
+
+@app.get("/people/{person_id}/activity")
+def get_person_activity(
+    person_id: str,
+    role: Optional[str] = Query(None, description="Filter by role: sponsored or cosponsored"),
+    congress: Optional[int] = Query(None, description="Filter by congress number (e.g. 119)"),
+    policy_area: Optional[str] = Query(None, description="Filter by policy area"),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """Real legislative activity for a member — bills they sponsored/cosponsored.
+
+    Serves directly from member_bills_groundtruth joined with bills.
+    This is the canonical source for what a member has actually done in office.
+    """
+    db = SessionLocal()
+    try:
+        # Look up bioguide_id from person_id
+        member = db.query(TrackedMember).filter(
+            TrackedMember.person_id == person_id
+        ).first()
+        if not member:
+            raise HTTPException(status_code=404, detail=f"Unknown person_id: {person_id}")
+        if not member.bioguide_id:
+            raise HTTPException(status_code=404, detail=f"Member {person_id} has no bioguide_id")
+
+        # Build query: groundtruth LEFT JOIN bills
+        q = (
+            db.query(MemberBillGroundTruth, Bill)
+            .outerjoin(Bill, MemberBillGroundTruth.bill_id == Bill.bill_id)
+            .filter(MemberBillGroundTruth.bioguide_id == member.bioguide_id)
+        )
+
+        if role is not None:
+            if role not in ("sponsored", "cosponsored", "sponsor", "cosponsor"):
+                raise HTTPException(status_code=422, detail="role must be 'sponsored' or 'cosponsored'")
+            # Handle both "sponsor"/"sponsored" forms in the data
+            if role in ("sponsored", "sponsor"):
+                q = q.filter(MemberBillGroundTruth.role.in_(["sponsored", "sponsor"]))
+            else:
+                q = q.filter(MemberBillGroundTruth.role.in_(["cosponsored", "cosponsor"]))
+
+        if congress is not None:
+            q = q.filter(Bill.congress == congress)
+
+        if policy_area is not None:
+            q = q.filter(func.lower(Bill.policy_area) == func.lower(policy_area))
+
+        # Count before pagination
+        total = q.with_entities(func.count(MemberBillGroundTruth.id)).scalar() or 0
+
+        # Order: sponsored first, then by latest_action_date desc
+        rows = (
+            q.order_by(
+                # sponsored before cosponsored
+                case(
+                    (MemberBillGroundTruth.role.in_(["sponsored", "sponsor"]), 0),
+                    else_=1,
+                ),
+                desc(Bill.latest_action_date).nullslast(),
+                desc(MemberBillGroundTruth.id),
+            )
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+        # Aggregate stats (handle both "sponsor"/"sponsored" forms)
+        sponsored_count = (
+            db.query(func.count(MemberBillGroundTruth.id))
+            .filter(
+                MemberBillGroundTruth.bioguide_id == member.bioguide_id,
+                MemberBillGroundTruth.role.in_(["sponsored", "sponsor"]),
+            )
+            .scalar() or 0
+        )
+        cosponsored_count = (
+            db.query(func.count(MemberBillGroundTruth.id))
+            .filter(
+                MemberBillGroundTruth.bioguide_id == member.bioguide_id,
+                MemberBillGroundTruth.role.in_(["cosponsored", "cosponsor"]),
+            )
+            .scalar() or 0
+        )
+
+        # Policy area breakdown
+        policy_areas = dict(
+            db.query(Bill.policy_area, func.count(MemberBillGroundTruth.id))
+            .outerjoin(Bill, MemberBillGroundTruth.bill_id == Bill.bill_id)
+            .filter(
+                MemberBillGroundTruth.bioguide_id == member.bioguide_id,
+                Bill.policy_area.isnot(None),
+            )
+            .group_by(Bill.policy_area)
+            .all()
+        )
+
+        entries = []
+        for gt, bill in rows:
+            entry = {
+                "bill_id": gt.bill_id,
+                "role": gt.role,
+                "congress": bill.congress if bill else None,
+                "bill_type": bill.bill_type if bill else None,
+                "bill_number": bill.bill_number if bill else None,
+                "title": bill.title if bill else gt.bill_id,
+                "policy_area": bill.policy_area if bill else None,
+                "status": bill.status_bucket if bill else None,
+                "latest_action": bill.latest_action_text if bill else None,
+                "latest_action_date": bill.latest_action_date.isoformat() if bill and bill.latest_action_date else None,
+                "summary": bill.summary_text[:300] if bill and bill.summary_text else None,
+                "congress_url": f"https://www.congress.gov/bill/{bill.congress}th-congress/{_bill_type_label(bill.bill_type)}/{bill.bill_number}" if bill else None,
+            }
+            entries.append(entry)
+
+        return {
+            "person_id": person_id,
+            "display_name": member.display_name,
+            "total": total,
+            "sponsored_count": sponsored_count,
+            "cosponsored_count": cosponsored_count,
+            "policy_areas": policy_areas,
+            "limit": limit,
+            "offset": offset,
+            "entries": entries,
+        }
+    finally:
+        db.close()
+
+
+def _bill_type_label(bill_type: str) -> str:
+    """Convert bill_type code to Congress.gov URL format."""
+    labels = {
+        "hr": "house-bill",
+        "s": "senate-bill",
+        "hjres": "house-joint-resolution",
+        "sjres": "senate-joint-resolution",
+        "hconres": "house-concurrent-resolution",
+        "sconres": "senate-concurrent-resolution",
+        "hres": "house-resolution",
+        "sres": "senate-resolution",
+    }
+    return labels.get(bill_type, bill_type)
+
 
 @app.get("/people/{person_id}/stats")
 def get_person_stats(person_id: str):
