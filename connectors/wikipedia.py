@@ -420,37 +420,76 @@ def search_pages(query: str, limit: int = 5) -> List[Dict[str, Any]]:
     return results
 
 
-def find_politician_page(name: str) -> Optional[str]:
+def find_politician_page(
+    name: str,
+    state: Optional[str] = None,
+    chamber: Optional[str] = None,
+) -> Optional[str]:
     """
     Find the Wikipedia page title for a politician by name.
 
-    Searches Wikipedia and returns the best match.
+    Searches Wikipedia and returns the best match.  Uses state and chamber
+    to disambiguate common names (e.g. "John Kennedy" → the Louisiana senator,
+    not JFK).
 
     Args:
         name: Politician name (e.g., "Alexandria Ocasio-Cortez")
+        state: Two-letter state code (e.g., "LA") for disambiguation
+        chamber: "house" or "senate" for disambiguation
 
     Returns:
         Wikipedia page title, or None if not found
     """
-    results = search_pages(f"{name} politician", limit=3)
+    # Build a specific search query using all available context
+    chamber_label = {"senate": "senator", "house": "representative"}.get(
+        (chamber or "").lower(), "politician"
+    )
+
+    # Most specific first: "John Kennedy Louisiana senator"
+    if state:
+        from utils.state_names import STATE_NAMES  # two-letter → full name
+        state_full = STATE_NAMES.get(state.upper(), state)
+        query = f"{name} {state_full} {chamber_label}"
+    else:
+        query = f"{name} {chamber_label}"
+
+    results = search_pages(query, limit=5)
 
     if not results:
-        # Try without "politician" qualifier
-        results = search_pages(name, limit=3)
+        # Fallback: just name + politician
+        results = search_pages(f"{name} politician", limit=5)
 
-    if results:
-        title = results[0].get("title", "")
-        logger.info("Best match for '%s': %s", name, title)
-        return title
+    if not results:
+        results = search_pages(name, limit=5)
 
-    return None
+    if not results:
+        return None
+
+    # If we have state context, try to pick the result that mentions it
+    if state:
+        state_full_lower = STATE_NAMES.get(state.upper(), state).lower()
+        for r in results:
+            snippet = (r.get("snippet", "") + " " + r.get("title", "")).lower()
+            if state_full_lower in snippet or state.lower() in snippet:
+                title = r["title"]
+                logger.info("Best match for '%s' (state=%s): %s", name, state, title)
+                return title
+
+    # Default to first result
+    title = results[0].get("title", "")
+    logger.info("Best match for '%s': %s", name, title)
+    return title
 
 
 # ============================================================================
 # PROFILE BUILDER — High-level politician profile
 # ============================================================================
 
-def build_politician_profile(name: str) -> Dict[str, Any]:
+def build_politician_profile(
+    name: str,
+    state: Optional[str] = None,
+    chamber: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Build a comprehensive politician profile from Wikipedia.
 
@@ -459,6 +498,8 @@ def build_politician_profile(name: str) -> Dict[str, Any]:
 
     Args:
         name: Politician name (e.g., "Alexandria Ocasio-Cortez")
+        state: Two-letter state code for disambiguation
+        chamber: "house" or "senate" for disambiguation
 
     Returns:
         Dict with:
@@ -482,8 +523,8 @@ def build_politician_profile(name: str) -> Dict[str, Any]:
         "url": None,
     }
 
-    # Step 1: Find the page
-    title = find_politician_page(name)
+    # Step 1: Find the page (with disambiguation context)
+    title = find_politician_page(name, state=state, chamber=chamber)
     if not title:
         logger.warning("No Wikipedia page found for '%s'", name)
         return profile

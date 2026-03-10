@@ -1115,9 +1115,13 @@ def person_performance(person_id: str, top: int = Query(10, ge=1, le=50)):
 # --- Wikipedia profile (cached) ---
 
 @lru_cache(maxsize=128)
-def _cached_wikipedia_profile(display_name: str):
+def _cached_wikipedia_profile(display_name: str, state: str = "", chamber: str = ""):
     try:
-        return build_politician_profile(display_name)
+        return build_politician_profile(
+            display_name,
+            state=state or None,
+            chamber=chamber or None,
+        )
     except Exception:
         return None
 
@@ -1131,10 +1135,12 @@ def get_person_profile(person_id: str):
         if member is None:
             raise HTTPException(status_code=404, detail={"error": "person not found", "person_id": person_id})
         display_name = member.display_name
+        state = member.state or ""
+        chamber = member.chamber or ""
     finally:
         db.close()
 
-    profile = _cached_wikipedia_profile(display_name)
+    profile = _cached_wikipedia_profile(display_name, state, chamber)
     if profile is None:
         return {"person_id": person_id, "display_name": display_name, "summary": None, "thumbnail": None,
                 "wikidata_id": None, "infobox": {}, "sections": {}, "url": None}
