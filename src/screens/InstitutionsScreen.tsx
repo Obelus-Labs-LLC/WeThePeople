@@ -8,8 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { Institution } from '../api/types';
-import { LoadingSpinner, EmptyState } from '../components/ui';
-import { SectorTypeBadge } from '../components/ui';
+import { LoadingSpinner, EmptyState, SectorTypeBadge } from '../components/ui';
+import { FilterPillGroup } from '../components/FilterPillGroup';
 
 const SECTOR_COLORS: Record<string, string> = {
   bank: '#2563EB',
@@ -131,17 +131,7 @@ export default function InstitutionsScreen() {
 
       {/* Filters */}
       <View style={styles.filterRow}>
-        {SECTOR_OPTIONS.map((opt) => (
-          <TouchableOpacity
-            key={opt.key}
-            style={[styles.filterBtn, sectorFilter === opt.key && styles.filterBtnActive]}
-            onPress={() => setSectorFilter(opt.key)}
-          >
-            <Text style={[styles.filterBtnText, sectorFilter === opt.key && styles.filterBtnTextActive]}>
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <FilterPillGroup options={SECTOR_OPTIONS} selected={sectorFilter} onSelect={setSectorFilter} />
       </View>
 
       <Text style={styles.countText}>

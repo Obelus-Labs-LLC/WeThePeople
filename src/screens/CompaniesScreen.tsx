@@ -6,6 +6,7 @@ import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { Company } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
+import { FilterPillGroup } from '../components/FilterPillGroup';
 
 const SECTOR_COLORS: Record<string, string> = {
   pharma: '#2563EB',
@@ -116,18 +117,7 @@ export default function CompaniesScreen() {
 
       {/* Sector filter */}
       <View style={styles.filterRow}>
-        {SECTOR_OPTIONS.map(opt => {
-          const active = sectorFilter === opt.key;
-          return (
-            <TouchableOpacity
-              key={opt.key}
-              style={[styles.filterBtn, active && styles.filterBtnActive]}
-              onPress={() => setSectorFilter(opt.key)}
-            >
-              <Text style={[styles.filterBtnText, active && styles.filterBtnTextActive]}>{opt.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
+        <FilterPillGroup options={SECTOR_OPTIONS} selected={sectorFilter} onSelect={setSectorFilter} />
       </View>
 
       {/* Count */}
