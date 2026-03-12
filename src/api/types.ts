@@ -597,6 +597,31 @@ export interface ActivityResponse {
   entries: ActivityEntry[];
 }
 
+// ── Person Votes ─────────────────────────────────────────────
+export interface PersonVoteEntry {
+  vote_id: number;
+  congress: number | null;
+  chamber: string | null;
+  roll_number: number | null;
+  vote_date: string | null;
+  question: string | null;
+  result: string | null;
+  position: string | null;
+  related_bill_congress: number | null;
+  related_bill_type: string | null;
+  related_bill_number: number | null;
+}
+
+export interface PersonVotesResponse {
+  person_id: string;
+  display_name: string;
+  total: number;
+  position_summary: Record<string, number>;
+  limit: number;
+  offset: number;
+  votes: PersonVoteEntry[];
+}
+
 // ── Bill Detail ──────────────────────────────────────────────
 export interface BillDetail {
   bill_id: string;

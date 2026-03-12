@@ -10,16 +10,17 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
-import type { ActivityEntry, ActivityResponse, PersonProfile, PersonFinance } from '../api/types';
+import type { ActivityEntry, ActivityResponse, PersonProfile, PersonFinance, PersonVotesResponse, PersonVoteEntry } from '../api/types';
 import {
   LoadingSpinner, EmptyState, StatCard, PartyBadge,
-  ChamberBadge,
+  ChamberBadge, SkeletonList,
 } from '../components/ui';
 
 // Enable LayoutAnimation on Android
@@ -149,8 +150,18 @@ function BillCard({ entry, onBillPress }: { entry: ActivityEntry; onBillPress?: 
   );
 }
 
-type Tab = 'overview' | 'activity' | 'finance';
+type Tab = 'overview' | 'activity' | 'votes' | 'finance';
 type RoleFilter = 'all' | 'sponsored' | 'cosponsored';
+type PositionFilter = 'all' | 'Yea' | 'Nay' | 'Not Voting';
+
+const POSITION_COLORS: Record<string, string> = {
+  Yea: '#10B981',
+  Aye: '#10B981',
+  Nay: '#DC2626',
+  No: '#DC2626',
+  'Not Voting': '#9CA3AF',
+  Present: '#D4A017',
+};
 
 export default function PersonScreen() {
   const route = useRoute<any>();
@@ -160,6 +171,7 @@ export default function PersonScreen() {
   const [tab, setTab] = useState<Tab>('overview');
   const [activity, setActivity] = useState<ActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<PersonProfile | null>(null);
   const [finance, setFinance] = useState<PersonFinance | null>(null);
@@ -167,23 +179,38 @@ export default function PersonScreen() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [categoriesOpen, setCategoriesOpen] = useState(false);
 
+  // Votes state
+  const [votes, setVotes] = useState<PersonVotesResponse | null>(null);
+  const [votesLoading, setVotesLoading] = useState(false);
+  const [positionFilter, setPositionFilter] = useState<PositionFilter>('all');
+
+  const loadCoreData = async () => {
+    const [activityRes, profileRes] = await Promise.all([
+      apiClient.getPersonActivity(person_id, { limit: 200 }),
+      apiClient.getPersonProfile(person_id).catch(() => null),
+    ]);
+    setActivity(activityRes);
+    if (profileRes) setProfile(profileRes);
+  };
+
   useEffect(() => {
     if (!person_id) return;
     setLoading(true);
-    Promise.all([
-      apiClient.getPersonActivity(person_id, { limit: 200 }),
-      apiClient.getPersonProfile(person_id).catch(() => null),
-    ])
-      .then(([activityRes, profileRes]) => {
-        setActivity(activityRes);
-        if (profileRes) setProfile(profileRes);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message || 'Failed to load data');
-        setLoading(false);
-      });
+    loadCoreData()
+      .catch((err) => setError(err.message || 'Failed to load data'))
+      .finally(() => setLoading(false));
   }, [person_id]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadCoreData();
+      // Reset lazy-loaded data so it refreshes on next tab switch
+      setFinance(null);
+      setVotes(null);
+    } catch {}
+    setRefreshing(false);
+  };
 
   // Lazy-load finance
   useEffect(() => {
@@ -194,6 +221,16 @@ export default function PersonScreen() {
       .catch(() => {})
       .finally(() => setFinanceLoading(false));
   }, [tab, person_id, finance]);
+
+  // Lazy-load votes
+  useEffect(() => {
+    if (tab !== 'votes' || !person_id || votes) return;
+    setVotesLoading(true);
+    apiClient.getPersonVotes(person_id, { limit: 100 })
+      .then(setVotes)
+      .catch(() => {})
+      .finally(() => setVotesLoading(false));
+  }, [tab, person_id, votes]);
 
   const displayName = activity?.display_name || profile?.display_name || person_id?.replace(/_/g, ' ') || '';
   const entries = activity?.entries || [];
@@ -220,11 +257,16 @@ export default function PersonScreen() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'activity', label: `Activity (${total})` },
+    { key: 'votes', label: `Votes${votes ? ` (${votes.total})` : ''}` },
     { key: 'finance', label: 'Finance' },
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
+    >
       {/* Gradient banner */}
       <LinearGradient
         colors={['#1B7A3D', '#15693A', '#0F5831']}
@@ -406,6 +448,101 @@ export default function PersonScreen() {
                 onBillPress={(billId) => navigation.navigate('BillDetail', { bill_id: billId })}
               />
             ))
+          )}
+        </View>
+      )}
+
+      {tab === 'votes' && (
+        <View style={styles.tabContent}>
+          {votesLoading ? (
+            <SkeletonList count={5} />
+          ) : !votes || votes.total === 0 ? (
+            <EmptyState title="No voting records" message="Roll call vote data is not yet available for this member." />
+          ) : (
+            <>
+              {/* Position summary */}
+              {votes.position_summary && Object.keys(votes.position_summary).length > 0 && (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Position Summary</Text>
+                  {Object.entries(votes.position_summary)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([pos, count]) => (
+                      <View key={pos} style={styles.factRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: POSITION_COLORS[pos] || '#6B7280' }} />
+                          <Text style={styles.factLabel}>{pos}</Text>
+                        </View>
+                        <Text style={styles.factValue}>{count}</Text>
+                      </View>
+                    ))}
+                </View>
+              )}
+
+              {/* Position filter */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+                <View style={styles.filterRow}>
+                  {(['all', 'Yea', 'Nay', 'Not Voting'] as PositionFilter[]).map((f) => (
+                    <TouchableOpacity
+                      key={f}
+                      style={[styles.filterBtn, positionFilter === f && styles.filterBtnActive]}
+                      onPress={() => setPositionFilter(f)}
+                    >
+                      <Text style={[styles.filterBtnText, positionFilter === f && styles.filterBtnTextActive]}>
+                        {f === 'all' ? `All (${votes.total})` : f}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              {/* Vote list */}
+              {(positionFilter === 'all'
+                ? votes.votes
+                : votes.votes.filter((v) => v.position === positionFilter)
+              ).map((vote) => {
+                const posColor = POSITION_COLORS[vote.position || ''] || '#6B7280';
+                const billLabel = vote.related_bill_type && vote.related_bill_number
+                  ? `${vote.related_bill_type.toUpperCase()} ${vote.related_bill_number}`
+                  : null;
+                return (
+                  <View key={vote.vote_id} style={styles.voteCard}>
+                    <View style={styles.voteHeader}>
+                      <View style={[styles.positionBadge, { backgroundColor: posColor + '18' }]}>
+                        <Text style={[styles.positionBadgeText, { color: posColor }]}>
+                          {vote.position || 'Unknown'}
+                        </Text>
+                      </View>
+                      <Text style={styles.voteResult}>
+                        {vote.result || ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.voteQuestion} numberOfLines={2}>
+                      {vote.question || 'Roll call vote'}
+                    </Text>
+                    <View style={styles.voteMeta}>
+                      {vote.chamber && (
+                        <Text style={styles.voteMetaText}>{vote.chamber}</Text>
+                      )}
+                      {vote.vote_date && (
+                        <Text style={styles.voteMetaText}>
+                          {new Date(vote.vote_date).toLocaleDateString()}
+                        </Text>
+                      )}
+                      {billLabel && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            const billId = `${vote.related_bill_congress}-${vote.related_bill_type}-${vote.related_bill_number}`;
+                            navigation.navigate('BillDetail', { bill_id: billId });
+                          }}
+                        >
+                          <Text style={styles.billIdLink}>{billLabel}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </>
           )}
         </View>
       )}
@@ -849,6 +986,57 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
     textAlign: 'right',
+  },
+  // ── Votes tab ──
+  voteCard: {
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: UI_COLORS.BORDER,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  voteHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  positionBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  positionBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  voteResult: {
+    color: UI_COLORS.TEXT_MUTED,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  voteQuestion: {
+    color: UI_COLORS.TEXT_PRIMARY,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  voteMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  voteMetaText: {
+    color: UI_COLORS.TEXT_MUTED,
+    fontSize: 11,
   },
   errorContainer: {
     flex: 1,

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Linking,
+  StyleSheet, Linking, RefreshControl,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,19 +29,28 @@ export default function BillScreen() {
 
   const [bill, setBill] = useState<BillDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loadBill = async () => {
+    const res = await apiClient.getBillDetail(billId);
+    setBill(res);
+    navigation.setOptions({ title: res.title?.slice(0, 40) || billId.toUpperCase() });
+  };
 
   useEffect(() => {
     if (!billId) return;
     setLoading(true);
-    apiClient.getBillDetail(billId)
-      .then((res) => {
-        setBill(res);
-        navigation.setOptions({ title: res.title?.slice(0, 40) || billId.toUpperCase() });
-      })
+    loadBill()
       .catch((err) => setError(err.message || 'Failed to load bill'))
       .finally(() => setLoading(false));
   }, [billId]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { await loadBill(); } catch {}
+    setRefreshing(false);
+  };
 
   if (loading) return <LoadingSpinner message="Loading bill..." />;
   if (error || !bill) {
@@ -57,7 +66,11 @@ export default function BillScreen() {
   const statusLabel = (bill.status_bucket || 'unknown').replace(/_/g, ' ');
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
+    >
       {/* Header card */}
       <View style={styles.card}>
         <View style={styles.billIdRow}>
