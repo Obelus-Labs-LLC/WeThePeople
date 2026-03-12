@@ -40,8 +40,8 @@ import type {
   BillDetail,
 } from './types';
 
-// Hardcoded production API URL.
-// Overridable via app.config.ts extra.apiUrl (set WTP_API_URL env var at build time).
+// Production API URL loaded from app.config.ts extra.apiUrl.
+// Set WTP_API_URL env var at build time — no hardcoded IPs.
 const PRODUCTION_API = 'http://localhost:8006';
 
 function getApiUrl(): string {
