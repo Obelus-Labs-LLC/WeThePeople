@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput, Image,
-  StyleSheet,
+  StyleSheet, RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,17 +32,28 @@ export default function InstitutionsScreen() {
   const navigation = useNavigation<any>();
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState<SectorFilter>('all');
 
+  const loadData = async () => {
+    const res = await apiClient.getInstitutions({ limit: 200 });
+    setInstitutions(res.institutions || []);
+  };
+
   useEffect(() => {
     setLoading(true);
-    apiClient
-      .getInstitutions({ limit: 200 })
-      .then((res) => { setInstitutions(res.institutions || []); setLoading(false); })
-      .catch((err) => { setError(err.message || 'Failed to load'); setLoading(false); });
+    loadData()
+      .catch((err) => setError(err.message || 'Failed to load'))
+      .finally(() => setLoading(false));
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { await loadData(); } catch {}
+    setRefreshing(false);
+  };
 
   const filtered = useMemo(() => {
     let result = institutions;
@@ -149,6 +160,7 @@ export default function InstitutionsScreen() {
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
         />
       )}
     </View>

@@ -1,0 +1,316 @@
+"""
+Finance sector routes — Institutions, filings, complaints, FRED, press releases, stock.
+"""
+
+from fastapi import APIRouter, Query, HTTPException
+from sqlalchemy import func, desc
+from typing import Optional
+
+from models.database import SessionLocal
+from models.finance_models import (
+    TrackedInstitution,
+    SECFiling,
+    FDICFinancial,
+    CFPBComplaint,
+    FREDObservation,
+    FedPressRelease,
+)
+from models.market_models import StockFundamentals
+
+router = APIRouter(prefix="/finance", tags=["finance"])
+
+
+@router.get("/dashboard/stats")
+def get_finance_dashboard_stats():
+    """Aggregate stats for the finance dashboard."""
+    db = SessionLocal()
+    try:
+        total_institutions = db.query(func.count(TrackedInstitution.id)).filter(TrackedInstitution.is_active == 1).scalar() or 0
+        total_filings = db.query(func.count(SECFiling.id)).scalar() or 0
+        total_financials = db.query(func.count(FDICFinancial.id)).scalar() or 0
+        total_complaints = db.query(func.count(CFPBComplaint.id)).scalar() or 0
+        total_fred = db.query(func.count(FREDObservation.id)).scalar() or 0
+        total_press = db.query(func.count(FedPressRelease.id)).scalar() or 0
+
+        by_sector = dict(
+            db.query(TrackedInstitution.sector_type, func.count(TrackedInstitution.id))
+            .filter(TrackedInstitution.is_active == 1)
+            .group_by(TrackedInstitution.sector_type).all()
+        )
+
+        return {
+            "total_institutions": total_institutions, "total_filings": total_filings,
+            "total_financials": total_financials, "total_complaints": total_complaints,
+            "total_fred_observations": total_fred, "total_press_releases": total_press,
+            "by_sector": by_sector,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/institutions")
+def get_finance_institutions(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    q: Optional[str] = Query(None, description="Search by name or ticker"),
+    sector_type: Optional[str] = Query(None),
+):
+    """List tracked financial institutions."""
+    db = SessionLocal()
+    try:
+        query = db.query(TrackedInstitution).filter(TrackedInstitution.is_active == 1)
+        if q:
+            like = f"%{q.strip().lower()}%"
+            query = query.filter(
+                func.lower(TrackedInstitution.display_name).like(like)
+                | func.lower(TrackedInstitution.ticker).like(like)
+                | func.lower(TrackedInstitution.institution_id).like(like)
+            )
+        if sector_type:
+            query = query.filter(TrackedInstitution.sector_type == sector_type)
+
+        total = query.count()
+        rows = query.order_by(TrackedInstitution.display_name).offset(offset).limit(limit).all()
+
+        institutions = []
+        for r in rows:
+            filing_count = db.query(func.count(SECFiling.id)).filter(SECFiling.institution_id == r.institution_id).scalar() or 0
+            complaint_count = db.query(func.count(CFPBComplaint.id)).filter(CFPBComplaint.institution_id == r.institution_id).scalar() or 0
+            institutions.append({
+                "institution_id": r.institution_id, "display_name": r.display_name,
+                "ticker": r.ticker, "sector_type": r.sector_type,
+                "headquarters": r.headquarters, "logo_url": r.logo_url,
+                "filing_count": filing_count, "complaint_count": complaint_count,
+            })
+
+        return {"total": total, "limit": limit, "offset": offset, "institutions": institutions}
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}")
+def get_institution_detail(institution_id: str):
+    """Detail for a single tracked institution."""
+    db = SessionLocal()
+    try:
+        inst = db.query(TrackedInstitution).filter_by(institution_id=institution_id, is_active=1).first()
+        if not inst:
+            raise HTTPException(status_code=404, detail="Institution not found")
+
+        filing_count = db.query(func.count(SECFiling.id)).filter(SECFiling.institution_id == institution_id).scalar() or 0
+        financial_count = db.query(func.count(FDICFinancial.id)).filter(FDICFinancial.institution_id == institution_id).scalar() or 0
+        complaint_count = db.query(func.count(CFPBComplaint.id)).filter(CFPBComplaint.institution_id == institution_id).scalar() or 0
+        fred_count = db.query(func.count(FREDObservation.id)).filter(FREDObservation.institution_id == institution_id).scalar() or 0
+        press_count = db.query(func.count(FedPressRelease.id)).filter(FedPressRelease.institution_id == institution_id).scalar() or 0
+
+        latest_stock = (
+            db.query(StockFundamentals)
+            .filter_by(entity_type="institution", entity_id=institution_id)
+            .order_by(desc(StockFundamentals.snapshot_date)).first()
+        )
+        stock_data = None
+        if latest_stock:
+            stock_data = {
+                "snapshot_date": str(latest_stock.snapshot_date) if latest_stock.snapshot_date else None,
+                "market_cap": latest_stock.market_cap, "pe_ratio": latest_stock.pe_ratio,
+                "eps": latest_stock.eps, "dividend_yield": latest_stock.dividend_yield,
+                "week_52_high": latest_stock.week_52_high, "week_52_low": latest_stock.week_52_low,
+                "profit_margin": latest_stock.profit_margin,
+            }
+
+        return {
+            "institution_id": inst.institution_id, "display_name": inst.display_name,
+            "ticker": inst.ticker, "sector_type": inst.sector_type,
+            "headquarters": inst.headquarters, "logo_url": inst.logo_url,
+            "sec_cik": inst.sec_cik, "fdic_cert_number": inst.fdic_cert_number,
+            "filing_count": filing_count, "financial_count": financial_count,
+            "complaint_count": complaint_count, "fred_count": fred_count,
+            "press_count": press_count, "latest_stock": stock_data,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/filings")
+def get_institution_filings(
+    institution_id: str,
+    form_type: Optional[str] = Query(None),
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """SEC EDGAR filings for an institution."""
+    db = SessionLocal()
+    try:
+        query = db.query(SECFiling).filter_by(institution_id=institution_id)
+        if form_type:
+            query = query.filter(SECFiling.form_type == form_type)
+        total = query.count()
+        rows = query.order_by(desc(SECFiling.filing_date)).offset(offset).limit(limit).all()
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "filings": [{
+                "id": f.id, "accession_number": f.accession_number, "form_type": f.form_type,
+                "filing_date": str(f.filing_date) if f.filing_date else None,
+                "primary_doc_url": f.primary_doc_url, "filing_url": f.filing_url,
+                "description": f.description,
+            } for f in rows],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/financials")
+def get_institution_financials(
+    institution_id: str,
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """FDIC quarterly financials for an institution."""
+    db = SessionLocal()
+    try:
+        query = db.query(FDICFinancial).filter_by(institution_id=institution_id)
+        total = query.count()
+        rows = query.order_by(desc(FDICFinancial.report_date)).offset(offset).limit(limit).all()
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "financials": [{
+                "id": f.id, "report_date": str(f.report_date) if f.report_date else None,
+                "total_assets": f.total_assets, "total_deposits": f.total_deposits,
+                "net_income": f.net_income, "tier1_capital_ratio": f.tier1_capital_ratio,
+                "npl_ratio": f.npl_ratio,
+            } for f in rows],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/complaints")
+def get_institution_complaints(
+    institution_id: str,
+    product: Optional[str] = Query(None),
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """CFPB complaints for an institution."""
+    db = SessionLocal()
+    try:
+        query = db.query(CFPBComplaint).filter_by(institution_id=institution_id)
+        if product:
+            query = query.filter(CFPBComplaint.product == product)
+        total = query.count()
+        rows = query.order_by(desc(CFPBComplaint.date_received)).offset(offset).limit(limit).all()
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "complaints": [{
+                "id": c.id, "complaint_id": c.complaint_id,
+                "date_received": str(c.date_received) if c.date_received else None,
+                "product": c.product, "sub_product": c.sub_product,
+                "issue": c.issue, "company_response": c.company_response,
+                "state": c.state,
+            } for c in rows],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/complaints/summary")
+def get_institution_complaint_summary(institution_id: str):
+    """Aggregated complaint stats for an institution."""
+    db = SessionLocal()
+    try:
+        total = db.query(func.count(CFPBComplaint.id)).filter_by(institution_id=institution_id).scalar() or 0
+        by_product = dict(
+            db.query(CFPBComplaint.product, func.count(CFPBComplaint.id))
+            .filter_by(institution_id=institution_id)
+            .group_by(CFPBComplaint.product).all()
+        )
+        by_response = dict(
+            db.query(CFPBComplaint.company_response, func.count(CFPBComplaint.id))
+            .filter_by(institution_id=institution_id)
+            .group_by(CFPBComplaint.company_response).all()
+        )
+        return {"total_complaints": total, "by_product": by_product, "by_response": by_response}
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/fred")
+def get_institution_fred(
+    institution_id: str,
+    series_id: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """FRED economic observations for an institution."""
+    db = SessionLocal()
+    try:
+        query = db.query(FREDObservation).filter_by(institution_id=institution_id)
+        if series_id:
+            query = query.filter(FREDObservation.series_id == series_id)
+        total = query.count()
+        rows = query.order_by(desc(FREDObservation.observation_date)).offset(offset).limit(limit).all()
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "observations": [{
+                "id": o.id, "series_id": o.series_id,
+                "observation_date": str(o.observation_date) if o.observation_date else None,
+                "value": o.value,
+            } for o in rows],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/press-releases")
+def get_institution_press_releases(
+    institution_id: str,
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Federal Reserve press releases for an institution."""
+    db = SessionLocal()
+    try:
+        query = db.query(FedPressRelease).filter_by(institution_id=institution_id)
+        total = query.count()
+        rows = query.order_by(desc(FedPressRelease.release_date)).offset(offset).limit(limit).all()
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "press_releases": [{
+                "id": p.id, "title": p.title,
+                "release_date": str(p.release_date) if p.release_date else None,
+                "url": p.url, "release_type": p.release_type,
+            } for p in rows],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/stock")
+def get_institution_stock(institution_id: str):
+    """Latest stock fundamentals for an institution."""
+    db = SessionLocal()
+    try:
+        latest = (
+            db.query(StockFundamentals)
+            .filter_by(entity_type="institution", entity_id=institution_id)
+            .order_by(desc(StockFundamentals.snapshot_date)).first()
+        )
+        if not latest:
+            return {"stock": None}
+        return {
+            "stock": {
+                "ticker": latest.ticker,
+                "snapshot_date": str(latest.snapshot_date) if latest.snapshot_date else None,
+                "market_cap": latest.market_cap, "pe_ratio": latest.pe_ratio,
+                "forward_pe": latest.forward_pe, "peg_ratio": latest.peg_ratio,
+                "price_to_book": latest.price_to_book, "eps": latest.eps,
+                "revenue_ttm": latest.revenue_ttm, "profit_margin": latest.profit_margin,
+                "operating_margin": latest.operating_margin, "return_on_equity": latest.return_on_equity,
+                "dividend_yield": latest.dividend_yield, "dividend_per_share": latest.dividend_per_share,
+                "week_52_high": latest.week_52_high, "week_52_low": latest.week_52_low,
+                "day_50_moving_avg": latest.day_50_moving_avg, "day_200_moving_avg": latest.day_200_moving_avg,
+                "sector": latest.sector, "industry": latest.industry,
+            }
+        }
+    finally:
+        db.close()

@@ -190,6 +190,22 @@ def run_daily_pipeline(config: DailyRunConfig) -> Dict[str, Any]:
             enabled=not config.dry_run,
         )
 
+        # Step 6: change detection (post-sync snapshot + diff)
+        if not config.dry_run:
+            try:
+                from models.database import SessionLocal
+                from services.change_detection import run_change_detection
+                db = SessionLocal()
+                diff = run_change_detection(db)
+                db.close()
+                manifest["change_detection"] = {
+                    "status": "ok",
+                    "alerts": diff.get("alerts", []),
+                    "changes_summary": {k: v.get("delta", 0) for k, v in diff.get("changes", {}).items()},
+                }
+            except Exception as e:
+                manifest["change_detection"] = {"status": "error", "error": str(e)}
+
         any_failed = any(s.get("status") == "failed" for s in manifest["steps"])
         manifest["status"] = "failed" if any_failed else "success"
         return manifest

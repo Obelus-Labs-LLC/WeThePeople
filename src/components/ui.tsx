@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   ActivityIndicator,
   StyleSheet,
+  Animated,
 } from 'react-native';
 import { UI_COLORS, TIER_COLORS, PARTY_COLORS, ACCENT_COLORS } from '../constants/colors';
 
@@ -181,6 +182,73 @@ export function CompanyTypeBadge({ companyType }: { companyType: string }) {
   );
 }
 
+// ── Skeleton Loader ──
+function SkeletonPulse({ style }: { style?: any }) {
+  const opacity = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.7, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        { backgroundColor: UI_COLORS.BORDER, borderRadius: 6, opacity },
+        style,
+      ]}
+    />
+  );
+}
+
+export function SkeletonCard() {
+  return (
+    <View style={uiStyles.skeletonCard}>
+      <SkeletonPulse style={{ width: '40%', height: 12, marginBottom: 10 }} />
+      <SkeletonPulse style={{ width: '100%', height: 10, marginBottom: 6 }} />
+      <SkeletonPulse style={{ width: '75%', height: 10 }} />
+    </View>
+  );
+}
+
+export function SkeletonList({ count = 4 }: { count?: number }) {
+  return (
+    <View style={{ gap: 10 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonCard key={i} />
+      ))}
+    </View>
+  );
+}
+
+export function SkeletonRow() {
+  return (
+    <View style={uiStyles.skeletonRow}>
+      <SkeletonPulse style={{ width: 44, height: 44, borderRadius: 22 }} />
+      <View style={{ flex: 1, gap: 6 }}>
+        <SkeletonPulse style={{ width: '60%', height: 12 }} />
+        <SkeletonPulse style={{ width: '40%', height: 10 }} />
+      </View>
+    </View>
+  );
+}
+
+export function SkeletonPersonRows({ count = 5 }: { count?: number }) {
+  return (
+    <View style={{ gap: 8 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonRow key={i} />
+      ))}
+    </View>
+  );
+}
+
 const uiStyles = StyleSheet.create({
   center: {
     flex: 1,
@@ -310,5 +378,23 @@ const uiStyles = StyleSheet.create({
     fontSize: 11,
     fontVariant: ['tabular-nums'],
     minWidth: 30,
+  },
+  // ── Skeleton ──
+  skeletonCard: {
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: UI_COLORS.BORDER,
+  },
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: UI_COLORS.BORDER,
   },
 });

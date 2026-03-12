@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
@@ -29,16 +29,27 @@ export default function CompaniesScreen() {
   const navigation = useNavigation<any>();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState<SectorFilter>('all');
 
+  const loadData = async () => {
+    const res = await apiClient.getCompanies({ limit: 200 });
+    setCompanies(res.companies || []);
+  };
+
   useEffect(() => {
-    apiClient.getCompanies({ limit: 200 })
-      .then((res) => { setCompanies(res.companies || []); })
+    loadData()
       .catch((e: any) => setError(e.message || 'Failed to load'))
       .finally(() => setLoading(false));
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { await loadData(); } catch {}
+    setRefreshing(false);
+  };
 
   const filtered = useMemo(() => {
     let result = companies;
@@ -130,6 +141,7 @@ export default function CompaniesScreen() {
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         ListEmptyComponent={<EmptyState title="No companies found" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
       />
     </View>
   );

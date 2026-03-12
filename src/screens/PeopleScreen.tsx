@@ -8,6 +8,7 @@ import {
   TextInput,
   StyleSheet,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -116,6 +117,15 @@ export default function PeopleScreen() {
     return pages;
   };
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setPage(1);
+    await fetchPage(1);
+    setRefreshing(false);
+  };
+
   if (loading) return <LoadingSpinner message="Loading directory..." />;
 
   const renderPerson = ({ item: person }: { item: Person }) => (
@@ -221,6 +231,7 @@ export default function PeopleScreen() {
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
           ListFooterComponent={() => (
             totalPages > 1 ? (
               <View style={styles.paginationBar}>

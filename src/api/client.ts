@@ -39,6 +39,7 @@ import type {
   TechComparisonResponse,
   NewsResponse,
   BillDetail,
+  PersonVotesResponse,
 } from './types';
 
 // Hardcoded production API URL.
@@ -408,6 +409,21 @@ class WTPClient {
   async getNews(query: string, limit: number = 10): Promise<NewsResponse> {
     return this.fetchJSON<NewsResponse>(
       `${this.baseUrl}/news/${encodeURIComponent(query)}?limit=${limit}`
+    );
+  }
+
+  // ── Votes ──
+
+  async getPersonVotes(
+    personId: string,
+    params?: { position?: string; limit?: number; offset?: number }
+  ): Promise<PersonVotesResponse> {
+    const sp = new URLSearchParams();
+    if (params?.position) sp.set('position', params.position);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<PersonVotesResponse>(
+      `${this.baseUrl}/people/${encodeURIComponent(personId)}/votes?${sp}`
     );
   }
 

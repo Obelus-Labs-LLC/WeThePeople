@@ -69,3 +69,4 @@ nul
 _check_db.py
 _sync_*.py
 _chain_*.py
+backups/
