@@ -216,7 +216,7 @@ export default function TechCompanyScreen() {
         </View>
 
         {/* Tab Content */}
-        {tab === 'overview' && renderOverview(company, filings, news, sectorColor)}
+        {tab === 'overview' && renderOverview(company, filings, news, sectorColor, setTab)}
         {tab === 'patents' && renderPatents(patents, patentsLoading)}
         {tab === 'contracts' && renderContracts(contracts, contractSummary, contractTrends, contractsLoading)}
         {tab === 'lobbying' && renderLobbying(lobbyingFilings, lobbySummary, lobbyingLoading)}
@@ -232,26 +232,27 @@ function renderOverview(
   filings: SECFiling[],
   news: NewsArticle[],
   sectorColor: string,
+  setTab: (tab: Tab) => void,
 ) {
   return (
     <View style={styles.tabContent}>
       {/* Stats row */}
       <View style={styles.statsRow}>
-        <View style={styles.miniStat}>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('patents')}>
           <Ionicons name="bulb-outline" size={18} color="#F59E0B" />
           <Text style={styles.miniStatVal}>{company.patent_count}</Text>
           <Text style={styles.miniStatLabel}>Patents</Text>
-        </View>
-        <View style={styles.miniStat}>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('contracts')}>
           <Ionicons name="document-text-outline" size={18} color="#2563EB" />
           <Text style={styles.miniStatVal}>{company.contract_count}</Text>
           <Text style={styles.miniStatLabel}>Contracts</Text>
-        </View>
-        <View style={styles.miniStat}>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('lobbying')}>
           <Ionicons name="folder-outline" size={18} color="#8B5CF6" />
           <Text style={styles.miniStatVal}>{company.filing_count}</Text>
           <Text style={styles.miniStatLabel}>Filings</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Contract value */}
@@ -383,25 +384,43 @@ function renderPatents(patents: TechPatentItem[], loading: boolean) {
       {patents.length === 0 ? (
         <Text style={styles.noData}>No patents found</Text>
       ) : (
-        patents.map((p) => (
-          <View key={p.id} style={styles.card}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <Text style={styles.patentNum}>#{p.patent_number}</Text>
-              {p.num_claims != null && (
-                <View style={styles.claimsBadge}>
-                  <Text style={styles.claimsBadgeText}>{p.num_claims} claims</Text>
-                </View>
+        patents.map((p) => {
+          const patentUrl = p.patent_number
+            ? `https://patents.google.com/patent/US${p.patent_number.replace(/[^0-9A-Za-z]/g, '')}`
+            : null;
+          return (
+            <TouchableOpacity
+              key={p.id}
+              style={styles.card}
+              onPress={() => patentUrl && Linking.openURL(patentUrl)}
+              disabled={!patentUrl}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <Text style={styles.patentNum}>#{p.patent_number}</Text>
+                {p.num_claims != null && (
+                  <View style={styles.claimsBadge}>
+                    <Text style={styles.claimsBadgeText}>{p.num_claims} claims</Text>
+                  </View>
+                )}
+              </View>
+              {p.patent_title && (
+                <Text style={styles.patentTitle} numberOfLines={2}>{p.patent_title}</Text>
               )}
-            </View>
-            {p.patent_title && (
-              <Text style={styles.patentTitle} numberOfLines={2}>{p.patent_title}</Text>
-            )}
-            {p.patent_abstract && (
-              <Text style={styles.cardText} numberOfLines={3}>{p.patent_abstract}</Text>
-            )}
-            {p.patent_date && <Text style={styles.cardDate}>Granted: {p.patent_date}</Text>}
-          </View>
-        ))
+              {p.patent_abstract && (
+                <Text style={styles.cardText} numberOfLines={3}>{p.patent_abstract}</Text>
+              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                {p.patent_date && <Text style={styles.cardDate}>Granted: {p.patent_date}</Text>}
+                {patentUrl && (
+                  <View style={styles.sourceLink}>
+                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                    <Text style={styles.sourceLinkText}>Google Patents</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })
       )}
     </View>
   );
@@ -475,32 +494,50 @@ function renderContracts(
       {contracts.length === 0 ? (
         <Text style={styles.noData}>No government contracts found</Text>
       ) : (
-        contracts.map((ct) => (
-          <View key={ct.id} style={styles.card}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              {ct.award_amount != null && (
-                <Text style={styles.contractAmount}>
-                  ${ct.award_amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </Text>
+        contracts.map((ct) => {
+          const contractUrl = ct.award_id
+            ? `https://www.usaspending.gov/award/${ct.award_id}`
+            : null;
+          return (
+            <TouchableOpacity
+              key={ct.id}
+              style={styles.card}
+              onPress={() => contractUrl && Linking.openURL(contractUrl)}
+              disabled={!contractUrl}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                {ct.award_amount != null && (
+                  <Text style={styles.contractAmount}>
+                    ${ct.award_amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </Text>
+                )}
+                {ct.contract_type && (
+                  <View style={styles.contractTypeBadge}>
+                    <Text style={styles.contractTypeText}>{ct.contract_type}</Text>
+                  </View>
+                )}
+              </View>
+              {ct.awarding_agency && (
+                <Text style={styles.agencyName}>{ct.awarding_agency}</Text>
               )}
-              {ct.contract_type && (
-                <View style={styles.contractTypeBadge}>
-                  <Text style={styles.contractTypeText}>{ct.contract_type}</Text>
+              {ct.description && (
+                <Text style={styles.cardText} numberOfLines={3}>{ct.description}</Text>
+              )}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  {ct.start_date && <Text style={styles.cardDate}>Start: {ct.start_date}</Text>}
+                  {ct.end_date && <Text style={styles.cardDate}>End: {ct.end_date}</Text>}
                 </View>
-              )}
-            </View>
-            {ct.awarding_agency && (
-              <Text style={styles.agencyName}>{ct.awarding_agency}</Text>
-            )}
-            {ct.description && (
-              <Text style={styles.cardText} numberOfLines={3}>{ct.description}</Text>
-            )}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-              {ct.start_date && <Text style={styles.cardDate}>Start: {ct.start_date}</Text>}
-              {ct.end_date && <Text style={styles.cardDate}>End: {ct.end_date}</Text>}
-            </View>
-          </View>
-        ))
+                {contractUrl && (
+                  <View style={styles.sourceLink}>
+                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                    <Text style={styles.sourceLinkText}>USASpending</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })
       )}
     </View>
   );
@@ -567,36 +604,54 @@ function renderLobbying(
       {filings.length === 0 ? (
         <Text style={styles.noData}>No lobbying filings found</Text>
       ) : (
-        filings.map((f) => (
-          <View key={f.id} style={styles.card}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={styles.yearBadge}>
-                  <Text style={styles.yearBadgeText}>{f.filing_year}</Text>
+        filings.map((f) => {
+          const lobbyUrl = f.filing_uuid
+            ? `https://lda.senate.gov/filings/filing/${f.filing_uuid}/`
+            : null;
+          return (
+            <TouchableOpacity
+              key={f.id}
+              style={styles.card}
+              onPress={() => lobbyUrl && Linking.openURL(lobbyUrl)}
+              disabled={!lobbyUrl}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={styles.yearBadge}>
+                    <Text style={styles.yearBadgeText}>{f.filing_year}</Text>
+                  </View>
+                  {f.filing_period && (
+                    <Text style={styles.periodText}>{f.filing_period}</Text>
+                  )}
                 </View>
-                {f.filing_period && (
-                  <Text style={styles.periodText}>{f.filing_period}</Text>
+                {f.income != null && f.income > 0 && (
+                  <Text style={styles.lobbyAmount}>${formatLargeNum(f.income)}</Text>
                 )}
               </View>
-              {f.income != null && f.income > 0 && (
-                <Text style={styles.lobbyAmount}>${formatLargeNum(f.income)}</Text>
+              {f.registrant_name && (
+                <Text style={styles.firmName}>{f.registrant_name}</Text>
               )}
-            </View>
-            {f.registrant_name && (
-              <Text style={styles.firmName}>{f.registrant_name}</Text>
-            )}
-            {f.lobbying_issues && (
-              <Text style={styles.cardText} numberOfLines={2}>
-                Issues: {f.lobbying_issues}
-              </Text>
-            )}
-            {f.government_entities && (
-              <Text style={styles.cardDate} numberOfLines={1}>
-                Entities: {f.government_entities}
-              </Text>
-            )}
-          </View>
-        ))
+              {f.lobbying_issues && (
+                <Text style={styles.cardText} numberOfLines={2}>
+                  Issues: {f.lobbying_issues}
+                </Text>
+              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                {f.government_entities && (
+                  <Text style={styles.cardDate} numberOfLines={1}>
+                    Entities: {f.government_entities}
+                  </Text>
+                )}
+                {lobbyUrl && (
+                  <View style={styles.sourceLink}>
+                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                    <Text style={styles.sourceLinkText}>Senate LDA</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })
       )}
     </View>
   );
@@ -824,6 +879,8 @@ const styles = StyleSheet.create({
   enfTypeText: { fontSize: 10, fontWeight: '600', color: '#6B7280' },
   caseTitle: { fontSize: 14, fontWeight: '600', color: UI_COLORS.TEXT_PRIMARY, lineHeight: 20, marginBottom: 4 },
   penaltyAmount: { fontSize: 15, fontWeight: '800', color: '#DC2626', marginBottom: 4 },
+  sourceLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sourceLinkText: { fontSize: 11, fontWeight: '600', color: UI_COLORS.ACCENT },
 
   // Summary
   summaryList: { marginTop: 12 },

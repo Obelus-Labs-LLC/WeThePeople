@@ -90,8 +90,8 @@ export default function PersonScreen() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
-    { key: 'activity', label: `Activity (${activity?.total || 0})` },
-    { key: 'votes', label: `Votes${votes ? ` (${votes.total})` : ''}` },
+    { key: 'activity', label: 'Activity' },
+    { key: 'votes', label: 'Votes' },
     { key: 'finance', label: 'Finance' },
   ];
 

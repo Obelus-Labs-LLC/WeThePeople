@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, FlatList,
-  StyleSheet, RefreshControl, Dimensions,
+  StyleSheet, RefreshControl, Dimensions, Linking,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -157,7 +157,7 @@ export default function CompanyScreen() {
         </View>
 
         {/* Tab Content */}
-        {tab === 'overview' && renderOverview(company, paymentSummary, sectorColor)}
+        {tab === 'overview' && renderOverview(company, paymentSummary, sectorColor, setTab)}
         {tab === 'safety' && renderSafety(events, recalls, safetyLoading)}
         {tab === 'trials' && renderTrials(trials, trialsLoading)}
       </ScrollView>
@@ -170,31 +170,32 @@ function renderOverview(
   company: CompanyDetail,
   paymentSummary: PaymentSummary | null,
   sectorColor: string,
+  setTab: (tab: Tab) => void,
 ) {
   return (
     <View style={styles.tabContent}>
-      {/* Stats row */}
+      {/* Stats row — tap to jump to tab */}
       <View style={styles.statsRow}>
-        <View style={styles.miniStat}>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('safety')}>
           <Ionicons name="warning-outline" size={18} color="#E11D48" />
           <Text style={styles.miniStatVal}>{company.adverse_event_count}</Text>
           <Text style={styles.miniStatLabel}>Events</Text>
-        </View>
-        <View style={styles.miniStat}>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('safety')}>
           <Ionicons name="alert-circle-outline" size={18} color="#F59E0B" />
           <Text style={styles.miniStatVal}>{company.recall_count}</Text>
           <Text style={styles.miniStatLabel}>Recalls</Text>
-        </View>
-        <View style={styles.miniStat}>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('trials')}>
           <Ionicons name="flask-outline" size={18} color="#10B981" />
           <Text style={styles.miniStatVal}>{company.trial_count}</Text>
           <Text style={styles.miniStatLabel}>Trials</Text>
-        </View>
-        <View style={styles.miniStat}>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('overview')}>
           <Ionicons name="cash-outline" size={18} color="#2563EB" />
           <Text style={styles.miniStatVal}>{company.payment_count}</Text>
           <Text style={styles.miniStatLabel}>Payments</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Serious events */}
@@ -373,45 +374,63 @@ function renderTrials(trials: ClinicalTrialItem[], loading: boolean) {
       {trials.length === 0 ? (
         <Text style={styles.noData}>No clinical trials found</Text>
       ) : (
-        trials.map((t) => (
-          <View key={t.id} style={styles.card}>
-            {/* Status + Phase */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <View style={[styles.statusBadge, { backgroundColor: getTrialStatusColor(t.overall_status || '') + '15' }]}>
-                <View style={[styles.statusDot, { backgroundColor: getTrialStatusColor(t.overall_status || '') }]} />
-                <Text style={[styles.statusBadgeText, { color: getTrialStatusColor(t.overall_status || '') }]}>
-                  {t.overall_status || 'Unknown'}
-                </Text>
-              </View>
-              {t.phase && (
-                <View style={styles.phaseBadge}>
-                  <Text style={styles.phaseBadgeText}>{t.phase}</Text>
+        trials.map((t) => {
+          const trialUrl = t.nct_id
+            ? `https://clinicaltrials.gov/study/${t.nct_id}`
+            : null;
+          return (
+            <TouchableOpacity
+              key={t.id}
+              style={styles.card}
+              onPress={() => trialUrl && Linking.openURL(trialUrl)}
+              disabled={!trialUrl}
+            >
+              {/* Status + Phase */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <View style={[styles.statusBadge, { backgroundColor: getTrialStatusColor(t.overall_status || '') + '15' }]}>
+                  <View style={[styles.statusDot, { backgroundColor: getTrialStatusColor(t.overall_status || '') }]} />
+                  <Text style={[styles.statusBadgeText, { color: getTrialStatusColor(t.overall_status || '') }]}>
+                    {t.overall_status || 'Unknown'}
+                  </Text>
                 </View>
+                {t.phase && (
+                  <View style={styles.phaseBadge}>
+                    <Text style={styles.phaseBadgeText}>{t.phase}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* NCT ID */}
+              <Text style={styles.nctId}>{t.nct_id}</Text>
+
+              {/* Title */}
+              {t.title && <Text style={styles.trialTitle} numberOfLines={3}>{t.title}</Text>}
+
+              {/* Conditions */}
+              {t.conditions && (
+                <Text style={styles.trialConditions} numberOfLines={2}>
+                  Conditions: {t.conditions}
+                </Text>
               )}
-            </View>
 
-            {/* NCT ID */}
-            <Text style={styles.nctId}>{t.nct_id}</Text>
-
-            {/* Title */}
-            {t.title && <Text style={styles.trialTitle} numberOfLines={3}>{t.title}</Text>}
-
-            {/* Conditions */}
-            {t.conditions && (
-              <Text style={styles.trialConditions} numberOfLines={2}>
-                Conditions: {t.conditions}
-              </Text>
-            )}
-
-            {/* Bottom row */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-              {t.enrollment != null && (
-                <Text style={styles.enrollment}>Enrollment: {t.enrollment.toLocaleString()}</Text>
-              )}
-              {t.start_date && <Text style={styles.cardDate}>Started: {t.start_date}</Text>}
-            </View>
-          </View>
-        ))
+              {/* Bottom row */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                <View>
+                  {t.enrollment != null && (
+                    <Text style={styles.enrollment}>Enrollment: {t.enrollment.toLocaleString()}</Text>
+                  )}
+                  {t.start_date && <Text style={styles.cardDate}>Started: {t.start_date}</Text>}
+                </View>
+                {trialUrl && (
+                  <View style={styles.sourceLink}>
+                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                    <Text style={styles.sourceLinkText}>ClinicalTrials.gov</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })
       )}
     </View>
   );
@@ -521,6 +540,8 @@ const styles = StyleSheet.create({
   trialTitle: { fontSize: 14, fontWeight: '600', color: UI_COLORS.TEXT_PRIMARY, lineHeight: 20, marginBottom: 4 },
   trialConditions: { fontSize: 12, color: UI_COLORS.TEXT_MUTED, marginBottom: 4 },
   enrollment: { fontSize: 11, color: UI_COLORS.TEXT_SECONDARY, fontWeight: '600' },
+  sourceLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sourceLinkText: { fontSize: 11, fontWeight: '600', color: UI_COLORS.ACCENT },
 
   // Trials by status (overview)
   trialStatusRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, gap: 8 },

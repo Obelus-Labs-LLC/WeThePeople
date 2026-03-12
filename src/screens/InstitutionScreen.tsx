@@ -160,22 +160,22 @@ export default function InstitutionScreen() {
       {activeTab === 'overview' && (
         <View style={styles.tabContent}>
           <View style={styles.statsGrid}>
-            <View style={styles.statHalf}>
+            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('filings')}>
               <StatCard label="SEC Filings" value={detail.filing_count} accent="blue" />
-            </View>
-            <View style={styles.statHalf}>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('complaints')}>
               <StatCard label="CFPB Complaints" value={detail.complaint_count} accent="red" />
-            </View>
+            </TouchableOpacity>
             <View style={styles.statHalf}>
               <StatCard label="FDIC Reports" value={detail.financial_count} accent="gold" />
             </View>
-            <View style={styles.statHalf}>
+            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('complaints')}>
               <StatCard
                 label="Timely Response"
                 value={complaintSummary?.timely_response_pct != null ? `${complaintSummary.timely_response_pct}%` : 'N/A'}
                 accent="green"
               />
-            </View>
+            </TouchableOpacity>
           </View>
 
           {latestFin && (
