@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle, XCircle, ArrowLeft, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import SpotlightCard from '../components/SpotlightCard';
 import {
   getAllComplaints,
   getComplaintSummary,
@@ -18,17 +19,19 @@ function fmtNum(n: number): string {
 
 function PrimaryMetricCard({ total }: { total: number }) {
   return (
-    <div
-      className="rounded-xl border border-[rgba(255,51,102,0.3)] bg-[#220B10] p-6 text-center animate-scale-in"
-      style={{ animationDelay: '100ms' }}
+    <SpotlightCard
+      className="rounded-xl border border-white/10 bg-white/[0.03] animate-scale-in"
+      spotlightColor="rgba(255, 51, 102, 0.10)"
     >
-      <p className="font-heading text-xs font-semibold uppercase tracking-wider text-white/50 mb-3">
-        Total Complaints
-      </p>
-      <p className="font-heading text-6xl font-bold text-[#FF3366]">
-        {fmtNum(total)}
-      </p>
-    </div>
+      <div className="p-6 text-center" style={{ animationDelay: '100ms' }}>
+        <p className="font-mono text-xs uppercase tracking-wider text-white/40 mb-3">
+          Total Complaints
+        </p>
+        <p className="font-heading text-6xl font-bold text-[#FF3366]">
+          {fmtNum(total)}
+        </p>
+      </div>
+    </SpotlightCard>
   );
 }
 
@@ -39,8 +42,12 @@ function TimelyResponseCard({ rate }: { rate: number | null }) {
   const isGood = pct >= 90;
 
   return (
+    <SpotlightCard
+      className="rounded-xl border border-white/10 bg-white/[0.03] animate-fade-up"
+      spotlightColor="rgba(52, 211, 153, 0.10)"
+    >
     <div
-      className="rounded-xl border border-white/10 bg-[#111111] p-6 animate-fade-up"
+      className="p-6"
       style={{ animationDelay: '150ms', animationFillMode: 'both' }}
     >
       <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white mb-4">
@@ -67,6 +74,7 @@ function TimelyResponseCard({ rate }: { rate: number | null }) {
         <span className="font-mono text-[10px] text-white/20">100%</span>
       </div>
     </div>
+    </SpotlightCard>
   );
 }
 
@@ -76,8 +84,12 @@ function ProductBreakdownCard({ byProduct, total }: { byProduct: Record<string, 
   const sorted = Object.entries(byProduct).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
   return (
+    <SpotlightCard
+      className="rounded-xl border border-white/10 bg-white/[0.03] animate-fade-up"
+      spotlightColor="rgba(255, 51, 102, 0.10)"
+    >
     <div
-      className="rounded-xl border border-white/10 bg-[#111111] p-6 animate-fade-up"
+      className="p-6"
       style={{ animationDelay: '200ms', animationFillMode: 'both' }}
     >
       <h2 className="font-heading text-lg font-bold uppercase tracking-wider text-white mb-6">
@@ -108,6 +120,7 @@ function ProductBreakdownCard({ byProduct, total }: { byProduct: Record<string, 
         })}
       </div>
     </div>
+    </SpotlightCard>
   );
 }
 
@@ -117,8 +130,12 @@ function ResponsesGridCard({ byResponse }: { byResponse: Record<string, number> 
   const sorted = Object.entries(byResponse).sort((a, b) => b[1] - a[1]).slice(0, 6);
 
   return (
+    <SpotlightCard
+      className="rounded-xl border border-white/10 bg-white/[0.03] animate-fade-up"
+      spotlightColor="rgba(255, 51, 102, 0.10)"
+    >
     <div
-      className="rounded-xl border border-white/10 bg-[#111111] p-6 animate-fade-up"
+      className="p-6"
       style={{ animationDelay: '300ms', animationFillMode: 'both' }}
     >
       <h2 className="font-heading text-lg font-bold uppercase tracking-wider text-white mb-6">
@@ -136,6 +153,7 @@ function ResponsesGridCard({ byResponse }: { byResponse: Record<string, number> 
         ))}
       </div>
     </div>
+    </SpotlightCard>
   );
 }
 
@@ -261,14 +279,14 @@ export default function ComplaintsDashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#180A0A]">
+      <div className="flex h-screen items-center justify-center bg-transparent">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#FF3366] border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-screen flex-col overflow-hidden bg-[#180A0A]">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-transparent">
       {/* Background glow */}
       <div
         className="pointer-events-none absolute -right-[200px] -top-[200px] z-0"
@@ -284,26 +302,28 @@ export default function ComplaintsDashboardPage() {
 
       <div className="relative z-10 flex flex-1 flex-col overflow-hidden px-8 py-8 lg:px-12">
         {/* Header */}
-        <div className="flex items-end justify-between border-b border-[rgba(255,51,102,0.3)] pb-6 mb-8 animate-fade-up">
-          <div>
-            <Link
-              to="/finance"
-              className="mb-3 inline-flex items-center gap-2 font-mono text-xs text-white/40 transition-colors hover:text-[#FF3366] no-underline"
-            >
-              <ArrowLeft size={14} />
-              BACK TO OVERVIEW
-            </Link>
-            <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-[#FF3366] lg:text-5xl">
-              Consumer Complaints
-            </h1>
-            <p className="mt-1 font-body text-xl text-white/60">
-              CFPB complaint data across all tracked institutions
-            </p>
-          </div>
-          <div className="hidden md:block">
-            <div className="rounded-lg border border-[rgba(255,51,102,0.3)] bg-[rgba(255,51,102,0.1)] px-4 py-2 text-right">
-              <p className="font-mono text-xs text-white/50">LIVE DATABASE</p>
-              <p className="font-mono text-xs text-[#FF3366]">
+        <div className="mb-8 animate-fade-up">
+          <Link
+            to="/finance"
+            className="mb-4 inline-flex items-center gap-2 font-body text-sm text-white/50 transition-colors hover:text-white no-underline"
+          >
+            <ArrowLeft size={16} />
+            Back to Dashboard
+          </Link>
+          <div className="flex items-end justify-between">
+            <div>
+              <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
+                Consumer Complaints
+              </h1>
+              <p className="mt-1 font-body text-lg text-white/50">
+                CFPB complaint data across all tracked institutions
+              </p>
+            </div>
+            <div className="hidden md:block text-right">
+              <p className="font-mono text-[11px] text-white/30">
+                LIVE DATABASE
+              </p>
+              <p className="font-mono text-[11px] text-[#FF3366]">
                 {summary ? fmtNum(summary.total_complaints) : '—'} RECORDS
               </p>
             </div>
@@ -326,7 +346,7 @@ export default function ComplaintsDashboardPage() {
 
           {/* Right Column: Feed */}
           <div
-            className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#111111] xl:col-span-8 animate-fade-up"
+            className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] xl:col-span-8 animate-fade-up"
             style={{ animationDelay: '400ms', animationFillMode: 'both' }}
           >
             {/* Feed header */}

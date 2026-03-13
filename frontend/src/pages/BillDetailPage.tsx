@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import type { BillResponse, ActionSearchResponse, ActionSearchResult } from '../api/types';
+import BackButton from '../components/BackButton';
+import PoliticsNav from '../components/PoliticsNav';
 
 // ── Status color map ──
 
@@ -159,12 +161,9 @@ export default function BillDetailPage() {
         <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-8 text-center">
           <p className="font-heading text-xl font-bold uppercase text-red-400">Error</p>
           <p className="mt-2 font-body text-sm text-red-300/70">{error}</p>
-          <Link
-            to="/politics/activity"
-            className="mt-4 inline-block font-body text-sm text-slate-400 transition-colors hover:text-white no-underline"
-          >
-            &larr; Back to Activity
-          </Link>
+          <div className="mt-4">
+            <BackButton to="/politics/activity" label="Activity" />
+          </div>
         </div>
       </div>
     );
@@ -198,18 +197,15 @@ export default function BillDetailPage() {
   return (
     <div
       className="flex h-screen flex-col overflow-hidden"
-      style={{ backgroundColor: '#020617' }}
-    >
+         >
       {/* ── Header (non-scrolling) ── */}
       <div className="flex-shrink-0 px-8 pt-8 pb-0">
         {/* Nav row */}
-        <div className="flex items-center justify-between mb-6">
-          <Link
-            to="/politics/activity"
-            className="font-body text-sm text-slate-400 transition-colors hover:text-white no-underline"
-          >
-            &larr; Back
-          </Link>
+        <div className="flex items-center justify-between mb-2">
+          <BackButton to="/politics/activity" label="Activity" />
+          <PoliticsNav />
+        </div>
+        <div className="flex items-center justify-end mb-6">
           <a
             href={bill.congress_url}
             target="_blank"

@@ -217,7 +217,7 @@ export interface TechContractTrendsResponse {
 
 // ── Client ──
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8006';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 async function fetchJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);

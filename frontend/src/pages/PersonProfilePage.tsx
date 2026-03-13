@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import BackButton from '../components/BackButton';
+import PoliticsNav from '../components/PoliticsNav';
 import type {
   Person,
   PersonProfile,
@@ -362,7 +363,7 @@ export default function PersonProfilePage() {
   // ── Early returns ──
   if (!person_id) {
     return (
-      <div className="flex h-screen items-center justify-center" style={{ backgroundColor: '#020617' }}>
+      <div className="flex h-screen items-center justify-center">
         <p className="font-body text-sm text-white/40">Missing person_id in URL.</p>
       </div>
     );
@@ -373,11 +374,12 @@ export default function PersonProfilePage() {
   // ══════════════════════════════════════════════
 
   return (
-    <div className="min-h-screen overflow-y-auto" style={{ backgroundColor: '#020617' }}>
+    <div className="min-h-screen overflow-y-auto">
       {/* ── HEADER ── */}
       <header className="px-6 pt-6 pb-0 lg:px-16 lg:pt-14 lg:pb-0">
-        <div className="mb-6">
+        <div className="flex items-center justify-between mb-6">
           <BackButton to="/politics/people" label="Representatives" />
+          <PoliticsNav />
         </div>
 
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">

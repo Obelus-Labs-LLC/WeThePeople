@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Users, FileText, Vote, Scale, ArrowRight, Activity, ChevronDown, ChevronUp } from 'lucide-react';
+import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { DashboardStats, Person, RecentAction } from '../api/types';
-import BackButton from '../components/BackButton';
+import SpotlightCard from '../components/SpotlightCard';
+import PoliticsNav from '../components/PoliticsNav';
 
 // ── Helpers ──
 
@@ -42,6 +44,9 @@ export default function PoliticsDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [expandedAction, setExpandedAction] = useState<number | null>(null);
 
+  const headerRef = React.useRef<HTMLDivElement>(null);
+  const headerInView = useInView(headerRef, { once: true, amount: 0.1 });
+
   useEffect(() => {
     Promise.all([
       apiClient.getDashboardStats(),
@@ -59,7 +64,6 @@ export default function PoliticsDashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Compute party counts from all people
   const partyCounts = React.useMemo(() => {
     const counts: Record<string, number> = { D: 0, R: 0, I: 0 };
     allPeople.forEach((p) => {
@@ -71,7 +75,7 @@ export default function PoliticsDashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center" style={{ backgroundColor: '#020617' }}>
+      <div className="flex h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
       </div>
     );
@@ -85,18 +89,16 @@ export default function PoliticsDashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#020617' }}>
-      {/* Neon glow background effect */}
-      <div
-        className="pointer-events-none fixed inset-0 z-0"
-        style={{
-          background: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,130,246,0.12) 0%, transparent 60%)',
-        }}
-      />
-
+    <div className="min-h-screen">
       <div className="relative z-10 mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
         {/* Navigation bar */}
-        <nav className="flex items-center justify-between mb-10 animate-fade-up">
+        <motion.nav
+          ref={headerRef}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="flex items-center justify-between mb-10"
+        >
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-2 no-underline">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 font-heading text-sm font-black text-white">
@@ -105,34 +107,18 @@ export default function PoliticsDashboardPage() {
               <span className="font-heading text-lg font-bold text-white tracking-wide">POLITICS</span>
             </Link>
           </div>
-          <div className="flex items-center gap-1">
-            {[
-              { label: 'Sectors', to: '/' },
-              { label: 'Dashboard', to: '/politics', active: true },
-              { label: 'People', to: '/politics/people' },
-              { label: 'Activity', to: '/politics/activity' },
-              { label: 'Power', to: '/politics/power' },
-              { label: 'Compare', to: '/politics/compare' },
-            ].map((link) => (
-              <Link
-                key={link.label}
-                to={link.to}
-                className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors no-underline ${
-                  link.active
-                    ? 'bg-blue-500/20 text-blue-400'
-                    : 'text-white/40 hover:text-white/70'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-        </nav>
+          <PoliticsNav />
+        </motion.nav>
 
         {/* Hero Section — 2 columns */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 mb-12">
           {/* Left: Headline */}
-          <div className="flex flex-col justify-center animate-fade-up" style={{ animationDelay: '100ms' }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="flex flex-col justify-center"
+          >
             <p className="font-heading text-xs font-semibold tracking-[0.3em] text-blue-400 uppercase mb-4">
               Congressional Transparency
             </p>
@@ -161,82 +147,99 @@ export default function PoliticsDashboardPage() {
                 Balance of Power
               </Link>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Right: 2x2 Stat Cards — CLICKABLE */}
+          {/* Right: 2x2 Stat Cards */}
           <div className="grid grid-cols-2 gap-4">
             {statCards.map((stat, idx) => (
-              <button
+              <motion.div
                 key={stat.label}
-                onClick={() => navigate(stat.to)}
-                className="group relative overflow-hidden rounded-xl border border-white/5 p-6 transition-all duration-300 hover:border-white/10 animate-scale-in cursor-pointer text-left"
-                style={{ backgroundColor: '#0F172A', animationDelay: `${200 + idx * 100}ms` }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4, delay: 0.2 + idx * 0.1 }}
               >
-                <div className="absolute left-0 top-0 h-full w-[3px] opacity-0 transition-opacity group-hover:opacity-100" style={{ backgroundColor: stat.color }} />
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-heading text-[10px] font-semibold tracking-wider text-white/40 uppercase">
-                    {stat.label}
+                <button
+                  onClick={() => navigate(stat.to)}
+                  className="group relative w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] p-6 transition-all duration-300 hover:border-white/20 cursor-pointer text-left"
+                >
+                  <div className="absolute left-0 top-0 h-full w-[3px] opacity-0 transition-opacity group-hover:opacity-100" style={{ backgroundColor: stat.color }} />
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-heading text-[10px] font-semibold tracking-wider text-white/40 uppercase">
+                      {stat.label}
+                    </span>
+                    <stat.icon size={18} style={{ color: stat.color }} className="opacity-60" />
+                  </div>
+                  <span className="font-mono text-3xl font-bold text-white tracking-tight">
+                    {stat.value}
                   </span>
-                  <stat.icon size={18} style={{ color: stat.color }} className="opacity-60" />
-                </div>
-                <span className="font-mono text-3xl font-bold text-white tracking-tight">
-                  {stat.value}
-                </span>
-              </button>
+                </button>
+              </motion.div>
             ))}
           </div>
         </div>
 
         {/* Party Distribution Bar */}
         {allPeople.length > 0 && (
-          <div
-            className="rounded-xl border border-white/5 p-6 mb-12 animate-fade-up"
-            style={{ backgroundColor: '#0F172A', animationDelay: '600ms' }}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.6 }}
           >
-            <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white mb-4">
-              Party Distribution
-            </h2>
-            <div className="flex h-8 overflow-hidden rounded-lg">
-              {[
-                { key: 'D', label: 'Dem', color: '#3B82F6' },
-                { key: 'I', label: 'Ind', color: '#A855F7' },
-                { key: 'R', label: 'Rep', color: '#EF4444' },
-              ].map(({ key, label, color }) => {
-                const count = partyCounts[key] || 0;
-                const total = allPeople.length || 1;
-                const pct = (count / total) * 100;
-                if (pct === 0) return null;
-                return (
-                  <div
-                    key={key}
-                    className="flex items-center justify-center transition-all"
-                    style={{ width: `${pct}%`, backgroundColor: color }}
-                  >
-                    {pct > 8 && (
-                      <span className="font-mono text-[10px] font-bold text-white/90 uppercase">
-                        {label} {count}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+            <SpotlightCard
+              className="rounded-xl border border-white/10 bg-white/[0.03] mb-12"
+              spotlightColor="rgba(59, 130, 246, 0.10)"
+            >
+              <div className="p-6">
+                <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white mb-4">
+                  Party Distribution
+                </h2>
+                <div className="flex h-8 overflow-hidden rounded-lg">
+                  {[
+                    { key: 'D', label: 'Dem', color: '#3B82F6' },
+                    { key: 'I', label: 'Ind', color: '#A855F7' },
+                    { key: 'R', label: 'Rep', color: '#EF4444' },
+                  ].map(({ key, label, color }) => {
+                    const count = partyCounts[key] || 0;
+                    const total = allPeople.length || 1;
+                    const pctVal = (count / total) * 100;
+                    if (pctVal === 0) return null;
+                    return (
+                      <div
+                        key={key}
+                        className="flex items-center justify-center transition-all"
+                        style={{ width: `${pctVal}%`, backgroundColor: color }}
+                      >
+                        {pctVal > 8 && (
+                          <span className="font-mono text-[10px] font-bold text-white/90 uppercase">
+                            {label} {count}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </SpotlightCard>
+          </motion.div>
         )}
 
         {/* Sub-dashboard links */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-12 animate-fade-up" style={{ animationDelay: '700ms' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.7 }}
+          className="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-12"
+        >
           {[
-            { to: '/politics/people', label: 'Representatives', desc: 'Full member directory', color: '#3B82F6', borderColor: 'rgba(59,130,246,0.3)' },
-            { to: '/politics/activity', label: 'Activity Feed', desc: 'Latest legislative actions', color: '#F59E0B', borderColor: 'rgba(245,158,11,0.3)' },
-            { to: '/politics/power', label: 'Balance of Power', desc: 'Party analytics & breakdown', color: '#10B981', borderColor: 'rgba(16,185,129,0.3)' },
-            { to: '/politics/compare', label: 'Compare', desc: 'Side-by-side member analysis', color: '#A855F7', borderColor: 'rgba(168,85,247,0.3)' },
+            { to: '/politics/people', label: 'Representatives', desc: 'Full member directory', color: '#3B82F6' },
+            { to: '/politics/activity', label: 'Activity Feed', desc: 'Latest legislative actions', color: '#F59E0B' },
+            { to: '/politics/power', label: 'Balance of Power', desc: 'Party analytics & breakdown', color: '#10B981' },
+            { to: '/politics/compare', label: 'Compare', desc: 'Side-by-side member analysis', color: '#A855F7' },
           ].map((link) => (
             <Link
               key={link.to}
               to={link.to}
-              className="group rounded-xl border p-4 transition-all no-underline"
-              style={{ borderColor: link.borderColor, backgroundColor: `${link.color}08` }}
+              className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 no-underline"
             >
               <p className="font-heading text-sm font-bold uppercase tracking-wider" style={{ color: link.color }}>
                 {link.label}
@@ -244,12 +247,16 @@ export default function PoliticsDashboardPage() {
               <p className="font-body text-xs text-white/30 mt-1">{link.desc}</p>
             </Link>
           ))}
-        </div>
+        </motion.div>
 
         {/* Two columns: Featured Members + Recent Activity */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           {/* Featured Members */}
-          <div className="animate-fade-up" style={{ animationDelay: '800ms' }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.8 }}
+          >
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white">
                 Featured Members
@@ -263,53 +270,69 @@ export default function PoliticsDashboardPage() {
             </div>
             <div className="space-y-3">
               {people.map((person, idx) => (
-                <Link
+                <motion.div
                   key={person.person_id}
-                  to={`/politics/people/${person.person_id}`}
-                  className="group flex items-center gap-4 rounded-xl border border-white/5 p-4 transition-all hover:border-white/10 no-underline animate-fade-up"
-                  style={{ backgroundColor: '#0F172A', animationDelay: `${850 + idx * 60}ms` }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.85 + idx * 0.06 }}
                 >
-                  {person.photo_url ? (
-                    <img
-                      src={person.photo_url}
-                      alt={person.display_name}
-                      className="h-11 w-11 rounded-full object-cover grayscale transition-all group-hover:grayscale-0"
-                    />
-                  ) : (
-                    <div
-                      className="flex h-11 w-11 items-center justify-center rounded-full font-heading text-sm font-bold text-white"
-                      style={{ backgroundColor: partyColor(person.party) + '33' }}
+                  <Link
+                    to={`/politics/people/${person.person_id}`}
+                    className="block no-underline"
+                  >
+                    <SpotlightCard
+                      className="rounded-xl border border-white/10 bg-white/[0.03]"
+                      spotlightColor="rgba(255, 255, 255, 0.10)"
                     >
-                      {person.display_name.charAt(0)}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="font-body text-sm font-semibold text-white truncate group-hover:text-blue-400 transition-colors">
-                      {person.display_name}
-                    </p>
-                    <p className="font-mono text-[11px] text-white/30">{person.state}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold"
-                      style={{
-                        backgroundColor: partyColor(person.party) + '22',
-                        color: partyColor(person.party),
-                      }}
-                    >
-                      {partyLabel(person.party)}
-                    </span>
-                    <span className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-white/40">
-                      {person.chamber?.toLowerCase().includes('senate') ? 'Senate' : 'House'}
-                    </span>
-                  </div>
-                </Link>
+                      <div className="flex items-center gap-4 p-4">
+                        {person.photo_url ? (
+                          <img
+                            src={person.photo_url}
+                            alt={person.display_name}
+                            className="h-11 w-11 rounded-full object-cover ring-2 ring-white/10"
+                          />
+                        ) : (
+                          <div
+                            className="flex h-11 w-11 items-center justify-center rounded-full font-heading text-sm font-bold text-white ring-2 ring-white/10"
+                            style={{ backgroundColor: partyColor(person.party) + '33' }}
+                          >
+                            {person.display_name.charAt(0)}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-body text-sm font-semibold text-white truncate">
+                            {person.display_name}
+                          </p>
+                          <p className="font-mono text-[11px] text-white/30">{person.state}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold"
+                            style={{
+                              backgroundColor: partyColor(person.party) + '22',
+                              color: partyColor(person.party),
+                            }}
+                          >
+                            {partyLabel(person.party)}
+                          </span>
+                          <span className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-white/40">
+                            {person.chamber?.toLowerCase().includes('senate') ? 'Senate' : 'House'}
+                          </span>
+                        </div>
+                      </div>
+                    </SpotlightCard>
+                  </Link>
+                </motion.div>
               ))}
             </div>
-          </div>
+          </motion.div>
 
-          {/* Recent Activity — expandable items */}
-          <div className="animate-fade-up" style={{ animationDelay: '900ms' }}>
+          {/* Recent Activity */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.9 }}
+          >
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white">
                 Recent Activity
@@ -321,89 +344,93 @@ export default function PoliticsDashboardPage() {
                 Full feed &rarr;
               </Link>
             </div>
-            <div
-              className="rounded-xl border border-white/5 divide-y divide-white/5"
-              style={{ backgroundColor: '#0F172A' }}
+            <SpotlightCard
+              className="rounded-xl border border-white/10 bg-white/[0.03]"
+              spotlightColor="rgba(245, 158, 11, 0.10)"
             >
-              {actions.map((action) => {
-                const isExpanded = expandedAction === action.id;
-                const billUrl = action.bill_type && action.bill_number && action.bill_congress
-                  ? `https://www.congress.gov/bill/${action.bill_congress}th-congress/${action.bill_type === 'hr' ? 'house-bill' : action.bill_type === 's' ? 'senate-bill' : action.bill_type}/${action.bill_number}`
-                  : null;
+              <div className="divide-y divide-white/5">
+                {actions.map((action) => {
+                  const isExpanded = expandedAction === action.id;
+                  const billUrl = action.bill_type && action.bill_number && action.bill_congress
+                    ? `https://www.congress.gov/bill/${action.bill_congress}th-congress/${action.bill_type === 'hr' ? 'house-bill' : action.bill_type === 's' ? 'senate-bill' : action.bill_type}/${action.bill_number}`
+                    : null;
 
-                return (
-                  <button
-                    key={action.id}
-                    onClick={() => setExpandedAction(isExpanded ? null : action.id)}
-                    className="w-full p-4 text-left cursor-pointer transition-colors hover:bg-white/[0.02]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className={`font-body text-sm font-medium text-white/90 ${isExpanded ? '' : 'truncate'}`}>
-                          {action.title}
-                        </p>
-                        {action.summary && (
-                          <p className={`mt-1 font-body text-xs text-white/40 leading-relaxed ${isExpanded ? '' : 'line-clamp-1'}`}>
-                            {action.summary}
+                  return (
+                    <button
+                      key={action.id}
+                      onClick={() => setExpandedAction(isExpanded ? null : action.id)}
+                      className="w-full p-4 text-left cursor-pointer transition-colors hover:bg-white/[0.02]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className={`font-body text-sm font-medium text-white/90 ${isExpanded ? '' : 'truncate'}`}>
+                            {action.title}
                           </p>
-                        )}
-                        <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-[10px] text-white/20">
-                            {action.person_id.replace(/_/g, ' ')}
-                          </span>
-                          {action.bill_type && action.bill_number && (
-                            billUrl ? (
+                          {action.summary && (
+                            <p className={`mt-1 font-body text-xs text-white/40 leading-relaxed ${isExpanded ? '' : 'line-clamp-1'}`}>
+                              {action.summary}
+                            </p>
+                          )}
+                          <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-[10px] text-white/20">
+                              {action.person_id.replace(/_/g, ' ')}
+                            </span>
+                            {action.bill_type && action.bill_number && (
+                              billUrl ? (
+                                <a
+                                  href={billUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400 hover:bg-blue-500/20 transition-colors no-underline"
+                                >
+                                  {action.bill_type.toUpperCase()} {action.bill_number} &rarr;
+                                </a>
+                              ) : (
+                                <span className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400">
+                                  {action.bill_type.toUpperCase()} {action.bill_number}
+                                </span>
+                              )
+                            )}
+                            {isExpanded && action.source_url && (
                               <a
-                                href={billUrl}
+                                href={action.source_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400 hover:bg-blue-500/20 transition-colors no-underline"
+                                className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-white/40 hover:text-white/60 transition-colors no-underline"
                               >
-                                {action.bill_type.toUpperCase()} {action.bill_number} &rarr;
+                                Source &rarr;
                               </a>
-                            ) : (
-                              <span className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400">
-                                {action.bill_type.toUpperCase()} {action.bill_number}
-                              </span>
-                            )
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          {action.date && (
+                            <span className="font-mono text-[10px] text-white/20 tabular-nums">
+                              {new Date(action.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
                           )}
-                          {isExpanded && action.source_url && (
-                            <a
-                              href={action.source_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-white/40 hover:text-white/60 transition-colors no-underline"
-                            >
-                              Source &rarr;
-                            </a>
+                          {isExpanded ? (
+                            <ChevronUp size={12} className="text-white/20" />
+                          ) : (
+                            <ChevronDown size={12} className="text-white/20" />
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                        {action.date && (
-                          <span className="font-mono text-[10px] text-white/20 tabular-nums">
-                            {new Date(action.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </span>
-                        )}
-                        {isExpanded ? (
-                          <ChevronUp size={12} className="text-white/20" />
-                        ) : (
-                          <ChevronDown size={12} className="text-white/20" />
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </SpotlightCard>
+          </motion.div>
         </div>
 
         {/* Footer */}
         <div className="mt-16 border-t border-white/5 pt-6 flex items-center justify-between">
-          <BackButton to="/" label="All Sectors" />
+          <Link to="/" className="font-body text-sm text-white/50 hover:text-white transition-colors no-underline">
+            &larr; All Sectors
+          </Link>
           <span className="font-mono text-[10px] text-white/15">WeThePeople</span>
         </div>
       </div>

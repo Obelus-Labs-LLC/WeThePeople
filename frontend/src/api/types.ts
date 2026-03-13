@@ -164,6 +164,7 @@ export interface PersonPerformance {
   person_id: string;
   total_claims: number;
   total_scored: number;
+  total_actions?: number;
   by_tier: Record<string, number>;
   by_category: Record<string, number>;
   by_timing: Record<string, number>;
@@ -234,19 +235,11 @@ export interface ComparePersonData {
   person_id: string;
   total_claims: number;
   total_scored: number;
-  by_tier: {
-    raw: Record<string, number>;
-    percent: Record<string, number>;
-  };
+  total_actions?: number;
+  by_tier: Record<string, number>;
   by_category: Record<string, number>;
-  by_timing: {
-    raw: Record<string, number>;
-    percent: Record<string, number>;
-  };
-  by_progress: {
-    raw: Record<string, number>;
-    percent: Record<string, number>;
-  };
+  by_timing?: Record<string, number>;
+  by_progress?: Record<string, number>;
 }
 
 export interface CompareResponse {
