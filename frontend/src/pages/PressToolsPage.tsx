@@ -78,7 +78,7 @@ const PressToolsPage: React.FC = () => {
           </div>
           <h1 className="text-xl font-bold text-stone-900 mb-2">Press Tools</h1>
           <p className="text-sm text-stone-500 mb-6">
-            Access claims analysis, matching evidence, coverage reports, and
+            Access legislative data, voting records, coverage reports, and
             other journalistic tools. Enter your API key to continue.
           </p>
 
@@ -120,7 +120,7 @@ const PressToolsPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-stone-900">Press Tools</h1>
           <p className="text-sm text-stone-500 mt-1">
-            Claims analysis, matching evidence, and coverage tools.
+            Legislative data, voting records, and coverage tools.
           </p>
         </div>
         <button

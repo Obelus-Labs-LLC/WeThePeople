@@ -54,19 +54,54 @@ export interface LedgerEntry {
   created_at: string | null;
 }
 
-// /ledger/claim/{claim_id} response (same shape as a single LedgerEntry)
-export type LedgerClaimResponse = LedgerEntry;
+// /ledger/claim/{claim_id} response (LedgerEntry + embedded action and display_name)
+export interface LedgerClaimResponse extends LedgerEntry {
+  display_name: string;
+  matched_action: {
+    id: number;
+    title: string;
+    summary: string | null;
+    date: string | null;
+    source_url: string | null;
+    bill_congress: number | null;
+    bill_type: string | null;
+    bill_number: string | null;
+    policy_area: string | null;
+    latest_action_text: string | null;
+  } | null;
+}
 
 // /bills/{bill_id} response
 export interface BillResponse {
   bill_id: string;
+  congress: number;
+  bill_type: string;
+  bill_number: number;
   title: string;
+  policy_area: string | null;
+  subjects_json: string[] | null;
+  summary_text: string | null;
   status_bucket: string | null;
+  latest_action_text: string | null;
   latest_action_date: string | null;
   introduced_date: string | null;
-  sponsor_person_id: string | null;
-  policy_area: string | null;
-  source_urls: string[];
+  congress_url: string;
+  timeline: Array<{
+    action_date: string | null;
+    action_text: string;
+    action_type: string | null;
+  }>;
+  sponsors: BillSponsor[];
+}
+
+export interface BillSponsor {
+  bioguide_id: string;
+  role: string;
+  person_id: string | null;
+  display_name: string;
+  party: string | null;
+  state: string | null;
+  photo_url: string | null;
 }
 
 // /bills/{bill_id}/timeline response
@@ -219,6 +254,32 @@ export interface CompareResponse {
   comparison_count: number;
 }
 
+// /votes response
+export interface Vote {
+  id: number;
+  congress: number;
+  chamber: string;
+  session: number;
+  roll_number: number;
+  vote_date: string | null;
+  question: string;
+  result: string;
+  related_bill_congress: number | null;
+  related_bill_type: string | null;
+  related_bill_number: number | null;
+  yea_count: number;
+  nay_count: number;
+  not_voting_count: number;
+  present_count: number;
+}
+
+export interface VotesResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  votes: Vote[];
+}
+
 // /ops/runtime response (debug endpoint)
 export interface RuntimeInfo {
   db_url: string;
@@ -227,4 +288,113 @@ export interface RuntimeInfo {
   disable_startup_fetch: boolean;
   no_network: boolean;
   cors_origins: string[];
+}
+
+// ── New types for Person Profile, Vote Detail, etc. ──
+
+// /people/{id}/activity response
+export interface PersonActivityEntry {
+  bill_id: string;
+  role: string;
+  congress: number;
+  bill_type: string;
+  bill_number: number;
+  title: string;
+  policy_area: string | null;
+  status: string | null;
+  latest_action: string | null;
+  latest_action_date: string | null;
+  summary: string | null;
+  congress_url: string | null;
+}
+
+export interface PersonActivityResponse {
+  person_id: string;
+  display_name: string;
+  total: number;
+  sponsored_count: number;
+  cosponsored_count: number;
+  policy_areas: Record<string, number>;
+  limit: number;
+  offset: number;
+  entries: PersonActivityEntry[];
+}
+
+// /people/{id}/votes response
+export interface PersonVoteEntry {
+  vote_id: number;
+  congress: number;
+  chamber: string;
+  roll_number: number;
+  vote_date: string | null;
+  question: string;
+  result: string;
+  position: string;
+  related_bill_congress: number | null;
+  related_bill_type: string | null;
+  related_bill_number: number | null;
+}
+
+export interface PersonVotesResponse {
+  person_id: string;
+  display_name: string;
+  total: number;
+  position_summary: Record<string, number>;
+  limit: number;
+  offset: number;
+  votes: PersonVoteEntry[];
+}
+
+// /graph/person/{id} response
+export interface GraphConnection {
+  person_id: string;
+  display_name: string;
+  party: string;
+  chamber: string;
+  state: string;
+  shared_bills: number;
+}
+
+export interface PersonGraphResponse {
+  person_id: string;
+  display_name: string;
+  connections: GraphConnection[];
+}
+
+// /votes/{vote_id} response (full detail with member positions)
+export interface MemberVoteEntry {
+  bioguide_id: string;
+  member_name: string;
+  position: string;
+  party: string;
+  state: string;
+  person_id: string | null;
+}
+
+export interface VoteDetailResponse extends Vote {
+  source_url: string | null;
+  member_votes: MemberVoteEntry[];
+}
+
+// /actions/search response
+export interface ActionSearchResult {
+  id: number;
+  person_id: string;
+  title: string;
+  summary: string | null;
+  date: string | null;
+  source_url: string | null;
+  bill_congress: number | null;
+  bill_type: string | null;
+  bill_number: string | null;
+  policy_area?: string | null;
+  latest_action_text?: string | null;
+  introduced_date?: string | null;
+}
+
+export interface ActionSearchResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  actions: ActionSearchResult[];
 }

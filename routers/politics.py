@@ -192,13 +192,46 @@ def get_ledger_summary(
 
 @router.get("/ledger/claim/{claim_id}")
 def get_ledger_claim(claim_id: int):
-    """Single claim view from the Gold ledger."""
+    """Single claim view from the Gold ledger, with matched action embedded."""
     db = SessionLocal()
     try:
         row = db.query(GoldLedgerEntry).filter(GoldLedgerEntry.claim_id == claim_id).one_or_none()
         if row is None:
             raise HTTPException(status_code=404, detail={"error": "ledger claim not found", "claim_id": claim_id})
-        return _serialize_gold_row(row)
+        result = _serialize_gold_row(row)
+
+        # Embed the matched action details if available
+        if row.best_action_id:
+            action = (
+                db.query(Action, SourceDocument)
+                .outerjoin(SourceDocument, SourceDocument.id == Action.source_id)
+                .filter(Action.id == row.best_action_id)
+                .first()
+            )
+            if action:
+                a, src = action
+                result["matched_action"] = {
+                    "id": a.id,
+                    "title": a.title,
+                    "summary": a.summary,
+                    "date": a.date.isoformat() if a.date else None,
+                    "source_url": src.url if src else None,
+                    "bill_congress": a.bill_congress,
+                    "bill_type": a.bill_type,
+                    "bill_number": a.bill_number,
+                    "policy_area": a.policy_area,
+                    "latest_action_text": a.latest_action_text,
+                }
+            else:
+                result["matched_action"] = None
+        else:
+            result["matched_action"] = None
+
+        # Also include the member display_name for the header back link
+        member = db.query(TrackedMember).filter(TrackedMember.person_id == row.person_id).first()
+        result["display_name"] = member.display_name if member else row.person_id
+
+        return result
     finally:
         db.close()
 
@@ -1178,7 +1211,12 @@ def get_vote(vote_id: int):
         if not v:
             raise HTTPException(status_code=404, detail="Vote not found")
 
-        member_votes = db.query(MemberVote).filter(MemberVote.vote_id == vote_id).all()
+        member_votes = (
+            db.query(MemberVote, TrackedMember)
+            .outerjoin(TrackedMember, TrackedMember.bioguide_id == MemberVote.bioguide_id)
+            .filter(MemberVote.vote_id == vote_id)
+            .all()
+        )
 
         return {
             "id": v.id, "congress": v.congress, "chamber": v.chamber,
@@ -1197,7 +1235,8 @@ def get_vote(vote_id: int):
                 "position": mv.position,
                 "party": mv.party,
                 "state": mv.state,
-            } for mv in member_votes],
+                "person_id": m.person_id if m else None,
+            } for mv, m in member_votes],
         }
     finally:
         db.close()
@@ -1322,11 +1361,11 @@ def get_bill(bill_id: str):
             "latest_action_text": bill.latest_action_text,
             "latest_action_date": bill.latest_action_date.isoformat() if bill.latest_action_date else None,
             "introduced_date": bill.introduced_date.isoformat() if bill.introduced_date else None,
-            "congress_url": bill.congress_url,
+            "congress_url": f"https://www.congress.gov/bill/{bill.congress}th-congress/{_bill_type_label(bill.bill_type)}/{bill.bill_number}",
             "timeline": [{
                 "action_date": a.action_date.isoformat() if a.action_date else None,
                 "action_text": a.action_text,
-                "action_type": a.action_type,
+                "action_type": a.action_code,
             } for a in timeline],
             "sponsors": [{
                 "bioguide_id": gt.bioguide_id,
@@ -1335,6 +1374,7 @@ def get_bill(bill_id: str):
                 "display_name": m.display_name if m else gt.bioguide_id,
                 "party": m.party if m else None,
                 "state": m.state if m else None,
+                "photo_url": m.photo_url if m else None,
             } for gt, m in sponsors],
         }
     finally:

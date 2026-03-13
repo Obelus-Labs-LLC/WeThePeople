@@ -39,10 +39,10 @@ const ComingSoonPage: React.FC = () => {
             Coming Soon
           </h2>
           <p className="text-slate-400 mb-8 leading-relaxed text-lg">
-            We're building accountability tools for the{" "}
+            We're building transparency tools for the{" "}
             <span className="font-medium text-slate-200">{sector.name}</span>{" "}
-            sector. Our team is gathering data sources, building connectors, and
-            training models to track claims and verify them against real actions.
+            sector. Our team is gathering public data sources, building connectors, and
+            making real information accessible to everyone.
           </p>
           <p className="text-slate-500 text-sm mb-10">
             Want to be notified when this sector launches? Stay tuned.
