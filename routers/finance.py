@@ -10,6 +10,7 @@ from models.database import SessionLocal
 from models.finance_models import (
     TrackedInstitution,
     SECFiling,
+    SECInsiderTrade,
     FDICFinancial,
     CFPBComplaint,
     FREDObservation,
@@ -312,5 +313,104 @@ def get_institution_stock(institution_id: str):
                 "sector": latest.sector, "industry": latest.industry,
             }
         }
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/insider-trades")
+def get_institution_insider_trades(
+    institution_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    transaction_type: Optional[str] = Query(None, description="P=Purchase, S=Sale, A=Award"),
+):
+    """SEC Form 4 insider trading disclosures for an institution."""
+    db = SessionLocal()
+    try:
+        q = db.query(SECInsiderTrade).filter_by(institution_id=institution_id)
+        if transaction_type:
+            q = q.filter(SECInsiderTrade.transaction_type == transaction_type)
+        total = q.count()
+        trades = q.order_by(desc(SECInsiderTrade.transaction_date)).offset(offset).limit(limit).all()
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "trades": [
+                {
+                    "id": t.id,
+                    "filer_name": t.filer_name,
+                    "filer_title": t.filer_title,
+                    "transaction_date": str(t.transaction_date) if t.transaction_date else None,
+                    "transaction_type": t.transaction_type,
+                    "shares": t.shares,
+                    "price_per_share": t.price_per_share,
+                    "total_value": t.total_value,
+                    "filing_url": t.filing_url,
+                    "accession_number": t.accession_number,
+                }
+                for t in trades
+            ],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/compare")
+def get_finance_comparison(ids: str = Query(..., description="Comma-separated institution IDs")):
+    """Cross-institution comparison for key financial metrics."""
+    db = SessionLocal()
+    try:
+        institution_ids = [iid.strip() for iid in ids.split(",") if iid.strip()]
+        if not institution_ids or len(institution_ids) > 10:
+            raise HTTPException(status_code=400, detail="Provide 2-10 institution IDs")
+
+        results = []
+        for iid in institution_ids:
+            inst = db.query(TrackedInstitution).filter(
+                TrackedInstitution.institution_id == iid
+            ).first()
+            if not inst:
+                continue
+
+            filing_count = db.query(func.count(SECFiling.id)).filter(
+                SECFiling.institution_id == iid
+            ).scalar() or 0
+
+            complaint_count = db.query(func.count(CFPBComplaint.id)).filter(
+                CFPBComplaint.institution_id == iid
+            ).scalar() or 0
+
+            latest_fin = (
+                db.query(FDICFinancial)
+                .filter(FDICFinancial.institution_id == iid)
+                .order_by(desc(FDICFinancial.report_date)).first()
+            )
+
+            latest_stock = (
+                db.query(StockFundamentals)
+                .filter_by(entity_type="institution", entity_id=iid)
+                .order_by(desc(StockFundamentals.snapshot_date)).first()
+            )
+
+            results.append({
+                "institution_id": iid,
+                "display_name": inst.display_name,
+                "ticker": inst.ticker,
+                "sector_type": inst.sector_type,
+                "filing_count": filing_count,
+                "complaint_count": complaint_count,
+                "total_assets": latest_fin.total_assets if latest_fin else None,
+                "total_deposits": latest_fin.total_deposits if latest_fin else None,
+                "net_income": latest_fin.net_income if latest_fin else None,
+                "roa": latest_fin.roa if latest_fin else None,
+                "roe": latest_fin.roe if latest_fin else None,
+                "tier1_capital_ratio": latest_fin.tier1_capital_ratio if latest_fin else None,
+                "market_cap": latest_stock.market_cap if latest_stock else None,
+                "pe_ratio": latest_stock.pe_ratio if latest_stock else None,
+                "profit_margin": latest_stock.profit_margin if latest_stock else None,
+            })
+
+        return {"institutions": results}
     finally:
         db.close()

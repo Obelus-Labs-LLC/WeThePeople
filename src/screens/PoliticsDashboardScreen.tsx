@@ -311,6 +311,21 @@ export default function PoliticsDashboardScreen() {
             </View>
           </>
         )}
+
+        {/* Compare CTA */}
+        <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 12 }}>
+          <TouchableOpacity
+            style={styles.compareCta}
+            onPress={() => navigation.navigate('PoliticsCompare')}
+          >
+            <Ionicons name="git-compare-outline" size={20} color="#fff" />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.compareCtaTitle}>Compare Members</Text>
+              <Text style={styles.compareCtaSub}>Side-by-side legislative actions, claims, accountability</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Activity Modal */}
@@ -757,4 +772,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  compareCta: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: UI_COLORS.ACCENT, borderRadius: 12, padding: 16,
+  },
+  compareCtaTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  compareCtaSub: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
 });

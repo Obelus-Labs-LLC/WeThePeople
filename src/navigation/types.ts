@@ -19,6 +19,7 @@ export type PoliticsStackParamList = {
   PeopleDirectory: undefined;
   PersonDetail: { person_id: string };
   BillDetail: { bill_id: string };
+  PoliticsCompare: undefined;
 };
 
 // ── Finance Stack ──
@@ -26,6 +27,7 @@ export type FinanceStackParamList = {
   FinanceDashboard: undefined;
   InstitutionsDirectory: undefined;
   InstitutionDetail: { institution_id: string };
+  FinanceCompare: undefined;
 };
 
 // ── Health Stack ──

@@ -18,6 +18,8 @@ import TechDashboardScreen from '../screens/TechDashboardScreen';
 import TechCompaniesScreen from '../screens/TechCompaniesScreen';
 import TechCompanyScreen from '../screens/TechCompanyScreen';
 import TechCompareScreen from '../screens/TechCompareScreen';
+import FinanceCompareScreen from '../screens/FinanceCompareScreen';
+import PoliticsCompareScreen from '../screens/PoliticsCompareScreen';
 import BillScreen from '../screens/BillScreen';
 import ComingSoonScreen from '../screens/ComingSoonScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -85,6 +87,11 @@ function PoliticsStackScreen() {
         component={BillScreen}
         options={{ title: '' }}
       />
+      <PoliticsStack.Screen
+        name="PoliticsCompare"
+        component={PoliticsCompareScreen}
+        options={{ title: 'Compare Members' }}
+      />
     </PoliticsStack.Navigator>
   );
 }
@@ -106,6 +113,11 @@ function FinanceStackScreen() {
         name="InstitutionDetail"
         component={InstitutionScreen}
         options={{ title: '' }}
+      />
+      <FinanceStack.Screen
+        name="FinanceCompare"
+        component={FinanceCompareScreen}
+        options={{ title: 'Compare Institutions' }}
       />
     </FinanceStack.Navigator>
   );

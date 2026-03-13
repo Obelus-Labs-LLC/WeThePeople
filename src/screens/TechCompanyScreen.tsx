@@ -14,6 +14,7 @@ import type {
   EnforcementAction, NewsArticle,
 } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
+import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
 
 const SECTOR_COLORS: Record<string, string> = {
   platform: '#8B5CF6',
@@ -55,6 +56,11 @@ export default function TechCompanyScreen() {
   const [enforcementActions, setEnforcementActions] = useState<EnforcementAction[]>([]);
   const [totalPenalties, setTotalPenalties] = useState(0);
   const [enforcementLoading, setEnforcementLoading] = useState(false);
+
+  // Filters
+  const [patentYearFilter, setPatentYearFilter] = useState<string>('all');
+  const [contractAgencyFilter, setContractAgencyFilter] = useState<string>('all');
+  const [enforcementSourceFilter, setEnforcementSourceFilter] = useState<string>('all');
 
   // Overview extras
   const [filings, setFilings] = useState<SECFiling[]>([]);
@@ -217,10 +223,10 @@ export default function TechCompanyScreen() {
 
         {/* Tab Content */}
         {tab === 'overview' && renderOverview(company, filings, news, sectorColor, setTab)}
-        {tab === 'patents' && renderPatents(patents, patentsLoading)}
-        {tab === 'contracts' && renderContracts(contracts, contractSummary, contractTrends, contractsLoading)}
+        {tab === 'patents' && renderPatents(patents, patentsLoading, patentYearFilter, setPatentYearFilter)}
+        {tab === 'contracts' && renderContracts(contracts, contractSummary, contractTrends, contractsLoading, contractAgencyFilter, setContractAgencyFilter)}
         {tab === 'lobbying' && renderLobbying(lobbyingFilings, lobbySummary, lobbyingLoading)}
-        {tab === 'enforcement' && renderEnforcement(enforcementActions, totalPenalties, enforcementLoading)}
+        {tab === 'enforcement' && renderEnforcement(enforcementActions, totalPenalties, enforcementLoading, enforcementSourceFilter, setEnforcementSourceFilter)}
       </ScrollView>
     </View>
   );
@@ -355,19 +361,30 @@ function renderOverview(
             <Ionicons name="document" size={16} color="#8B5CF6" />
             <Text style={styles.cardTitle}>Recent SEC Filings</Text>
           </View>
-          {filings.map((f) => (
-            <View key={f.id} style={styles.filingRow}>
-              <View style={styles.filingTypeBadge}>
-                <Text style={styles.filingTypeText}>{f.form_type}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.filingDesc} numberOfLines={1}>
-                  {f.description || f.accession_number}
-                </Text>
-                {f.filing_date && <Text style={styles.cardDate}>{f.filing_date}</Text>}
-              </View>
-            </View>
-          ))}
+          {filings.map((f) => {
+            const filingUrl = f.accession_number
+              ? `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&accession=${f.accession_number.replace(/-/g, '')}&type=&dateb=&owner=include&count=10`
+              : null;
+            return (
+              <TouchableOpacity
+                key={f.id}
+                style={styles.filingRow}
+                onPress={() => filingUrl && Linking.openURL(filingUrl)}
+                disabled={!filingUrl}
+              >
+                <View style={styles.filingTypeBadge}>
+                  <Text style={styles.filingTypeText}>{f.form_type}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.filingDesc} numberOfLines={1}>
+                    {f.description || f.accession_number}
+                  </Text>
+                  {f.filing_date && <Text style={styles.cardDate}>{f.filing_date}</Text>}
+                </View>
+                {filingUrl && <Ionicons name="open-outline" size={14} color={UI_COLORS.TEXT_MUTED} />}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
     </View>
@@ -375,16 +392,37 @@ function renderOverview(
 }
 
 // ── Patents Tab ──
-function renderPatents(patents: TechPatentItem[], loading: boolean) {
+function renderPatents(
+  patents: TechPatentItem[],
+  loading: boolean,
+  yearFilter: string,
+  setYearFilter: (v: string) => void,
+) {
   if (loading) return <LoadingSpinner message="Loading patents..." />;
+
+  const years = Array.from(new Set(
+    patents.map((p) => p.patent_date?.substring(0, 4)).filter(Boolean)
+  )).sort().reverse();
+  const yearOptions: FilterOption[] = [
+    { key: 'all', label: 'All' },
+    ...years.slice(0, 4).map((y) => ({ key: y!, label: y! })),
+  ];
+  const filtered = yearFilter === 'all'
+    ? patents
+    : patents.filter((p) => p.patent_date?.startsWith(yearFilter));
 
   return (
     <View style={styles.tabContent}>
-      <Text style={styles.tabSectionTitle}>USPTO Patents ({patents.length})</Text>
-      {patents.length === 0 ? (
-        <Text style={styles.noData}>No patents found</Text>
+      <Text style={styles.tabSectionTitle}>USPTO Patents ({filtered.length})</Text>
+      {patents.length > 0 && years.length > 1 && (
+        <View style={{ marginBottom: 10 }}>
+          <FilterPillGroup options={yearOptions} selected={yearFilter} onSelect={setYearFilter} scrollable />
+        </View>
+      )}
+      {filtered.length === 0 ? (
+        <EmptyState title="No patents found" message="No USPTO patents on record." />
       ) : (
-        patents.map((p) => {
+        filtered.map((p) => {
           const patentUrl = p.patent_number
             ? `https://patents.google.com/patent/US${p.patent_number.replace(/[^0-9A-Za-z]/g, '')}`
             : null;
@@ -432,6 +470,8 @@ function renderContracts(
   summary: ContractSummary | null,
   trends: ContractTrendYear[],
   loading: boolean,
+  agencyFilter: string,
+  setAgencyFilter: (v: string) => void,
 ) {
   if (loading) return <LoadingSpinner message="Loading contracts..." />;
 
@@ -490,11 +530,27 @@ function renderContracts(
       )}
 
       {/* Individual contracts */}
-      <Text style={styles.tabSectionTitle}>Contracts ({contracts.length})</Text>
-      {contracts.length === 0 ? (
-        <Text style={styles.noData}>No government contracts found</Text>
-      ) : (
-        contracts.map((ct) => {
+      {(() => {
+        const agencies = Array.from(new Set(contracts.map((c) => c.awarding_agency).filter(Boolean)));
+        const agencyOptions: FilterOption[] = [
+          { key: 'all', label: 'All' },
+          ...agencies.slice(0, 3).map((a) => ({ key: a!, label: a!.length > 18 ? a!.substring(0, 16) + '…' : a! })),
+        ];
+        const filteredContracts = agencyFilter === 'all'
+          ? contracts
+          : contracts.filter((c) => c.awarding_agency === agencyFilter);
+        return (
+          <>
+            <Text style={styles.tabSectionTitle}>Contracts ({filteredContracts.length})</Text>
+            {contracts.length > 0 && agencies.length > 1 && (
+              <View style={{ marginBottom: 10 }}>
+                <FilterPillGroup options={agencyOptions} selected={agencyFilter} onSelect={setAgencyFilter} scrollable />
+              </View>
+            )}
+            {filteredContracts.length === 0 ? (
+              <EmptyState title="No contracts found" message="No USASpending contract records." />
+            ) : (
+              filteredContracts.map((ct) => {
           const contractUrl = ct.award_id
             ? `https://www.usaspending.gov/award/${ct.award_id}`
             : null;
@@ -538,7 +594,10 @@ function renderContracts(
             </TouchableOpacity>
           );
         })
-      )}
+            )}
+          </>
+        );
+      })()}
     </View>
   );
 }
@@ -602,7 +661,7 @@ function renderLobbying(
       {/* Individual filings */}
       <Text style={styles.tabSectionTitle}>Lobbying Filings ({filings.length})</Text>
       {filings.length === 0 ? (
-        <Text style={styles.noData}>No lobbying filings found</Text>
+        <EmptyState title="No lobbying filings" message="No Senate LDA filings on record." />
       ) : (
         filings.map((f) => {
           const lobbyUrl = f.filing_uuid
@@ -662,6 +721,8 @@ function renderEnforcement(
   actions: EnforcementAction[],
   totalPenalties: number,
   loading: boolean,
+  sourceFilter: string,
+  setSourceFilter: (v: string) => void,
 ) {
   if (loading) return <LoadingSpinner message="Loading enforcement data..." />;
 
@@ -694,11 +755,27 @@ function renderEnforcement(
       )}
 
       {/* Individual actions */}
-      <Text style={styles.tabSectionTitle}>Enforcement Actions ({actions.length})</Text>
-      {actions.length === 0 ? (
-        <Text style={styles.noData}>No enforcement actions found</Text>
-      ) : (
-        actions.map((a) => {
+      {(() => {
+        const sources = Array.from(new Set(actions.map((a) => a.source).filter(Boolean)));
+        const sourceOptions: FilterOption[] = [
+          { key: 'all', label: 'All' },
+          ...sources.slice(0, 3).map((s) => ({ key: s!, label: s! })),
+        ];
+        const filteredActions = sourceFilter === 'all'
+          ? actions
+          : actions.filter((a) => a.source === sourceFilter);
+        return (
+          <>
+            <Text style={styles.tabSectionTitle}>Enforcement Actions ({filteredActions.length})</Text>
+            {actions.length > 0 && sources.length > 1 && (
+              <View style={{ marginBottom: 10 }}>
+                <FilterPillGroup options={sourceOptions} selected={sourceFilter} onSelect={setSourceFilter} scrollable />
+              </View>
+            )}
+            {filteredActions.length === 0 ? (
+              <EmptyState title="No enforcement actions" message="No regulatory enforcement on record." />
+            ) : (
+              filteredActions.map((a) => {
           const srcColor = SOURCE_COLORS[a.source || ''] || '#6B7280';
           return (
             <TouchableOpacity
@@ -737,7 +814,10 @@ function renderEnforcement(
             </TouchableOpacity>
           );
         })
-      )}
+            )}
+          </>
+        );
+      })()}
     </View>
   );
 }

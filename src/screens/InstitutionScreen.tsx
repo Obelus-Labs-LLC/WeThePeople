@@ -10,11 +10,13 @@ import { apiClient } from '../api/client';
 import type {
   InstitutionDetail, SECFiling, FDICFinancial,
   CFPBComplaint, ComplaintSummary, NewsArticle,
+  StockSnapshot, FREDObservation, InsiderTrade,
 } from '../api/types';
 import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
 import { SectorTypeBadge } from '../components/ui';
+import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
 
-type TabKey = 'overview' | 'filings' | 'complaints' | 'news';
+type TabKey = 'overview' | 'filings' | 'complaints' | 'insider' | 'news';
 
 const SECTOR_COLORS: Record<string, string> = {
   bank: '#2563EB', investment: '#8B5CF6', insurance: '#F59E0B',
@@ -60,6 +62,13 @@ export default function InstitutionScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [filingTypeFilter, setFilingTypeFilter] = useState<string>('all');
+  const [complaintProductFilter, setComplaintProductFilter] = useState<string>('all');
+  const [stockData, setStockData] = useState<StockSnapshot | null>(null);
+  const [fredData, setFredData] = useState<FREDObservation[]>([]);
+  const [insiderTrades, setInsiderTrades] = useState<InsiderTrade[]>([]);
+  const [insiderLoading, setInsiderLoading] = useState(false);
+  const [insiderTypeFilter, setInsiderTypeFilter] = useState<string>('all');
 
   const loadData = async () => {
     try {
@@ -85,6 +94,27 @@ export default function InstitutionScreen() {
 
   useEffect(() => { loadData(); }, [institution_id]);
 
+  // Load stock + FRED data on mount
+  useEffect(() => {
+    apiClient.getInstitutionStock(institution_id)
+      .then((res) => setStockData(res.stock || null))
+      .catch(() => {});
+    apiClient.getInstitutionFRED(institution_id, { limit: 20 })
+      .then((res) => setFredData(res.observations || []))
+      .catch(() => {});
+  }, [institution_id]);
+
+  // Load insider trades when tab switches
+  useEffect(() => {
+    if (activeTab === 'insider' && insiderTrades.length === 0 && !insiderLoading) {
+      setInsiderLoading(true);
+      apiClient.getInstitutionInsiderTrades(institution_id, { limit: 50 })
+        .then((res) => setInsiderTrades(res.trades || []))
+        .catch(() => {})
+        .finally(() => setInsiderLoading(false));
+    }
+  }, [activeTab]);
+
   // Load news when tab switches
   useEffect(() => {
     if (activeTab === 'news' && news.length === 0 && !newsLoading && detail) {
@@ -106,6 +136,7 @@ export default function InstitutionScreen() {
     { key: 'overview', label: 'Overview', icon: 'grid-outline' },
     { key: 'filings', label: 'Filings', icon: 'document-text-outline' },
     { key: 'complaints', label: 'Complaints', icon: 'chatbubble-ellipses-outline' },
+    { key: 'insider', label: 'Insider', icon: 'swap-horizontal-outline' },
     { key: 'news', label: 'News', icon: 'newspaper-outline' },
   ];
 
@@ -166,9 +197,9 @@ export default function InstitutionScreen() {
             <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('complaints')}>
               <StatCard label="CFPB Complaints" value={detail.complaint_count} accent="red" />
             </TouchableOpacity>
-            <View style={styles.statHalf}>
+            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('overview')}>
               <StatCard label="FDIC Reports" value={detail.financial_count} accent="gold" />
-            </View>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('complaints')}>
               <StatCard
                 label="Timely Response"
@@ -213,16 +244,106 @@ export default function InstitutionScreen() {
                 ))}
             </View>
           )}
+
+          {/* Stock Fundamentals */}
+          {stockData && (
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Ionicons name="trending-up" size={16} color="#2563EB" />
+                <Text style={styles.cardTitle}>Stock Fundamentals</Text>
+              </View>
+              <View style={styles.stockGrid}>
+                {stockData.market_cap != null && (
+                  <View style={styles.stockItem}>
+                    <Text style={styles.stockLabel}>Market Cap</Text>
+                    <Text style={styles.stockVal}>{formatCurrency(stockData.market_cap)}</Text>
+                  </View>
+                )}
+                {stockData.pe_ratio != null && (
+                  <View style={styles.stockItem}>
+                    <Text style={styles.stockLabel}>P/E Ratio</Text>
+                    <Text style={styles.stockVal}>{stockData.pe_ratio.toFixed(1)}</Text>
+                  </View>
+                )}
+                {stockData.eps != null && (
+                  <View style={styles.stockItem}>
+                    <Text style={styles.stockLabel}>EPS</Text>
+                    <Text style={styles.stockVal}>${stockData.eps.toFixed(2)}</Text>
+                  </View>
+                )}
+                {stockData.profit_margin != null && (
+                  <View style={styles.stockItem}>
+                    <Text style={styles.stockLabel}>Profit Margin</Text>
+                    <Text style={styles.stockVal}>{formatPct(stockData.profit_margin * 100)}</Text>
+                  </View>
+                )}
+                {stockData.dividend_yield != null && (
+                  <View style={styles.stockItem}>
+                    <Text style={styles.stockLabel}>Div Yield</Text>
+                    <Text style={styles.stockVal}>{formatPct(stockData.dividend_yield * 100)}</Text>
+                  </View>
+                )}
+                {stockData.week_52_high != null && (
+                  <View style={styles.stockItem}>
+                    <Text style={styles.stockLabel}>52W High</Text>
+                    <Text style={styles.stockVal}>${stockData.week_52_high.toFixed(2)}</Text>
+                  </View>
+                )}
+              </View>
+              {stockData.snapshot_date && (
+                <Text style={[styles.cardSubtitle, { marginTop: 8, marginBottom: 0 }]}>
+                  As of {stockData.snapshot_date}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* FRED Economic Indicators */}
+          {fredData.length > 0 && (() => {
+            const seriesIds = Array.from(new Set(fredData.map((o) => o.series_id)));
+            return (
+              <View style={styles.card}>
+                <View style={styles.cardHeaderRow}>
+                  <Ionicons name="analytics-outline" size={16} color="#10B981" />
+                  <Text style={styles.cardTitle}>Economic Indicators (FRED)</Text>
+                </View>
+                {seriesIds.map((sid) => {
+                  const latest = fredData.find((o) => o.series_id === sid);
+                  if (!latest || latest.value == null) return null;
+                  return (
+                    <View key={sid} style={styles.breakdownRow}>
+                      <Text style={styles.breakdownLabel}>{sid}</Text>
+                      <Text style={styles.breakdownValue}>{latest.value.toFixed(2)}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })()}
         </View>
       )}
 
       {/* === Filings Tab === */}
-      {activeTab === 'filings' && (
+      {activeTab === 'filings' && (() => {
+        const filingTypes = Array.from(new Set(filings.map((f) => f.form_type).filter(Boolean)));
+        const filingFilterOptions: FilterOption[] = [
+          { key: 'all', label: 'All' },
+          ...filingTypes.slice(0, 3).map((t) => ({ key: t, label: t })),
+        ];
+        const filteredFilings = filingTypeFilter === 'all'
+          ? filings
+          : filings.filter((f) => f.form_type === filingTypeFilter);
+        return (
         <View style={styles.tabContent}>
-          {filings.length === 0 ? (
+          {filings.length > 0 && filingTypes.length > 1 && (
+            <View style={{ marginBottom: 10 }}>
+              <FilterPillGroup options={filingFilterOptions} selected={filingTypeFilter} onSelect={setFilingTypeFilter} scrollable />
+            </View>
+          )}
+          {filteredFilings.length === 0 ? (
             <EmptyState title="No filings yet" message="Run data sync to ingest SEC filings." />
           ) : (
-            filings.map((f) => (
+            filteredFilings.map((f) => (
               <TouchableOpacity
                 key={f.id}
                 style={styles.filingCard}
@@ -248,15 +369,30 @@ export default function InstitutionScreen() {
             ))
           )}
         </View>
-      )}
+        );
+      })()}
 
       {/* === Complaints Tab === */}
-      {activeTab === 'complaints' && (
+      {activeTab === 'complaints' && (() => {
+        const complaintProducts = Array.from(new Set(complaints.map((c) => c.product).filter(Boolean)));
+        const complaintFilterOptions: FilterOption[] = [
+          { key: 'all', label: 'All' },
+          ...complaintProducts.slice(0, 3).map((p) => ({ key: p!, label: p!.length > 16 ? p!.substring(0, 14) + '…' : p! })),
+        ];
+        const filteredComplaints = complaintProductFilter === 'all'
+          ? complaints
+          : complaints.filter((c) => c.product === complaintProductFilter);
+        return (
         <View style={styles.tabContent}>
-          {complaints.length === 0 ? (
+          {complaints.length > 0 && complaintProducts.length > 1 && (
+            <View style={{ marginBottom: 10 }}>
+              <FilterPillGroup options={complaintFilterOptions} selected={complaintProductFilter} onSelect={setComplaintProductFilter} scrollable />
+            </View>
+          )}
+          {filteredComplaints.length === 0 ? (
             <EmptyState title="No complaints yet" message="Run data sync to ingest CFPB complaints." />
           ) : (
-            complaints.map((c) => {
+            filteredComplaints.map((c) => {
               const complaintUrl = c.complaint_id
                 ? `https://www.consumerfinance.gov/data-research/consumer-complaints/search/detail/${c.complaint_id}`
                 : null;
@@ -303,6 +439,85 @@ export default function InstitutionScreen() {
               );
             })
           )}
+        </View>
+        );
+      })()}
+
+      {/* === Insider Trades Tab === */}
+      {activeTab === 'insider' && (
+        <View style={styles.tabContent}>
+          {insiderLoading ? (
+            <LoadingSpinner message="Loading insider trades..." />
+          ) : insiderTrades.length === 0 ? (
+            <EmptyState title="No insider trades" message="No SEC Form 4 filings on record yet." />
+          ) : (() => {
+            const TYPE_LABELS: Record<string, string> = { P: 'Purchase', S: 'Sale', A: 'Award' };
+            const types = Array.from(new Set(insiderTrades.map((t) => t.transaction_type).filter(Boolean)));
+            const typeOptions: FilterOption[] = [
+              { key: 'all', label: 'All' },
+              ...types.map((t) => ({ key: t!, label: TYPE_LABELS[t!] || t! })),
+            ];
+            const filtered = insiderTypeFilter === 'all'
+              ? insiderTrades
+              : insiderTrades.filter((t) => t.transaction_type === insiderTypeFilter);
+            return (
+              <>
+                {types.length > 1 && (
+                  <View style={{ marginBottom: 10 }}>
+                    <FilterPillGroup options={typeOptions} selected={insiderTypeFilter} onSelect={setInsiderTypeFilter} scrollable />
+                  </View>
+                )}
+                <Text style={styles.sectionTitle}>Form 4 Filings ({filtered.length})</Text>
+                {filtered.map((trade) => {
+                  const typeColor = trade.transaction_type === 'P' ? '#10B981'
+                    : trade.transaction_type === 'S' ? '#DC2626' : '#F59E0B';
+                  return (
+                    <TouchableOpacity
+                      key={trade.id}
+                      style={styles.card}
+                      onPress={() => trade.filing_url && Linking.openURL(trade.filing_url)}
+                      disabled={!trade.filing_url}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <View style={[styles.insiderTypeBadge, { backgroundColor: typeColor + '15' }]}>
+                            <Text style={[styles.insiderTypeText, { color: typeColor }]}>
+                              {TYPE_LABELS[trade.transaction_type || ''] || trade.transaction_type || '?'}
+                            </Text>
+                          </View>
+                          <Text style={styles.insiderName} numberOfLines={1}>{trade.filer_name}</Text>
+                        </View>
+                        {trade.filing_url && <Ionicons name="open-outline" size={14} color={UI_COLORS.TEXT_MUTED} />}
+                      </View>
+                      {trade.filer_title && (
+                        <Text style={styles.insiderTitle}>{trade.filer_title}</Text>
+                      )}
+                      <View style={{ flexDirection: 'row', gap: 16, marginTop: 4 }}>
+                        {trade.shares != null && (
+                          <Text style={styles.insiderDetail}>
+                            {trade.shares.toLocaleString()} shares
+                          </Text>
+                        )}
+                        {trade.price_per_share != null && (
+                          <Text style={styles.insiderDetail}>
+                            @ ${trade.price_per_share.toFixed(2)}
+                          </Text>
+                        )}
+                        {trade.total_value != null && (
+                          <Text style={[styles.insiderDetail, { fontWeight: '700' }]}>
+                            ${trade.total_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </Text>
+                        )}
+                      </View>
+                      {trade.transaction_date && (
+                        <Text style={styles.cardDate}>{trade.transaction_date}</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            );
+          })()}
         </View>
       )}
 
@@ -404,6 +619,15 @@ const styles = StyleSheet.create({
   breakdownLabel: { color: UI_COLORS.TEXT_SECONDARY, fontSize: 12, flex: 1, marginRight: 8 },
   breakdownValue: { color: UI_COLORS.TEXT_PRIMARY, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
 
+  // Stock grid
+  stockGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  stockItem: {
+    width: '47%' as any,
+    backgroundColor: UI_COLORS.SECONDARY_BG, borderRadius: 8, padding: 10,
+  },
+  stockLabel: { fontSize: 10, fontWeight: '600', color: UI_COLORS.TEXT_MUTED, marginBottom: 2 },
+  stockVal: { fontSize: 14, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY },
+
   // Filings
   filingCard: {
     backgroundColor: UI_COLORS.CARD_BG, borderRadius: 10, padding: 14, marginBottom: 8,
@@ -443,4 +667,11 @@ const styles = StyleSheet.create({
   },
   newsDate: { fontSize: 11, color: UI_COLORS.TEXT_MUTED },
   newsTitle: { fontSize: 14, fontWeight: '600', color: UI_COLORS.TEXT_PRIMARY, lineHeight: 20, marginBottom: 8 },
+  insiderTypeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  insiderTypeText: { fontSize: 11, fontWeight: '700' },
+  insiderName: { fontSize: 13, fontWeight: '600', color: UI_COLORS.TEXT_PRIMARY, flex: 1 },
+  insiderTitle: { fontSize: 11, color: UI_COLORS.TEXT_SECONDARY, marginBottom: 2 },
+  insiderDetail: { fontSize: 12, color: UI_COLORS.TEXT_SECONDARY },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY, marginBottom: 8 },
+  cardDate: { fontSize: 11, color: UI_COLORS.TEXT_MUTED, marginTop: 4 },
 });

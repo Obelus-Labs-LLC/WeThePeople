@@ -444,6 +444,47 @@ export interface StockSnapshot {
   industry: string | null;
 }
 
+// FRED economic observations
+export interface FREDObservation {
+  id: number;
+  series_id: string;
+  observation_date: string | null;
+  value: number | null;
+}
+
+export interface FREDObservationsResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  observations: FREDObservation[];
+}
+
+// Stock response wrapper
+export interface StockResponse {
+  stock: StockSnapshot | null;
+}
+
+// Insider trades
+export interface InsiderTrade {
+  id: number;
+  filer_name: string;
+  filer_title: string | null;
+  transaction_date: string | null;
+  transaction_type: string | null; // P=Purchase, S=Sale, A=Award
+  shares: number | null;
+  price_per_share: number | null;
+  total_value: number | null;
+  filing_url: string | null;
+  accession_number: string | null;
+}
+
+export interface InsiderTradesResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  trades: InsiderTrade[];
+}
+
 export interface TechPatentItem {
   id: number;
   patent_number: string;
@@ -567,6 +608,48 @@ export interface TechComparisonItem {
 
 export interface TechComparisonResponse {
   companies: TechComparisonItem[];
+}
+
+// ── Finance Comparison ──
+
+export interface FinanceComparisonItem {
+  institution_id: string;
+  display_name: string;
+  ticker: string | null;
+  sector_type: string;
+  filing_count: number;
+  complaint_count: number;
+  total_assets: number | null;
+  total_deposits: number | null;
+  net_income: number | null;
+  roa: number | null;
+  roe: number | null;
+  tier1_capital_ratio: number | null;
+  market_cap: number | null;
+  pe_ratio: number | null;
+  profit_margin: number | null;
+}
+
+export interface FinanceComparisonResponse {
+  institutions: FinanceComparisonItem[];
+}
+
+// ── Politics Comparison ──
+
+export interface PoliticsComparisonItem {
+  person_id: string;
+  display_name: string;
+  party: string | null;
+  chamber: string | null;
+  state: string | null;
+  total_claims: number;
+  total_scored: number;
+  by_tier: Record<string, number>;
+  total_actions: number;
+}
+
+export interface PoliticsComparisonResponse {
+  people: PoliticsComparisonItem[];
 }
 
 // ── Legislative Activity Types ────────────────────────────────
