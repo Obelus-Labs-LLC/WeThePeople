@@ -40,6 +40,11 @@ import type {
   NewsResponse,
   BillDetail,
   PersonVotesResponse,
+  StockResponse,
+  FREDObservationsResponse,
+  FinanceComparisonResponse,
+  PoliticsComparisonResponse,
+  InsiderTradesResponse,
 } from './types';
 
 // Hardcoded production API URL.
@@ -297,6 +302,72 @@ class WTPClient {
   async getCompanyPaymentSummary(id: string): Promise<PaymentSummary> {
     return this.fetchJSON<PaymentSummary>(
       `${this.baseUrl}/health/companies/${encodeURIComponent(id)}/payments/summary`
+    );
+  }
+
+  async getCompanyFilings(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<FilingsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<FilingsResponse>(
+      `${this.baseUrl}/health/companies/${encodeURIComponent(id)}/filings?${sp}`
+    );
+  }
+
+  async getCompanyStock(id: string): Promise<StockResponse> {
+    return this.fetchJSON<StockResponse>(
+      `${this.baseUrl}/health/companies/${encodeURIComponent(id)}/stock`
+    );
+  }
+
+  // ── Finance Sector (additional) ──
+
+  async getInstitutionStock(id: string): Promise<StockResponse> {
+    return this.fetchJSON<StockResponse>(
+      `${this.baseUrl}/finance/institutions/${encodeURIComponent(id)}/stock`
+    );
+  }
+
+  async getInstitutionInsiderTrades(
+    id: string,
+    params?: { limit?: number; offset?: number; transaction_type?: string }
+  ): Promise<InsiderTradesResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    if (params?.transaction_type) sp.set('transaction_type', params.transaction_type);
+    const qs = sp.toString();
+    return this.fetchJSON<InsiderTradesResponse>(
+      `${this.baseUrl}/finance/institutions/${encodeURIComponent(id)}/insider-trades${qs ? `?${qs}` : ''}`
+    );
+  }
+
+  async getInstitutionFRED(
+    id: string,
+    params?: { series_id?: string; limit?: number }
+  ): Promise<FREDObservationsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.series_id) sp.set('series_id', params.series_id);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    return this.fetchJSON<FREDObservationsResponse>(
+      `${this.baseUrl}/finance/institutions/${encodeURIComponent(id)}/fred?${sp}`
+    );
+  }
+
+  async getFinanceComparison(ids: string[]): Promise<FinanceComparisonResponse> {
+    return this.fetchJSON<FinanceComparisonResponse>(
+      `${this.baseUrl}/finance/compare?ids=${ids.join(',')}`
+    );
+  }
+
+  // ── Politics Sector (additional) ──
+
+  async getPoliticsComparison(ids: string[]): Promise<PoliticsComparisonResponse> {
+    return this.fetchJSON<PoliticsComparisonResponse>(
+      `${this.baseUrl}/politics/compare?ids=${ids.join(',')}`
     );
   }
 

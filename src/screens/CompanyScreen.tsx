@@ -10,8 +10,10 @@ import { apiClient } from '../api/client';
 import type {
   CompanyDetail, FDAAdverseEvent, FDARecall,
   ClinicalTrialItem, CMSPaymentItem, PaymentSummary,
+  SECFiling, StockSnapshot,
 } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
+import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
 
 const { width } = Dimensions.get('window');
 
@@ -23,7 +25,7 @@ const SECTOR_COLORS: Record<string, string> = {
   distributor: '#64748B',
 };
 
-type Tab = 'overview' | 'safety' | 'trials';
+type Tab = 'overview' | 'safety' | 'trials' | 'filings';
 
 export default function CompanyScreen() {
   const route = useRoute<any>();
@@ -44,6 +46,15 @@ export default function CompanyScreen() {
   // Trials tab data
   const [trials, setTrials] = useState<ClinicalTrialItem[]>([]);
   const [trialsLoading, setTrialsLoading] = useState(false);
+
+  // Filings tab data
+  const [filings, setFilings] = useState<SECFiling[]>([]);
+  const [filingsLoading, setFilingsLoading] = useState(false);
+  const [stockData, setStockData] = useState<StockSnapshot | null>(null);
+
+  // Safety filters
+  const [recallFilter, setRecallFilter] = useState<string>('all');
+  const [eventFilter, setEventFilter] = useState<string>('all');
 
   // Overview extras
   const [payments, setPayments] = useState<CMSPaymentItem[]>([]);
@@ -93,6 +104,24 @@ export default function CompanyScreen() {
     }
   }, [tab, companyId]);
 
+  // Load filings when tab switches
+  useEffect(() => {
+    if (tab === 'filings' && filings.length === 0 && !filingsLoading) {
+      setFilingsLoading(true);
+      apiClient.getCompanyFilings(companyId, { limit: 20 })
+        .then((res) => setFilings(res.filings || []))
+        .catch(() => {})
+        .finally(() => setFilingsLoading(false));
+    }
+  }, [tab, companyId]);
+
+  // Load stock data on mount
+  useEffect(() => {
+    apiClient.getCompanyStock(companyId)
+      .then((res) => setStockData(res.stock || null))
+      .catch(() => {});
+  }, [companyId]);
+
   // Load payment data on mount
   useEffect(() => {
     Promise.all([
@@ -117,19 +146,24 @@ export default function CompanyScreen() {
     <View style={styles.container}>
       {/* Tab bar */}
       <View style={styles.tabBar}>
-        {(['overview', 'safety', 'trials'] as Tab[]).map((t) => (
+        {([
+          { key: 'overview' as Tab, label: 'Overview', icon: 'grid-outline' },
+          { key: 'safety' as Tab, label: 'Safety', icon: 'shield-outline' },
+          { key: 'trials' as Tab, label: 'Trials', icon: 'flask-outline' },
+          { key: 'filings' as Tab, label: 'Filings', icon: 'document-text-outline' },
+        ]).map((t) => (
           <TouchableOpacity
-            key={t}
-            style={[styles.tabBtn, tab === t && styles.tabBtnActive]}
-            onPress={() => setTab(t)}
+            key={t.key}
+            style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
+            onPress={() => setTab(t.key)}
           >
             <Ionicons
-              name={t === 'overview' ? 'grid-outline' : t === 'safety' ? 'shield-outline' : 'flask-outline'}
+              name={t.icon as any}
               size={16}
-              color={tab === t ? UI_COLORS.ACCENT : UI_COLORS.TEXT_MUTED}
+              color={tab === t.key ? UI_COLORS.ACCENT : UI_COLORS.TEXT_MUTED}
             />
-            <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+            <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>
+              {t.label}
             </Text>
           </TouchableOpacity>
         ))}
@@ -157,9 +191,10 @@ export default function CompanyScreen() {
         </View>
 
         {/* Tab Content */}
-        {tab === 'overview' && renderOverview(company, paymentSummary, sectorColor, setTab)}
-        {tab === 'safety' && renderSafety(events, recalls, safetyLoading)}
+        {tab === 'overview' && renderOverview(company, paymentSummary, stockData, sectorColor, setTab)}
+        {tab === 'safety' && renderSafety(events, recalls, safetyLoading, recallFilter, setRecallFilter, eventFilter, setEventFilter)}
         {tab === 'trials' && renderTrials(trials, trialsLoading)}
+        {tab === 'filings' && renderFilings(filings, filingsLoading)}
       </ScrollView>
     </View>
   );
@@ -169,6 +204,7 @@ export default function CompanyScreen() {
 function renderOverview(
   company: CompanyDetail,
   paymentSummary: PaymentSummary | null,
+  stockData: StockSnapshot | null,
   sectorColor: string,
   setTab: (tab: Tab) => void,
 ) {
@@ -264,6 +300,57 @@ function renderOverview(
         </View>
       )}
 
+      {/* Stock fundamentals */}
+      {stockData && (
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="trending-up" size={16} color="#2563EB" />
+            <Text style={styles.cardTitle}>Stock Fundamentals</Text>
+          </View>
+          <View style={styles.stockGrid}>
+            {stockData.market_cap != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>Market Cap</Text>
+                <Text style={styles.stockVal}>${formatLargeNum(stockData.market_cap)}</Text>
+              </View>
+            )}
+            {stockData.pe_ratio != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>P/E Ratio</Text>
+                <Text style={styles.stockVal}>{stockData.pe_ratio.toFixed(1)}</Text>
+              </View>
+            )}
+            {stockData.eps != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>EPS</Text>
+                <Text style={styles.stockVal}>${stockData.eps.toFixed(2)}</Text>
+              </View>
+            )}
+            {stockData.profit_margin != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>Profit Margin</Text>
+                <Text style={styles.stockVal}>{(stockData.profit_margin * 100).toFixed(1)}%</Text>
+              </View>
+            )}
+            {stockData.dividend_yield != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>Dividend Yield</Text>
+                <Text style={styles.stockVal}>{(stockData.dividend_yield * 100).toFixed(2)}%</Text>
+              </View>
+            )}
+            {stockData.week_52_high != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>52W High</Text>
+                <Text style={styles.stockVal}>${stockData.week_52_high.toFixed(2)}</Text>
+              </View>
+            )}
+          </View>
+          {stockData.snapshot_date && (
+            <Text style={styles.cardDate}>As of {stockData.snapshot_date}</Text>
+          )}
+        </View>
+      )}
+
       {/* Payment summary */}
       {paymentSummary && paymentSummary.total_payments > 0 && (
         <View style={styles.card}>
@@ -293,21 +380,53 @@ function renderOverview(
 }
 
 // ── Safety Tab ──
+const RECALL_FILTERS: FilterOption[] = [
+  { key: 'all', label: 'All' },
+  { key: 'Class I', label: 'Class I' },
+  { key: 'Class II', label: 'Class II' },
+  { key: 'Class III', label: 'Class III' },
+];
+
+const EVENT_FILTERS: FilterOption[] = [
+  { key: 'all', label: 'All' },
+  { key: 'serious', label: 'Serious' },
+  { key: 'not-serious', label: 'Not Serious' },
+];
+
 function renderSafety(
   events: FDAAdverseEvent[],
   recalls: FDARecall[],
   loading: boolean,
+  recallFilter: string,
+  setRecallFilter: (v: string) => void,
+  eventFilter: string,
+  setEventFilter: (v: string) => void,
 ) {
   if (loading) return <LoadingSpinner message="Loading safety data..." />;
+
+  const filteredRecalls = recallFilter === 'all'
+    ? recalls
+    : recalls.filter((r) => r.classification === recallFilter);
+
+  const filteredEvents = eventFilter === 'all'
+    ? events
+    : eventFilter === 'serious'
+      ? events.filter((e) => e.serious === 1)
+      : events.filter((e) => e.serious !== 1);
 
   return (
     <View style={styles.tabContent}>
       {/* Recalls section */}
-      <Text style={styles.tabSectionTitle}>FDA Recalls ({recalls.length})</Text>
-      {recalls.length === 0 ? (
-        <Text style={styles.noData}>No recalls found</Text>
+      <Text style={styles.tabSectionTitle}>FDA Recalls ({filteredRecalls.length})</Text>
+      {recalls.length > 0 && (
+        <View style={{ marginBottom: 10 }}>
+          <FilterPillGroup options={RECALL_FILTERS} selected={recallFilter} onSelect={setRecallFilter} scrollable />
+        </View>
+      )}
+      {filteredRecalls.length === 0 ? (
+        <EmptyState title="No recalls found" message="No FDA recall actions on record." />
       ) : (
-        recalls.map((r) => {
+        filteredRecalls.map((r) => {
           const recallUrl = r.recall_number
             ? `https://api.fda.gov/drug/enforcement.json?search=recall_number:"${r.recall_number}"&limit=1`
             : null;
@@ -354,29 +473,52 @@ function renderSafety(
       )}
 
       {/* Adverse events section */}
-      <Text style={[styles.tabSectionTitle, { marginTop: 20 }]}>Adverse Events ({events.length})</Text>
-      {events.length === 0 ? (
-        <Text style={styles.noData}>No adverse events found</Text>
+      <Text style={[styles.tabSectionTitle, { marginTop: 20 }]}>Adverse Events ({filteredEvents.length})</Text>
+      {events.length > 0 && (
+        <View style={{ marginBottom: 10 }}>
+          <FilterPillGroup options={EVENT_FILTERS} selected={eventFilter} onSelect={setEventFilter} scrollable />
+        </View>
+      )}
+      {filteredEvents.length === 0 ? (
+        <EmptyState title="No adverse events found" message="No FDA adverse event reports on file." />
       ) : (
-        events.map((e) => (
-          <View key={e.id} style={styles.card}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              {e.serious === 1 && (
-                <View style={styles.seriousBadge}>
-                  <Text style={styles.seriousBadgeText}>SERIOUS</Text>
-                </View>
+        filteredEvents.map((e) => {
+          const eventUrl = e.report_id
+            ? `https://api.fda.gov/drug/event.json?search=safetyreportid:"${e.report_id}"&limit=1`
+            : null;
+          return (
+            <TouchableOpacity
+              key={e.id}
+              style={styles.card}
+              onPress={() => eventUrl && Linking.openURL(eventUrl)}
+              disabled={!eventUrl}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                {e.serious === 1 && (
+                  <View style={styles.seriousBadge}>
+                    <Text style={styles.seriousBadgeText}>SERIOUS</Text>
+                  </View>
+                )}
+                {e.drug_name && <Text style={styles.drugName}>{e.drug_name}</Text>}
+              </View>
+              {e.reaction && (
+                <Text style={styles.cardText} numberOfLines={2}>{e.reaction}</Text>
               )}
-              {e.drug_name && <Text style={styles.drugName}>{e.drug_name}</Text>}
-            </View>
-            {e.reaction && (
-              <Text style={styles.cardText} numberOfLines={2}>{e.reaction}</Text>
-            )}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-              {e.outcome && <Text style={styles.outcome}>{e.outcome}</Text>}
-              {e.receive_date && <Text style={styles.cardDate}>{e.receive_date}</Text>}
-            </View>
-          </View>
-        ))
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {e.outcome && <Text style={styles.outcome}>{e.outcome}</Text>}
+                  {e.receive_date && <Text style={styles.cardDate}>{e.receive_date}</Text>}
+                </View>
+                {eventUrl && (
+                  <View style={styles.sourceLink}>
+                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                    <Text style={styles.sourceLinkText}>openFDA</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })
       )}
     </View>
   );
@@ -390,7 +532,7 @@ function renderTrials(trials: ClinicalTrialItem[], loading: boolean) {
     <View style={styles.tabContent}>
       <Text style={styles.tabSectionTitle}>Clinical Trials ({trials.length})</Text>
       {trials.length === 0 ? (
-        <Text style={styles.noData}>No clinical trials found</Text>
+        <EmptyState title="No clinical trials found" message="No ClinicalTrials.gov studies on record." />
       ) : (
         trials.map((t) => {
           const trialUrl = t.nct_id
@@ -454,7 +596,54 @@ function renderTrials(trials: ClinicalTrialItem[], loading: boolean) {
   );
 }
 
+// ── Filings Tab ──
+function renderFilings(filings: SECFiling[], loading: boolean) {
+  if (loading) return <LoadingSpinner message="Loading filings..." />;
+
+  return (
+    <View style={styles.tabContent}>
+      <Text style={styles.tabSectionTitle}>SEC Filings ({filings.length})</Text>
+      {filings.length === 0 ? (
+        <EmptyState title="No SEC filings" message="No SEC EDGAR filings on record." />
+      ) : (
+        filings.map((f) => (
+          <TouchableOpacity
+            key={f.id}
+            style={styles.card}
+            onPress={() => f.primary_doc_url && Linking.openURL(f.primary_doc_url)}
+            disabled={!f.primary_doc_url}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <View style={styles.formBadge}>
+                <Text style={styles.formBadgeText}>{f.form_type}</Text>
+              </View>
+              <Text style={styles.cardDate}>{f.filing_date || 'N/A'}</Text>
+            </View>
+            {f.description && (
+              <Text style={styles.cardText} numberOfLines={2}>{f.description}</Text>
+            )}
+            {f.primary_doc_url && (
+              <View style={styles.sourceLink}>
+                <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                <Text style={styles.sourceLinkText}>View on SEC EDGAR</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ))
+      )}
+    </View>
+  );
+}
+
 // ── Helpers ──
+function formatLargeNum(n: number): string {
+  if (n >= 1e12) return (n / 1e12).toFixed(1) + 'T';
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+  return n.toLocaleString();
+}
+
 function getTrialStatusColor(status: string): string {
   const s = status.toLowerCase();
   if (s.includes('recruiting') && !s.includes('not')) return '#10B981';
@@ -560,6 +749,19 @@ const styles = StyleSheet.create({
   enrollment: { fontSize: 11, color: UI_COLORS.TEXT_SECONDARY, fontWeight: '600' },
   sourceLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   sourceLinkText: { fontSize: 11, fontWeight: '600', color: UI_COLORS.ACCENT },
+
+  // Stock grid
+  stockGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  stockItem: {
+    width: '47%' as any,
+    backgroundColor: UI_COLORS.SECONDARY_BG, borderRadius: 8, padding: 10,
+  },
+  stockLabel: { fontSize: 10, fontWeight: '600', color: UI_COLORS.TEXT_MUTED, marginBottom: 2 },
+  stockVal: { fontSize: 14, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY },
+
+  // Filings
+  formBadge: { backgroundColor: '#2563EB' + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  formBadgeText: { color: '#2563EB', fontSize: 11, fontWeight: '700' },
 
   // Trials by status (overview)
   trialStatusRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, gap: 8 },
