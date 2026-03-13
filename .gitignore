@@ -85,6 +85,9 @@ frontend/src/api/README.md
 data/
 audit/
 
+# Logos (local only — not code)
+frontend/public/logos/
+
 # Build artifacts
 frontend/tsconfig.tsbuildinfo
 
