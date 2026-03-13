@@ -536,9 +536,6 @@ class PipelineRun(Base):
     error = Column(Text, nullable=True)
 
 
-import models.finance_models  # noqa: F401 — register finance tables for Alembic
-import models.health_models  # noqa: F401 — register health tables for Alembic
-import models.market_models  # noqa: F401 — register market/stock tables for Alembic
 import models.tech_models  # noqa: F401 — register tech tables for Alembic
 
 
