@@ -461,7 +461,7 @@ export default function DomeGallery({
       const originalImg = overlay.querySelector('img');
       if (originalImg) {
         const img = originalImg.cloneNode() as HTMLImageElement;
-        img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+        img.style.cssText = 'width: 100%; height: 100%; object-fit: contain; padding: 12%;';
         animatingOverlay.appendChild(img);
       }
 
@@ -597,7 +597,7 @@ export default function DomeGallery({
     const img = document.createElement('img');
     img.src = rawSrc;
     img.alt = rawAlt;
-    img.style.cssText = `width:100%; height:100%; object-fit:cover; filter:${grayscale ? 'grayscale(1)' : 'none'};`;
+    img.style.cssText = `width:100%; height:100%; object-fit:contain; padding:12%; filter:${grayscale ? 'grayscale(1)' : 'none'};`;
     overlay.appendChild(img);
 
     viewerRef.current!.appendChild(overlay);
@@ -774,7 +774,7 @@ export default function DomeGallery({
                   }
                 >
                   <div
-                    className="item__image absolute block overflow-hidden cursor-pointer bg-gray-200 transition-transform duration-300"
+                    className="item__image absolute block overflow-hidden cursor-pointer bg-zinc-900 transition-transform duration-300"
                     role="button"
                     tabIndex={0}
                     aria-label={it.alt || 'Open image'}
@@ -803,10 +803,11 @@ export default function DomeGallery({
                       src={it.src}
                       draggable={false}
                       alt={it.alt}
-                      className="w-full h-full object-cover pointer-events-none"
+                      className="w-full h-full object-contain pointer-events-none"
                       style={{
                         backfaceVisibility: 'hidden',
                         filter: `var(--image-filter, ${grayscale ? 'grayscale(1)' : 'none'})`,
+                        padding: '12%',
                       }}
                     />
                   </div>
