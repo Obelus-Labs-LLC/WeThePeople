@@ -8,8 +8,15 @@ import { getTechCompanies, type TechCompanyListItem } from '../api/tech';
 // ── Company logo URL (local first, then API, then generated avatar) ──
 
 const LOCAL_LOGOS = new Set([
-  'apple', 'adobe', 'amd', 'alphabet', 'bentley-systems', 'broadcom',
-  'dell-technologies', 'microsoft', 'nvidia', 'uber', 'workday',
+  'adobe', 'akamai', 'alphabet', 'alteryx', 'amazon', 'amd', 'analog-devices',
+  'ansys', 'apple', 'applied-materials', 'applovin', 'arista-networks', 'atlassian',
+  'autodesk', 'bentley-systems', 'booking-holdings', 'broadcom', 'c3ai', 'cadence',
+  'check-point', 'cisco', 'cloudflare', 'commvault', 'confluent', 'corning',
+  'crowdstrike', 'cyberark', 'datadog', 'dell-technologies', 'digitalocean',
+  'doordash', 'dynatrace', 'elastic', 'electronic-arts', 'etsy', 'f5-networks',
+  'fastly', 'fortinet', 'garmin', 'gitlab', 'hashicorp', 'hp-inc', 'hubspot',
+  'ibm', 'intel', 'intuit', 'juniper-networks', 'kla-corp', 'lam-research',
+  'microsoft', 'nvidia', 'uber', 'workday',
 ]);
 
 function companyLogoUrl(company: TechCompanyListItem): string {
