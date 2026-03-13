@@ -41,7 +41,7 @@ function getSectorLabel(sector: string): string {
 // ── Company logo URL ──
 
 const LOCAL_LOGOS = new Set([
-  'adobe', 'akamai', 'alphabet', 'alteryx', 'amazon', 'amd', 'analog-devices',
+  'adobe', 'airbnb', 'akamai', 'alphabet', 'alteryx', 'amazon', 'amd', 'analog-devices',
   'ansys', 'apple', 'applied-materials', 'applovin', 'arista-networks', 'atlassian',
   'autodesk', 'bentley-systems', 'booking-holdings', 'broadcom', 'c3ai', 'cadence',
   'check-point', 'cisco', 'cloudflare', 'commvault', 'confluent', 'corning',
