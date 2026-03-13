@@ -66,8 +66,8 @@ function FilingRow({ filing }: { filing: SECFiling }) {
   const url = filing.filing_url || filing.primary_doc_url;
   return (
     <div className="group flex items-center gap-4 rounded-lg border border-transparent bg-white/5 p-4 transition-all duration-150 hover:bg-white/10 hover:border-white/10">
-      <div className="flex h-auto w-16 flex-shrink-0 items-center justify-center rounded bg-[rgba(0,255,157,0.1)] px-2 py-2">
-        <span className="font-mono text-sm font-bold text-mint">{filing.form_type || '?'}</span>
+      <div className="flex h-auto w-16 flex-shrink-0 items-center justify-center rounded bg-[rgba(52,211,153,0.1)] px-2 py-2">
+        <span className="font-mono text-sm font-bold text-[#34D399]">{filing.form_type || '?'}</span>
       </div>
       <div className="min-w-0 flex-1">
         <p className="font-body text-base font-medium text-white truncate mb-1">
@@ -201,15 +201,15 @@ export default function InstitutionPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#050505]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-mint border-t-transparent" />
+      <div className="flex h-screen items-center justify-center bg-transparent">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" />
       </div>
     );
   }
 
   if (!detail) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#050505]">
+      <div className="flex h-screen items-center justify-center bg-transparent">
         <p className="font-body text-white/60">Institution not found.</p>
       </div>
     );
@@ -218,27 +218,33 @@ export default function InstitutionPage() {
   const latestFin = financials[0] || null;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#050505]">
+    <div className="flex h-screen flex-col overflow-hidden bg-transparent">
       <div className="flex flex-1 flex-col overflow-hidden px-8 py-8 lg:px-12">
         {/* Back link */}
-        <Link to="/finance" className="mb-4 inline-flex items-center gap-2 font-mono text-xs text-white/40 transition-colors hover:text-mint no-underline shrink-0">
-          <ArrowLeft size={14} />BACK TO OVERVIEW
+        <Link to="/finance/institutions" className="mb-4 inline-flex items-center gap-2 font-body text-sm text-white/50 transition-colors hover:text-white no-underline shrink-0">
+          <ArrowLeft size={16} />
+          Back to Institutions
         </Link>
 
         {/* ── Top Banner ── */}
-        <div className="mb-6 flex items-center gap-6 rounded-xl border border-white/10 bg-[#111111] p-6 animate-fade-up shrink-0">
-          <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+        <div className="mb-6 flex items-center gap-6 rounded-xl border border-white/10 bg-white/[0.03] p-6 animate-fade-up shrink-0">
+          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/[0.05] border border-white/5">
             {detail.logo_url ? (
-              <img src={detail.logo_url} alt={detail.display_name} className="h-full w-full object-cover" />
+              <img src={detail.logo_url} alt={detail.display_name} className="h-12 w-12 object-contain" />
             ) : (
-              <span className="font-heading text-2xl font-bold text-[#111111]">{detail.display_name.charAt(0)}</span>
+              <Landmark size={24} className="text-white/20" />
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="font-heading text-3xl font-bold uppercase text-mint lg:text-4xl xl:text-5xl truncate">{detail.display_name}</h1>
+            <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">{detail.display_name}</h1>
             <div className="mt-2 flex items-center gap-3">
               {detail.ticker && <span className="rounded bg-white/10 px-3 py-1 font-mono text-sm text-white">{detail.ticker}</span>}
-              <span className="font-heading text-xs font-semibold uppercase tracking-wider text-white/40">{detail.sector_type.replace(/_/g, ' ')}</span>
+              <span className="font-mono text-xs uppercase tracking-wider text-white/40">{detail.sector_type.replace(/_/g, ' ')}</span>
+              {detail.headquarters && (
+                <span className="flex items-center gap-1 font-body text-sm text-white/50">
+                  <span className="text-white/30">·</span> {detail.headquarters}
+                </span>
+              )}
             </div>
           </div>
           <div className="hidden flex-shrink-0 text-right md:block">
@@ -248,15 +254,15 @@ export default function InstitutionPage() {
         </div>
 
         {/* ── Tab Navigation ── */}
-        <div className="mb-6 flex gap-0 border-b border-white/10 pb-2 overflow-x-auto shrink-0">
+        <div className="mb-6 flex gap-1 border-b border-white/10 pb-0 overflow-x-auto shrink-0">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2 font-heading text-lg font-bold uppercase transition-colors border-b-2 ${
+              className={`whitespace-nowrap px-5 py-3 font-heading text-sm font-bold uppercase tracking-wider transition-colors border-b-2 ${
                 activeTab === tab.key
-                  ? 'text-mint border-mint'
-                  : 'text-white/50 border-transparent hover:text-white'
+                  ? 'text-[#34D399] border-[#34D399]'
+                  : 'text-white/40 border-transparent hover:text-white/70'
               }`}
             >
               {tab.label}
@@ -272,10 +278,10 @@ export default function InstitutionPage() {
               {/* Left: Financials + Stock */}
               <div className="flex flex-col gap-8 xl:col-span-1 xl:overflow-y-auto xl:pr-4">
                 {/* FDIC Financials */}
-                <div className="rounded-xl border border-white/10 bg-[#0A0A0A] p-6 animate-fade-up" style={{ animationDelay: '100ms' }}>
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 animate-fade-up" style={{ animationDelay: '100ms' }}>
                   <div className="mb-6 flex items-center justify-between border-b border-white/10 pb-4">
                     <h2 className="font-heading text-xl font-bold uppercase text-white">FDIC Financials</h2>
-                    <Landmark size={20} className="text-mint" />
+                    <Landmark size={20} className="text-[#34D399]" />
                   </div>
                   {latestFin ? (
                     <div className="grid grid-cols-2 gap-x-4 gap-y-6">
@@ -298,10 +304,10 @@ export default function InstitutionPage() {
                 </div>
 
                 {/* Market Fundamentals */}
-                <div className="rounded-xl border border-white/10 bg-[#0A0A0A] p-6 animate-fade-up" style={{ animationDelay: '200ms' }}>
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 animate-fade-up" style={{ animationDelay: '200ms' }}>
                   <div className="mb-6 flex items-center justify-between border-b border-white/10 pb-4">
                     <h2 className="font-heading text-xl font-bold uppercase text-white">Market Fundamentals</h2>
-                    <TrendingUp size={20} className="text-mint" />
+                    <TrendingUp size={20} className="text-[#34D399]" />
                   </div>
                   {stock ? (
                     <>
@@ -337,10 +343,10 @@ export default function InstitutionPage() {
 
               {/* Right: SEC Filings */}
               <div className="flex flex-col xl:col-span-2 animate-fade-up" style={{ animationDelay: '300ms' }}>
-                <div className="flex flex-1 flex-col rounded-xl border border-white/10 bg-[#0A0A0A] p-6">
+                <div className="flex flex-1 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-6">
                   <div className="mb-6 flex items-center justify-between border-b border-white/10 pb-4">
                     <h2 className="font-heading text-xl font-bold uppercase text-white">Recent SEC Filings</h2>
-                    <FileSearch size={20} className="text-mint" />
+                    <FileSearch size={20} className="text-[#34D399]" />
                   </div>
                   {filings.length === 0 ? (
                     <p className="font-body text-sm text-white/40">No SEC filings on record.</p>
@@ -358,26 +364,26 @@ export default function InstitutionPage() {
           {activeTab === 'complaints' && (
             <div className="h-full overflow-y-auto pr-4">
               {!complaintsLoaded ? (
-                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-mint border-t-transparent" /></div>
+                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
               ) : (
                 <>
                   {/* Summary */}
                   {complaintSummary && (
                     <div className="grid grid-cols-1 gap-6 xl:grid-cols-3 mb-8">
-                      <div className="rounded-xl border border-white/10 bg-[#0A0A0A] p-6 text-center">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
                         <p className="font-mono text-xs text-white/40 uppercase mb-2">Total Complaints</p>
-                        <p className="font-heading text-4xl font-bold text-mint">{complaintSummary.total_complaints.toLocaleString()}</p>
+                        <p className="font-heading text-4xl font-bold text-[#34D399]">{complaintSummary.total_complaints.toLocaleString()}</p>
                       </div>
-                      <div className="rounded-xl border border-white/10 bg-[#0A0A0A] p-6 text-center">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
                         <p className="font-mono text-xs text-white/40 uppercase mb-2">Timely Response</p>
-                        <p className="font-heading text-4xl font-bold text-mint">{complaintSummary.timely_response_pct != null ? `${complaintSummary.timely_response_pct}%` : '—'}</p>
+                        <p className="font-heading text-4xl font-bold text-[#34D399]">{complaintSummary.timely_response_pct != null ? `${complaintSummary.timely_response_pct}%` : '—'}</p>
                         {complaintSummary.timely_response_pct != null && (
                           <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/10">
-                            <div className="h-full rounded-full bg-mint" style={{ width: `${complaintSummary.timely_response_pct}%` }} />
+                            <div className="h-full rounded-full bg-[#34D399]" style={{ width: `${complaintSummary.timely_response_pct}%` }} />
                           </div>
                         )}
                       </div>
-                      <div className="rounded-xl border border-white/10 bg-[#0A0A0A] p-6">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
                         <p className="font-mono text-xs text-white/40 uppercase mb-4">Product Breakdown</p>
                         <div className="space-y-3">
                           {Object.entries(complaintSummary.by_product).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([product, count]) => {
@@ -386,10 +392,10 @@ export default function InstitutionPage() {
                               <div key={product}>
                                 <div className="flex justify-between mb-1">
                                   <span className="font-body text-xs text-white/60 truncate mr-2">{product}</span>
-                                  <span className="font-mono text-xs text-mint flex-shrink-0">{count}</span>
+                                  <span className="font-mono text-xs text-[#34D399] flex-shrink-0">{count}</span>
                                 </div>
                                 <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                                  <div className="h-full rounded-full bg-mint" style={{ width: `${pct}%` }} />
+                                  <div className="h-full rounded-full bg-[#34D399]" style={{ width: `${pct}%` }} />
                                 </div>
                               </div>
                             );
@@ -406,10 +412,10 @@ export default function InstitutionPage() {
                     ) : complaints.map((c) => (
                       <a key={c.id} href={`https://www.consumerfinance.gov/data-research/consumer-complaints/search/detail/${c.complaint_id}`}
                         target="_blank" rel="noopener noreferrer"
-                        className="block rounded-lg border border-white/10 bg-[#111111] p-5 transition-all duration-150 hover:border-[rgba(0,255,157,0.5)] no-underline">
+                        className="block rounded-lg border border-white/10 bg-white/[0.05] p-5 transition-all duration-150 hover:border-[#34D399]/50 no-underline">
                         {/* Meta row */}
                         <div className="flex flex-wrap items-center gap-3 border-b border-white/5 pb-4 mb-4">
-                          {c.product && <span className="rounded bg-[rgba(0,255,157,0.1)] px-2 py-1 font-mono text-xs font-bold text-mint">{c.product}</span>}
+                          {c.product && <span className="rounded bg-[rgba(52,211,153,0.1)] px-2 py-1 font-mono text-xs font-bold text-[#34D399]">{c.product}</span>}
                           {c.date_received && <span className="rounded bg-white/10 px-2 py-1 font-mono text-xs text-white/60">{c.date_received}</span>}
                           {c.state && <span className="rounded bg-white/10 px-2 py-1 font-mono text-xs text-white/60">{c.state}</span>}
                           {c.consumer_disputed === 'Yes' && (
@@ -417,7 +423,7 @@ export default function InstitutionPage() {
                           )}
                         </div>
                         {/* Issue */}
-                        <p className="font-mono text-xs text-mint mb-1">ISSUE</p>
+                        <p className="font-mono text-xs text-[#34D399] mb-1">ISSUE</p>
                         <p className="font-body text-base text-white/80 leading-relaxed mb-3">
                           {c.issue}{c.sub_issue ? ` — ${c.sub_issue}` : ''}
                         </p>
@@ -430,18 +436,18 @@ export default function InstitutionPage() {
                             </p>
                             <button
                               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setExpandedNarratives((prev) => { const next = new Set(prev); next.has(c.id) ? next.delete(c.id) : next.add(c.id); return next; }); }}
-                              className="mt-2 font-mono text-xs text-mint hover:text-mint/80 transition-colors"
+                              className="mt-2 font-mono text-xs text-[#34D399] hover:text-[#34D399]/80 transition-colors"
                             >
                               {expandedNarratives.has(c.id) ? 'Show less' : 'Show full narrative'}
                             </button>
                           </div>
                         )}
                         {/* Footer */}
-                        <div className="flex items-center justify-between rounded bg-[#111111] border border-white/5 px-3 py-3">
+                        <div className="flex items-center justify-between rounded bg-white/[0.05] border border-white/5 px-3 py-3">
                           <span className="font-mono text-xs text-white/50">{c.company_response || 'No response'}</span>
                           <span className="flex items-center gap-1.5 font-mono text-xs">
                             {c.timely_response === 'Yes' ? (
-                              <><CheckCircle size={16} strokeWidth={1.5} className="text-mint" /><span className="text-mint">Timely</span></>
+                              <><CheckCircle size={16} strokeWidth={1.5} className="text-[#34D399]" /><span className="text-[#34D399]">Timely</span></>
                             ) : (
                               <><XCircle size={16} strokeWidth={1.5} className="text-[#F87171]" /><span className="text-[#F87171]">Not Timely</span></>
                             )}
@@ -463,18 +469,18 @@ export default function InstitutionPage() {
                 <span className="font-mono text-xs text-white/40">FILTER:</span>
                 {[{ label: 'ALL', value: null }, { label: 'PURCHASE', value: 'P' }, { label: 'SALE', value: 'S' }, { label: 'AWARD', value: 'A' }].map((opt) => (
                   <button key={opt.label} onClick={() => { setTradeFilter(opt.value); }}
-                    className={`rounded px-3 py-1 font-mono text-xs font-bold transition-colors ${tradeFilter === opt.value ? 'bg-mint/20 text-mint border border-mint/30' : 'bg-white/5 text-white/50 border border-transparent hover:text-white'}`}>
+                    className={`rounded px-3 py-1 font-mono text-xs font-bold transition-colors ${tradeFilter === opt.value ? 'bg-[#34D399]/20 text-[#34D399] border border-[#34D399]/30' : 'bg-white/5 text-white/50 border border-transparent hover:text-white'}`}>
                     {opt.label}
                   </button>
                 ))}
               </div>
               {/* Table */}
-              <div className="flex-1 overflow-y-auto rounded-xl border border-white/10 bg-[#0A0A0A]">
+              <div className="flex-1 overflow-y-auto rounded-xl border border-white/10 bg-white/[0.03]">
                 {!tradesLoaded ? (
-                  <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-mint border-t-transparent" /></div>
+                  <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
                 ) : (
                   <table className="w-full">
-                    <thead className="sticky top-0 z-10 bg-[#111111]">
+                    <thead className="sticky top-0 z-10 bg-white/[0.05]">
                       <tr className="border-b border-white/10">
                         <th className="px-4 py-4 text-left font-mono text-xs text-white/50">DATE</th>
                         <th className="px-4 py-4 text-left font-mono text-xs text-white/50">INSIDER</th>
@@ -522,24 +528,24 @@ export default function InstitutionPage() {
           {activeTab === 'news' && (
             <div className="h-full overflow-y-auto pr-4">
               {!pressLoaded ? (
-                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-mint border-t-transparent" /></div>
+                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
               ) : pressReleases.length === 0 ? (
                 <p className="font-body text-sm text-white/40">No press releases on record.</p>
               ) : (
                 <div className="space-y-4">
                   {pressReleases.map((pr) => (
                     <a key={pr.id} href={pr.url || '#'} target="_blank" rel="noopener noreferrer"
-                      className="group block rounded-lg border border-white/10 bg-white/5 p-5 transition-all duration-150 hover:bg-white/10 hover:border-mint/50 no-underline">
+                      className="group block rounded-lg border border-white/10 bg-white/5 p-5 transition-all duration-150 hover:bg-white/10 hover:border-[#34D399]/50 no-underline">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0 flex-1">
-                          <p className="font-body text-lg font-medium text-white group-hover:text-mint transition-colors mb-2">{pr.title}</p>
+                          <p className="font-body text-lg font-medium text-white group-hover:text-[#34D399] transition-colors mb-2">{pr.title}</p>
                           <div className="flex items-center gap-3 mb-2">
                             {pr.release_date && <span className="font-mono text-xs text-white/40">{pr.release_date}</span>}
-                            {pr.category && <span className="rounded bg-mint/10 px-2 py-0.5 font-mono text-xs text-mint">{pr.category}</span>}
+                            {pr.category && <span className="rounded bg-[#34D399]/10 px-2 py-0.5 font-mono text-xs text-[#34D399]">{pr.category}</span>}
                           </div>
                           {pr.summary && <p className="font-body text-sm text-white/60 leading-relaxed line-clamp-2">{pr.summary}</p>}
                         </div>
-                        <ExternalLink size={16} className="flex-shrink-0 text-white/30 group-hover:text-mint transition-colors mt-1" />
+                        <ExternalLink size={16} className="flex-shrink-0 text-white/30 group-hover:text-[#34D399] transition-colors mt-1" />
                       </div>
                     </a>
                   ))}
@@ -552,7 +558,7 @@ export default function InstitutionPage() {
           {activeTab === 'macro' && (
             <div className="h-full overflow-y-auto pr-4">
               {!fredLoaded ? (
-                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-mint border-t-transparent" /></div>
+                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
               ) : fredData.length === 0 ? (
                 <p className="font-body text-sm text-white/40">No economic data available.</p>
               ) : (
@@ -567,12 +573,12 @@ export default function InstitutionPage() {
                     return Array.from(grouped.entries()).map(([seriesId, observations]) => {
                       const latest = observations[0];
                       return (
-                        <div key={seriesId} className="rounded-xl border border-white/10 bg-[#0A0A0A] p-6">
+                        <div key={seriesId} className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="font-heading text-lg font-bold uppercase text-white">{seriesId}</h3>
-                            <Landmark size={16} className="text-mint opacity-30" />
+                            <Landmark size={16} className="text-[#34D399] opacity-30" />
                           </div>
-                          <p className="font-mono text-4xl font-bold text-mint mb-2">
+                          <p className="font-mono text-4xl font-bold text-[#34D399] mb-2">
                             {latest?.value != null ? latest.value.toFixed(2) : '—'}
                           </p>
                           <p className="font-mono text-xs text-white/40 mb-4">

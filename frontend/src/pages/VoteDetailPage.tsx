@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { apiClient } from "../api/client";
 import type { VoteDetailResponse, MemberVoteEntry } from "../api/types";
+import BackButton from "../components/BackButton";
+import PoliticsNav from "../components/PoliticsNav";
 
 type PositionFilter = "All" | "Yea" | "Nay" | "Not Voting" | "Present";
 
@@ -132,7 +134,7 @@ const VoteDetailPage: React.FC = () => {
 
   if (!vote_id) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#020617]">
+      <div className="flex items-center justify-center h-screen">
         <p className="font-dm-sans text-red-400 text-lg">
           Missing vote_id in URL.
         </p>
@@ -142,7 +144,7 @@ const VoteDetailPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#020617] gap-4">
+      <div className="flex flex-col items-center justify-center h-screen gap-4">
         <div className="w-10 h-10 border-4 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
         <p className="font-dm-sans text-slate-400 text-lg">
           Loading vote details...
@@ -153,7 +155,7 @@ const VoteDetailPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#020617]">
+      <div className="flex items-center justify-center h-screen">
         <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl p-8 max-w-md text-center">
           <p className="font-dm-sans text-red-400 text-lg mb-2">
             Error loading vote
@@ -166,7 +168,7 @@ const VoteDetailPage: React.FC = () => {
 
   if (!vote) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#020617]">
+      <div className="flex items-center justify-center h-screen">
         <p className="font-dm-sans text-slate-400 text-lg">
           Vote not found.
         </p>
@@ -188,15 +190,13 @@ const VoteDetailPage: React.FC = () => {
       : null;
 
   return (
-    <div className="h-screen bg-[#020617] flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden">
       {/* ── HEADER ── */}
       <div className="shrink-0 px-8 pt-6 pb-4">
-        <Link
-          to="/politics/activity"
-          className="inline-flex items-center gap-1 font-dm-sans text-sm text-slate-400 hover:text-white transition-colors mb-4"
-        >
-          &larr; Back to Activity
-        </Link>
+        <div className="flex items-center justify-between mb-4">
+          <BackButton to="/politics/activity" label="Activity" />
+          <PoliticsNav />
+        </div>
 
         <p className="font-fira-code text-lg text-slate-400 tracking-wider mb-2">
           ROLL NO. {vote.roll_number} &bull;{" "}

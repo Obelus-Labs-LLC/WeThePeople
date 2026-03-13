@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Search, ArrowLeft, X, Loader2 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Person, CompareResponse, ComparePersonData } from '../api/types';
+import BackButton from '../components/BackButton';
+import PoliticsNav from '../components/PoliticsNav';
 
 // ── Constants ──
 
@@ -278,12 +280,12 @@ export default function ComparePageNew() {
   const showResults = compareData && !loadingCompare && comparisonPairs.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white flex flex-col overflow-hidden">
+    <div className="min-h-screen text-white flex flex-col overflow-hidden">
       {/* ── STATE 2: COMPARISON RESULTS ── */}
       {showResults ? (
         <>
-          {/* Back button */}
-          <div className="px-6 pt-6 pb-2">
+          {/* Nav + Back */}
+          <div className="flex items-center justify-between px-6 pt-6 pb-2">
             <button
               onClick={resetCompare}
               className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
@@ -291,6 +293,7 @@ export default function ComparePageNew() {
               <ArrowLeft size={16} />
               <span className="font-dm-sans text-sm">New Comparison</span>
             </button>
+            <PoliticsNav />
           </div>
 
           {/* Sticky column headers */}
@@ -431,17 +434,13 @@ export default function ComparePageNew() {
         <div className="flex-1 flex flex-col overflow-hidden px-6 py-6">
           {/* Header */}
           <div className="mb-6">
-            <Link
-              to="/politics"
-              className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"
-            >
-              <ArrowLeft size={16} />
-              <span className="font-dm-sans text-sm">Back to Dashboard</span>
-            </Link>
-            <h1 className="font-oswald text-5xl md:text-6xl font-bold uppercase text-white leading-none">
-              Compare Members
-            </h1>
-            <p className="font-dm-sans text-lg text-slate-400 mt-2">
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="font-oswald text-5xl md:text-6xl font-bold uppercase text-white leading-none">
+                Compare Members
+              </h1>
+              <PoliticsNav />
+            </div>
+            <p className="font-dm-sans text-lg text-slate-400">
               Side-by-side legislative analysis
             </p>
           </div>

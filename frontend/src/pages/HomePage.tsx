@@ -33,30 +33,14 @@ const HomePage: React.FC = () => {
             <div className="h-14 w-14 rounded-xl bg-blue-600 flex items-center justify-center text-2xl font-black text-white shadow-lg shadow-blue-600/30">
               WP
             </div>
-            <h1 className="text-5xl font-bold tracking-tight">
-              <DecryptedText
-                text="We The People"
-                animateOn="view"
-                sequential={true}
-                speed={100}
-                revealDirection="start"
-                className="text-white"
-                encryptedClassName="text-blue-400/40"
-              />
+            <h1 className="text-5xl font-bold tracking-tight text-white">
+              We The People
             </h1>
           </div>
 
           {/* Tagline — layer 2, delayed */}
           <p className="text-lg text-blue-200/80 font-medium tracking-wide uppercase mb-2">
-            <DecryptedText
-              text="Accountability Across Every Sector"
-              animateOn="view"
-              sequential={true}
-              speed={100}
-              revealDirection="start"
-              className="text-blue-200/80"
-              encryptedClassName="text-blue-500/20"
-            />
+            Accountability Across Every Sector
           </p>
           <div className="w-16 h-0.5 bg-blue-500/50 rounded-full mb-8" />
 
@@ -75,15 +59,7 @@ const HomePage: React.FC = () => {
 
           {/* Description — layer 4, updated language */}
           <p className="text-slate-400 text-center max-w-xl mb-2">
-            <DecryptedText
-              text="Real data on what the powerful do — votes, finances, patents, enforcement, and more. Pick a sector to start exploring."
-              animateOn="view"
-              sequential={true}
-              speed={35}
-              revealDirection="start"
-              className="text-slate-400"
-              encryptedClassName="text-slate-600/30"
-            />
+            Real data on what the powerful do — votes, finances, patents, enforcement, and more. Pick a sector to start exploring.
           </p>
         </div>
       </div>
@@ -121,26 +97,10 @@ const HomePage: React.FC = () => {
                   {sector.icon}
                 </div>
                 <div className="text-xl font-bold text-white mb-1 drop-shadow-sm">
-                  <DecryptedText
-                    text={sector.name}
-                    animateOn="view"
-                    sequential={true}
-                    speed={60}
-                    revealDirection="start"
-                    className="text-white"
-                    encryptedClassName="text-white/30"
-                  />
+                  {sector.name}
                 </div>
                 <div className="text-sm text-white/70 leading-snug">
-                  <DecryptedText
-                    text={sector.tagline}
-                    animateOn="view"
-                    sequential={true}
-                    speed={30}
-                    revealDirection="start"
-                    className="text-white/70"
-                    encryptedClassName="text-white/20"
-                  />
+                  {sector.tagline}
                 </div>
               </button>
             ))}
@@ -152,15 +112,7 @@ const HomePage: React.FC = () => {
       <footer className="border-t border-white/5 bg-slate-950">
         <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span className="text-xs text-slate-500">
-            <DecryptedText
-              text="WeThePeople — Holding power accountable across every sector"
-              animateOn="view"
-              sequential={true}
-              speed={25}
-              revealDirection="start"
-              className="text-slate-500"
-              encryptedClassName="text-slate-700/30"
-            />
+            WeThePeople — Holding power accountable across every sector
           </span>
           <span className="text-xs text-slate-600">
             Photos by{" "}

@@ -15,6 +15,7 @@ export interface InstitutionListItem {
   display_name: string;
   ticker: string | null;
   sector_type: string;
+  headquarters: string | null;
   logo_url: string | null;
   filing_count: number;
   complaint_count: number;
@@ -205,7 +206,7 @@ export interface SectorNewsResponse {
 
 // ── Client ──
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8006';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 async function fetchJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -392,17 +393,36 @@ export interface ComparisonInstitution {
   display_name: string;
   ticker: string | null;
   sector_type: string;
+  headquarters: string | null;
+  industry: string | null;
   filing_count: number;
   complaint_count: number;
+  // FDIC financials
   total_assets: number | null;
   total_deposits: number | null;
   net_income: number | null;
+  net_loans: number | null;
   roa: number | null;
   roe: number | null;
   tier1_capital_ratio: number | null;
+  efficiency_ratio: number | null;
+  noncurrent_loan_ratio: number | null;
+  net_charge_off_ratio: number | null;
+  // Stock fundamentals
   market_cap: number | null;
   pe_ratio: number | null;
+  forward_pe: number | null;
+  peg_ratio: number | null;
+  price_to_book: number | null;
+  eps: number | null;
+  revenue_ttm: number | null;
   profit_margin: number | null;
+  operating_margin: number | null;
+  return_on_equity: number | null;
+  dividend_yield: number | null;
+  dividend_per_share: number | null;
+  week_52_high: number | null;
+  week_52_low: number | null;
 }
 
 export interface ComparisonResponse {

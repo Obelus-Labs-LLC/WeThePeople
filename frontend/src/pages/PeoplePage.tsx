@@ -1,28 +1,159 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Users } from 'lucide-react';
+import { Search, Users, SearchX, MapPin } from 'lucide-react';
+import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { Person } from '../api/types';
-import BackButton from '../components/BackButton';
+import SpotlightCard from '../components/SpotlightCard';
+import PoliticsNav from '../components/PoliticsNav';
 
-// ── Helpers ──
+// ── Party config ──
 
 type PartyFilter = 'all' | 'D' | 'R' | 'I';
 type ChamberFilter = 'all' | 'house' | 'senate';
 
-const PARTY_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  D: { bg: 'rgba(59,130,246,0.15)', text: '#3B82F6', label: 'Democrat' },
-  R: { bg: 'rgba(239,68,68,0.15)', text: '#EF4444', label: 'Republican' },
-  I: { bg: 'rgba(168,85,247,0.15)', text: '#A855F7', label: 'Independent' },
+const PARTY_COLORS: Record<string, { solid: string; label: string }> = {
+  D: { solid: '#3B82F6', label: 'Democrat' },
+  R: { solid: '#EF4444', label: 'Republican' },
+  I: { solid: '#A855F7', label: 'Independent' },
 };
 
 function partyInfo(party: string) {
-  return PARTY_COLORS[party?.charAt(0)] || { bg: 'rgba(107,114,128,0.15)', text: '#6B7280', label: party };
+  return PARTY_COLORS[party?.charAt(0)] || { solid: '#6B7280', label: party };
+}
+
+// ── Filter Pill (matching finance style) ──
+
+function FilterPill({
+  label,
+  count,
+  active,
+  color,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  color: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 font-body text-sm font-medium transition-all duration-200"
+      style={{
+        borderColor: active ? color : 'rgba(255,255,255,0.1)',
+        backgroundColor: active ? `${color}15` : 'transparent',
+        color: active ? color : 'rgba(255,255,255,0.5)',
+      }}
+    >
+      {label}
+      <span
+        className="rounded-full px-1.5 py-0.5 font-mono text-[10px]"
+        style={{
+          backgroundColor: active ? `${color}33` : 'rgba(255,255,255,0.1)',
+          color: active ? color : 'rgba(255,255,255,0.4)',
+        }}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+// ── Person Card (finance-style with SpotlightCard) ──
+
+function PersonCard({ person, index }: { person: Person; index: number }) {
+  const pi = partyInfo(person.party);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: index * 0.03 }}
+    >
+      <Link
+        to={`/politics/people/${person.person_id}`}
+        className="block no-underline h-full"
+      >
+        <SpotlightCard
+          className="rounded-xl border border-white/10 bg-white/[0.03] h-full"
+          spotlightColor="rgba(255, 255, 255, 0.10)"
+        >
+          <div className="relative flex h-full flex-col p-6 overflow-hidden">
+            {/* Top row: photo + party tag */}
+            <div className="flex items-start justify-between mb-4">
+              {person.photo_url ? (
+                <img
+                  src={person.photo_url}
+                  alt={person.display_name}
+                  className="h-14 w-14 rounded-full object-cover ring-2 ring-white/10"
+                />
+              ) : (
+                <div
+                  className="flex h-14 w-14 items-center justify-center rounded-full font-heading text-lg font-bold text-white ring-2 ring-white/10"
+                  style={{ backgroundColor: `${pi.solid}30` }}
+                >
+                  {person.display_name.charAt(0)}
+                </div>
+              )}
+              <span
+                className="rounded border px-2 py-1 font-mono text-xs"
+                style={{
+                  borderColor: `${pi.solid}50`,
+                  color: pi.solid,
+                  backgroundColor: `${pi.solid}15`,
+                }}
+              >
+                {pi.label.toUpperCase()}
+              </span>
+            </div>
+
+            {/* Name */}
+            <h3 className="font-body text-xl font-bold text-white line-clamp-1 mb-1">
+              {person.display_name}
+            </h3>
+
+            {/* State */}
+            <div className="flex items-center gap-1.5 mb-2">
+              <MapPin size={14} className="text-white/30 flex-shrink-0" />
+              <span className="font-body text-sm text-white/50 truncate">
+                {person.state}
+              </span>
+            </div>
+
+            {/* Spacer pushes footer to bottom */}
+            <div className="mt-auto" />
+
+            {/* Stats footer */}
+            <div className="grid grid-cols-3 gap-3 border-t border-white/10 pt-4">
+              <div>
+                <p className="font-mono text-xs text-white/40 mb-1">CHAMBER</p>
+                <p className="font-mono text-sm text-white font-medium">
+                  {person.chamber?.toLowerCase().includes('senate') ? 'Senate' : 'House'}
+                </p>
+              </div>
+              <div>
+                <p className="font-mono text-xs text-white/40 mb-1">STATUS</p>
+                <p className={`font-mono text-sm font-medium ${person.is_active ? 'text-emerald-400' : 'text-white/30'}`}>
+                  {person.is_active ? 'Active' : 'Inactive'}
+                </p>
+              </div>
+              <div>
+                <p className="font-mono text-xs text-white/40 mb-1">PARTY</p>
+                <p className="font-mono text-sm font-medium" style={{ color: pi.solid }}>
+                  {pi.label}
+                </p>
+              </div>
+            </div>
+          </div>
+        </SpotlightCard>
+      </Link>
+    </motion.div>
+  );
 }
 
 // ── Page ──
-
-const PAGE_SIZE = 48;
 
 export default function PeoplePage() {
   const [people, setPeople] = useState<Person[]>([]);
@@ -32,6 +163,9 @@ export default function PeoplePage() {
   const [chamberFilter, setChamberFilter] = useState<ChamberFilter>('all');
   const [currentPage, setCurrentPage] = useState(1);
 
+  const headerRef = React.useRef<HTMLDivElement>(null);
+  const headerInView = useInView(headerRef, { once: true, amount: 0.1 });
+
   useEffect(() => {
     apiClient
       .getPeople({ limit: 600 })
@@ -40,10 +174,10 @@ export default function PeoplePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, partyFilter, chamberFilter]);
+  // Reset page on filter change
+  useEffect(() => { setCurrentPage(1); }, [search, partyFilter, chamberFilter]);
+
+  const PAGE_SIZE = 20;
 
   const filtered = useMemo(() => {
     let result = people;
@@ -75,218 +209,223 @@ export default function PeoplePage() {
     return counts;
   }, [people]);
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center" style={{ backgroundColor: '#020617' }}>
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-      </div>
-    );
-  }
+  const chamberCounts = useMemo(() => {
+    const counts = { house: 0, senate: 0 };
+    people.forEach((p) => {
+      if (p.chamber?.toLowerCase().includes('senate') || p.chamber?.toLowerCase() === 'upper') {
+        counts.senate++;
+      } else {
+        counts.house++;
+      }
+    });
+    return counts;
+  }, [people]);
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#020617' }}>
-      <div className="mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
+    <div className="flex h-screen flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden px-8 py-8 xl:px-16">
         {/* Header */}
-        <div className="flex items-end justify-between mb-8 animate-fade-up">
-          <div>
-            <div className="mb-3">
-              <BackButton to="/politics" label="Dashboard" />
-            </div>
-            <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white">
+        <motion.div
+          ref={headerRef}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="shrink-0 mb-6"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
               Representatives
             </h1>
-            <p className="mt-1 font-body text-sm text-white/40">
-              {people.length} members of Congress tracked
-            </p>
+            <PoliticsNav />
           </div>
-          <div className="hidden md:flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#3B82F6' }} />
-              <span className="font-mono text-[11px] text-white/40">{partyCounts.D} Dem</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#EF4444' }} />
-              <span className="font-mono text-[11px] text-white/40">{partyCounts.R} Rep</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#A855F7' }} />
-              <span className="font-mono text-[11px] text-white/40">{partyCounts.I} Ind</span>
-            </div>
-          </div>
-        </div>
+          <p className="font-body text-lg text-white/50 mb-4">
+            {people.length} members of Congress tracked
+          </p>
 
-        {/* Search + Filters */}
-        <div className="flex flex-wrap items-center gap-3 mb-8 animate-fade-up" style={{ animationDelay: '100ms' }}>
-          <div className="relative flex-1 min-w-[240px] max-w-md">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
+          {/* Search */}
+          <div className="relative w-full max-w-[480px]">
+            <Search
+              size={20}
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40"
+            />
             <input
               type="text"
-              placeholder="Search by name or state..."
+              placeholder="Search by name or state…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-white/[0.03] pl-10 pr-4 py-2.5 font-body text-sm text-white placeholder-white/20 focus:border-blue-500/50 focus:outline-none transition-colors"
+              className="w-full rounded-xl border border-[#0A0A0A] bg-[#111111] py-3 pl-12 pr-4 font-body text-lg text-white placeholder:text-white/30 outline-none transition-colors focus:border-blue-500/50"
             />
           </div>
 
-          <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
-            {(['all', 'D', 'R', 'I'] as PartyFilter[]).map((val) => {
-              const active = partyFilter === val;
-              const labels: Record<string, string> = { all: 'All', D: 'Dem', R: 'Rep', I: 'Ind' };
-              const colors: Record<string, string> = { D: '#3B82F6', R: '#EF4444', I: '#A855F7' };
-              return (
-                <button
-                  key={val}
-                  onClick={() => setPartyFilter(val)}
-                  className={`rounded-md px-3 py-1.5 font-body text-xs font-medium transition-all ${
-                    active ? 'text-white' : 'text-white/30 hover:text-white/50'
-                  }`}
-                  style={active ? { backgroundColor: colors[val] || '#1E293B' } : undefined}
-                >
-                  {labels[val]}
-                </button>
-              );
-            })}
+          {/* Party distribution bar */}
+          <div className="mt-4 flex items-center gap-3">
+            <div className="flex-1 flex h-2 rounded-full overflow-hidden">
+              <div
+                className="h-full transition-all duration-700"
+                style={{ width: `${(partyCounts.D / people.length) * 100}%`, backgroundColor: '#3B82F6' }}
+              />
+              <div
+                className="h-full transition-all duration-700"
+                style={{ width: `${(partyCounts.I / people.length) * 100}%`, backgroundColor: '#A855F7' }}
+              />
+              <div
+                className="h-full transition-all duration-700"
+                style={{ width: `${(partyCounts.R / people.length) * 100}%`, backgroundColor: '#EF4444' }}
+              />
+            </div>
+            <div className="hidden md:flex items-center gap-3">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#3B82F6' }} />
+                <span className="font-mono text-[11px] text-white/40">{partyCounts.D} Dem</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#A855F7' }} />
+                <span className="font-mono text-[11px] text-white/40">{partyCounts.I} Ind</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#EF4444' }} />
+                <span className="font-mono text-[11px] text-white/40">{partyCounts.R} Rep</span>
+              </span>
+            </div>
           </div>
+        </motion.div>
 
-          <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
-            {(['all', 'house', 'senate'] as ChamberFilter[]).map((val) => (
-              <button
-                key={val}
-                onClick={() => setChamberFilter(val)}
-                className={`rounded-md px-3 py-1.5 font-body text-xs font-medium transition-all ${
-                  chamberFilter === val ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/50'
-                }`}
-              >
-                {val === 'all' ? 'All' : val === 'house' ? 'House' : 'Senate'}
-              </button>
-            ))}
-          </div>
+        {/* Filters */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="flex gap-3 overflow-x-auto pb-4 mb-6 shrink-0"
+          style={{ touchAction: 'pan-x' }}
+        >
+          <FilterPill
+            label="ALL"
+            count={people.length}
+            active={partyFilter === 'all'}
+            color="#FFFFFF"
+            onClick={() => setPartyFilter('all')}
+          />
+          <FilterPill
+            label="DEMOCRAT"
+            count={partyCounts.D}
+            active={partyFilter === 'D'}
+            color="#3B82F6"
+            onClick={() => setPartyFilter(partyFilter === 'D' ? 'all' : 'D')}
+          />
+          <FilterPill
+            label="REPUBLICAN"
+            count={partyCounts.R}
+            active={partyFilter === 'R'}
+            color="#EF4444"
+            onClick={() => setPartyFilter(partyFilter === 'R' ? 'all' : 'R')}
+          />
+          <FilterPill
+            label="INDEPENDENT"
+            count={partyCounts.I}
+            active={partyFilter === 'I'}
+            color="#A855F7"
+            onClick={() => setPartyFilter(partyFilter === 'I' ? 'all' : 'I')}
+          />
 
-          <span className="font-mono text-[11px] text-white/20 ml-auto">
-            {filtered.length} of {people.length}
-          </span>
-        </div>
+          <div className="w-px bg-white/10 mx-1" />
 
-        {/* Grid */}
-        {filtered.length === 0 ? (
-          <div className="flex h-64 flex-col items-center justify-center">
-            <Users size={32} className="text-white/10 mb-3" />
-            <p className="font-body text-sm text-white/30">No members match your filters</p>
-          </div>
-        ) : (
-          <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((person, idx) => {
-              const pi = partyInfo(person.party);
-              return (
-                <Link
-                  key={person.person_id}
-                  to={`/politics/people/${person.person_id}`}
-                  className="group rounded-xl border border-white/5 p-5 transition-all duration-300 hover:border-white/15 no-underline animate-fade-up"
-                  style={{ backgroundColor: '#0F172A', animationDelay: `${150 + Math.min(idx, 20) * 30}ms` }}
-                >
-                  <div className="flex items-start gap-4">
-                    {person.photo_url ? (
-                      <img
-                        src={person.photo_url}
-                        alt={person.display_name}
-                        className="h-14 w-14 rounded-full object-cover grayscale transition-all duration-300 group-hover:grayscale-0"
-                      />
-                    ) : (
-                      <div
-                        className="flex h-14 w-14 items-center justify-center rounded-full font-heading text-lg font-bold text-white"
-                        style={{ backgroundColor: pi.bg }}
-                      >
-                        {person.display_name.charAt(0)}
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="font-body text-sm font-semibold text-white truncate group-hover:text-blue-400 transition-colors">
-                        {person.display_name}
-                      </p>
-                      <p className="font-mono text-[11px] text-white/30 mt-0.5">{person.state}</p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <span
-                          className="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold"
-                          style={{ backgroundColor: pi.bg, color: pi.text }}
-                        >
-                          {pi.label}
-                        </span>
-                        <span className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-white/30">
-                          {person.chamber?.toLowerCase().includes('senate') ? 'Senate' : 'House'}
-                        </span>
-                        {person.is_active && (
-                          <span className="ml-auto font-mono text-[10px] text-emerald-400">Active</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-          {/* Numbered Pagination */}
-          {(() => {
-            const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-            if (totalPages <= 1) return null;
+          <FilterPill
+            label="HOUSE"
+            count={chamberCounts.house}
+            active={chamberFilter === 'house'}
+            color="#F59E0B"
+            onClick={() => setChamberFilter(chamberFilter === 'house' ? 'all' : 'house')}
+          />
+          <FilterPill
+            label="SENATE"
+            count={chamberCounts.senate}
+            active={chamberFilter === 'senate'}
+            color="#10B981"
+            onClick={() => setChamberFilter(chamberFilter === 'senate' ? 'all' : 'senate')}
+          />
+        </motion.div>
 
-            // Build page numbers to show (max 7 visible)
-            const pages: (number | '...')[] = [];
-            if (totalPages <= 7) {
-              for (let i = 1; i <= totalPages; i++) pages.push(i);
-            } else {
-              pages.push(1);
-              if (currentPage > 3) pages.push('...');
-              for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
-                pages.push(i);
-              }
-              if (currentPage < totalPages - 2) pages.push('...');
-              pages.push(totalPages);
-            }
-
-            return (
-              <div className="mt-8 flex items-center justify-center gap-2">
-                <button
-                  onClick={() => { setCurrentPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  disabled={currentPage === 1}
-                  className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 font-body text-sm text-white/50 transition-all hover:border-white/20 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  &larr;
-                </button>
-                {pages.map((page, i) =>
-                  page === '...' ? (
-                    <span key={`dots-${i}`} className="px-2 text-white/20 font-mono text-sm">...</span>
-                  ) : (
-                    <button
-                      key={page}
-                      onClick={() => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                      className={`rounded-lg px-3.5 py-2 font-mono text-sm font-medium transition-all ${
-                        page === currentPage
-                          ? 'bg-blue-500 text-white'
-                          : 'border border-white/10 bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ),
-                )}
-                <button
-                  onClick={() => { setCurrentPage((p) => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  disabled={currentPage === totalPages}
-                  className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 font-body text-sm text-white/50 transition-all hover:border-white/20 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  &rarr;
-                </button>
+        {/* Cards grid — scrollable area */}
+        <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar">
+          {loading ? (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-56 rounded-xl bg-white/[0.03] border border-white/5 animate-pulse"
+                />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-4">
+              <SearchX size={48} className="text-white/20" />
+              <p className="font-body text-xl text-white/40">
+                No members match your search
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 pb-4">
+                {filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((person, idx) => (
+                  <PersonCard
+                    key={person.person_id}
+                    person={person}
+                    index={idx}
+                  />
+                ))}
               </div>
-            );
-          })()}
-        </>
-        )}
-
-        {/* Footer */}
-        <div className="mt-16 border-t border-white/5 pt-6 flex items-center justify-between">
-          <BackButton to="/politics" label="Dashboard" />
-          <span className="font-mono text-[10px] text-white/15">WeThePeople</span>
+              {/* Pagination */}
+              {(() => {
+                const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+                if (totalPages <= 1) return null;
+                const pages: (number | '...')[] = [];
+                if (totalPages <= 7) {
+                  for (let i = 1; i <= totalPages; i++) pages.push(i);
+                } else {
+                  pages.push(1);
+                  if (currentPage > 3) pages.push('...');
+                  for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+                  if (currentPage < totalPages - 2) pages.push('...');
+                  pages.push(totalPages);
+                }
+                return (
+                  <div className="flex items-center justify-center gap-2 pb-8 pt-4">
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 font-body text-sm text-white/50 transition-all hover:border-white/20 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      &larr;
+                    </button>
+                    {pages.map((page, i) =>
+                      page === '...' ? (
+                        <span key={`dots-${i}`} className="px-2 text-white/20 font-mono text-sm">...</span>
+                      ) : (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`rounded-lg px-3.5 py-2 font-mono text-sm font-medium transition-all ${
+                            page === currentPage
+                              ? 'bg-blue-500 text-white'
+                              : 'border border-white/10 bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ),
+                    )}
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 font-body text-sm text-white/50 transition-all hover:border-white/20 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      &rarr;
+                    </button>
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </div>
       </div>
     </div>

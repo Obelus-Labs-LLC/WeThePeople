@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { apiClient } from "../api/client";
 import type { LedgerClaimResponse } from "../api/types";
+import BackButton from "../components/BackButton";
+import PoliticsNav from "../components/PoliticsNav";
 
 // ── Tier color config ──────────────────────────────────────────────
 const TIER_COLORS: Record<string, { solid: string; text: string; bg20: string; border30: string }> = {
@@ -75,7 +77,7 @@ const ClaimDetailPage: React.FC = () => {
   // ── Loading ──
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-700 border-t-blue-500" />
           <span className="font-dm-sans text-sm text-slate-400">Loading action detail...</span>
@@ -87,7 +89,7 @@ const ClaimDetailPage: React.FC = () => {
   // ── Error ──
   if (error) {
     return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center px-6">
+      <div className="min-h-screen flex items-center justify-center px-6">
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-center max-w-lg">
           <p className="font-dm-sans text-red-400 text-lg">{error}</p>
         </div>
@@ -97,7 +99,7 @@ const ClaimDetailPage: React.FC = () => {
 
   if (!claim) {
     return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <p className="font-dm-sans text-slate-500 text-lg">Action not found.</p>
       </div>
     );
@@ -108,17 +110,15 @@ const ClaimDetailPage: React.FC = () => {
   const action = claim.matched_action;
 
   return (
-    <div className="min-h-screen bg-[#020617] overflow-y-auto flex flex-col">
+    <div className="min-h-screen overflow-y-auto flex flex-col">
       <div className="mx-auto w-full max-w-6xl px-6 py-10 flex flex-col flex-1">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between mb-10">
-          <Link
-            to={`/politics/people/${claim.person_id}`}
-            className="font-dm-sans text-slate-400 hover:text-white transition-colors text-sm"
-          >
-            &larr; Back to {claim.display_name}
-          </Link>
+        <div className="flex items-center justify-between mb-4">
+          <BackButton to={`/politics/people/${claim.person_id}`} label={claim.display_name} />
+          <PoliticsNav />
+        </div>
+        <div className="flex items-center justify-end mb-10">
           <span className="font-fira-code text-sm text-slate-400 uppercase tracking-widest">
             Action Detail
           </span>
