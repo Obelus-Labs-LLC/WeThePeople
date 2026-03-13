@@ -80,3 +80,13 @@ _archive/
 deploy/SETUP.md
 frontend/README.md
 frontend/src/api/README.md
+
+# Seed/reference data (local only, too large or too volatile for git)
+data/
+audit/
+
+# Build artifacts
+frontend/tsconfig.tsbuildinfo
+
+# Alembic generated readme
+alembic/README
