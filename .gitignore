@@ -70,3 +70,13 @@ _check_db.py
 _sync_*.py
 _chain_*.py
 backups/
+
+# Session context (local only)
+CLAUDE.md
+
+# Internal docs & archive (local only)
+docs/
+_archive/
+deploy/SETUP.md
+frontend/README.md
+frontend/src/api/README.md
