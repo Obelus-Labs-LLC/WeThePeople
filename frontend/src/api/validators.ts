@@ -86,8 +86,8 @@ export function validateLedgerClaimResponse(data: any): asserts data is LedgerCl
 export function validateBillResponse(data: any): asserts data is BillResponse {
   const endpoint = '/bills/{id}';
   assertField(data, 'bill_id', 'string', endpoint);
-  assertField(data, 'title', 'string', endpoint);
-  assertArray(data, 'source_urls', endpoint);
+  assertArray(data, 'timeline', endpoint);
+  assertArray(data, 'sponsors', endpoint);
 }
 
 export function validateBillTimelineResponse(data: any): asserts data is BillTimelineResponse {

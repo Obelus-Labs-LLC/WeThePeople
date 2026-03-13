@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { SECTORS } from "../data/sectors";
+import DecryptedText from "../components/DecryptedText";
 
 // Free Unsplash images (Unsplash license — free for commercial use)
 const FLAG_BG =
@@ -33,23 +34,56 @@ const HomePage: React.FC = () => {
               WP
             </div>
             <h1 className="text-5xl font-bold tracking-tight">
-              We The People
+              <DecryptedText
+                text="We The People"
+                animateOn="view"
+                sequential={true}
+                speed={100}
+                revealDirection="start"
+                className="text-white"
+                encryptedClassName="text-blue-400/40"
+              />
             </h1>
           </div>
 
-          {/* Tagline */}
+          {/* Tagline — layer 2, delayed */}
           <p className="text-lg text-blue-200/80 font-medium tracking-wide uppercase mb-2">
-            Accountability Across Every Sector
+            <DecryptedText
+              text="Accountability Across Every Sector"
+              animateOn="view"
+              sequential={true}
+              speed={100}
+              revealDirection="start"
+              className="text-blue-200/80"
+              encryptedClassName="text-blue-500/20"
+            />
           </p>
           <div className="w-16 h-0.5 bg-blue-500/50 rounded-full mb-8" />
 
-          {/* Headline */}
+          {/* Headline — layer 3 */}
           <h2 className="text-2xl sm:text-3xl font-semibold text-white text-center mb-3">
-            Which sector are you interested in?
+            <DecryptedText
+              text="Which sector are you interested in?"
+              animateOn="view"
+              sequential={true}
+              speed={100}
+              revealDirection="start"
+              className="text-white"
+              encryptedClassName="text-white/20"
+            />
           </h2>
+
+          {/* Description — layer 4, updated language */}
           <p className="text-slate-400 text-center max-w-xl mb-2">
-            We track what the powerful claim — and whether their actions match.
-            Choose a sector to explore.
+            <DecryptedText
+              text="Real data on what the powerful do — votes, finances, patents, enforcement, and more. Pick a sector to start exploring."
+              animateOn="view"
+              sequential={true}
+              speed={35}
+              revealDirection="start"
+              className="text-slate-400"
+              encryptedClassName="text-slate-600/30"
+            />
           </p>
         </div>
       </div>
@@ -87,10 +121,26 @@ const HomePage: React.FC = () => {
                   {sector.icon}
                 </div>
                 <div className="text-xl font-bold text-white mb-1 drop-shadow-sm">
-                  {sector.name}
+                  <DecryptedText
+                    text={sector.name}
+                    animateOn="view"
+                    sequential={true}
+                    speed={60}
+                    revealDirection="start"
+                    className="text-white"
+                    encryptedClassName="text-white/30"
+                  />
                 </div>
                 <div className="text-sm text-white/70 leading-snug">
-                  {sector.tagline}
+                  <DecryptedText
+                    text={sector.tagline}
+                    animateOn="view"
+                    sequential={true}
+                    speed={30}
+                    revealDirection="start"
+                    className="text-white/70"
+                    encryptedClassName="text-white/20"
+                  />
                 </div>
               </button>
             ))}
@@ -102,7 +152,15 @@ const HomePage: React.FC = () => {
       <footer className="border-t border-white/5 bg-slate-950">
         <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span className="text-xs text-slate-500">
-            WeThePeople &mdash; Holding power accountable across every sector
+            <DecryptedText
+              text="WeThePeople — Holding power accountable across every sector"
+              animateOn="view"
+              sequential={true}
+              speed={25}
+              revealDirection="start"
+              className="text-slate-500"
+              encryptedClassName="text-slate-700/30"
+            />
           </span>
           <span className="text-xs text-slate-600">
             Photos by{" "}

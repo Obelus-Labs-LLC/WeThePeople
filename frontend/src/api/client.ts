@@ -19,10 +19,16 @@ import type {
   PersonFinance,
   PersonPerformance,
   PersonStats,
+  PersonActivityResponse,
+  PersonVotesResponse,
+  PersonGraphResponse,
+  VoteDetailResponse,
+  ActionSearchResponse,
   DashboardStats,
   RecentAction,
   LedgerSummary,
   CompareResponse,
+  VotesResponse,
   RuntimeInfo,
 } from './types';
 
@@ -196,11 +202,89 @@ export class WTPClient {
     return this.fetchJSON<LedgerSummary>(url);
   }
 
-  /** GET /compare?person_id=...&person_id=... */
-  async comparePeople(personIds: string[]): Promise<CompareResponse> {
+  /** GET /votes */
+  async getVotes(params?: {
+    congress?: number;
+    chamber?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<VotesResponse> {
     const searchParams = new URLSearchParams();
-    personIds.forEach((id) => searchParams.append('person_id', id));
-    const url = `${this.baseUrl}/compare?${searchParams}`;
+    if (params?.congress !== undefined) searchParams.set('congress', params.congress.toString());
+    if (params?.chamber) searchParams.set('chamber', params.chamber);
+    if (params?.limit !== undefined) searchParams.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) searchParams.set('offset', params.offset.toString());
+    const url = `${this.baseUrl}/votes?${searchParams}`;
+    return this.fetchJSON<VotesResponse>(url);
+  }
+
+  /** GET /people/{id}/activity — Bills sponsored/cosponsored */
+  async getPersonActivity(
+    personId: string,
+    params?: { role?: string; congress?: number; policy_area?: string; limit?: number; offset?: number }
+  ): Promise<PersonActivityResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.role) searchParams.set('role', params.role);
+    if (params?.congress !== undefined) searchParams.set('congress', params.congress.toString());
+    if (params?.policy_area) searchParams.set('policy_area', params.policy_area);
+    if (params?.limit !== undefined) searchParams.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) searchParams.set('offset', params.offset.toString());
+    const url = `${this.baseUrl}/people/${encodeURIComponent(personId)}/activity?${searchParams}`;
+    return this.fetchJSON<PersonActivityResponse>(url);
+  }
+
+  /** GET /people/{id}/votes — Roll call vote positions */
+  async getPersonVotes(
+    personId: string,
+    params?: { position?: string; limit?: number; offset?: number }
+  ): Promise<PersonVotesResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.position) searchParams.set('position', params.position);
+    if (params?.limit !== undefined) searchParams.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) searchParams.set('offset', params.offset.toString());
+    const url = `${this.baseUrl}/people/${encodeURIComponent(personId)}/votes?${searchParams}`;
+    return this.fetchJSON<PersonVotesResponse>(url);
+  }
+
+  /** GET /graph/person/{id} — Co-sponsorship connections */
+  async getPersonGraph(personId: string, limit: number = 50): Promise<PersonGraphResponse> {
+    const url = `${this.baseUrl}/graph/person/${encodeURIComponent(personId)}?limit=${limit}`;
+    return this.fetchJSON<PersonGraphResponse>(url);
+  }
+
+  /** GET /votes/{vote_id} — Single vote detail with all member positions */
+  async getVoteDetail(voteId: number): Promise<VoteDetailResponse> {
+    const url = `${this.baseUrl}/votes/${voteId}`;
+    return this.fetchJSON<VoteDetailResponse>(url);
+  }
+
+  /** GET /actions/search — Search actions with filters */
+  async searchActions(params?: {
+    person_id?: string;
+    bill_congress?: number;
+    bill_type?: string;
+    bill_number?: number;
+    q?: string;
+    simple?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<ActionSearchResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.person_id) searchParams.set('person_id', params.person_id);
+    if (params?.bill_congress !== undefined) searchParams.set('bill_congress', params.bill_congress.toString());
+    if (params?.bill_type) searchParams.set('bill_type', params.bill_type);
+    if (params?.bill_number !== undefined) searchParams.set('bill_number', params.bill_number.toString());
+    if (params?.q) searchParams.set('q', params.q);
+    if (params?.simple !== undefined) searchParams.set('simple', params.simple ? '1' : '0');
+    if (params?.limit !== undefined) searchParams.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) searchParams.set('offset', params.offset.toString());
+    const url = `${this.baseUrl}/actions/search?${searchParams}`;
+    return this.fetchJSON<ActionSearchResponse>(url);
+  }
+
+  /** GET /compare?ids=id1,id2 */
+  async comparePeople(personIds: string[]): Promise<CompareResponse> {
+    const url = `${this.baseUrl}/compare?ids=${personIds.join(',')}`;
     return this.fetchJSON<CompareResponse>(url);
   }
 

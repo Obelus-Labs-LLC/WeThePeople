@@ -123,7 +123,7 @@ def get_institution_detail(institution_id: str):
             "institution_id": inst.institution_id, "display_name": inst.display_name,
             "ticker": inst.ticker, "sector_type": inst.sector_type,
             "headquarters": inst.headquarters, "logo_url": inst.logo_url,
-            "sec_cik": inst.sec_cik, "fdic_cert_number": inst.fdic_cert_number,
+            "sec_cik": inst.sec_cik, "fdic_cert": inst.fdic_cert,
             "filing_count": filing_count, "financial_count": financial_count,
             "complaint_count": complaint_count, "fred_count": fred_count,
             "press_count": press_count, "latest_stock": stock_data,
@@ -177,7 +177,12 @@ def get_institution_financials(
             "financials": [{
                 "id": f.id, "report_date": str(f.report_date) if f.report_date else None,
                 "total_assets": f.total_assets, "total_deposits": f.total_deposits,
-                "net_income": f.net_income, "tier1_capital_ratio": f.tier1_capital_ratio,
+                "net_income": f.net_income, "net_loans": f.net_loans,
+                "roa": f.roa, "roe": f.roe,
+                "tier1_capital_ratio": f.tier1_capital_ratio,
+                "efficiency_ratio": f.efficiency_ratio,
+                "noncurrent_loan_ratio": f.noncurrent_loan_ratio,
+                "net_charge_off_ratio": f.net_charge_off_ratio,
                 "npl_ratio": f.npl_ratio,
             } for f in rows],
         }
@@ -273,13 +278,14 @@ def get_institution_press_releases(
     try:
         query = db.query(FedPressRelease).filter_by(institution_id=institution_id)
         total = query.count()
-        rows = query.order_by(desc(FedPressRelease.release_date)).offset(offset).limit(limit).all()
+        rows = query.order_by(desc(FedPressRelease.published_at)).offset(offset).limit(limit).all()
         return {
             "total": total, "limit": limit, "offset": offset,
             "press_releases": [{
                 "id": p.id, "title": p.title,
-                "release_date": str(p.release_date) if p.release_date else None,
-                "url": p.url, "release_type": p.release_type,
+                "release_date": str(p.published_at) if p.published_at else None,
+                "url": p.link, "category": p.category,
+                "summary": p.summary,
             } for p in rows],
         }
     finally:
@@ -350,6 +356,181 @@ def get_institution_insider_trades(
                     "accession_number": t.accession_number,
                 }
                 for t in trades
+            ],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/complaints")
+def get_all_complaints(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    product: Optional[str] = Query(None),
+):
+    """All CFPB complaints across all institutions, newest first."""
+    db = SessionLocal()
+    try:
+        q = db.query(CFPBComplaint, TrackedInstitution.display_name).join(
+            TrackedInstitution, CFPBComplaint.institution_id == TrackedInstitution.institution_id
+        )
+        if product:
+            q = q.filter(CFPBComplaint.product == product)
+        total = q.count()
+        rows = q.order_by(desc(CFPBComplaint.date_received)).offset(offset).limit(limit).all()
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "complaints": [
+                {
+                    "id": c.id,
+                    "complaint_id": c.complaint_id,
+                    "institution_id": c.institution_id,
+                    "company_name": name,
+                    "date_received": str(c.date_received) if c.date_received else None,
+                    "product": c.product,
+                    "sub_product": c.sub_product,
+                    "issue": c.issue,
+                    "sub_issue": c.sub_issue,
+                    "company_response": c.company_response,
+                    "timely_response": c.timely_response,
+                    "consumer_disputed": c.consumer_disputed,
+                    "complaint_narrative": c.complaint_narrative,
+                    "state": c.state,
+                }
+                for c, name in rows
+            ],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/complaints/summary")
+def get_global_complaint_summary():
+    """Aggregate complaint stats across all institutions."""
+    db = SessionLocal()
+    try:
+        total = db.query(func.count(CFPBComplaint.id)).scalar() or 0
+        by_product = dict(
+            db.query(CFPBComplaint.product, func.count(CFPBComplaint.id))
+            .filter(CFPBComplaint.product.isnot(None))
+            .group_by(CFPBComplaint.product)
+            .order_by(desc(func.count(CFPBComplaint.id)))
+            .all()
+        )
+        by_response = dict(
+            db.query(CFPBComplaint.company_response, func.count(CFPBComplaint.id))
+            .filter(CFPBComplaint.company_response.isnot(None))
+            .group_by(CFPBComplaint.company_response)
+            .order_by(desc(func.count(CFPBComplaint.id)))
+            .all()
+        )
+        timely_yes = db.query(func.count(CFPBComplaint.id)).filter(CFPBComplaint.timely_response == "Yes").scalar() or 0
+        timely_total = db.query(func.count(CFPBComplaint.id)).filter(CFPBComplaint.timely_response.isnot(None)).scalar() or 0
+        timely_pct = round(timely_yes / timely_total * 100, 1) if timely_total > 0 else None
+        return {
+            "total_complaints": total,
+            "by_product": by_product,
+            "by_response": by_response,
+            "timely_response_pct": timely_pct,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/macro-indicators")
+def get_macro_indicators():
+    """Latest value for each FRED series (macro indicators)."""
+    db = SessionLocal()
+    try:
+        from sqlalchemy import distinct
+        series_ids = [r[0] for r in db.query(distinct(FREDObservation.series_id)).all()]
+        indicators = []
+        for sid in series_ids:
+            latest = (
+                db.query(FREDObservation)
+                .filter(FREDObservation.series_id == sid, FREDObservation.value.isnot(None))
+                .order_by(desc(FREDObservation.observation_date))
+                .first()
+            )
+            if latest:
+                indicators.append({
+                    "series_id": latest.series_id,
+                    "series_title": latest.series_title,
+                    "value": latest.value,
+                    "units": latest.units,
+                    "observation_date": str(latest.observation_date) if latest.observation_date else None,
+                })
+        return {"indicators": indicators}
+    finally:
+        db.close()
+
+
+@router.get("/sector-news")
+def get_sector_news(limit: int = Query(20, ge=1, le=50)):
+    """Recent Fed press releases across all institutions (sector news)."""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(FedPressRelease)
+            .order_by(desc(FedPressRelease.published_at))
+            .limit(limit)
+            .all()
+        )
+        return {
+            "news": [
+                {
+                    "id": p.id,
+                    "title": p.title,
+                    "release_date": str(p.published_at) if p.published_at else None,
+                    "url": p.link,
+                    "category": p.category,
+                    "summary": p.summary,
+                }
+                for p in rows
+            ]
+        }
+    finally:
+        db.close()
+
+
+@router.get("/insider-trades")
+def get_all_insider_trades(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    transaction_type: Optional[str] = Query(None, description="P=Purchase, S=Sale, A=Award"),
+):
+    """All insider trades across all institutions, newest first."""
+    db = SessionLocal()
+    try:
+        q = db.query(SECInsiderTrade, TrackedInstitution.display_name, TrackedInstitution.ticker).join(
+            TrackedInstitution, SECInsiderTrade.institution_id == TrackedInstitution.institution_id
+        )
+        if transaction_type:
+            q = q.filter(SECInsiderTrade.transaction_type == transaction_type)
+        total = q.count()
+        trades = q.order_by(desc(SECInsiderTrade.transaction_date)).offset(offset).limit(limit).all()
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "trades": [
+                {
+                    "id": t.id,
+                    "institution_id": t.institution_id,
+                    "company_name": name,
+                    "ticker": ticker,
+                    "filer_name": t.filer_name,
+                    "filer_title": t.filer_title,
+                    "transaction_date": str(t.transaction_date) if t.transaction_date else None,
+                    "transaction_type": t.transaction_type,
+                    "shares": t.shares,
+                    "price_per_share": t.price_per_share,
+                    "total_value": t.total_value,
+                    "filing_url": t.filing_url,
+                }
+                for t, name, ticker in trades
             ],
         }
     finally:

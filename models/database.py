@@ -369,6 +369,8 @@ class Bill(Base):
     summary_text = Column(Text, nullable=True)                    # CRS summary from Congress API
     summary_date = Column(String, nullable=True)                  # Date of the summary version
     full_text_url = Column(String, nullable=True)                 # URL to latest text version on congress.gov
+    introduced_date = Column(DateTime, nullable=True)             # Date bill was introduced
+    subjects_json = Column(JSON, nullable=True)                   # JSON array of subject strings from Congress API
 
     # Raw data
     metadata_json = Column(JSON, nullable=True)
