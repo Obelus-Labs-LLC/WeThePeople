@@ -307,32 +307,50 @@ function renderSafety(
       {recalls.length === 0 ? (
         <Text style={styles.noData}>No recalls found</Text>
       ) : (
-        recalls.map((r) => (
-          <View key={r.id} style={styles.card}>
-            <View style={styles.recallBadgeRow}>
-              <View style={[styles.classBadge, {
-                backgroundColor: r.classification === 'Class I' ? '#FEE2E2'
-                  : r.classification === 'Class II' ? '#FEF3C7' : '#E0F2FE',
-              }]}>
-                <Text style={[styles.classBadgeText, {
-                  color: r.classification === 'Class I' ? '#DC2626'
-                    : r.classification === 'Class II' ? '#D97706' : '#2563EB',
-                }]}>{r.classification || 'Unknown'}</Text>
+        recalls.map((r) => {
+          const recallUrl = r.recall_number
+            ? `https://api.fda.gov/drug/enforcement.json?search=recall_number:"${r.recall_number}"&limit=1`
+            : null;
+          return (
+            <TouchableOpacity
+              key={r.id}
+              style={styles.card}
+              onPress={() => recallUrl && Linking.openURL(recallUrl)}
+              disabled={!recallUrl}
+            >
+              <View style={styles.recallBadgeRow}>
+                <View style={[styles.classBadge, {
+                  backgroundColor: r.classification === 'Class I' ? '#FEE2E2'
+                    : r.classification === 'Class II' ? '#FEF3C7' : '#E0F2FE',
+                }]}>
+                  <Text style={[styles.classBadgeText, {
+                    color: r.classification === 'Class I' ? '#DC2626'
+                      : r.classification === 'Class II' ? '#D97706' : '#2563EB',
+                  }]}>{r.classification || 'Unknown'}</Text>
+                </View>
+                {r.recall_number && <Text style={styles.recallNum}>#{r.recall_number}</Text>}
+                {r.status && <Text style={styles.recallStatus}>{r.status}</Text>}
               </View>
-              {r.recall_number && <Text style={styles.recallNum}>#{r.recall_number}</Text>}
-              {r.status && <Text style={styles.recallStatus}>{r.status}</Text>}
-            </View>
-            {r.product_description && (
-              <Text style={styles.cardText} numberOfLines={3}>{r.product_description}</Text>
-            )}
-            {r.reason_for_recall && (
-              <Text style={styles.cardReason} numberOfLines={2}>Reason: {r.reason_for_recall}</Text>
-            )}
-            {r.recall_initiation_date && (
-              <Text style={styles.cardDate}>{r.recall_initiation_date}</Text>
-            )}
-          </View>
-        ))
+              {r.product_description && (
+                <Text style={styles.cardText} numberOfLines={3}>{r.product_description}</Text>
+              )}
+              {r.reason_for_recall && (
+                <Text style={styles.cardReason} numberOfLines={2}>Reason: {r.reason_for_recall}</Text>
+              )}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                {r.recall_initiation_date && (
+                  <Text style={styles.cardDate}>{r.recall_initiation_date}</Text>
+                )}
+                {r.recall_number && (
+                  <View style={styles.sourceLink}>
+                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                    <Text style={styles.sourceLinkText}>FDA</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })
       )}
 
       {/* Adverse events section */}

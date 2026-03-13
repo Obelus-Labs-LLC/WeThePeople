@@ -256,36 +256,52 @@ export default function InstitutionScreen() {
           {complaints.length === 0 ? (
             <EmptyState title="No complaints yet" message="Run data sync to ingest CFPB complaints." />
           ) : (
-            complaints.map((c) => (
-              <View key={c.id} style={styles.complaintCard}>
-                <View style={styles.complaintHeader}>
-                  <Text style={styles.complaintProduct}>{c.product || 'Unknown Product'}</Text>
-                  <Text style={styles.complaintDate}>{c.date_received || 'N/A'}</Text>
-                </View>
-                <Text style={styles.complaintIssue} numberOfLines={2}>
-                  {c.issue || 'No issue description'}
-                </Text>
-                <View style={styles.complaintMeta}>
-                  {c.company_response && (
-                    <Text style={styles.complaintResponse} numberOfLines={1}>
-                      {c.company_response}
-                    </Text>
-                  )}
-                  {c.timely_response && (
-                    <View style={[styles.timelyBadge, {
-                      backgroundColor: c.timely_response === 'Yes' ? '#10B981' + '15' : '#DC2626' + '15',
-                    }]}>
-                      <Text style={[styles.timelyText, {
-                        color: c.timely_response === 'Yes' ? '#10B981' : '#DC2626',
-                      }]}>
-                        {c.timely_response === 'Yes' ? 'Timely' : 'Late'}
+            complaints.map((c) => {
+              const complaintUrl = c.complaint_id
+                ? `https://www.consumerfinance.gov/data-research/consumer-complaints/search/detail/${c.complaint_id}`
+                : null;
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={styles.complaintCard}
+                  onPress={() => complaintUrl && Linking.openURL(complaintUrl)}
+                  disabled={!complaintUrl}
+                >
+                  <View style={styles.complaintHeader}>
+                    <Text style={styles.complaintProduct}>{c.product || 'Unknown Product'}</Text>
+                    <Text style={styles.complaintDate}>{c.date_received || 'N/A'}</Text>
+                  </View>
+                  <Text style={styles.complaintIssue} numberOfLines={2}>
+                    {c.issue || 'No issue description'}
+                  </Text>
+                  <View style={styles.complaintMeta}>
+                    {c.company_response && (
+                      <Text style={styles.complaintResponse} numberOfLines={1}>
+                        {c.company_response}
                       </Text>
+                    )}
+                    {c.timely_response && (
+                      <View style={[styles.timelyBadge, {
+                        backgroundColor: c.timely_response === 'Yes' ? '#10B981' + '15' : '#DC2626' + '15',
+                      }]}>
+                        <Text style={[styles.timelyText, {
+                          color: c.timely_response === 'Yes' ? '#10B981' : '#DC2626',
+                        }]}>
+                          {c.timely_response === 'Yes' ? 'Timely' : 'Late'}
+                        </Text>
+                      </View>
+                    )}
+                    {c.state && <Text style={styles.complaintState}>{c.state}</Text>}
+                  </View>
+                  {complaintUrl && (
+                    <View style={[styles.linkRow, { marginTop: 6 }]}>
+                      <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                      <Text style={styles.linkText}>View on CFPB</Text>
                     </View>
                   )}
-                  {c.state && <Text style={styles.complaintState}>{c.state}</Text>}
-                </View>
-              </View>
-            ))
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
       )}

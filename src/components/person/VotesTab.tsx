@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../../constants/colors';
 import { EmptyState, SkeletonList } from '../ui';
 import { FilterPillGroup } from '../FilterPillGroup';
@@ -70,8 +71,18 @@ export function VotesTab({ votes, loading, onBillPress }: VotesTabProps) {
         const billLabel = vote.related_bill_type && vote.related_bill_number
           ? `${vote.related_bill_type.toUpperCase()} ${vote.related_bill_number}`
           : null;
+        const voteUrl = vote.congress && vote.chamber && vote.roll_number
+          ? vote.chamber.toLowerCase() === 'senate'
+            ? `https://www.senate.gov/legislative/LIS/roll_call_votes/vote${vote.congress}1/vote_${vote.congress}_1_${String(vote.roll_number).padStart(5, '0')}.htm`
+            : `https://clerk.house.gov/Votes/${vote.vote_date ? new Date(vote.vote_date).getFullYear() : ''}${vote.roll_number}`
+          : null;
         return (
-          <View key={vote.vote_id} style={styles.voteCard}>
+          <TouchableOpacity
+            key={vote.vote_id}
+            style={styles.voteCard}
+            onPress={() => voteUrl && Linking.openURL(voteUrl)}
+            disabled={!voteUrl}
+          >
             <View style={styles.voteHeader}>
               <View style={[styles.positionBadge, { backgroundColor: posColor + '18' }]}>
                 <Text style={[styles.positionBadgeText, { color: posColor }]}>
@@ -98,8 +109,16 @@ export function VotesTab({ votes, loading, onBillPress }: VotesTabProps) {
                   <Text style={styles.billIdLink}>{billLabel}</Text>
                 </TouchableOpacity>
               )}
+              {voteUrl && (
+                <View style={styles.sourceLink}>
+                  <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                  <Text style={styles.sourceLinkText}>
+                    {vote.chamber?.toLowerCase() === 'senate' ? 'Senate.gov' : 'House Clerk'}
+                  </Text>
+                </View>
+              )}
             </View>
-          </View>
+          </TouchableOpacity>
         );
       })}
     </View>
@@ -132,4 +151,6 @@ const styles = StyleSheet.create({
   voteMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 },
   voteMetaText: { color: UI_COLORS.TEXT_MUTED, fontSize: 11 },
   billIdLink: { color: UI_COLORS.ACCENT, fontSize: 11, fontWeight: '600', textDecorationLine: 'underline' },
+  sourceLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sourceLinkText: { fontSize: 11, fontWeight: '600', color: UI_COLORS.ACCENT },
 });

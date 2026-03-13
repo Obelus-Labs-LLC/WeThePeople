@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../../constants/colors';
 import { LoadingSpinner, EmptyState, StatCard } from '../ui';
 import type { PersonFinance } from '../../api/types';
@@ -52,6 +53,17 @@ export function FinanceTab({ finance, loading }: FinanceTabProps) {
           ))}
         </View>
       )}
+
+      {/* FEC source link */}
+      {finance.candidate_id && (
+        <TouchableOpacity
+          style={styles.sourceCard}
+          onPress={() => Linking.openURL(`https://www.fec.gov/data/candidate/${finance.candidate_id}/`)}
+        >
+          <Ionicons name="open-outline" size={14} color={UI_COLORS.ACCENT} />
+          <Text style={styles.sourceLinkText}>View full FEC filings on FEC.gov</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -73,4 +85,10 @@ const styles = StyleSheet.create({
   donorName: { color: UI_COLORS.TEXT_PRIMARY, fontSize: 12 },
   donorEmployer: { color: UI_COLORS.TEXT_MUTED, fontSize: 12 },
   donorAmount: { color: UI_COLORS.TEXT_PRIMARY, fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'], textAlign: 'right' },
+  sourceCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: UI_COLORS.CARD_BG, borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: UI_COLORS.BORDER,
+  },
+  sourceLinkText: { fontSize: 13, fontWeight: '600', color: UI_COLORS.ACCENT },
 });
