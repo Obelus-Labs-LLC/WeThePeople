@@ -95,37 +95,22 @@ def fetch_vote_detail(congress: int, session: int, roll_number: int) -> Optional
 
 
 def fetch_vote_members(congress: int, session: int, roll_number: int) -> List[Dict[str, Any]]:
-    """Fetch member vote positions for a specific roll call vote."""
+    """Fetch member vote positions for a specific roll call vote.
+    The API returns all members in a single response (no pagination needed).
+    """
     url = f"{BASE_URL}/house-vote/{congress}/{session}/{roll_number}/members"
     params = {
         "api_key": CONGRESS_API_KEY,
         "format": "json",
-        "limit": 250,
+        "limit": 500,  # All House members fit in one request
     }
 
-    all_members = []
-    offset = 0
+    response = requests.get(url, params=params)
+    response.raise_for_status()
+    data = response.json()
 
-    while True:
-        params["offset"] = offset
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-
-        member_data = data.get("houseRollCallVoteMemberVotes", {})
-        members = member_data.get("results", [])
-        if not members:
-            break
-
-        all_members.extend(members)
-        offset += len(members)
-
-        if len(members) < params["limit"]:
-            break
-
-        time.sleep(RATE_LIMIT_DELAY)
-
-    return all_members
+    member_data = data.get("houseRollCallVoteMemberVotes", {})
+    return member_data.get("results", [])
 
 
 def ingest_vote(congress: int, session: int, roll_number: int,
