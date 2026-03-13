@@ -5,10 +5,18 @@ import DomeGallery from '../components/DomeGallery';
 import BackButton from '../components/BackButton';
 import { getTechCompanies, type TechCompanyListItem } from '../api/tech';
 
-// Generate a placeholder logo image with company initials
+// ── Company logo URL (local first, then API, then generated avatar) ──
+
+const LOCAL_LOGOS = new Set([
+  'apple', 'adobe', 'amd', 'alphabet', 'bentley-systems', 'broadcom',
+  'dell-technologies', 'microsoft', 'nvidia', 'uber', 'workday',
+]);
+
 function companyLogoUrl(company: TechCompanyListItem): string {
+  if (LOCAL_LOGOS.has(company.company_id)) {
+    return `/logos/${company.company_id}.png`;
+  }
   if (company.logo_url) return company.logo_url;
-  // Use a DiceBear initials avatar as placeholder
   const initials = company.display_name
     .split(/\s+/)
     .map((w) => w[0])
