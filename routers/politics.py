@@ -1114,9 +1114,22 @@ def get_person_powermap(person_id: str, limit: int = Query(25)):
 @router.post("/votes/ingest")
 def ingest_votes(request: Request, congress: int = Query(119), limit: int = Query(50)):
     """Trigger vote ingestion from Congress.gov."""
-    from connectors.congress_votes import fetch_and_store_votes
-    result = fetch_and_store_votes(congress=congress, limit=limit)
-    return result
+    from connectors.congress_votes import ingest_recent_house_votes
+    from models.database import SessionLocal, TrackedMember
+
+    # Build bioguide -> person_id mapping
+    db = SessionLocal()
+    try:
+        members = db.query(TrackedMember).filter(
+            TrackedMember.is_active == 1,
+            TrackedMember.bioguide_id.isnot(None),
+        ).all()
+        person_id_map = {m.bioguide_id: m.person_id for m in members}
+    finally:
+        db.close()
+
+    count = ingest_recent_house_votes(congress=congress, limit=limit, person_id_map=person_id_map)
+    return {"ingested": count, "congress": congress, "limit": limit}
 
 
 @router.get("/votes")

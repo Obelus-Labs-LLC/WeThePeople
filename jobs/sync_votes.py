@@ -175,8 +175,10 @@ def ingest_vote(congress: int, chamber: str, roll_number: int,
 
             mv = MemberVote(
                 vote_id=vote.id,
+                person_id=bioguide_map.get(bioguide_id),
                 bioguide_id=bioguide_id,
                 position=position,
+                member_name=member.get("name"),
                 party=member.get("party"),
                 state=member.get("state"),
             )
