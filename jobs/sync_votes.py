@@ -1,15 +1,16 @@
 """
 Vote Sync Job
 
-Fetches and stores roll call votes from both House and Senate
-for the specified Congress. Builds a bioguide->person_id mapping
-from TrackedMembers so that member_votes link to our people.
+Fetches and stores House roll call votes from the Congress.gov API v3.
+Builds a bioguide->person_id mapping from TrackedMembers so that
+member_votes link to our people.
+
+Senate votes are not yet available in the Congress.gov API v3.
 
 Usage:
     python jobs/sync_votes.py
     python jobs/sync_votes.py --congress 119 --limit 100
-    python jobs/sync_votes.py --chamber house --limit 50
-    python jobs/sync_votes.py --chamber senate --limit 50
+    python jobs/sync_votes.py --session 1 --limit 50
 """
 
 import argparse
@@ -50,9 +51,9 @@ def build_bioguide_map() -> Dict[str, str]:
         db.close()
 
 
-def fetch_votes_list(congress: int, chamber: str, limit: int = 250) -> List[Dict[str, Any]]:
-    """Fetch vote list for a chamber."""
-    url = f"{BASE_URL}/vote/{congress}/{chamber}"
+def fetch_house_votes_list(congress: int, session: int, limit: int = 250) -> List[Dict[str, Any]]:
+    """Fetch House roll call vote list from Congress.gov API v3."""
+    url = f"{BASE_URL}/house-vote/{congress}/{session}"
     params = {
         "api_key": CONGRESS_API_KEY,
         "format": "json",
@@ -68,7 +69,7 @@ def fetch_votes_list(congress: int, chamber: str, limit: int = 250) -> List[Dict
         response.raise_for_status()
         data = response.json()
 
-        votes = data.get("votes", [])
+        votes = data.get("houseRollCallVotes", [])
         if not votes:
             break
 
@@ -83,140 +84,189 @@ def fetch_votes_list(congress: int, chamber: str, limit: int = 250) -> List[Dict
     return all_votes[:limit]
 
 
-def fetch_vote_detail(congress: int, chamber: str, roll_number: int) -> Optional[Dict[str, Any]]:
-    """Fetch detailed vote info including member positions."""
-    url = f"{BASE_URL}/vote/{congress}/{chamber}/{roll_number}"
+def fetch_vote_detail(congress: int, session: int, roll_number: int) -> Optional[Dict[str, Any]]:
+    """Fetch detailed vote info from Congress.gov API v3."""
+    url = f"{BASE_URL}/house-vote/{congress}/{session}/{roll_number}"
     params = {"api_key": CONGRESS_API_KEY, "format": "json"}
 
     response = requests.get(url, params=params)
     response.raise_for_status()
-    return response.json().get("vote")
+    return response.json().get("houseRollCallVote")
 
 
-def ingest_vote(congress: int, chamber: str, roll_number: int,
+def fetch_vote_members(congress: int, session: int, roll_number: int) -> List[Dict[str, Any]]:
+    """Fetch member vote positions for a specific roll call vote."""
+    url = f"{BASE_URL}/house-vote/{congress}/{session}/{roll_number}/members"
+    params = {
+        "api_key": CONGRESS_API_KEY,
+        "format": "json",
+        "limit": 250,
+    }
+
+    all_members = []
+    offset = 0
+
+    while True:
+        params["offset"] = offset
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        member_data = data.get("houseRollCallVoteMemberVotes", {})
+        members = member_data.get("results", [])
+        if not members:
+            break
+
+        all_members.extend(members)
+        offset += len(members)
+
+        if len(members) < params["limit"]:
+            break
+
+        time.sleep(RATE_LIMIT_DELAY)
+
+    return all_members
+
+
+def ingest_vote(congress: int, session: int, roll_number: int,
+                vote_summary: Dict[str, Any],
                 bioguide_map: Dict[str, str]) -> Optional[int]:
-    """Ingest a single vote with member positions."""
+    """Ingest a single House vote with member positions."""
     db = SessionLocal()
     try:
         # Skip if already exists
         existing = db.query(Vote).filter(
             Vote.congress == congress,
-            Vote.chamber == chamber.lower(),
+            Vote.chamber == "house",
             Vote.roll_number == roll_number,
         ).first()
         if existing:
             return existing.id
 
-        vote_data = fetch_vote_detail(congress, chamber, roll_number)
-        if not vote_data:
-            return None
+        # Get vote detail for totals
+        vote_data = fetch_vote_detail(congress, session, roll_number)
+        time.sleep(RATE_LIMIT_DELAY)
 
-        # Parse date
+        # Parse date from startDate
         vote_date = None
-        if vote_data.get("date"):
+        start_date = vote_summary.get("startDate") or (vote_data or {}).get("startDate")
+        if start_date:
             try:
-                vote_date = datetime.fromisoformat(
-                    vote_data["date"].replace("Z", "+00:00")
-                ).date()
+                vote_date = datetime.fromisoformat(start_date).date()
             except Exception:
                 pass
 
-        # Parse totals
-        totals = vote_data.get("totals", {})
-        # Congress.gov API is inconsistent with capitalization
-        def _get_total(key, *alts):
-            for k in [key] + list(alts):
-                v = totals.get(k)
-                if v is not None:
-                    return v
-            return None
+        # Parse totals from votePartyTotal
+        yea_count = 0
+        nay_count = 0
+        present_count = 0
+        not_voting_count = 0
+        if vote_data and vote_data.get("votePartyTotal"):
+            for party_total in vote_data["votePartyTotal"]:
+                yea_count += party_total.get("yeaTotal", 0)
+                nay_count += party_total.get("nayTotal", 0)
+                present_count += party_total.get("presentTotal", 0)
+                not_voting_count += party_total.get("notVotingTotal", 0)
 
-        # Parse bill fields
-        related_bill_congress = None
+        # Parse bill fields from legislation info
+        related_bill_congress = congress
         related_bill_type = None
         related_bill_number = None
-        if vote_data.get("bill"):
-            bi = vote_data["bill"]
-            related_bill_congress = bi.get("congress")
-            related_bill_type = (bi.get("type") or "").upper() or None
+        leg_type = vote_summary.get("legislationType")
+        leg_number = vote_summary.get("legislationNumber")
+        if leg_type:
+            related_bill_type = leg_type.upper()
+        if leg_number:
             try:
-                related_bill_number = int(bi.get("number")) if bi.get("number") else None
+                related_bill_number = int(leg_number)
             except (ValueError, TypeError):
                 related_bill_number = None
 
+        # Build source URL
+        source_url = f"https://clerk.house.gov/Votes/{vote_date.year if vote_date else ''}{roll_number}"
+
+        question = (vote_data or {}).get("voteQuestion") or "Roll call vote"
+
         vote = Vote(
             congress=congress,
-            chamber=chamber.lower(),
+            chamber="house",
             roll_number=roll_number,
-            session=vote_data.get("session"),
-            question=vote_data.get("question"),
+            session=session,
+            question=question,
             vote_date=vote_date,
             related_bill_congress=related_bill_congress,
             related_bill_type=related_bill_type,
             related_bill_number=related_bill_number,
-            result=vote_data.get("result"),
-            yea_count=_get_total("Yea", "yea"),
-            nay_count=_get_total("Nay", "nay", "No", "no"),
-            present_count=_get_total("Present", "present"),
-            not_voting_count=_get_total("Not Voting", "notVoting"),
-            source_url=vote_data.get("url"),
+            result=vote_summary.get("result"),
+            yea_count=yea_count or None,
+            nay_count=nay_count or None,
+            present_count=present_count or None,
+            not_voting_count=not_voting_count or None,
+            source_url=source_url,
             metadata_json=vote_data,
         )
         db.add(vote)
         db.flush()
 
-        # Ingest member votes
+        # Fetch and ingest member votes
+        members = fetch_vote_members(congress, session, roll_number)
+        time.sleep(RATE_LIMIT_DELAY)
+
         member_count = 0
-        for member in vote_data.get("members", []):
-            bioguide_id = member.get("bioguideId")
-            position = member.get("vote")
+        for member in members:
+            bioguide_id = member.get("bioguideID")
+            position = member.get("voteCast")
             if not bioguide_id or not position:
                 continue
+
+            first_name = member.get("firstName", "")
+            last_name = member.get("lastName", "")
+            member_name = f"{first_name} {last_name}".strip() or None
 
             mv = MemberVote(
                 vote_id=vote.id,
                 person_id=bioguide_map.get(bioguide_id),
                 bioguide_id=bioguide_id,
                 position=position,
-                member_name=member.get("name"),
-                party=member.get("party"),
-                state=member.get("state"),
+                member_name=member_name,
+                party=member.get("voteParty"),
+                state=member.get("voteState"),
             )
             db.add(mv)
             member_count += 1
 
         db.commit()
-        logger.info(f"Ingested vote {congress}/{chamber}/{roll_number} ({member_count} members)",
+        logger.info(f"Ingested vote 119/house/{roll_number} ({member_count} members)",
                      extra={"job": "sync_votes"})
         return vote.id
 
     except Exception as e:
         db.rollback()
-        logger.error(f"Failed vote {congress}/{chamber}/{roll_number}: {e}",
+        logger.error(f"Failed vote {congress}/house/{roll_number}: {e}",
                       extra={"job": "sync_votes", "error_type": type(e).__name__})
         return None
     finally:
         db.close()
 
 
-def sync_chamber_votes(congress: int, chamber: str, limit: int,
-                       bioguide_map: Dict[str, str]) -> Dict[str, int]:
-    """Sync votes for one chamber. Returns stats."""
-    logger.info(f"Fetching {chamber} vote list (congress={congress}, limit={limit})")
-    votes = fetch_votes_list(congress, chamber, limit)
-    logger.info(f"Found {len(votes)} {chamber} votes to process")
+def sync_house_votes(congress: int, session: int, limit: int,
+                     bioguide_map: Dict[str, str]) -> Dict[str, int]:
+    """Sync House votes. Returns stats."""
+    logger.info(f"Fetching House vote list (congress={congress}, session={session}, limit={limit})")
+    votes = fetch_house_votes_list(congress, session, limit)
+    logger.info(f"Found {len(votes)} House votes to process")
 
     ingested = 0
     skipped = 0
     failed = 0
 
     for v in votes:
-        roll_number = v.get("rollCall") or v.get("number")
+        roll_number = v.get("rollCallNumber")
         if not roll_number:
             skipped += 1
             continue
 
-        result = ingest_vote(congress, chamber, int(roll_number), bioguide_map)
+        result = ingest_vote(congress, session, int(roll_number), v, bioguide_map)
         if result is not None:
             ingested += 1
         else:
@@ -228,10 +278,10 @@ def sync_chamber_votes(congress: int, chamber: str, limit: int,
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sync roll call votes from Congress.gov")
+    parser = argparse.ArgumentParser(description="Sync House roll call votes from Congress.gov API v3")
     parser.add_argument("--congress", type=int, default=119)
-    parser.add_argument("--chamber", choices=["house", "senate", "both"], default="both")
-    parser.add_argument("--limit", type=int, default=100, help="Max votes per chamber")
+    parser.add_argument("--session", type=int, default=1)
+    parser.add_argument("--limit", type=int, default=100, help="Max votes to sync")
     args = parser.parse_args()
 
     if not CONGRESS_API_KEY:
@@ -239,17 +289,8 @@ def main():
         sys.exit(1)
 
     bioguide_map = build_bioguide_map()
-
-    chambers = ["house", "senate"] if args.chamber == "both" else [args.chamber]
-    total_stats = {"ingested": 0, "skipped": 0, "failed": 0}
-
-    for chamber in chambers:
-        stats = sync_chamber_votes(args.congress, chamber, args.limit, bioguide_map)
-        logger.info(f"{chamber.upper()} results: {stats}")
-        for k in total_stats:
-            total_stats[k] += stats.get(k, 0)
-
-    logger.info(f"Vote sync complete: {total_stats}")
+    stats = sync_house_votes(args.congress, args.session, args.limit, bioguide_map)
+    logger.info(f"Vote sync complete: {stats}")
 
 
 if __name__ == "__main__":
