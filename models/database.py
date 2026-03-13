@@ -320,7 +320,7 @@ class MemberVote(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     vote_id = Column(Integer, ForeignKey("votes.id"), index=True, nullable=False)
-    person_id = Column(String, index=True, nullable=False)        # "aoc", "schumer", etc. (matches people.id)
+    person_id = Column(String, index=True, nullable=True)         # "aoc", "schumer", etc. — nullable for members not yet in our system
     
     # Vote position
     position = Column(String, index=True, nullable=False)         # "Yea", "Nay", "Present", "Not Voting"
