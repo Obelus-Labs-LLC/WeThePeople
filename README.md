@@ -1,47 +1,35 @@
 # WeThePeople
 
-**A multi-sector public accountability platform that aggregates data from 24+ federal government sources into one accessible tool for citizens.**
+**A civic transparency platform that aggregates data from 24+ federal sources into one app so anyone can see what politicians, banks, pharma companies, and tech giants are actually doing.**
 
-WeThePeople pulls real data from Congress.gov, the SEC, FDA, USPTO/Google Patents, and dozens of other public APIs — then organizes it so regular people can see what their elected officials, financial institutions, pharmaceutical companies, and tech giants are actually doing. No spin. No editorials. Just the public record, structured and searchable.
+No spin. No editorials. Just the public record — structured, searchable, and linked back to its source.
 
 ---
 
 ## What It Tracks
 
 ### Politics
-Tracks all 537 active members of the 119th Congress — their sponsored and cosponsored legislation, voting records, and bill progress through committee and floor votes. Includes CRS bill summaries, full text links, policy area classification, and real legislative activity timelines.
+All 537 active members of the 119th Congress — sponsored and cosponsored legislation, voting records, bill progress, CRS summaries, full text links, and policy area classification.
 
-**Data sources:** Congress.gov API, Wikipedia (profiles), FEC campaign finance
+**Sources:** Congress.gov API, Wikipedia, FEC
 
 ### Finance
-Monitors major financial institutions through SEC filings, FDIC bank data, CFPB consumer complaints, Federal Reserve economic indicators (FRED), and Fed press releases. Surfaces enforcement actions, complaint patterns, and institutional risk signals.
+Major financial institutions — SEC filings, FDIC bank data, CFPB consumer complaints, Federal Reserve economic indicators (FRED), and Fed press releases. Surfaces enforcement actions, complaint patterns, and institutional risk signals.
 
-**Data sources:** SEC EDGAR, FDIC BankFind, CFPB Complaint Database, FRED API, Federal Reserve press releases
+**Sources:** SEC EDGAR, FDIC BankFind, CFPB, FRED API, Federal Reserve
 
 ### Health
-Tracks pharmaceutical and biotech companies through FDA adverse event reports (FAERS), FDA recalls, active clinical trials, and CMS Open Payments (industry payments to physicians). Connects drug safety signals to the companies responsible.
+Pharmaceutical and biotech companies — FDA adverse event reports (FAERS), recalls, active clinical trials, and CMS Open Payments (industry payments to physicians).
 
-**Data sources:** FDA FAERS (openFDA), FDA Recalls, ClinicalTrials.gov, CMS Open Payments
+**Sources:** openFDA, ClinicalTrials.gov, CMS Open Payments
 
 ### Technology
-Follows 100 major tech companies through SEC filings, patent activity (via Google BigQuery public patent dataset), federal government contracts (USASpending/FPDS), and lobbying disclosure. Maps the intersection of innovation, public money, and regulatory influence.
+100 major tech companies — patent activity, federal government contracts, lobbying disclosure, and SEC filings. Maps the intersection of innovation, public money, and regulatory influence.
 
-**Data sources:** SEC EDGAR, Google BigQuery Patents Public Data, USASpending.gov (FPDS), Alpha Vantage
+**Sources:** Google BigQuery Patents, USASpending.gov, Senate LDA, SEC EDGAR
 
----
-
-## Current Stats
-
-| Metric | Count |
-|--------|-------|
-| Tracked Congress members | 537 (all active, 119th Congress) |
-| Legislative ground truth entries | 1,136,379 |
-| Bills in database | 39,064 |
-| Tech companies tracked | 100 |
-| Patents indexed | 4,220 (via BigQuery) |
-| Government data connectors | 24+ |
-| Live sectors | 4 |
-| Federal data sources | 16+ unique APIs |
+### Coming Soon
+Defense, Energy, Education, and Infrastructure sectors are in development.
 
 ---
 
@@ -49,11 +37,12 @@ Follows 100 major tech companies through SEC filings, patent activity (via Googl
 
 | Layer | Technology |
 |-------|-----------|
-| Backend API | Python 3.11, FastAPI, SQLAlchemy |
-| Database | SQLite (WAL mode), Alembic migrations |
-| Mobile app | React Native, Expo, TypeScript |
+| Backend | Python 3.11, FastAPI, SQLAlchemy, SQLite (WAL mode) |
+| Database migrations | Alembic |
+| Mobile app | React Native, Expo SDK 54, TypeScript |
+| Web frontend | React, Vite, TypeScript |
 | Hosting | Google Cloud Platform (Compute Engine) |
-| Data pipeline | Custom Python connectors with rate limiting, retry logic, and audit logging |
+| Data pipeline | 14 Python connectors with rate limiting, retry logic, and audit logging |
 | Patent data | Google BigQuery (`patents-public-data.patents.publications`) |
 
 ---
@@ -61,33 +50,54 @@ Follows 100 major tech companies through SEC filings, patent activity (via Googl
 ## Project Structure
 
 ```
-WeThePeople-App/
-├── main.py              # FastAPI application (all API routes)
-├── models/              # SQLAlchemy data models (politics, finance, health, tech)
-├── connectors/          # Data source connectors (14 modules)
-│   ├── congress.py          # Congress.gov API (bills, members, legislation)
-│   ├── congress_votes.py    # Roll call vote ingestion
-│   ├── wikipedia.py         # Politician profile enrichment (state-disambiguated)
+WeThePeople/
+├── main.py                 # FastAPI entry point
+├── routers/                # API route handlers (one per sector)
+│   ├── politics.py
+│   ├── finance.py
+│   ├── health.py
+│   ├── tech.py
+│   ├── defense.py, energy.py, education.py, infrastructure.py
+│   └── common.py           # Shared router utilities
+├── models/                 # SQLAlchemy data models
+├── services/               # Business logic
+│   ├── matching/            # Claim-to-evidence matching
+│   ├── enrichment/          # Bill timeline enrichment
+│   ├── evidence/            # Evidence validation
+│   ├── extraction/          # Text extraction
+│   ├── llm/                 # LLM client and prompts
+│   ├── ops/                 # Operational utilities
+│   └── power_map/           # Power mapping
+├── connectors/             # 14 data source connectors
+│   ├── congress.py          # Congress.gov API
+│   ├── congress_votes.py    # Roll call votes
 │   ├── fec.py               # FEC campaign finance
-│   ├── patentsview.py       # USPTO PatentsView (legacy, replaced by BigQuery)
-│   ├── senate_lda.py        # Senate lobbying disclosure
+│   ├── patentsview.py       # USPTO PatentsView
+│   ├── senate_lda.py        # Lobbying disclosure
 │   └── ...                  # SEC, FDA, FDIC, FRED, FTC, etc.
-├── src/                 # React Native / Expo mobile application (TypeScript)
-│   ├── screens/             # 19 screens (Home, People, Person, Bill, Tech, etc.)
-│   ├── components/          # Shared UI components
-│   ├── services/            # API client, types
-│   └── navigation/          # Stack navigator setup
-├── jobs/                # Background sync and enrichment jobs
-├── services/            # Business logic layer
-├── scripts/             # Utility and maintenance scripts
-│   ├── manage_members.py    # Bulk-load / manage tracked members
-│   ├── backfill_new_members.py  # Batch ingest legislation for new members
-│   └── fetch_congress_roster.py # Fetch full 119th Congress roster
-├── utils/               # Shared utilities (normalization, hashing, state names)
-├── data/                # Seed data and reference files
-├── docs/                # Technical documentation (15+ docs)
-├── tests/               # Test suite
-└── alembic/             # Database migration scripts
+├── jobs/                   # Background sync and enrichment jobs
+├── scripts/                # Utility and maintenance scripts
+├── tests/                  # 62 test files
+├── utils/                  # Shared utilities
+├── alembic/                # Database migrations
+├── mobile/                 # React Native / Expo mobile app
+│   └── src/
+│       ├── screens/         # 19 screens
+│       ├── components/
+│       ├── api/
+│       └── navigation/
+├── src/                    # Shared RN source (components, screens)
+│   ├── screens/             # 19 screens
+│   ├── components/          # FilterPillGroup, PersonScreen tabs, UI
+│   └── navigation/          # Stack navigators, type definitions
+├── frontend/               # React web frontend (Vite)
+│   └── src/
+│       ├── pages/
+│       ├── components/
+│       └── api/
+├── cli/                    # CLI tools for ingestion and health checks
+├── assets/                 # App icons and splash images
+└── deploy/                 # systemd service file
 ```
 
 ---
@@ -96,48 +106,66 @@ WeThePeople-App/
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /people?limit=&offset=` | Paginated list of all Congress members |
-| `GET /people/{person_id}/activity` | Real legislative activity timeline |
-| `GET /people/{person_id}/profile` | Wikipedia profile (state-disambiguated) |
-| `GET /bills/{bill_id}` | Bill details with summary, sponsors, status |
-| `GET /tech/companies` | Tech company list with patent counts |
-| `GET /tech/companies/{id}/patents` | Patent details for a company |
+| `GET /people` | Paginated list of Congress members |
+| `GET /people/{id}/activity` | Legislative activity timeline |
+| `GET /people/{id}/profile` | Member profile |
+| `GET /bills/{id}` | Bill details with summary, sponsors, status |
+| `GET /finance/institutions` | Financial institutions list |
+| `GET /finance/institutions/{id}` | Institution detail (FDIC, complaints, enforcement) |
+| `GET /health/companies` | Health/pharma company list |
+| `GET /health/companies/{id}` | Company detail (FDA events, trials, recalls) |
+| `GET /tech/companies` | Tech company list |
+| `GET /tech/companies/{id}/patents` | Patent details |
+| `GET /tech/companies/{id}/contracts` | Federal contracts |
+| `GET /tech/companies/{id}/lobbying` | Lobbying filings |
 | `GET /dashboard` | Cross-sector summary stats |
 
 ---
 
-## Key Architecture Decisions
+## Architecture
 
-- **Ground truth over claims:** Legislative activity is sourced directly from Congress.gov API, not scraped or inferred. Each `member_bills_groundtruth` entry links a member to a bill via a verified relationship (sponsor, cosponsor, committee).
-- **State-disambiguated profiles:** Wikipedia lookups include state + chamber context to avoid name collisions (e.g., "John Kennedy" resolves to the Louisiana senator, not JFK).
-- **BigQuery for patents:** After PatentsView suspended API key registration, patent data comes from Google's public BigQuery patent dataset with name-matching heuristics and manual overrides for edge cases.
-- **SQLite in WAL mode:** Single-writer, many-reader concurrency. Sufficient for current scale, easy to back up (`cp wethepeople.db backup.db`).
+- **Ground truth over claims:** Legislative activity is sourced directly from Congress.gov, not scraped or inferred.
+- **Modular routers:** One FastAPI router per sector, mounted in `main.py`. New sectors plug in by adding a router file.
+- **State-disambiguated profiles:** Wikipedia lookups include state + chamber context to avoid name collisions.
+- **BigQuery for patents:** Patent data comes from Google's public BigQuery dataset after PatentsView suspended API key registration.
+- **SQLite in WAL mode:** Single-writer, many-reader concurrency. Easy to back up, sufficient for current scale.
+- **Source-linked data:** Every data point links back to its authoritative public source (Congress.gov, FDA, SEC, etc.).
 
 ---
 
-## Roadmap
+## Getting Started
 
-### Completed
-- **Phase 0 — Foundation (Feb 2026):** 24+ government data connectors, 4-sector architecture, FastAPI backend, SQLite + Alembic, GCP deployment
-- **Phase 1 — 535 Congress Expansion (Mar 2026):** Full 119th Congress roster (537 members), 1.1M+ ground truth entries, 39K bills, activity timeline API, paginated people endpoint
-- **Phase 1.5 — Data Quality (Mar 2026):** Wikipedia profile disambiguation, BigQuery patent pipeline (4,220 patents), React Native mobile app (19 screens)
+### Backend
+```bash
+pip install -r requirements.txt
+cp .env.example .env   # Fill in API keys
+uvicorn main:app --host 0.0.0.0 --port 8006
+```
 
-### In Progress
-- **Phase 2 — Mobile App Polish:** EAS build pipeline, activity screen integration, voting records, pull-to-refresh, push notifications
+### Mobile App (Expo)
+```bash
+cd mobile
+npm install
+npx expo start
+```
 
-### Planned
-- **Phase 3 — Finance & Health Depth:** CFPB complaint trends, SEC filing timelines, FDA adverse event scoring, clinical trial tracking
-- **Phase 4 — Public Launch:** API rate limiting, App Store submission, landing page, automated daily data refresh
-- **Phase 5 — Veritas Integration:** Claim extraction from hearing transcripts, cross-reference against ground truth data
-- **Phase 6 — Community:** User accounts, district filtering, member-vs-member comparisons, embeddable widgets
+### Web Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Running Tests
+```bash
+pytest tests/
+```
 
 ---
 
 ## Companion Project: Veritas
 
-[Veritas](https://github.com/Obelus-Labs-LLC/Veritas) is a separate, deterministic fact-verification engine built alongside WeThePeople. It extracts claims from audio and text sources, then cross-references them against public evidence databases (Crossref, arXiv, PubMed, SEC EDGAR, FRED, and others) — all without relying on large language models.
-
-The two projects are currently independent. The planned integration path is for WeThePeople to use Veritas as its claim verification layer — allowing users to fact-check statements made by public officials against the public record that WeThePeople already aggregates.
+[Veritas](https://github.com/Obelus-Labs-LLC/Veritas) is a deterministic fact-verification engine built alongside WeThePeople. It extracts claims from audio and text, then cross-references them against public evidence databases — without relying on LLMs. The planned integration path is for WeThePeople to use Veritas as its claim verification layer.
 
 ---
 
