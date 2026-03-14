@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8006',
+        target: process.env.WTP_API_URL || 'http://localhost:8006',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

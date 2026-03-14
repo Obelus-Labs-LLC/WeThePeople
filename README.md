@@ -1,6 +1,6 @@
 # WeThePeople
 
-**A civic transparency platform that aggregates data from 24+ federal sources into one app so anyone can see what politicians, banks, pharma companies, and tech giants are actually doing.**
+**A civic transparency platform that aggregates data from 24+ federal sources into one place so anyone can see what politicians, banks, pharma companies, and tech giants are actually doing.**
 
 No spin. No editorials. Just the public record — structured, searchable, and linked back to its source.
 
@@ -9,12 +9,12 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 ## What It Tracks
 
 ### Politics
-All 537 active members of the 119th Congress — sponsored and cosponsored legislation, voting records, bill progress, CRS summaries, full text links, and policy area classification.
+All 537 active members of the 119th Congress — sponsored and cosponsored legislation, voting records, bill progress, CRS summaries, full text links, and policy area classification. Side-by-side member comparison across voting alignment, policy areas, and legislative activity.
 
 **Sources:** Congress.gov API, Wikipedia, FEC
 
 ### Finance
-Major financial institutions — SEC filings, FDIC bank data, CFPB consumer complaints, Federal Reserve economic indicators (FRED), and Fed press releases. Surfaces enforcement actions, complaint patterns, and institutional risk signals.
+Major financial institutions — SEC filings, FDIC bank data, CFPB consumer complaints, insider trading, Federal Reserve economic indicators (FRED), and Fed press releases. Includes institution comparison, complaint dashboards, insider trade tracking, and regulatory news feeds.
 
 **Sources:** SEC EDGAR, FDIC BankFind, CFPB, FRED API, Federal Reserve
 
@@ -24,12 +24,24 @@ Pharmaceutical and biotech companies — FDA adverse event reports (FAERS), reca
 **Sources:** openFDA, ClinicalTrials.gov, CMS Open Payments
 
 ### Technology
-100 major tech companies — patent activity, federal government contracts, lobbying disclosure, and SEC filings. Maps the intersection of innovation, public money, and regulatory influence.
+100 major tech companies — patent activity, federal government contracts, lobbying disclosure, FTC enforcement actions, and SEC filings. Includes 3D dome gallery visualization, company profiles with spending charts, and side-by-side entity comparison.
 
-**Sources:** Google BigQuery Patents, USASpending.gov, Senate LDA, SEC EDGAR
+**Sources:** Google BigQuery Patents, USASpending.gov, Senate LDA, SEC EDGAR, FTC
 
 ### Coming Soon
 Defense, Energy, Education, and Infrastructure sectors are in development.
+
+---
+
+## Platforms
+
+### Desktop Web App
+Full-featured React web frontend with sector-specific layouts, WebGL animated backgrounds (FloatingLines, MagicRings, Waves), glass-morphism card design, interactive 3D company dome gallery, paginated directories, and intra-sector navigation.
+
+### Mobile App
+React Native / Expo app with the same data and sector coverage, optimized for touch navigation with bottom tab bars and stack navigators.
+
+Both platforms share the same FastAPI backend and data pipeline.
 
 ---
 
@@ -39,8 +51,8 @@ Defense, Energy, Education, and Infrastructure sectors are in development.
 |-------|-----------|
 | Backend | Python 3.11, FastAPI, SQLAlchemy, SQLite (WAL mode) |
 | Database migrations | Alembic |
+| Web frontend | React 19, Vite, TypeScript, Tailwind CSS, Framer Motion, Three.js |
 | Mobile app | React Native, Expo SDK 54, TypeScript |
-| Web frontend | React, Vite, TypeScript |
 | Hosting | Google Cloud Platform (Compute Engine) |
 | Data pipeline | 14 Python connectors with rate limiting, retry logic, and audit logging |
 | Patent data | Google BigQuery (`patents-public-data.patents.publications`) |
@@ -77,26 +89,22 @@ WeThePeople/
 │   └── ...                  # SEC, FDA, FDIC, FRED, FTC, etc.
 ├── jobs/                   # Background sync and enrichment jobs
 ├── scripts/                # Utility and maintenance scripts
-├── tests/                  # 62 test files
+├── tests/                  # Test suite
 ├── utils/                  # Shared utilities
 ├── alembic/                # Database migrations
-├── mobile/                 # React Native / Expo mobile app
+├── frontend/               # Desktop web app (React + Vite)
+│   └── src/
+│       ├── pages/           # Sector dashboards, directories, profiles, comparisons
+│       ├── components/      # SpotlightCard, DomeGallery, Nav components, WebGL backgrounds
+│       ├── layouts/         # PoliticsLayout, TechLayout, FinanceLayout (WebGL backgrounds)
+│       └── api/             # Typed API clients per sector
+├── mobile/                 # Mobile app (React Native + Expo)
 │   └── src/
 │       ├── screens/         # 19 screens
 │       ├── components/
 │       ├── api/
 │       └── navigation/
-├── src/                    # Shared RN source (components, screens)
-│   ├── screens/             # 19 screens
-│   ├── components/          # FilterPillGroup, PersonScreen tabs, UI
-│   └── navigation/          # Stack navigators, type definitions
-├── frontend/               # React web frontend (Vite)
-│   └── src/
-│       ├── pages/
-│       ├── components/
-│       └── api/
 ├── cli/                    # CLI tools for ingestion and health checks
-├── assets/                 # App icons and splash images
 └── deploy/                 # systemd service file
 ```
 
@@ -107,18 +115,23 @@ WeThePeople/
 | Endpoint | Description |
 |----------|-------------|
 | `GET /people` | Paginated list of Congress members |
+| `GET /people/{id}/profile` | Member profile with photo, party, state |
 | `GET /people/{id}/activity` | Legislative activity timeline |
-| `GET /people/{id}/profile` | Member profile |
+| `GET /people/{id}/votes` | Roll call voting record |
+| `GET /people/{id}/finance` | Campaign finance and donors |
+| `GET /compare` | Side-by-side member comparison |
+| `GET /votes` | Roll call votes with party breakdowns |
 | `GET /bills/{id}` | Bill details with summary, sponsors, status |
 | `GET /finance/institutions` | Financial institutions list |
-| `GET /finance/institutions/{id}` | Institution detail (FDIC, complaints, enforcement) |
+| `GET /finance/institutions/{id}` | Institution detail (FDIC, complaints, filings) |
+| `GET /finance/insider-trades` | Cross-institution insider trading activity |
+| `GET /finance/compare` | Side-by-side institution comparison |
 | `GET /health/companies` | Health/pharma company list |
-| `GET /health/companies/{id}` | Company detail (FDA events, trials, recalls) |
-| `GET /tech/companies` | Tech company list |
-| `GET /tech/companies/{id}/patents` | Patent details |
-| `GET /tech/companies/{id}/contracts` | Federal contracts |
-| `GET /tech/companies/{id}/lobbying` | Lobbying filings |
-| `GET /dashboard` | Cross-sector summary stats |
+| `GET /health/companies/{id}` | Company detail (FDA events, trials, recalls, payments) |
+| `GET /tech/companies` | Tech company list with sector breakdown |
+| `GET /tech/companies/{id}` | Company detail (patents, contracts, lobbying, enforcement) |
+| `GET /tech/companies/{id}/contracts/trends` | Government contract spending by year |
+| `GET /tech/compare` | Side-by-side tech entity comparison |
 
 ---
 
@@ -130,6 +143,8 @@ WeThePeople/
 - **BigQuery for patents:** Patent data comes from Google's public BigQuery dataset after PatentsView suspended API key registration.
 - **SQLite in WAL mode:** Single-writer, many-reader concurrency. Easy to back up, sufficient for current scale.
 - **Source-linked data:** Every data point links back to its authoritative public source (Congress.gov, FDA, SEC, etc.).
+- **Sector layouts:** Each sector has a dedicated layout component with WebGL animated backgrounds and persistent intra-sector navigation.
+- **Dual-platform:** Web and mobile share the same backend API; each frontend is optimized for its platform.
 
 ---
 
@@ -142,18 +157,18 @@ cp .env.example .env   # Fill in API keys
 uvicorn main:app --host 0.0.0.0 --port 8006
 ```
 
-### Mobile App (Expo)
-```bash
-cd mobile
-npm install
-npx expo start
-```
-
 ### Web Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
+```
+
+### Mobile App (Expo)
+```bash
+cd mobile
+npm install
+npx expo start
 ```
 
 ### Running Tests

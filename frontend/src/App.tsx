@@ -25,6 +25,12 @@ import TechLayout from "./layouts/TechLayout";
 import TechDashboardPage from "./pages/TechDashboardPage";
 import TechCompaniesPage from "./pages/TechCompaniesPage";
 import TechComparePage from "./pages/TechComparePage";
+import TechCompanyProfilePage from "./pages/TechCompanyProfilePage";
+import HealthLayout from "./layouts/HealthLayout";
+import HealthDashboardPage from "./pages/HealthDashboardPage";
+import HealthCompaniesPage from "./pages/HealthCompaniesPage";
+import HealthComparePage from "./pages/HealthComparePage";
+import HealthCompanyProfilePage from "./pages/HealthCompanyProfilePage";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NotFoundPage from "./pages/NotFoundPage";
 
@@ -59,6 +65,13 @@ const App: React.FC = () => (
         <Route path="/technology" element={<TechLayout><TechDashboardPage /></TechLayout>} />
         <Route path="/technology/companies" element={<TechLayout><TechCompaniesPage /></TechLayout>} />
         <Route path="/technology/compare" element={<TechLayout><TechComparePage /></TechLayout>} />
+        <Route path="/technology/:companyId" element={<TechLayout><TechCompanyProfilePage /></TechLayout>} />
+
+        {/* Health section — all wrapped in HealthLayout (Silk bg) */}
+        <Route path="/health" element={<HealthLayout><HealthDashboardPage /></HealthLayout>} />
+        <Route path="/health/companies" element={<HealthLayout><HealthCompaniesPage /></HealthLayout>} />
+        <Route path="/health/compare" element={<HealthLayout><HealthComparePage /></HealthLayout>} />
+        <Route path="/health/:companyId" element={<HealthLayout><HealthCompanyProfilePage /></HealthLayout>} />
 
         {/* Coming Soon */}
         <Route path="/coming-soon/:slug" element={<ComingSoonPage />} />

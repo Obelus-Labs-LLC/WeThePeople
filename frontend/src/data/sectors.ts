@@ -34,7 +34,7 @@ export const SECTORS: Sector[] = [
     icon: "\u{1F3E5}",
     gradient: "from-rose-500 to-pink-700",
     route: "/health",
-    available: false,
+    available: true,
   },
   {
     slug: "chemicals",
