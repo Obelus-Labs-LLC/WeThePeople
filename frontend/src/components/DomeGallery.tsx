@@ -195,8 +195,6 @@ export default function DomeGallery({
   };
 
   const lockedRadiusRef = useRef<number | null>(null);
-  const baseRadiusRef = useRef<number | null>(null);
-  const zoomRef = useRef(1);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -232,8 +230,7 @@ export default function DomeGallery({
       const heightGuard = h * 1.35;
       radius = Math.min(radius, heightGuard);
       radius = clamp(radius, minRadius, maxRadius);
-      baseRadiusRef.current = Math.round(radius);
-      lockedRadiusRef.current = Math.round(radius * zoomRef.current);
+      lockedRadiusRef.current = Math.round(radius);
 
       const viewerPad = Math.max(8, Math.round(minDim * padFactor));
       root.style.setProperty('--radius', `${lockedRadiusRef.current}px`);
@@ -249,30 +246,6 @@ export default function DomeGallery({
     ro.observe(root);
     return () => ro.disconnect();
   }, [fit, fitBasis, minRadius, maxRadius, padFactor, overlayBlurColor, grayscale, imageBorderRadius, openedImageBorderRadius]);
-
-  // Mouse wheel zoom
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
-    const onWheel = (e: WheelEvent) => {
-      if (focusedElRef.current) return; // don't zoom while viewing enlarged image
-      e.preventDefault();
-
-      const delta = e.deltaY > 0 ? 0.05 : -0.05;
-      zoomRef.current = clamp(zoomRef.current + delta, 0.4, 2.0);
-
-      if (baseRadiusRef.current) {
-        const newRadius = Math.round(baseRadiusRef.current * zoomRef.current);
-        lockedRadiusRef.current = newRadius;
-        root.style.setProperty('--radius', `${newRadius}px`);
-        applyTransform(rotationRef.current.x, rotationRef.current.y);
-      }
-    };
-
-    root.addEventListener('wheel', onWheel, { passive: false });
-    return () => root.removeEventListener('wheel', onWheel);
-  }, []);
 
   useEffect(() => {
     applyTransform(rotationRef.current.x, rotationRef.current.y);
@@ -801,7 +774,7 @@ export default function DomeGallery({
                   }
                 >
                   <div
-                    className="item__image absolute block overflow-hidden cursor-pointer bg-[#E8DCC8] transition-transform duration-300"
+                    className="item__image absolute block overflow-hidden cursor-pointer bg-zinc-900 transition-transform duration-300"
                     role="button"
                     tabIndex={0}
                     aria-label={it.alt || 'Open image'}

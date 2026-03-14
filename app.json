@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "We The People",
+    "slug": "WeThePeople-App",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.wethepeople.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.wethepeople.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "owner": "rocketshon",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ae474545-4ca6-48f8-be3d-64b03515ad55"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ae474545-4ca6-48f8-be3d-64b03515ad55"
+      }
+    }
+  }
+}
