@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@react-three/fiber": "^9.5.0",
     "@types/three": "^0.183.1",
     "@use-gesture/react": "^10.3.1",
     "framer-motion": "^12.36.0",
