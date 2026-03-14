@@ -65,11 +65,27 @@ nul
 *.tmp
 *.bak
 
-# Debug scripts
+# Debug scripts (local only)
 _check_db.py
 _sync_*.py
 _chain_*.py
+scripts/debug_*
+scripts/comprehensive_debug.py
 backups/
+
+# Old mobile source (superseded by mobile/ directory)
+src/
+
+# Root-level Expo duplicates (canonical copies live in mobile/)
+/App.tsx
+/app.config.ts
+/app.json
+/eas.json
+/index.ts
+/package.json
+/tsconfig.json
+/package-lock.json
+/assets/
 
 # Session context (local only)
 CLAUDE.md
