@@ -30,11 +30,11 @@ export const SECTORS: Sector[] = [
   {
     slug: "health",
     name: "Health",
-    tagline: "FDA data, drug approvals, and pharmaceutical transparency",
+    tagline: "Adverse events, recalls, clinical trials, and physician payments across pharma, biotech, and insurers",
     icon: "\u{1F3E5}",
     gradient: "from-rose-500 to-pink-700",
     route: "/health",
-    available: false,
+    available: true,
   },
   {
     slug: "chemicals",
@@ -48,11 +48,11 @@ export const SECTORS: Sector[] = [
   {
     slug: "energy",
     name: "Oil, Gas & Energy",
-    tagline: "Track energy sector environmental commitments",
+    tagline: "Emissions, contracts, lobbying, and enforcement across energy companies",
     icon: "\u{1F6E2}\uFE0F",
-    gradient: "from-slate-600 to-zinc-800",
+    gradient: "from-orange-500 to-red-700",
     route: "/energy",
-    available: false,
+    available: true,
   },
   {
     slug: "technology",

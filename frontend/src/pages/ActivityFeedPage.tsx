@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Vote, ExternalLink } from 'lucide-react';
+import { FileText, Vote, ExternalLink, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { RecentAction, Vote as VoteType } from '../api/types';
 import SpotlightCard from '../components/SpotlightCard';
-import PoliticsNav from '../components/PoliticsNav';
+import { PoliticsSectorHeader } from '../components/SectorHeader';
 
 // ── Helpers ──
 
@@ -89,12 +89,10 @@ export default function ActivityFeedPage() {
           transition={{ duration: 0.6 }}
           className="mb-10"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
-              Activity Feed
-            </h1>
-            <PoliticsNav />
-          </div>
+          <PoliticsSectorHeader />
+          <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
+            Activity Feed
+          </h1>
           <p className="font-body text-lg text-white/50">
             Latest legislative actions and roll call votes
           </p>
@@ -163,13 +161,38 @@ export default function ActivityFeedPage() {
                           </div>
                         </div>
 
+                        {action.bill_title && (
+                          <p className="mt-1 font-body text-xs text-white/40 line-clamp-1 italic">
+                            {action.bill_title}
+                          </p>
+                        )}
+
                         <div className="flex items-center gap-2 mt-3">
                           <span className="font-mono text-[10px] text-white/20">
                             {action.person_id.replace(/_/g, ' ')}
                           </span>
                           {hasBill && (
-                            <span className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400">
+                            <Link
+                              to={`/politics/bill/${action.bill_type!.toLowerCase()}${action.bill_number}-${action.bill_congress || 119}`}
+                              className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400 hover:bg-blue-500/20 transition-colors no-underline"
+                            >
                               {action.bill_type!.toUpperCase()} {action.bill_number}
+                            </Link>
+                          )}
+                          {action.bill_status && (
+                            <span className={`flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px] ${
+                              action.bill_status.includes('passed') || action.bill_status.includes('enacted')
+                                ? 'bg-emerald-500/10 text-emerald-400'
+                                : action.bill_status.includes('failed') || action.bill_status.includes('vetoed')
+                                  ? 'bg-red-500/10 text-red-400'
+                                  : 'bg-amber-500/10 text-amber-400'
+                            }`}>
+                              {action.bill_status.includes('passed') || action.bill_status.includes('enacted')
+                                ? <CheckCircle size={9} />
+                                : action.bill_status.includes('failed') || action.bill_status.includes('vetoed')
+                                  ? <XCircle size={9} />
+                                  : <Clock size={9} />}
+                              {action.bill_status.replace(/_/g, ' ')}
                             </span>
                           )}
                           {action.source_url && (
@@ -245,9 +268,17 @@ export default function ActivityFeedPage() {
                   spotlightColor="rgba(255, 255, 255, 0.10)"
                 >
                   <div className="p-4">
-                    <p className="font-body text-xs font-medium text-white/70 line-clamp-2 mb-2">
+                    <p className="font-body text-xs font-medium text-white/70 line-clamp-2 mb-1">
                       {vote.question}
                     </p>
+                    {vote.related_bill_type && vote.related_bill_number && (
+                      <Link
+                        to={`/politics/bill/${vote.related_bill_type.toLowerCase()}${vote.related_bill_number}-${vote.congress || 119}`}
+                        className="inline-block rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400 hover:bg-blue-500/20 transition-colors no-underline mb-2"
+                      >
+                        {vote.related_bill_type.toUpperCase()} {vote.related_bill_number}
+                      </Link>
+                    )}
                     <div className="flex items-center gap-2 mb-2">
                       <span
                         className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold ${
