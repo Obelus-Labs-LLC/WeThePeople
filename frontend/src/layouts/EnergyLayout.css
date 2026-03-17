@@ -1,0 +1,45 @@
+/* Energy sector animated cube pattern background
+   From Uiverse.io by chase2k25 */
+
+.energy-bg-container {
+  background: #181c21;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.energy-pattern-bg {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: repeating-linear-gradient(
+    135deg,
+    #232526 0px,
+    #232526 60px,
+    #23252699 70px,
+    #414345 130px
+  );
+}
+
+.energy-cube-svg {
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  left: -30%;
+  top: -20%;
+  background: transparent;
+  opacity: 0.7;
+  z-index: 1;
+  animation: energy-cubeMove 18s linear infinite alternate;
+}
+
+@keyframes energy-cubeMove {
+  from {
+    transform: translateY(0) scale(1);
+  }
+  to {
+    transform: translateY(-20%) scale(1.02) rotate(1deg);
+  }
+}

@@ -222,6 +222,8 @@ export interface RecentAction {
   bill_congress: number | null;
   bill_type: string | null;
   bill_number: string | null;
+  bill_status: string | null;
+  bill_title: string | null;
 }
 
 // /ledger/summary response
@@ -326,6 +328,8 @@ export interface PersonVoteEntry {
   related_bill_congress: number | null;
   related_bill_type: string | null;
   related_bill_number: number | null;
+  bill_title: string | null;
+  bill_summary: string | null;
 }
 
 export interface PersonVotesResponse {
