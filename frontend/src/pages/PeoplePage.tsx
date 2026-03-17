@@ -5,12 +5,13 @@ import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { Person } from '../api/types';
 import SpotlightCard from '../components/SpotlightCard';
-import PoliticsNav from '../components/PoliticsNav';
+import { PoliticsSectorHeader } from '../components/SectorHeader';
 
 // ── Party config ──
 
 type PartyFilter = 'all' | 'D' | 'R' | 'I';
 type ChamberFilter = 'all' | 'house' | 'senate';
+type StateFilter = 'all' | string;
 
 const PARTY_COLORS: Record<string, { solid: string; label: string }> = {
   D: { solid: '#3B82F6', label: 'Democrat' },
@@ -161,6 +162,7 @@ export default function PeoplePage() {
   const [search, setSearch] = useState('');
   const [partyFilter, setPartyFilter] = useState<PartyFilter>('all');
   const [chamberFilter, setChamberFilter] = useState<ChamberFilter>('all');
+  const [stateFilter, setStateFilter] = useState<StateFilter>('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   const headerRef = React.useRef<HTMLDivElement>(null);
@@ -175,7 +177,7 @@ export default function PeoplePage() {
   }, []);
 
   // Reset page on filter change
-  useEffect(() => { setCurrentPage(1); }, [search, partyFilter, chamberFilter]);
+  useEffect(() => { setCurrentPage(1); }, [search, partyFilter, chamberFilter, stateFilter]);
 
   const PAGE_SIZE = 20;
 
@@ -197,8 +199,11 @@ export default function PeoplePage() {
           : p.chamber.toLowerCase().includes('senate') || p.chamber.toLowerCase() === 'upper'
       );
     }
+    if (stateFilter !== 'all') {
+      result = result.filter((p) => p.state === stateFilter);
+    }
     return result;
-  }, [people, search, partyFilter, chamberFilter]);
+  }, [people, search, partyFilter, chamberFilter, stateFilter]);
 
   const partyCounts = useMemo(() => {
     const counts = { D: 0, R: 0, I: 0 };
@@ -221,6 +226,16 @@ export default function PeoplePage() {
     return counts;
   }, [people]);
 
+  const stateList = useMemo(() => {
+    const counts: Record<string, number> = {};
+    people.forEach((p) => {
+      if (p.state) counts[p.state] = (counts[p.state] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([state, count]) => ({ state, count }));
+  }, [people]);
+
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <div className="flex flex-1 flex-col overflow-hidden px-8 py-8 xl:px-16">
@@ -232,12 +247,10 @@ export default function PeoplePage() {
           transition={{ duration: 0.6 }}
           className="shrink-0 mb-6"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
-              Representatives
-            </h1>
-            <PoliticsNav />
-          </div>
+          <PoliticsSectorHeader />
+          <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
+            Representatives
+          </h1>
           <p className="font-body text-lg text-white/50 mb-4">
             {people.length} members of Congress tracked
           </p>
@@ -343,6 +356,31 @@ export default function PeoplePage() {
             color="#10B981"
             onClick={() => setChamberFilter(chamberFilter === 'senate' ? 'all' : 'senate')}
           />
+
+          <div className="w-px bg-white/10 mx-1" />
+
+          {/* State filter dropdown */}
+          <select
+            value={stateFilter}
+            onChange={(e) => setStateFilter(e.target.value)}
+            className="rounded-full border px-4 py-2 font-body text-sm font-medium transition-all duration-200 appearance-none cursor-pointer pr-8 bg-no-repeat"
+            style={{
+              borderColor: stateFilter !== 'all' ? '#F59E0B' : 'rgba(255,255,255,0.1)',
+              backgroundColor: stateFilter !== 'all' ? '#F59E0B15' : 'transparent',
+              color: stateFilter !== 'all' ? '#F59E0B' : 'rgba(255,255,255,0.5)',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E")`,
+              backgroundPosition: 'right 12px center',
+            }}
+          >
+            <option value="all" style={{ background: '#111', color: '#fff' }}>
+              STATE ({stateList.length})
+            </option>
+            {stateList.map(({ state, count }) => (
+              <option key={state} value={state} style={{ background: '#111', color: '#fff' }}>
+                {state} ({count})
+              </option>
+            ))}
+          </select>
         </motion.div>
 
         {/* Cards grid — scrollable area */}
