@@ -7,6 +7,8 @@ from sqlalchemy import func, desc, case
 from typing import Optional, Dict, Any
 from datetime import date
 from functools import lru_cache
+import hashlib
+import re
 
 from models.database import (
     SessionLocal,
@@ -944,9 +946,16 @@ def create_claim(
                 final_category = "general"
                 category_source = "auto_low_confidence"
 
+        # Build claim_hash for deduplication: hash of (person_id + normalized_text + source_url)
+        normalized = re.sub(r'[^\w\s]', '', text.lower())
+        normalized = re.sub(r'\s+', ' ', normalized).strip()
+        hash_input = f"{person_id}|{normalized}|{claim_source_url or ''}"
+        claim_hash = hashlib.md5(hash_input.encode()).hexdigest()
+
         c = Claim(
             person_id=person_id, text=text, category=final_category, intent=intent,
             claim_date=parsed_date, claim_source_url=claim_source_url,
+            claim_hash=claim_hash,
         )
         db.add(c)
         db.commit()
@@ -1558,7 +1567,7 @@ def get_bill_timeline(bill_id: str):
             "timeline": [{
                 "action_date": a.action_date.isoformat() if a.action_date else None,
                 "action_text": a.action_text,
-                "action_type": a.action_type,
+                "action_type": a.action_code,
             } for a in timeline],
         }
     finally:

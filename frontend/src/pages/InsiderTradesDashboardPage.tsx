@@ -73,13 +73,13 @@ export default function InsiderTradesDashboardPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
+      <div className="mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-14">
         <FinanceSectorHeader />
 
         {/* Header */}
         <div className="flex items-end justify-between mb-6 animate-fade-up">
           <div>
-            <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
+            <h1 className="font-heading text-3xl sm:text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
               Insider Trades
             </h1>
             <p className="mt-1 font-body text-lg text-white/50">
@@ -134,15 +134,15 @@ export default function InsiderTradesDashboardPage() {
             </div>
 
             {/* Table */}
-            <div className="flex-1 overflow-y-auto">
-              <table className="w-full">
+            <div className="flex-1 overflow-y-auto overflow-x-auto">
+              <table className="w-full min-w-[600px]">
                 <thead className="sticky top-0 z-10 bg-[#0a0a0f]">
                   <tr className="border-b border-white/10">
-                    <th className="px-4 py-3 text-left font-mono text-xs text-white/40">DATE</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-left font-mono text-xs text-white/40">DATE</th>
                     <th className="px-4 py-3 text-left font-mono text-xs text-white/40">INSIDER</th>
                     <th className="px-4 py-3 text-left font-mono text-xs text-white/40">COMPANY</th>
                     <th className="px-4 py-3 text-left font-mono text-xs text-white/40">TYPE</th>
-                    <th className="px-4 py-3 text-right font-mono text-xs text-white/40">SHARES</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-right font-mono text-xs text-white/40">SHARES</th>
                     <th className="px-4 py-3 text-right font-mono text-xs text-white/40">VALUE</th>
                   </tr>
                 </thead>
@@ -154,7 +154,7 @@ export default function InsiderTradesDashboardPage() {
                       style={{ animationDelay: `${300 + idx * 50}ms`, animationFillMode: 'both' }}
                       onClick={() => t.filing_url && window.open(t.filing_url, '_blank')}
                     >
-                      <td className="px-4 py-3 font-mono text-xs text-white/40">
+                      <td className="hidden sm:table-cell px-4 py-3 font-mono text-xs text-white/40">
                         {t.transaction_date || '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -174,7 +174,7 @@ export default function InsiderTradesDashboardPage() {
                           {TYPE_LABELS[t.transaction_type || ''] || t.transaction_type || '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-sm text-white">
+                      <td className="hidden sm:table-cell px-4 py-3 text-right font-mono text-sm text-white">
                         {fmtShares(t.shares)}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-sm font-bold text-white">

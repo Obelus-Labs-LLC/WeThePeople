@@ -16,6 +16,7 @@ from models.tech_models import (
     FTCEnforcement,
 )
 from models.market_models import StockFundamentals
+from models.database import CompanyDonation
 
 router = APIRouter(prefix="/tech", tags=["technology"])
 
@@ -29,6 +30,13 @@ def get_tech_dashboard_stats():
         total_patents = db.query(TechPatent).count()
         total_contracts = db.query(GovernmentContract).count()
 
+        # Political data totals
+        total_lobbying = db.query(func.count(LobbyingRecord.id)).scalar() or 0
+        total_lobbying_spend = db.query(func.sum(LobbyingRecord.income)).scalar() or 0
+        total_enforcement = db.query(func.count(FTCEnforcement.id)).scalar() or 0
+        total_penalties = db.query(func.sum(FTCEnforcement.penalty_amount)).scalar() or 0
+        total_contract_value = db.query(func.sum(GovernmentContract.award_amount)).scalar() or 0
+
         by_sector = {}
         rows = db.query(TrackedTechCompany.sector_type, func.count()).filter(
             TrackedTechCompany.is_active == 1
@@ -39,6 +47,9 @@ def get_tech_dashboard_stats():
         return {
             "total_companies": total_companies, "total_filings": total_filings,
             "total_patents": total_patents, "total_contracts": total_contracts,
+            "total_lobbying": total_lobbying, "total_lobbying_spend": total_lobbying_spend,
+            "total_enforcement": total_enforcement, "total_penalties": total_penalties,
+            "total_contract_value": total_contract_value,
             "by_sector": by_sector,
         }
     finally:
@@ -483,5 +494,33 @@ def get_tech_comparison(ids: str = Query(..., description="Comma-separated compa
             })
 
         return {"companies": results}
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/donations")
+def get_tech_company_donations(
+    company_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """PAC/corporate donations from a tech company to politicians."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+        query = db.query(CompanyDonation).filter_by(entity_type="tech", entity_id=company_id)
+        total = query.count()
+        donations = query.order_by(desc(CompanyDonation.amount)).offset(offset).limit(limit).all()
+        total_amount = db.query(func.sum(CompanyDonation.amount)).filter_by(entity_type="tech", entity_id=company_id).scalar() or 0
+        return {
+            "total": total, "total_amount": total_amount, "limit": limit, "offset": offset,
+            "donations": [{
+                "id": d.id, "committee_name": d.committee_name, "committee_id": d.committee_id,
+                "candidate_name": d.candidate_name, "candidate_id": d.candidate_id,
+                "person_id": d.person_id, "amount": d.amount, "cycle": d.cycle,
+                "donation_date": str(d.donation_date) if d.donation_date else None,
+                "source_url": d.source_url,
+            } for d in donations],
+        }
     finally:
         db.close()

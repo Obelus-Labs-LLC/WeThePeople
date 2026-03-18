@@ -4,6 +4,7 @@ import { motion, useInView } from 'framer-motion';
 import { DollarSign, Landmark, Shield, FileBadge, ArrowRight, ChevronDown, ChevronUp, type LucideIcon } from 'lucide-react';
 import { TechSectorHeader } from '../components/SectorHeader';
 import SpotlightCard from '../components/SpotlightCard';
+import DataFreshness from '../components/DataFreshness';
 import {
   getTechDashboardStats,
   getTechCompanies,
@@ -89,7 +90,7 @@ function SectorDistribution({ bySector, total }: { bySector: Record<string, numb
           </motion.div>
         ))}
       </motion.div>
-      <div className="grid grid-cols-5 gap-4 mt-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-5">
         {sectors.map((s) => (
           <Link key={s.key} to={`/technology/companies?sector=${encodeURIComponent(s.key)}`}>
             <motion.div variants={itemV} className="group rounded-xl border border-zinc-800 bg-zinc-900/80 p-5 flex flex-col gap-3 transition-all hover:bg-zinc-900 hover:border-zinc-700 cursor-pointer">
@@ -160,7 +161,7 @@ export default function TechDashboardPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="relative z-10 mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
+      <div className="relative z-10 mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-14">
         {/* Sector Header */}
         <motion.nav initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="mb-10">
           <TechSectorHeader />
@@ -170,7 +171,7 @@ export default function TechDashboardPage() {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 mb-12">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }} className="flex flex-col justify-center">
             <p className="font-heading text-xs font-semibold tracking-[0.3em] text-violet-400 uppercase mb-4">Technology Transparency</p>
-            <h1 className="font-heading text-5xl font-bold leading-[1.1] tracking-tight text-white lg:text-6xl">
+            <h1 className="font-heading text-3xl sm:text-5xl font-bold leading-[1.1] tracking-tight text-white lg:text-6xl">
               Big Tech's<br />Political <span className="text-violet-400">Playbook</span>
             </h1>
             <p className="mt-4 max-w-lg font-body text-lg text-white/50 leading-relaxed">
@@ -187,7 +188,7 @@ export default function TechDashboardPage() {
           </motion.div>
 
           {/* 2x2 Stat Cards */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {loading ? (
               [0, 1, 2, 3].map((i) => <div key={i} className="h-28 rounded-xl bg-white/[0.03] animate-pulse" />)
             ) : (
@@ -207,6 +208,9 @@ export default function TechDashboardPage() {
           </div>
         </div>
 
+        {/* Data Freshness */}
+        <DataFreshness />
+
         {/* Sector Distribution */}
         {stats && Object.keys(stats.by_sector).length > 0 && (
           <div className="mb-12">
@@ -215,7 +219,7 @@ export default function TechDashboardPage() {
         )}
 
         {/* Nav Cards */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.7 }} className="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-12">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.7 }} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-12">
           {[
             { to: '/technology/companies', label: 'Companies', desc: 'Full company directory', color: '#8B5CF6' },
             { to: '/technology/patents', label: 'Patents', desc: 'Search patent filings', color: '#F59E0B' },

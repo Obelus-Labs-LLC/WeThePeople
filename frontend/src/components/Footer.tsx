@@ -20,6 +20,7 @@ export default function Footer() {
             <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-white transition-colors">Terms of Use</Link>
             <Link to="/disclaimer" className="hover:text-white transition-colors">Disclaimer</Link>
+            <Link to="/methodology" className="hover:text-white transition-colors">Methodology</Link>
           </div>
         </div>
 

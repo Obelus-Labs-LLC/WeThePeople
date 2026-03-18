@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Building2, DollarSign, FileText, Shield, TrendingUp, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
+import DataFreshness from '../components/DataFreshness';
 import { FinanceSectorHeader } from '../components/SectorHeader';
 import { LOCAL_LOGOS } from '../data/financeLogos';
 import {
@@ -139,7 +140,7 @@ function SectorDistribution({
       </motion.div>
 
       {/* Legend cards */}
-      <div className="grid grid-cols-5 gap-3 mt-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-4">
         {sectors.map((sector) => (
           <Link
             key={sector.key}
@@ -218,15 +219,15 @@ export default function FinanceDashboardPage() {
   }
 
   const statCards = [
-    { label: 'Lobbying Spend', value: formatMoney(stats?.total_lobbying_spend || 0), icon: DollarSign, color: '#60A5FA', to: '/finance/institutions' },
-    { label: 'Gov Contracts', value: formatMoney(stats?.total_contract_value || 0), icon: FileText, color: '#34D399', to: '/finance/institutions' },
+    { label: 'Lobbying Spend', value: formatMoney(stats?.total_lobbying_spend || 0), icon: DollarSign, color: '#60A5FA', to: '/finance/lobbying' },
+    { label: 'Gov Contracts', value: formatMoney(stats?.total_contract_value || 0), icon: FileText, color: '#34D399', to: '/finance/contracts' },
     { label: 'Enforcement Actions', value: formatNum(stats?.total_enforcement || 0), icon: Shield, color: '#FF3366', to: '/finance/enforcement' },
     { label: 'Insider Trade Alerts', value: formatNum(stats?.total_insider_trades || 0), icon: TrendingUp, color: '#FBBF24', to: '/finance/insider-trades' },
   ];
 
   return (
     <div className="min-h-screen">
-      <div className="relative z-10 mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
+      <div className="relative z-10 mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-14">
         {/* Navigation bar */}
         <motion.nav
           ref={headerRef}
@@ -250,7 +251,7 @@ export default function FinanceDashboardPage() {
             <p className="font-heading text-xs font-semibold tracking-[0.3em] text-emerald-400 uppercase mb-4">
               Financial Transparency
             </p>
-            <h1 className="font-heading text-5xl font-bold leading-[1.1] tracking-tight text-white lg:text-6xl">
+            <h1 className="font-heading text-3xl sm:text-5xl font-bold leading-[1.1] tracking-tight text-white lg:text-6xl">
               Following Wall Street's
               <br />
               Influence in{' '}
@@ -277,7 +278,7 @@ export default function FinanceDashboardPage() {
           </motion.div>
 
           {/* Right: 2x2 Stat Cards */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {statCards.map((stat, idx) => (
               <motion.div
                 key={stat.label}
@@ -305,6 +306,9 @@ export default function FinanceDashboardPage() {
           </div>
         </div>
 
+        {/* Data Freshness */}
+        <DataFreshness />
+
         {/* Sector Distribution Bar */}
         {stats?.by_sector && Object.keys(stats.by_sector).length > 0 && (
           <motion.div
@@ -329,7 +333,7 @@ export default function FinanceDashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.7 }}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-12"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-12"
         >
           {[
             { to: '/finance/institutions', label: 'Institutions', desc: 'Full institution directory', color: '#34D399' },
