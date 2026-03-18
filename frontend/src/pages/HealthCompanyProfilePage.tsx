@@ -7,7 +7,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import BackButton from '../components/BackButton';
 import { HealthSectorHeader } from '../components/SectorHeader';
-import LightRays from '../components/LightRays';
 import {
   getHealthCompanyDetail,
   getHealthCompanyAdverseEvents,
@@ -963,19 +962,6 @@ export default function HealthCompanyProfilePage() {
 
   return (
     <div className="flex flex-col w-full h-screen relative">
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <LightRays
-          raysOrigin="top-center"
-          raysColor="#ff0000"
-          raysSpeed={1}
-          lightSpread={2}
-          rayLength={3}
-          pulsating
-          fadeDistance={2}
-          saturation={1}
-          noiseAmount={0.3}
-        />
-      </div>
       <div className="relative z-10 px-6 pt-4 shrink-0">
         <HealthSectorHeader />
         <div className="mb-2">

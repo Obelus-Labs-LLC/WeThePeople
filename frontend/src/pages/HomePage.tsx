@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { SECTORS } from "../data/sectors";
 import DecryptedText from "../components/DecryptedText";
+import FloatingLines from "../components/FloatingLines";
 import {
   fetchInfluenceStats,
   fetchTopLobbying,
@@ -66,6 +67,13 @@ const HomePage: React.FC = () => {
           style={{ backgroundImage: `url(${FLAG_BG})` }}
         />
         <div className="absolute inset-0 bg-slate-950/75" />
+        {/* FloatingLines (red/white/blue) blended over the flag photo */}
+        <div className="absolute inset-0 opacity-40 mix-blend-screen">
+          <FloatingLines
+            linesGradient={['#e90101', '#fafafa', '#0804fb']}
+            animationSpeed={1}
+          />
+        </div>
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-slate-950" />
 
         <div className="relative z-10 flex flex-col items-center pt-20 pb-16 px-4">

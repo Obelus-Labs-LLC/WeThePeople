@@ -4,7 +4,6 @@ import {
   GitCompare, Plus, Building2, ArrowLeft, Search, X,
 } from 'lucide-react';
 import { HealthSectorHeader } from '../components/SectorHeader';
-import LightRays from '../components/LightRays';
 import {
   getHealthCompanies,
   getHealthCompanyDetail,
@@ -195,19 +194,6 @@ export default function HealthComparePage() {
 
   return (
     <div className="min-h-screen w-full relative">
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <LightRays
-          raysOrigin="top-center"
-          raysColor="#ff0000"
-          raysSpeed={1}
-          lightSpread={2}
-          rayLength={3}
-          pulsating
-          fadeDistance={2}
-          saturation={1}
-          noiseAmount={0.3}
-        />
-      </div>
       <div className="relative z-10 mx-auto w-full max-w-[1600px] flex flex-col px-8 py-8">
         <HealthSectorHeader />
 
