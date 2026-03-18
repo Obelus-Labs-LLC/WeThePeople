@@ -9,6 +9,7 @@ from typing import Optional
 from models.database import SessionLocal, CompanyDonation, CongressionalTrade, TrackedMember
 from models.finance_models import (
     TrackedInstitution, FinanceLobbyingRecord, FinanceGovernmentContract, FinanceEnforcement,
+    SECInsiderTrade,
 )
 from models.health_models import (
     TrackedCompany, HealthLobbyingRecord, HealthGovernmentContract, HealthEnforcement,
@@ -19,6 +20,84 @@ from models.energy_models import (
 )
 
 router = APIRouter(prefix="/influence", tags=["influence"])
+
+
+@router.get("/data-freshness")
+def data_freshness():
+    """Return last-updated timestamps and record counts for each major data type."""
+    db = SessionLocal()
+    try:
+        def _max_date_and_count(model, date_col):
+            """Return (max_date_str_or_None, count) for a model/date column."""
+            latest = db.query(func.max(date_col)).scalar()
+            count = db.query(func.count(model.id)).scalar() or 0
+            date_str = str(latest) if latest else None
+            return date_str, count
+
+        # -- Lobbying: filing_year is int, not a date. Use created_at as best proxy. --
+        lobbying_models = [
+            (LobbyingRecord, LobbyingRecord.created_at),
+            (FinanceLobbyingRecord, FinanceLobbyingRecord.created_at),
+            (HealthLobbyingRecord, HealthLobbyingRecord.created_at),
+            (EnergyLobbyingRecord, EnergyLobbyingRecord.created_at),
+        ]
+        lobby_latest = None
+        lobby_count = 0
+        for model, col in lobbying_models:
+            dt, ct = _max_date_and_count(model, col)
+            lobby_count += ct
+            if dt and (lobby_latest is None or dt > lobby_latest):
+                lobby_latest = dt
+
+        # -- Contracts: max start_date --
+        contract_models = [
+            (GovernmentContract, GovernmentContract.start_date),
+            (FinanceGovernmentContract, FinanceGovernmentContract.start_date),
+            (HealthGovernmentContract, HealthGovernmentContract.start_date),
+            (EnergyGovernmentContract, EnergyGovernmentContract.start_date),
+        ]
+        contract_latest = None
+        contract_count = 0
+        for model, col in contract_models:
+            dt, ct = _max_date_and_count(model, col)
+            contract_count += ct
+            if dt and (contract_latest is None or dt > contract_latest):
+                contract_latest = dt
+
+        # -- Enforcement: max case_date --
+        enforcement_models = [
+            (FTCEnforcement, FTCEnforcement.case_date),
+            (FinanceEnforcement, FinanceEnforcement.case_date),
+            (HealthEnforcement, HealthEnforcement.case_date),
+            (EnergyEnforcement, EnergyEnforcement.case_date),
+        ]
+        enforcement_latest = None
+        enforcement_count = 0
+        for model, col in enforcement_models:
+            dt, ct = _max_date_and_count(model, col)
+            enforcement_count += ct
+            if dt and (enforcement_latest is None or dt > enforcement_latest):
+                enforcement_latest = dt
+
+        # -- Congressional trades --
+        trades_latest, trades_count = _max_date_and_count(
+            CongressionalTrade, CongressionalTrade.transaction_date,
+        )
+
+        # -- Insider trades --
+        insider_latest, insider_count = _max_date_and_count(
+            SECInsiderTrade, SECInsiderTrade.transaction_date,
+        )
+
+        return {
+            "lobbying": {"last_updated": lobby_latest, "record_count": lobby_count},
+            "contracts": {"last_updated": contract_latest, "record_count": contract_count},
+            "enforcement": {"last_updated": enforcement_latest, "record_count": enforcement_count},
+            "trades": {"last_updated": trades_latest, "record_count": trades_count},
+            "insider_trades": {"last_updated": insider_latest, "record_count": insider_count},
+        }
+    finally:
+        db.close()
 
 
 @router.get("/stats")

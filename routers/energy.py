@@ -16,6 +16,7 @@ from models.energy_models import (
     EnergyEnforcement,
 )
 from models.market_models import StockFundamentals
+from models.database import CompanyDonation
 
 router = APIRouter(prefix="/energy", tags=["energy"])
 
@@ -30,6 +31,12 @@ def get_energy_dashboard_stats():
         total_contracts = db.query(EnergyGovernmentContract).count()
         total_enforcement = db.query(EnergyEnforcement).count()
 
+        # Political data totals
+        total_lobbying = db.query(func.count(EnergyLobbyingRecord.id)).scalar() or 0
+        total_lobbying_spend = db.query(func.sum(EnergyLobbyingRecord.income)).scalar() or 0
+        total_contract_value = db.query(func.sum(EnergyGovernmentContract.award_amount)).scalar() or 0
+        total_penalties = db.query(func.sum(EnergyEnforcement.penalty_amount)).scalar() or 0
+
         by_sector = {}
         rows = db.query(TrackedEnergyCompany.sector_type, func.count()).filter(
             TrackedEnergyCompany.is_active == 1
@@ -41,6 +48,8 @@ def get_energy_dashboard_stats():
             "total_companies": total_companies, "total_filings": total_filings,
             "total_emissions_records": total_emissions, "total_contracts": total_contracts,
             "total_enforcement": total_enforcement,
+            "total_lobbying": total_lobbying, "total_lobbying_spend": total_lobbying_spend,
+            "total_contract_value": total_contract_value, "total_penalties": total_penalties,
             "by_sector": by_sector,
         }
     finally:
@@ -486,5 +495,33 @@ def get_energy_comparison(ids: str = Query(..., description="Comma-separated com
             })
 
         return {"companies": results}
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/donations")
+def get_energy_company_donations(
+    company_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """PAC/corporate donations from an energy company to politicians."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedEnergyCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Energy company not found")
+        query = db.query(CompanyDonation).filter_by(entity_type="energy", entity_id=company_id)
+        total = query.count()
+        donations = query.order_by(desc(CompanyDonation.amount)).offset(offset).limit(limit).all()
+        total_amount = db.query(func.sum(CompanyDonation.amount)).filter_by(entity_type="energy", entity_id=company_id).scalar() or 0
+        return {
+            "total": total, "total_amount": total_amount, "limit": limit, "offset": offset,
+            "donations": [{
+                "id": d.id, "committee_name": d.committee_name, "committee_id": d.committee_id,
+                "candidate_name": d.candidate_name, "candidate_id": d.candidate_id,
+                "person_id": d.person_id, "amount": d.amount, "cycle": d.cycle,
+                "donation_date": str(d.donation_date) if d.donation_date else None,
+                "source_url": d.source_url,
+            } for d in donations],
+        }
     finally:
         db.close()

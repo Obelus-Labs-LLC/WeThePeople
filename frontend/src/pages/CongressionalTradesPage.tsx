@@ -46,13 +46,13 @@ export default function CongressionalTradesPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
+      <div className="mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-14">
         <PoliticsSectorHeader />
 
         <div className="mb-8">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">Congressional Stock Trades</h1>
+              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Congressional Stock Trades</h1>
               <p className="text-white/50">
                 STOCK Act financial disclosures — what members of Congress are buying and selling.
               </p>
@@ -133,15 +133,18 @@ export default function CongressionalTradesPage() {
             <p className="text-sm mt-2">Trade data will appear once the sync job runs.</p>
           </div>
         ) : (
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden">
-            <table className="w-full">
+          <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-x-auto">
+            <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="border-b border-white/10 bg-white/[0.02]">
-                  {['Member', 'Ticker', 'Type', 'Amount', 'Trade Date', 'Disclosed', 'Filing Delay', 'Owner', ''].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-mono text-white/40 uppercase tracking-wider">
+                  {['Member', 'Ticker', 'Type', 'Amount', 'Trade Date', 'Disclosed', 'Filing Delay', 'Owner', ''].map((h) => {
+                    const hiddenOnMobile = ['Disclosed', 'Owner', ''].includes(h);
+                    return (
+                    <th key={h} className={`px-4 py-3 text-left text-xs font-mono text-white/40 uppercase tracking-wider ${hiddenOnMobile ? 'hidden md:table-cell' : ''}`}>
                       {h}
                     </th>
-                  ))}
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>

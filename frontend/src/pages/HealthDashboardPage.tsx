@@ -7,6 +7,7 @@ import {
 import { motion, useInView } from 'framer-motion';
 import { HealthSectorHeader } from '../components/SectorHeader';
 import SpotlightCard from '../components/SpotlightCard';
+import DataFreshness from '../components/DataFreshness';
 import {
   getHealthDashboardStats,
   getHealthCompanies,
@@ -136,7 +137,7 @@ function SectorDistribution({
       </motion.div>
 
       {/* Legend Cards */}
-      <div className="grid grid-cols-5 gap-4 mt-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-5">
         {sectors.map((sector) => (
           <Link
             key={sector.key}
@@ -203,9 +204,9 @@ export default function HealthDashboardPage() {
   }
 
   const statCards = [
-    { label: 'Lobbying Spend', value: formatMoney(stats?.total_lobbying_spend || 0), icon: DollarSign, color: '#3B82F6', to: '/health/companies' },
-    { label: 'Gov Contracts', value: formatMoney(stats?.total_contract_value || 0), icon: Landmark, color: '#10B981', to: '/health/companies' },
-    { label: 'Enforcement Actions', value: fmtNum(stats?.total_enforcement || 0), icon: Shield, color: '#EF4444', to: '/health/companies' },
+    { label: 'Lobbying Spend', value: formatMoney(stats?.total_lobbying_spend || 0), icon: DollarSign, color: '#3B82F6', to: '/health/lobbying' },
+    { label: 'Gov Contracts', value: formatMoney(stats?.total_contract_value || 0), icon: Landmark, color: '#10B981', to: '/health/contracts' },
+    { label: 'Enforcement Actions', value: fmtNum(stats?.total_enforcement || 0), icon: Shield, color: '#EF4444', to: '/health/enforcement' },
     { label: 'Clinical Trials', value: fmtNum(stats?.total_trials || 0), icon: FlaskConical, color: '#A855F7', to: '/health/pipeline' },
   ];
 
@@ -224,7 +225,7 @@ export default function HealthDashboardPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="relative z-10 mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
+      <div className="relative z-10 mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-14">
         {/* Navigation bar */}
         <motion.nav
           initial={{ opacity: 0, y: -20 }}
@@ -247,7 +248,7 @@ export default function HealthDashboardPage() {
             <p className="font-heading text-xs font-semibold tracking-[0.3em] text-red-400 uppercase mb-4">
               Healthcare Transparency
             </p>
-            <h1 className="font-heading text-5xl font-bold leading-[1.1] tracking-tight text-white lg:text-6xl">
+            <h1 className="font-heading text-3xl sm:text-5xl font-bold leading-[1.1] tracking-tight text-white lg:text-6xl">
               Tracking Pharma's
               <br />
               <span className="text-red-500">Political Influence</span>
@@ -273,7 +274,7 @@ export default function HealthDashboardPage() {
           </motion.div>
 
           {/* Right: 2x2 Stat Cards */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {statCards.map((stat, idx) => (
               <motion.div
                 key={stat.label}
@@ -301,6 +302,9 @@ export default function HealthDashboardPage() {
           </div>
         </div>
 
+        {/* Data Freshness */}
+        <DataFreshness />
+
         {/* Sector Distribution */}
         {stats && stats.by_sector && Object.keys(stats.by_sector).length > 0 && (
           <motion.div
@@ -321,7 +325,7 @@ export default function HealthDashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.7 }}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-12"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-12"
         >
           {[
             { to: '/health/companies', label: 'Companies', desc: 'Full company directory', color: ACCENT },

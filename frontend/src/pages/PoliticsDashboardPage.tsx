@@ -5,6 +5,7 @@ import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { DashboardStats, Person, RecentAction } from '../api/types';
 import SpotlightCard from '../components/SpotlightCard';
+import DataFreshness from '../components/DataFreshness';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import { fmtNum } from '../utils/format';
 
@@ -85,7 +86,7 @@ export default function PoliticsDashboardPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="relative z-10 mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
+      <div className="relative z-10 mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-14">
         {/* Navigation bar */}
         <motion.nav
           ref={headerRef}
@@ -109,7 +110,7 @@ export default function PoliticsDashboardPage() {
             <p className="font-heading text-xs font-semibold tracking-[0.3em] text-blue-400 uppercase mb-4">
               Congressional Transparency
             </p>
-            <h1 className="font-heading text-5xl font-bold leading-[1.1] tracking-tight text-white lg:text-6xl">
+            <h1 className="font-heading text-3xl sm:text-5xl font-bold leading-[1.1] tracking-tight text-white lg:text-6xl">
               Tracking What
               <br />
               Politicians{' '}
@@ -137,7 +138,7 @@ export default function PoliticsDashboardPage() {
           </motion.div>
 
           {/* Right: 2x2 Stat Cards */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {statCards.map((stat, idx) => (
               <motion.div
                 key={stat.label}
@@ -164,6 +165,9 @@ export default function PoliticsDashboardPage() {
             ))}
           </div>
         </div>
+
+        {/* Data Freshness */}
+        <DataFreshness />
 
         {/* Party Distribution Bar */}
         {allPeople.length > 0 && (
@@ -215,7 +219,7 @@ export default function PoliticsDashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.7 }}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-12"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-12"
         >
           {[
             { to: '/politics/people', label: 'Representatives', desc: 'Full member directory', color: '#3B82F6' },

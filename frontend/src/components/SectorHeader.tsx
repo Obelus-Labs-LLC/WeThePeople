@@ -26,9 +26,9 @@ export default function SectorHeader({ sector, links }: SectorHeaderProps) {
   const colors = SECTOR_COLORS[sector] || SECTOR_COLORS.politics;
 
   return (
-    <nav className="flex items-center justify-between mb-8">
+    <nav className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-8">
       {/* Left: WP logo + sector name — links back to landing */}
-      <Link to="/" className="flex items-center gap-2 no-underline">
+      <Link to="/" className="flex items-center gap-2 no-underline shrink-0">
         <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${colors.bg} font-heading text-sm font-black text-white`}>
           WP
         </div>
@@ -37,8 +37,8 @@ export default function SectorHeader({ sector, links }: SectorHeaderProps) {
         </span>
       </Link>
 
-      {/* Right: pill-style nav tabs */}
-      <div className="flex items-center gap-1">
+      {/* Right: pill-style nav tabs — horizontal scroll on mobile */}
+      <div className="flex items-center gap-1 overflow-x-auto flex-nowrap w-full sm:w-auto -mx-1 px-1 scrollbar-hide">
         {links.map((link) => {
           const active = link.to === '/'
             ? pathname === '/'
@@ -47,7 +47,7 @@ export default function SectorHeader({ sector, links }: SectorHeaderProps) {
             <Link
               key={link.label}
               to={link.to}
-              className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors no-underline ${
+              className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors no-underline whitespace-nowrap shrink-0 ${
                 active
                   ? `${colors.activeBg} ${colors.activeText}`
                   : 'text-white/40 hover:text-white/70'

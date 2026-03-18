@@ -17,6 +17,7 @@ import sys
 import hashlib
 import argparse
 import logging
+import time
 from datetime import datetime, date
 from typing import Optional
 
@@ -93,7 +94,7 @@ def fetch_quiver_trades() -> list[dict]:
 
     headers = {
         "accept": "application/json",
-        "Authorization": f"Token {QUIVER_API_KEY}",
+        "Authorization": f"Bearer {QUIVER_API_KEY}",
     }
 
     try:

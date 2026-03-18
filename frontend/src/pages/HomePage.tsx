@@ -97,7 +97,7 @@ const HomePage: React.FC = () => {
             <div className="h-14 w-14 rounded-xl bg-blue-600 flex items-center justify-center text-2xl font-black text-white shadow-lg shadow-blue-600/30">
               WP
             </div>
-            <h1 className="text-5xl font-bold tracking-tight text-white">
+            <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-white">
               We The People
             </h1>
           </div>
@@ -125,7 +125,7 @@ const HomePage: React.FC = () => {
 
           {/* Aggregate stats bar */}
           {stats && (
-            <div className="flex flex-wrap justify-center gap-6 mb-4">
+            <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-6 mb-4">
               {[
                 { icon: DollarSign, label: "Lobbying Tracked", value: formatMoney(stats.total_lobbying_spend) },
                 { icon: FileText, label: "Gov Contracts", value: formatMoney(stats.total_contract_value) },
@@ -146,7 +146,7 @@ const HomePage: React.FC = () => {
 
         {/* Sector grid */}
         <div className="max-w-5xl mx-auto px-4 -mt-4 pb-8">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {SECTORS.map((sector) => (
               <button
                 key={sector.slug}
