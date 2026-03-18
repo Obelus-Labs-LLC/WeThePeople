@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-User=dshon
-Group=dshon
-WorkingDirectory=/home/dshon/wethepeople-backend
-EnvironmentFile=/home/dshon/wethepeople-backend/.env
-ExecStart=/home/dshon/wethepeople-backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8006 --workers 2
+User=%USER%
+Group=%USER%
+WorkingDirectory=%HOME%/wethepeople-backend
+EnvironmentFile=%HOME%/wethepeople-backend/.env
+ExecStart=%HOME%/wethepeople-backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8006 --workers 2
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -17,7 +17,7 @@ StandardError=journal
 # Hardening
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/home/dshon/wethepeople-backend
+ReadWritePaths=%HOME%/wethepeople-backend
 
 [Install]
 WantedBy=multi-user.target

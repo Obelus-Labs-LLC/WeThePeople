@@ -256,45 +256,76 @@ def fetch_contracts(session, company: TrackedEnergyCompany, limit: int = 50):
 
 # ─── Senate LDA Lobbying ─────────────────────────────────────
 
+def _safe_float(val) -> float:
+    """Convert value to float, returning 0.0 on failure."""
+    if val is None:
+        return 0.0
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return 0.0
+
+
 def fetch_lobbying(session, company: TrackedEnergyCompany, limit: int = 50):
     """Fetch lobbying disclosures from Senate LDA."""
     search_name = company.display_name
-    url = f"https://lda.senate.gov/api/v1/filings/?filing_client_name={requests.utils.quote(search_name)}&filing_year=2024&filing_year=2023&filing_year=2022"
-    headers = {"Accept": "application/json"}
-
-    try:
-        resp = requests.get(url, headers=headers, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        log.warning(f"  [{company.company_id}] Senate LDA error: {e}")
-        return 0
-
-    results = data.get("results", [])[:limit]
+    years = [2024, 2023, 2022]
     count = 0
-    for r in results:
-        filing_uuid = r.get("filing_uuid", "")
-        dedupe = md5(f"{company.company_id}:lda:{filing_uuid}")
-        if session.query(EnergyLobbyingRecord).filter_by(dedupe_hash=dedupe).first():
+
+    for year in years:
+        params = {
+            "client_name": search_name,
+            "filing_year": year,
+            "page_size": min(limit, 25),
+        }
+        headers = {"Accept": "application/json"}
+
+        try:
+            time.sleep(1)  # polite delay
+            resp = requests.get(
+                "https://lda.senate.gov/api/v1/filings/",
+                params=params,
+                headers=headers,
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            log.warning(f"  [{company.company_id}] Senate LDA error ({year}): {e}")
             continue
 
-        issues = ", ".join([li.get("general_issue_code_display", "") for li in r.get("lobbying_activities", [])]) if r.get("lobbying_activities") else None
-        entities = ", ".join([li.get("government_entities_description", "") for li in r.get("lobbying_activities", []) if li.get("government_entities_description")]) if r.get("lobbying_activities") else None
+        results = data.get("results", [])[:limit]
+        for r in results:
+            filing_uuid = r.get("filing_uuid", "")
+            dedupe = md5(f"{company.company_id}:lda:{filing_uuid}")
+            if session.query(EnergyLobbyingRecord).filter_by(dedupe_hash=dedupe).first():
+                continue
 
-        session.add(EnergyLobbyingRecord(
-            company_id=company.company_id,
-            filing_uuid=filing_uuid,
-            filing_year=r.get("filing_year", 0),
-            filing_period=r.get("filing_period_display"),
-            income=r.get("income"),
-            expenses=r.get("expenses"),
-            registrant_name=r.get("registrant", {}).get("name") if r.get("registrant") else None,
-            client_name=r.get("client", {}).get("name") if r.get("client") else None,
-            lobbying_issues=issues,
-            government_entities=entities,
-            dedupe_hash=dedupe,
-        ))
-        count += 1
+            issues = []
+            gov_entities = set()
+            for activity in (r.get("lobbying_activities") or []):
+                issue_code = activity.get("general_issue_code_display")
+                if issue_code:
+                    issues.append(issue_code)
+                for entity in (activity.get("government_entities") or []):
+                    name = entity.get("name") if isinstance(entity, dict) else str(entity)
+                    if name:
+                        gov_entities.add(name)
+
+            session.add(EnergyLobbyingRecord(
+                company_id=company.company_id,
+                filing_uuid=filing_uuid,
+                filing_year=r.get("filing_year", 0),
+                filing_period=r.get("filing_period_display"),
+                income=_safe_float(r.get("income")),
+                expenses=_safe_float(r.get("expenses")),
+                registrant_name=(r.get("registrant") or {}).get("name"),
+                client_name=(r.get("client") or {}).get("name"),
+                lobbying_issues=", ".join(sorted(set(issues))) if issues else None,
+                government_entities=", ".join(sorted(gov_entities)) if gov_entities else None,
+                dedupe_hash=dedupe,
+            ))
+            count += 1
 
     session.commit()
     log.info(f"  [{company.company_id}] {count} new lobbying filings")
