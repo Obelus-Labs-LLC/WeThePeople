@@ -200,7 +200,6 @@ def get_institution_financials(
                 "efficiency_ratio": f.efficiency_ratio,
                 "noncurrent_loan_ratio": f.noncurrent_loan_ratio,
                 "net_charge_off_ratio": f.net_charge_off_ratio,
-                "npl_ratio": f.npl_ratio,
             } for f in rows],
         }
     finally:

@@ -194,7 +194,7 @@ export default function HealthComparePage() {
 
   return (
     <div className="min-h-screen w-full relative">
-      <div className="relative z-10 mx-auto w-full max-w-[1600px] flex flex-col px-8 py-8">
+      <div className="relative z-10 mx-auto w-full max-w-[1600px] flex flex-col px-4 py-6 lg:px-8 lg:py-8">
         <HealthSectorHeader />
 
         {/* Header */}
@@ -221,7 +221,7 @@ export default function HealthComparePage() {
 
         {/* Table */}
         <div
-          className="rounded-xl border shadow-sm"
+          className="rounded-xl border shadow-sm overflow-x-auto"
           style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}
         >
           {selectedDetails.length === 0 ? (

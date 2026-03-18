@@ -297,7 +297,7 @@ export default function ComparePageNew() {
           </div>
 
           {/* Sticky column headers */}
-          <div className="sticky top-0 z-20 bg-[rgba(2,6,23,0.95)] backdrop-blur border-b border-[#1E293B] px-6 py-6">
+          <div className="sticky top-0 z-20 bg-[rgba(2,6,23,0.95)] backdrop-blur border-b border-[#1E293B] px-4 sm:px-6 py-6 overflow-x-auto">
             <div className="flex">
               <div className="w-48 shrink-0" />
               {comparisonPairs.map(({ person }) => (
@@ -330,7 +330,7 @@ export default function ComparePageNew() {
           </div>
 
           {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto px-6 pb-12">
+          <div className="flex-1 overflow-y-auto overflow-x-auto px-4 sm:px-6 pb-12">
             {/* OVERVIEW METRICS */}
             <SectionTitle>Overview Metrics</SectionTitle>
             {(() => {
@@ -435,7 +435,7 @@ export default function ComparePageNew() {
           {/* Header */}
           <div className="mb-6">
             <PoliticsSectorHeader />
-            <h1 className="font-oswald text-5xl md:text-6xl font-bold uppercase text-white leading-none mb-4">
+            <h1 className="font-oswald text-3xl sm:text-5xl md:text-6xl font-bold uppercase text-white leading-none mb-4">
               Compare Members
             </h1>
             <p className="font-dm-sans text-lg text-slate-400">

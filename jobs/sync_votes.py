@@ -266,7 +266,7 @@ def main():
     parser = argparse.ArgumentParser(description="Sync House roll call votes from Congress.gov API v3")
     parser.add_argument("--congress", type=int, default=119)
     parser.add_argument("--session", type=int, default=1)
-    parser.add_argument("--limit", type=int, default=100, help="Max votes to sync")
+    parser.add_argument("--limit", type=int, default=2000, help="Max votes to sync (default 2000 for full coverage)")
     args = parser.parse_args()
 
     if not CONGRESS_API_KEY:

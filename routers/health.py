@@ -493,6 +493,51 @@ def get_health_company_enforcement(
         db.close()
 
 
+@router.get("/compare")
+def get_health_comparison(ids: str = Query(..., description="Comma-separated company IDs")):
+    """Cross-company comparison for key health metrics."""
+    db = SessionLocal()
+    try:
+        company_ids = [cid.strip() for cid in ids.split(",") if cid.strip()]
+        if not company_ids or len(company_ids) > 10:
+            raise HTTPException(status_code=400, detail="Provide 2-10 company IDs")
+
+        results = []
+        for cid in company_ids:
+            co = db.query(TrackedCompany).filter_by(company_id=cid).first()
+            if not co:
+                continue
+            adverse_count = db.query(FDAAdverseEvent).filter_by(company_id=cid).count()
+            recall_count = db.query(FDARecall).filter_by(company_id=cid).count()
+            trial_count = db.query(ClinicalTrial).filter_by(company_id=cid).count()
+            contract_count = db.query(HealthGovernmentContract).filter_by(company_id=cid).count()
+            total_contract_value = db.query(func.sum(HealthGovernmentContract.award_amount)).filter_by(company_id=cid).scalar() or 0
+            lobbying_total = db.query(func.sum(HealthLobbyingRecord.income)).filter_by(company_id=cid).scalar() or 0
+            enforcement_count = db.query(HealthEnforcement).filter_by(company_id=cid).count()
+            total_penalties = db.query(func.sum(HealthEnforcement.penalty_amount)).filter_by(company_id=cid).scalar() or 0
+
+            latest = db.query(StockFundamentals).filter_by(
+                entity_type="health_company", entity_id=cid
+            ).order_by(desc(StockFundamentals.snapshot_date)).first()
+
+            results.append({
+                "company_id": co.company_id, "display_name": co.display_name,
+                "ticker": co.ticker, "sector_type": co.sector_type,
+                "adverse_event_count": adverse_count, "recall_count": recall_count,
+                "trial_count": trial_count,
+                "contract_count": contract_count, "total_contract_value": total_contract_value,
+                "lobbying_total": lobbying_total, "enforcement_count": enforcement_count,
+                "total_penalties": total_penalties,
+                "market_cap": latest.market_cap if latest else None,
+                "pe_ratio": latest.pe_ratio if latest else None,
+                "profit_margin": latest.profit_margin if latest else None,
+            })
+
+        return {"companies": results}
+    finally:
+        db.close()
+
+
 @router.get("/companies/{company_id}/donations")
 def get_health_company_donations(
     company_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),

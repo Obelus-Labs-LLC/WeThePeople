@@ -67,6 +67,7 @@ from routers.finance import router as finance_router
 from routers.health import router as health_router
 from routers.tech import router as tech_router
 from routers.influence import router as influence_router
+from routers.search import router as search_router
 
 # Future sectors (scaffolded)
 from routers.education import router as education_router
@@ -80,6 +81,7 @@ app.include_router(finance_router)
 app.include_router(health_router)
 app.include_router(tech_router)
 app.include_router(influence_router)
+app.include_router(search_router)
 
 # Future sectors — placeholder routes
 app.include_router(education_router)
