@@ -51,6 +51,10 @@ import CongressionalTradesPage from "./pages/CongressionalTradesPage";
 import InfluenceExplorerPage from "./pages/InfluenceExplorerPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NotFoundPage from "./pages/NotFoundPage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import TermsOfUsePage from "./pages/TermsOfUsePage";
+import DisclaimerPage from "./pages/DisclaimerPage";
+import AboutPage from "./pages/AboutPage";
 
 const App: React.FC = () => (
   <ErrorBoundary>
@@ -111,6 +115,12 @@ const App: React.FC = () => (
         <Route path="/energy/companies" element={<EnergyLayout><EnergyCompaniesPage /></EnergyLayout>} />
         <Route path="/energy/compare" element={<EnergyLayout><EnergyComparePage /></EnergyLayout>} />
         <Route path="/energy/:companyId" element={<EnergyLayout><EnergyCompanyProfilePage /></EnergyLayout>} />
+
+        {/* Legal / Info pages */}
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsOfUsePage />} />
+        <Route path="/disclaimer" element={<DisclaimerPage />} />
+        <Route path="/about" element={<AboutPage />} />
 
         {/* Coming Soon */}
         <Route path="/coming-soon/:slug" element={<ComingSoonPage />} />
