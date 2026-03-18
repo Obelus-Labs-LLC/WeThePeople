@@ -538,10 +538,75 @@ class PipelineRun(Base):
     error = Column(Text, nullable=True)
 
 
+class CompanyDonation(Base):
+    """
+    Cross-sector: PAC/corporate donations from any tracked entity to politicians.
+    Links companies in any sector → politicians in the politics sector via FEC data.
+    """
+    __tablename__ = "company_donations"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_company_donations_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Source entity (polymorphic across sectors)
+    entity_type = Column(String, nullable=False, index=True)  # 'finance', 'health', 'tech', 'energy'
+    entity_id = Column(String, nullable=False, index=True)  # 'jpmorgan', 'pfizer', etc.
+
+    # Recipient politician (nullable FK — some donations go to candidates we don't track)
+    person_id = Column(String, nullable=True, index=True)  # FK to tracked_members.person_id if matched
+
+    # FEC data
+    committee_name = Column(String, nullable=True)  # PAC name
+    committee_id = Column(String, nullable=True, index=True)  # FEC committee ID
+    candidate_name = Column(String, nullable=True)
+    candidate_id = Column(String, nullable=True, index=True)  # FEC candidate ID
+    amount = Column(Float, nullable=True, index=True)
+    cycle = Column(String, nullable=True, index=True)  # '2024', '2026'
+    donation_date = Column(Date, nullable=True, index=True)
+    source_url = Column(String, nullable=True)
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CongressionalTrade(Base):
+    """
+    Congressional stock trades from STOCK Act financial disclosure reports.
+    Powers the "Congress trades" feature alongside corporate insider trading.
+    """
+    __tablename__ = "congressional_trades"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_congressional_trades_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    person_id = Column(String, nullable=False, index=True)  # FK to tracked_members.person_id
+
+    ticker = Column(String, nullable=True, index=True)  # 'AAPL', 'PFE', etc.
+    asset_name = Column(String, nullable=True)  # Full asset description
+    transaction_type = Column(String, nullable=False, index=True)  # 'purchase', 'sale', 'exchange'
+    amount_range = Column(String, nullable=True)  # '$1,001 - $15,000', '$50,001 - $100,000'
+    disclosure_date = Column(Date, nullable=True, index=True)
+    transaction_date = Column(Date, nullable=True, index=True)
+    owner = Column(String, nullable=True)  # 'Self', 'Spouse', 'Child', 'Joint'
+    source_url = Column(String, nullable=True)
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 import models.finance_models  # noqa: F401 — register finance tables for Alembic
 import models.health_models  # noqa: F401 — register health tables for Alembic
 import models.market_models  # noqa: F401 — register market/stock tables for Alembic
 import models.tech_models  # noqa: F401 — register tech tables for Alembic
+import models.energy_models  # noqa: F401 — register energy tables for Alembic
 
 
 if __name__ == "__main__":

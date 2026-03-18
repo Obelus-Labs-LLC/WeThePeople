@@ -74,3 +74,61 @@ export const ACCENT_COLORS: Record<string, string> = {
   gold: '#C5960C',
   purple: '#8B5CF6',
 };
+
+// Centralized status/sector colors used across detail screens
+export const STATUS_COLORS = {
+  ERROR: '#DC2626',
+  WARNING: '#F59E0B',
+  INFO: '#2563EB',
+  SUCCESS: '#10B981',
+  MUTED: '#6B7280',
+  PURPLE: '#8B5CF6',
+  PINK: '#EC4899',
+  ORANGE: '#EA580C',
+} as const;
+
+export const TECH_SECTOR_COLORS: Record<string, string> = {
+  platform: '#8B5CF6',
+  enterprise: '#2563EB',
+  semiconductor: '#F59E0B',
+  automotive: '#10B981',
+  media: '#EC4899',
+};
+
+export const HEALTH_SECTOR_COLORS: Record<string, string> = {
+  pharma: '#2563EB',
+  biotech: '#8B5CF6',
+  insurer: '#F59E0B',
+  pharmacy: '#10B981',
+  distributor: '#64748B',
+};
+
+export const FINANCE_SECTOR_COLORS: Record<string, string> = {
+  bank: '#2563EB',
+  investment: '#8B5CF6',
+  insurance: '#F59E0B',
+  fintech: '#10B981',
+  central_bank: '#DC2626',
+};
+
+export const ENERGY_SECTOR_COLORS: Record<string, string> = {
+  oil_gas: '#475569',
+  utility: '#2563EB',
+  renewable: '#10B981',
+  pipeline: '#F59E0B',
+  services: '#8B5CF6',
+};
+
+export const ENERGY_ENFORCEMENT_COLORS: Record<string, string> = {
+  EPA: '#10B981',
+  FERC: '#2563EB',
+  DOJ: '#7C3AED',
+  'State AG': '#EA580C',
+};
+
+export const ENFORCEMENT_SOURCE_COLORS: Record<string, string> = {
+  FTC: '#DC2626',
+  DOJ: '#7C3AED',
+  'FTC/State AGs': '#EA580C',
+  'Private/Court': '#6B7280',
+};

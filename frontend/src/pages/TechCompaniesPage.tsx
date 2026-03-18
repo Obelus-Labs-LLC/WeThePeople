@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MapPin, SearchX, Building2 } from 'lucide-react';
 import { useInView } from 'framer-motion';
 import DomeGallery from '../components/DomeGallery';
 import ViewToggle, { type ViewMode } from '../components/ViewToggle';
 import SpotlightCard from '../components/SpotlightCard';
-import TechNav from '../components/TechNav';
+import { TechSectorHeader } from '../components/SectorHeader';
 import {
   getTechCompanies,
   type TechCompanyListItem,
@@ -38,26 +38,9 @@ function getSectorLabel(sector: string): string {
   return SECTOR_LABELS[sector.toLowerCase()] || sector.toUpperCase();
 }
 
-// ── Company logo URL ──
+import { LOCAL_LOGOS } from '../data/techLogos';
 
-const LOCAL_LOGOS = new Set([
-  'adobe', 'airbnb', 'akamai', 'alphabet', 'alteryx', 'amazon', 'amd', 'analog-devices',
-  'ansys', 'apple', 'applied-materials', 'applovin', 'arista-networks', 'atlassian',
-  'autodesk', 'bentley-systems', 'booking-holdings', 'broadcom', 'c3ai', 'cadence',
-  'check-point', 'cisco', 'cloudflare', 'commvault', 'confluent', 'corning',
-  'crowdstrike', 'cyberark', 'datadog', 'dell-technologies', 'digitalocean', 'disney',
-  'doordash', 'dynatrace', 'elastic', 'electronic-arts', 'etsy', 'f5-networks',
-  'fastly', 'fortinet', 'garmin', 'gitlab', 'hashicorp', 'hp-inc', 'hubspot',
-  'ibm', 'intel', 'intuit', 'juniper-networks', 'kla-corp', 'lam-research',
-  'lyft', 'marvell', 'match-group', 'meta', 'microchip-tech', 'microsoft',
-  'mongodb', 'motorola-solutions', 'netapp', 'netflix', 'nutanix', 'nvidia',
-  'okta', 'on-semiconductor', 'oracle', 'palantir', 'palo-alto-networks', 'pinterest',
-  'ptc-inc', 'pure-storage', 'qualcomm', 'qualys', 'rapid7', 'rivian', 'roblox',
-  'roku', 'salesforce', 'sentinelone', 'servicenow', 'skyworks', 'snap', 'snowflake',
-  'spotify', 'synopsys', 'tenable', 'teradata', 'tesla', 'texas-instruments',
-  'trimble', 'twilio', 'uber', 'uipath', 'unity', 'varonis', 'veeva', 'workday',
-  'zebra-technologies', 'zscaler',
-]);
+// ── Company logo URL ──
 
 function companyLogoUrl(company: TechCompanyListItem): string {
   if (LOCAL_LOGOS.has(company.company_id)) {
@@ -207,11 +190,13 @@ function DirectoryCompanyCard({ company, index }: { company: TechCompanyListItem
 
 export default function TechCompaniesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialSector = searchParams.get('sector')?.toLowerCase() || null;
   const [companies, setCompanies] = useState<TechCompanyListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [activeSector, setActiveSector] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('dome');
+  const [activeSector, setActiveSector] = useState<string | null>(initialSector);
+  const [viewMode, setViewMode] = useState<ViewMode>(initialSector ? 'list' : 'dome');
 
   const headerRef = React.useRef<HTMLDivElement>(null);
   const headerInView = useInView(headerRef, { once: true, amount: 0.1 });
@@ -259,22 +244,22 @@ export default function TechCompaniesPage() {
 
   const galleryImages = useMemo(
     () =>
-      companies.map((co) => ({
+      filtered.map((co) => ({
         src: companyLogoUrl(co),
         alt: `${co.display_name}${co.ticker ? ` (${co.ticker})` : ''}`,
         id: co.company_id,
       })),
-    [companies],
+    [filtered],
   );
 
   const handleDomeClick = (originalIndex: number) => {
-    if (originalIndex >= 0 && originalIndex < companies.length) {
-      navigate(`/technology/${companies[originalIndex].company_id}`);
+    if (originalIndex >= 0 && originalIndex < filtered.length) {
+      navigate(`/technology/${filtered[originalIndex].company_id}`);
     }
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className={`flex flex-col ${viewMode === 'dome' ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       {/* Header */}
       <motion.div
         ref={headerRef}
@@ -284,7 +269,7 @@ export default function TechCompaniesPage() {
         className="relative z-30 shrink-0 px-8 pt-6 pb-4 md:px-12"
       >
         <div className="flex items-center justify-between gap-4 mb-2">
-          <TechNav />
+          <TechSectorHeader />
           <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
         <div className="flex items-end gap-4">
@@ -374,7 +359,7 @@ export default function TechCompaniesPage() {
             </div>
           </div>
         ) : (
-          <div className="h-full overflow-y-auto px-8 md:px-12 pr-4 custom-scrollbar">
+          <div className="px-8 md:px-12 pr-4 custom-scrollbar">
             {filtered.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-4">
                 <SearchX size={48} className="text-white/20" />

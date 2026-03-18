@@ -5,7 +5,7 @@ import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { Person, DashboardStats } from '../api/types';
 import SpotlightCard from '../components/SpotlightCard';
-import PoliticsNav from '../components/PoliticsNav';
+import { PoliticsSectorHeader } from '../components/SectorHeader';
 
 // ── Helpers ──
 
@@ -199,12 +199,10 @@ export default function BalanceOfPowerPage() {
           transition={{ duration: 0.6 }}
           className="mb-10"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
-              Balance of Power
-            </h1>
-            <PoliticsNav />
-          </div>
+          <PoliticsSectorHeader />
+          <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
+            Balance of Power
+          </h1>
           <p className="font-body text-lg text-white/50">
             Party composition across the 119th Congress
           </p>

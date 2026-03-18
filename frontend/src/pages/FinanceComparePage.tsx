@@ -11,27 +11,20 @@ import {
   Building2,
   MapPin,
   Briefcase,
+  type LucideIcon,
 } from 'lucide-react';
 import SpotlightCard from '../components/SpotlightCard';
-import FinanceNav from '../components/FinanceNav';
+import { FinanceSectorHeader } from '../components/SectorHeader';
+import { LOCAL_LOGOS } from '../data/financeLogos';
 import {
   getInstitutions,
   getFinanceComparison,
   type InstitutionListItem,
   type ComparisonInstitution,
 } from '../api/finance';
+import { fmtDollar, fmtNum } from '../utils/format';
 
 // ── Helpers ──
-
-function fmtDollar(n: number | null | undefined): string {
-  if (n == null) return '—';
-  const abs = Math.abs(n);
-  if (abs >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (abs >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (abs >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
-  return `$${n.toFixed(2)}`;
-}
 
 function fmtPct(n: number | null | undefined): string {
   if (n == null) return '—';
@@ -43,14 +36,15 @@ function fmtPctRaw(n: number | null | undefined): string {
   return `${n.toFixed(2)}%`;
 }
 
-function fmtNum(n: number | null | undefined): string {
-  if (n == null) return '—';
-  return n.toLocaleString();
-}
-
 function fmtRatio(n: number | null | undefined): string {
   if (n == null) return '—';
   return n.toFixed(2);
+}
+
+function instLogoUrl(inst: { institution_id: string; logo_url?: string | null; display_name: string }): string {
+  if (LOCAL_LOGOS.has(inst.institution_id)) return `/logos/${inst.institution_id}.png`;
+  if (inst.logo_url) return inst.logo_url;
+  return '';
 }
 
 const SECTOR_LABELS: Record<string, string> = {
@@ -72,7 +66,7 @@ interface Metric {
 
 interface MetricGroup {
   title: string;
-  icon: React.ElementType;
+  icon: LucideIcon;
   accent: string;
   metrics: Metric[];
 }
@@ -306,14 +300,7 @@ export default function FinanceComparePage() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
-        {/* Back to Sectors */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 font-body text-sm text-white/50 hover:text-white transition-colors no-underline mb-4 animate-fade-up"
-        >
-          <ArrowLeft size={16} />
-          Back to Sectors
-        </Link>
+        <FinanceSectorHeader />
 
         {/* Header */}
         <div className="flex items-end justify-between mb-6 animate-fade-up">
@@ -331,9 +318,6 @@ export default function FinanceComparePage() {
             </p>
           </div>
         </div>
-
-        {/* Navigation Tabs */}
-        <FinanceNav />
 
         {/* Selector bar */}
         <div className="flex items-end gap-3 mb-8">
@@ -384,7 +368,15 @@ export default function FinanceComparePage() {
                 >
                   <div className="flex items-center gap-4 p-5">
                     <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white/10 shrink-0">
-                      <Building2 size={24} className="text-white/40" />
+                      {instLogoUrl(inst) ? (
+                        <img
+                          src={instLogoUrl(inst)}
+                          alt={inst.display_name}
+                          className="h-10 w-10 rounded object-contain"
+                        />
+                      ) : (
+                        <Building2 size={24} className="text-white/40" />
+                      )}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">

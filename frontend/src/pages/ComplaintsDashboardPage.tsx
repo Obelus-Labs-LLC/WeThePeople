@@ -8,12 +8,7 @@ import {
   type CFPBComplaintItem,
   type ComplaintSummary,
 } from '../api/finance';
-
-// ── Helpers ──
-
-function fmtNum(n: number): string {
-  return n.toLocaleString();
-}
+import { fmtNum } from '../utils/format';
 
 // ── Primary Metric Card ──
 

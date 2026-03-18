@@ -8,6 +8,14 @@ export interface FinanceDashboardStats {
   total_institutions: number;
   total_filings: number;
   total_complaints: number;
+  // Political data
+  total_lobbying: number;
+  total_lobbying_spend: number;
+  total_contracts: number;
+  total_contract_value: number;
+  total_enforcement: number;
+  total_penalties: number;
+  total_insider_trades: number;
 }
 
 export interface InstitutionListItem {
@@ -36,7 +44,7 @@ export interface InstitutionDetail {
   headquarters: string | null;
   logo_url: string | null;
   sec_cik: string | null;
-  fdic_cert_number: string | null;
+  fdic_cert: string | null;
   filing_count: number;
   financial_count: number;
   complaint_count: number;
@@ -206,7 +214,8 @@ export interface SectorNewsResponse {
 
 // ── Client ──
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+import { getApiBaseUrl } from './client';
+const API_BASE = getApiBaseUrl();
 
 async function fetchJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -323,6 +332,7 @@ export async function getInstitutionPressReleases(
 export interface FREDObservation {
   id: number;
   series_id: string;
+  series_title?: string | null;
   observation_date: string | null;
   value: number | null;
 }
@@ -431,4 +441,124 @@ export interface ComparisonResponse {
 
 export async function getFinanceComparison(ids: string[]): Promise<ComparisonResponse> {
   return fetchJSON<ComparisonResponse>(`${API_BASE}/finance/compare?ids=${ids.join(',')}`);
+}
+
+// ── Political data types & functions ──
+
+export interface LobbyingFiling {
+  id: number;
+  filing_uuid: string | null;
+  filing_year: number;
+  filing_period: string | null;
+  income: number | null;
+  expenses: number | null;
+  registrant_name: string | null;
+  client_name: string | null;
+  lobbying_issues: string | null;
+  government_entities: string | null;
+}
+
+export interface LobbyingResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  filings: LobbyingFiling[];
+}
+
+export interface LobbySummary {
+  total_filings: number;
+  total_income: number;
+  by_year: Record<string, { income: number; filings: number }>;
+  top_firms: Record<string, { income: number; filings: number }>;
+}
+
+export interface GovernmentContractItem {
+  id: number;
+  award_id: string | null;
+  award_amount: number | null;
+  awarding_agency: string | null;
+  description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  contract_type: string | null;
+}
+
+export interface ContractsResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  contracts: GovernmentContractItem[];
+}
+
+export interface EnforcementAction {
+  id: number;
+  case_title: string;
+  case_date: string | null;
+  case_url: string | null;
+  enforcement_type: string | null;
+  penalty_amount: number | null;
+  description: string | null;
+  source: string | null;
+}
+
+export interface EnforcementResponse {
+  total: number;
+  total_penalties: number;
+  limit: number;
+  offset: number;
+  actions: EnforcementAction[];
+}
+
+export interface DonationItem {
+  id: number;
+  committee_name: string | null;
+  committee_id: string | null;
+  candidate_name: string | null;
+  candidate_id: string | null;
+  person_id: string | null;
+  amount: number | null;
+  cycle: string | null;
+  donation_date: string | null;
+  source_url: string | null;
+}
+
+export interface DonationsResponse {
+  total: number;
+  total_amount: number;
+  limit: number;
+  offset: number;
+  donations: DonationItem[];
+}
+
+export async function getInstitutionLobbying(id: string, params?: { filing_year?: number; limit?: number; offset?: number }): Promise<LobbyingResponse> {
+  const sp = new URLSearchParams();
+  if (params?.filing_year) sp.set('filing_year', params.filing_year.toString());
+  if (params?.limit) sp.set('limit', params.limit.toString());
+  if (params?.offset) sp.set('offset', params.offset.toString());
+  return fetchJSON<LobbyingResponse>(`${API_BASE}/finance/institutions/${id}/lobbying?${sp}`);
+}
+
+export async function getInstitutionLobbySummary(id: string): Promise<LobbySummary> {
+  return fetchJSON<LobbySummary>(`${API_BASE}/finance/institutions/${id}/lobbying/summary`);
+}
+
+export async function getInstitutionContracts(id: string, params?: { limit?: number; offset?: number }): Promise<ContractsResponse> {
+  const sp = new URLSearchParams();
+  if (params?.limit) sp.set('limit', params.limit.toString());
+  if (params?.offset) sp.set('offset', params.offset.toString());
+  return fetchJSON<ContractsResponse>(`${API_BASE}/finance/institutions/${id}/contracts?${sp}`);
+}
+
+export async function getInstitutionEnforcement(id: string, params?: { limit?: number; offset?: number }): Promise<EnforcementResponse> {
+  const sp = new URLSearchParams();
+  if (params?.limit) sp.set('limit', params.limit.toString());
+  if (params?.offset) sp.set('offset', params.offset.toString());
+  return fetchJSON<EnforcementResponse>(`${API_BASE}/finance/institutions/${id}/enforcement?${sp}`);
+}
+
+export async function getInstitutionDonations(id: string, params?: { limit?: number; offset?: number }): Promise<DonationsResponse> {
+  const sp = new URLSearchParams();
+  if (params?.limit) sp.set('limit', params.limit.toString());
+  if (params?.offset) sp.set('offset', params.offset.toString());
+  return fetchJSON<DonationsResponse>(`${API_BASE}/finance/institutions/${id}/donations?${sp}`);
 }

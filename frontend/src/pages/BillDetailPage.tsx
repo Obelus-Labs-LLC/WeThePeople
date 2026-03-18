@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import type { BillResponse, ActionSearchResponse, ActionSearchResult } from '../api/types';
 import BackButton from '../components/BackButton';
-import PoliticsNav from '../components/PoliticsNav';
+import { PoliticsSectorHeader } from '../components/SectorHeader';
 
 // ── Status color map ──
 
@@ -200,10 +200,9 @@ export default function BillDetailPage() {
          >
       {/* ── Header (non-scrolling) ── */}
       <div className="flex-shrink-0 px-8 pt-8 pb-0">
-        {/* Nav row */}
-        <div className="flex items-center justify-between mb-2">
+        <PoliticsSectorHeader />
+        <div className="mb-2">
           <BackButton to="/politics/activity" label="Activity" />
-          <PoliticsNav />
         </div>
         <div className="flex items-center justify-end mb-6">
           <a

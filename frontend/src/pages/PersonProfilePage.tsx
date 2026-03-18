@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import BackButton from '../components/BackButton';
-import PoliticsNav from '../components/PoliticsNav';
+import { PoliticsSectorHeader } from '../components/SectorHeader';
 import type {
   Person,
   PersonProfile,
@@ -28,13 +28,15 @@ const TIER_COLORS: Record<string, string> = {
   none: '#EF4444',
 };
 
-type TabKey = 'overview' | 'legislation' | 'votes' | 'finance';
+type TabKey = 'overview' | 'legislation' | 'votes' | 'finance' | 'donors' | 'trades';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'legislation', label: 'Legislation' },
   { key: 'votes', label: 'Voting Record' },
   { key: 'finance', label: 'Finance' },
+  { key: 'donors', label: 'Industry Donors' },
+  { key: 'trades', label: 'Stock Trades' },
 ];
 
 // ── Helpers ──
@@ -377,9 +379,9 @@ export default function PersonProfilePage() {
     <div className="min-h-screen overflow-y-auto">
       {/* ── HEADER ── */}
       <header className="px-6 pt-6 pb-0 lg:px-16 lg:pt-14 lg:pb-0">
-        <div className="flex items-center justify-between mb-6">
+        <PoliticsSectorHeader />
+        <div className="mb-6">
           <BackButton to="/politics/people" label="Representatives" />
-          <PoliticsNav />
         </div>
 
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
@@ -443,7 +445,7 @@ export default function PersonProfilePage() {
             value={
               votesData
                 ? String(
-                    Object.values(votesData.position_summary).reduce((a, b) => a + b, 0)
+                    Object.values(votesData.position_summary).reduce((a, b) => a + (Number(b) || 0), 0)
                   )
                 : '...'
             }
@@ -891,34 +893,14 @@ function BillCard({ entry }: { entry: PersonActivityEntry }) {
     </div>
   );
 
-  // Build Congress.gov URL from bill_id (format: "119-hr-1234")
-  const parts = entry.bill_id?.split('-');
-  const congressNum = parts?.[0];
-  const billType = parts?.[1];
-  const billNum = parts?.[2];
-  const typeMap: Record<string, string> = {
-    hr: 'house-bill', s: 'senate-bill', hjres: 'house-joint-resolution',
-    sjres: 'senate-joint-resolution', hconres: 'house-concurrent-resolution',
-    sconres: 'senate-concurrent-resolution', hres: 'house-resolution', sres: 'senate-resolution',
-  };
-  const congressGovUrl = congressNum && billType && billNum
-    ? `https://www.congress.gov/bill/${congressNum}th-congress/${typeMap[billType] || billType}/${billNum}`
-    : entry.congress_url || null;
-
-  if (congressGovUrl) {
-    return (
-      <a
-        href={congressGovUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="no-underline block"
-      >
-        {content}
-      </a>
-    );
-  }
-
-  return <div>{content}</div>;
+  return (
+    <Link
+      to={`/politics/bill/${entry.bill_id}`}
+      className="no-underline block"
+    >
+      {content}
+    </Link>
+  );
 }
 
 // ══════════════════════════════════════════════
@@ -1095,6 +1077,14 @@ function VoteCard({ vote }: { vote: PersonVoteEntry }) {
             <div className="h-full bg-red-500" style={{ width: `${nayFrac}%` }} />
           </div>
         </div>
+
+        {/* Bill title & summary */}
+        {vote.bill_title && (
+          <p className="mt-2 text-sm font-semibold text-white/80 line-clamp-2">{vote.bill_title}</p>
+        )}
+        {vote.bill_summary && (
+          <p className="mt-1 text-xs text-white/40 line-clamp-3 leading-relaxed">{vote.bill_summary}</p>
+        )}
 
         {/* Meta */}
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-white/30">

@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { apiClient } from "../api/client";
 import type { LedgerClaimResponse } from "../api/types";
 import BackButton from "../components/BackButton";
-import PoliticsNav from "../components/PoliticsNav";
+import { PoliticsSectorHeader } from "../components/SectorHeader";
 
 // ── Tier color config ──────────────────────────────────────────────
 const TIER_COLORS: Record<string, { solid: string; text: string; bg20: string; border30: string }> = {
@@ -114,9 +114,9 @@ const ClaimDetailPage: React.FC = () => {
       <div className="mx-auto w-full max-w-6xl px-6 py-10 flex flex-col flex-1">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between mb-4">
+        <PoliticsSectorHeader />
+        <div className="mb-4">
           <BackButton to={`/politics/people/${claim.person_id}`} label={claim.display_name} />
-          <PoliticsNav />
         </div>
         <div className="flex items-center justify-end mb-10">
           <span className="font-fira-code text-sm text-slate-400 uppercase tracking-widest">

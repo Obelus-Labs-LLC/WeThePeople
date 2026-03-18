@@ -5,15 +5,10 @@ import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { DashboardStats, Person, RecentAction } from '../api/types';
 import SpotlightCard from '../components/SpotlightCard';
-import PoliticsNav from '../components/PoliticsNav';
+import { PoliticsSectorHeader } from '../components/SectorHeader';
+import { fmtNum } from '../utils/format';
 
 // ── Helpers ──
-
-function fmtNum(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toLocaleString();
-}
 
 const PARTY_COLORS: Record<string, string> = {
   D: '#3B82F6',
@@ -97,17 +92,9 @@ export default function PoliticsDashboardPage() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="flex items-center justify-between mb-10"
+          className="mb-10"
         >
-          <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center gap-2 no-underline">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 font-heading text-sm font-black text-white">
-                WP
-              </div>
-              <span className="font-heading text-lg font-bold text-white tracking-wide">POLITICS</span>
-            </Link>
-          </div>
-          <PoliticsNav />
+          <PoliticsSectorHeader />
         </motion.nav>
 
         {/* Hero Section — 2 columns */}
@@ -424,6 +411,19 @@ export default function PoliticsDashboardPage() {
               </div>
             </SpotlightCard>
           </motion.div>
+        </div>
+
+        {/* Data Sources */}
+        <div className="border-t border-white/10 pt-6 mt-8">
+          <span className="font-mono text-xs font-bold tracking-[0.2em] uppercase text-white/30">Data Sources</span>
+          <div className="flex flex-wrap gap-x-8 gap-y-3 mt-4">
+            {['Congress.gov API', 'ProPublica', 'OpenSecrets', 'Federal Election Commission', 'GovTrack'].map((source) => (
+              <div key={source} className="flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
+                <span className="w-1.5 h-1.5 rounded-sm bg-zinc-600" />
+                <span className="font-mono text-xs font-semibold tracking-wider uppercase text-zinc-300">{source}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Footer */}
