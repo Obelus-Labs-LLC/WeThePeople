@@ -37,25 +37,23 @@ interface MetricDef {
 }
 
 const METRICS: MetricDef[] = [
+  // Political Influence (top priority)
+  { category: 'POLITICAL INFLUENCE', label: 'Lobbying Filings', getValue: (c) => fmtNum(c.lobbying_count), color: '#F59E0B' },
+  { category: 'POLITICAL INFLUENCE', label: 'Lobbying Spend', getValue: (c) => fmtDollar(c.lobbying_spend), color: '#F59E0B' },
+  { category: 'POLITICAL INFLUENCE', label: 'Gov Contracts', getValue: (c) => fmtNum(c.contract_count) },
+  { category: 'POLITICAL INFLUENCE', label: 'Contract Value', getValue: (c) => fmtDollar(c.contract_value) },
+  { category: 'POLITICAL INFLUENCE', label: 'Enforcement Actions', getValue: (c) => fmtNum(c.enforcement_count), color: '#DC2626' },
+  { category: 'POLITICAL INFLUENCE', label: 'Total Penalties', getValue: (c) => fmtDollar(c.penalty_total), color: '#DC2626' },
   // Safety & Compliance
   { category: 'SAFETY & COMPLIANCE', label: 'Adverse Events', getValue: (c) => fmtNum(c.adverse_event_count), color: '#DC2626' },
   { category: 'SAFETY & COMPLIANCE', label: 'Serious Events', getValue: (c) => fmtNum(c.serious_event_count), color: '#DC2626' },
-  { category: 'SAFETY & COMPLIANCE', label: 'Serious %', getValue: (c) => c.adverse_event_count > 0 ? `${((c.serious_event_count / c.adverse_event_count) * 100).toFixed(1)}%` : '\u2014', color: '#DC2626' },
   { category: 'SAFETY & COMPLIANCE', label: 'Active Recalls', getValue: (c) => fmtNum(c.recall_count) },
-  { category: 'SAFETY & COMPLIANCE', label: 'SEC Filings', getValue: (c) => fmtNum(c.filing_count) },
   // Clinical Pipeline
   { category: 'CLINICAL PIPELINE', label: 'Total Trials', getValue: (c) => fmtNum(c.trial_count) },
   { category: 'CLINICAL PIPELINE', label: 'Recruiting', getValue: (c) => fmtNum(c.trials_by_status?.['Recruiting'] ?? 0) },
-  { category: 'CLINICAL PIPELINE', label: 'Completed', getValue: (c) => fmtNum(c.trials_by_status?.['Completed'] ?? 0) },
-  // Physician Payments
-  { category: 'PHYSICIAN PAYMENTS', label: 'Total Payments', getValue: (c) => fmtNum(c.payment_count), color: '#3B82F6' },
   // Market Data
   { category: 'MARKET DATA', label: 'Market Cap', getValue: (c) => fmtDollar(c.latest_stock?.market_cap) },
-  { category: 'MARKET DATA', label: 'P/E Ratio', getValue: (c) => c.latest_stock?.pe_ratio != null ? c.latest_stock.pe_ratio.toFixed(2) : '\u2014' },
-  { category: 'MARKET DATA', label: 'EPS', getValue: (c) => c.latest_stock?.eps != null ? `$${c.latest_stock.eps.toFixed(2)}` : '\u2014' },
   { category: 'MARKET DATA', label: 'Profit Margin', getValue: (c) => fmtPct(c.latest_stock?.profit_margin), color: '#10B981' },
-  { category: 'MARKET DATA', label: '52-Week High', getValue: (c) => c.latest_stock?.week_52_high != null ? `$${c.latest_stock.week_52_high.toFixed(2)}` : '\u2014' },
-  { category: 'MARKET DATA', label: '52-Week Low', getValue: (c) => c.latest_stock?.week_52_low != null ? `$${c.latest_stock.week_52_low.toFixed(2)}` : '\u2014' },
 ];
 
 // -- Company Selector Dropdown --
