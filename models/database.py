@@ -596,6 +596,7 @@ class CongressionalTrade(Base):
     transaction_date = Column(Date, nullable=True, index=True)
     owner = Column(String, nullable=True)  # 'Self', 'Spouse', 'Child', 'Joint'
     source_url = Column(String, nullable=True)
+    reporting_gap = Column(String, nullable=True)  # '13 Days', '38 Days' — time between trade and disclosure
 
     dedupe_hash = Column(String, nullable=False, index=True)
 

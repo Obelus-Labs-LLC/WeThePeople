@@ -1662,7 +1662,7 @@ def get_person_trades(
                 "transaction_type": t.transaction_type, "amount_range": t.amount_range,
                 "disclosure_date": str(t.disclosure_date) if t.disclosure_date else None,
                 "transaction_date": str(t.transaction_date) if t.transaction_date else None,
-                "owner": t.owner, "source_url": t.source_url,
+                "owner": t.owner, "source_url": t.source_url, "reporting_gap": t.reporting_gap,
             } for t in trades],
         }
     finally:
@@ -1703,7 +1703,7 @@ def get_all_congressional_trades(
                 "transaction_type": t.transaction_type, "amount_range": t.amount_range,
                 "disclosure_date": str(t.disclosure_date) if t.disclosure_date else None,
                 "transaction_date": str(t.transaction_date) if t.transaction_date else None,
-                "owner": t.owner, "source_url": t.source_url,
+                "owner": t.owner, "source_url": t.source_url, "reporting_gap": t.reporting_gap,
             } for t in trades],
         }
     finally:
