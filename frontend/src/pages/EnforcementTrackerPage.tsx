@@ -1,0 +1,488 @@
+import React, { useEffect, useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { AlertTriangle, Shield, Building2, Calendar, ExternalLink, TrendingUp } from 'lucide-react';
+import { TechSectorHeader } from '../components/SectorHeader';
+import {
+  getTechCompanies,
+  getTechCompanyEnforcement,
+  type TechCompanyListItem,
+  type TechEnforcementItem,
+} from '../api/tech';
+import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
+
+// ── Types ──
+
+interface EnforcementWithCompany extends TechEnforcementItem {
+  company_id: string;
+  company_name: string;
+}
+
+interface CompanyEnforcementStats {
+  company_id: string;
+  company_name: string;
+  totalPenalties: number;
+  actionCount: number;
+}
+
+// ── Animation variants ──
+
+const containerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.05, delayChildren: 0.05 } },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { type: 'spring' as const, stiffness: 120, damping: 22 },
+  },
+};
+
+// ── Severity helpers ──
+
+function getSeverity(penalty: number | null): 'high' | 'medium' | 'low' {
+  if (penalty == null || penalty === 0) return 'low';
+  if (penalty >= 1_000_000_000) return 'high';  // $1B+
+  if (penalty >= 100_000_000) return 'medium';   // $100M+
+  return 'low';
+}
+
+function getSeverityColor(severity: 'high' | 'medium' | 'low'): string {
+  switch (severity) {
+    case 'high': return '#EF4444';
+    case 'medium': return '#F59E0B';
+    case 'low': return '#22C55E';
+  }
+}
+
+function getSeverityLabel(severity: 'high' | 'medium' | 'low'): string {
+  switch (severity) {
+    case 'high': return 'SEVERE';
+    case 'medium': return 'MODERATE';
+    case 'low': return 'MINOR';
+  }
+}
+
+function getSeverityBg(severity: 'high' | 'medium' | 'low'): string {
+  switch (severity) {
+    case 'high': return 'bg-red-500/10 border-red-500/20';
+    case 'medium': return 'bg-amber-500/10 border-amber-500/20';
+    case 'low': return 'bg-green-500/10 border-green-500/20';
+  }
+}
+
+// ── Page ──
+
+export default function EnforcementTrackerPage() {
+  const [allActions, setAllActions] = useState<EnforcementWithCompany[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [severityFilter, setSeverityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [expandedId, setExpandedId] = useState<number | string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadData() {
+      try {
+        const compRes = await getTechCompanies({ limit: 200 });
+        const comps = compRes.companies || [];
+        if (cancelled) return;
+
+        const results = await Promise.allSettled(
+          comps.map((c) =>
+            getTechCompanyEnforcement(c.company_id, { limit: 100 }).then((r) =>
+              (r.actions || []).map((a) => ({
+                ...a,
+                company_id: c.company_id,
+                company_name: c.display_name,
+              })),
+            ),
+          ),
+        );
+
+        if (cancelled) return;
+
+        const combined: EnforcementWithCompany[] = [];
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            combined.push(...result.value);
+          }
+        }
+
+        // Sort by penalty amount descending (largest first)
+        combined.sort((a, b) => (b.penalty_amount || 0) - (a.penalty_amount || 0));
+
+        setAllActions(combined);
+      } catch (e: any) {
+        if (!cancelled) setError(e.message || 'Failed to load enforcement data');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Filtered actions
+  const filtered = useMemo(() => {
+    if (severityFilter === 'all') return allActions;
+    return allActions.filter((a) => getSeverity(a.penalty_amount) === severityFilter);
+  }, [allActions, severityFilter]);
+
+  // Company breakdown
+  const companyStats = useMemo(() => {
+    const statsMap = new Map<string, CompanyEnforcementStats>();
+
+    for (const a of allActions) {
+      const existing = statsMap.get(a.company_id);
+      if (existing) {
+        existing.totalPenalties += a.penalty_amount || 0;
+        existing.actionCount += 1;
+      } else {
+        statsMap.set(a.company_id, {
+          company_id: a.company_id,
+          company_name: a.company_name,
+          totalPenalties: a.penalty_amount || 0,
+          actionCount: 1,
+        });
+      }
+    }
+
+    return Array.from(statsMap.values())
+      .sort((a, b) => b.totalPenalties - a.totalPenalties);
+  }, [allActions]);
+
+  // Severity counts
+  const severityCounts = useMemo(() => {
+    const counts = { high: 0, medium: 0, low: 0 };
+    for (const a of allActions) {
+      counts[getSeverity(a.penalty_amount)] += 1;
+    }
+    return counts;
+  }, [allActions]);
+
+  // Top-level stats
+  const totalPenalties = allActions.reduce((sum, a) => sum + (a.penalty_amount || 0), 0);
+  const totalActions = allActions.length;
+  const uniqueCompanies = new Set(allActions.map((a) => a.company_id)).size;
+  const maxCompanyPenalty = companyStats.length > 0 ? companyStats[0].totalPenalties : 0;
+
+  if (error) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-red-400 mb-2">Failed to load enforcement data</p>
+          <p className="text-sm text-white/50">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded bg-[#8B5CF6] px-4 py-2 text-sm text-white hover:bg-[#7C3AED]"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen">
+      {/* Background decor */}
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <div
+          className="absolute w-full h-full"
+          style={{ background: 'radial-gradient(ellipse at 50% -20%, #8B5CF6 0%, transparent 60%)', opacity: 0.08 }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: 'linear-gradient(#F8FAFC 1px, transparent 1px), linear-gradient(90deg, #F8FAFC 1px, transparent 1px)',
+            backgroundSize: '48px 48px',
+            opacity: 0.025,
+          }}
+        />
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-[1400px] px-8 py-8 md:px-12">
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="flex flex-col gap-8"
+        >
+          {/* Header */}
+          <motion.div variants={itemVariants} className="flex flex-col gap-3">
+            <TechSectorHeader />
+
+            <div className="flex items-center gap-3 mt-1">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-50" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+              </span>
+              <span className="font-heading text-sm font-bold tracking-[0.2em] text-red-400 uppercase">
+                Enforcement Actions
+              </span>
+            </div>
+
+            <h1 className="font-heading text-4xl font-bold tracking-tight text-zinc-50 leading-tight xl:text-5xl">
+              Enforcement Tracker
+            </h1>
+            <p className="font-body text-base text-zinc-400 leading-relaxed max-w-2xl">
+              Regulatory enforcement actions and penalties across all tracked technology companies, color-coded by severity.
+            </p>
+          </motion.div>
+
+          {/* Stat cards */}
+          {loading ? (
+            <div className="grid grid-cols-4 gap-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-24 rounded-xl bg-zinc-900 animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <motion.div variants={containerVariants} className="grid grid-cols-4 gap-4">
+              <motion.div
+                variants={itemVariants}
+                className="group relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-5 flex flex-col gap-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-heading text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">Total Penalties</span>
+                  <TrendingUp size={18} className="text-zinc-500" />
+                </div>
+                <span className="font-mono text-3xl font-semibold text-zinc-100">{fmtDollar(totalPenalties)}</span>
+              </motion.div>
+              <motion.div
+                variants={itemVariants}
+                className="group relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-5 flex flex-col gap-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-heading text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">Actions</span>
+                  <AlertTriangle size={18} className="text-zinc-500" />
+                </div>
+                <span className="font-mono text-3xl font-semibold text-zinc-100">{fmtNum(totalActions)}</span>
+              </motion.div>
+              <motion.div
+                variants={itemVariants}
+                className="group relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-5 flex flex-col gap-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-heading text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">Companies</span>
+                  <Building2 size={18} className="text-zinc-500" />
+                </div>
+                <span className="font-mono text-3xl font-semibold text-zinc-100">{uniqueCompanies}</span>
+              </motion.div>
+              <motion.div
+                variants={itemVariants}
+                className="group relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-5 flex flex-col gap-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-heading text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">Severe Actions</span>
+                  <Shield size={18} className="text-zinc-500" />
+                </div>
+                <span className="font-mono text-3xl font-semibold text-red-400">{severityCounts.high}</span>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* Company breakdown */}
+          {!loading && companyStats.length > 0 && (
+            <motion.div variants={itemVariants}>
+              <h2 className="font-heading text-2xl font-bold tracking-tight uppercase text-zinc-50 mb-2">
+                Penalties by Company
+              </h2>
+              <p className="font-body text-sm text-zinc-500 mb-6">
+                Companies ranked by total penalty amounts
+              </p>
+
+              <div className="flex flex-col gap-2">
+                {companyStats.slice(0, 10).map((comp, idx) => {
+                  const pct = maxCompanyPenalty > 0 ? (comp.totalPenalties / maxCompanyPenalty) * 100 : 0;
+                  const severity = getSeverity(comp.totalPenalties);
+                  const color = getSeverityColor(severity);
+
+                  return (
+                    <motion.div
+                      key={comp.company_id}
+                      variants={itemVariants}
+                      className="group rounded-xl border border-transparent bg-white/[0.03] p-4 transition-all hover:bg-white/[0.06] hover:border-white/10"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <span className="font-mono text-xs text-white/30 w-6 text-right flex-shrink-0">{idx + 1}</span>
+                          <Link
+                            to={`/technology/${comp.company_id}`}
+                            className="font-body text-sm font-medium text-white hover:text-[#8B5CF6] no-underline truncate"
+                          >
+                            {comp.company_name}
+                          </Link>
+                        </div>
+                        <div className="flex items-center gap-4 flex-shrink-0">
+                          <span className="font-mono text-xs text-white/40">{comp.actionCount} actions</span>
+                          <span className="font-mono text-sm font-bold" style={{ color }}>{fmtDollar(comp.totalPenalties)}</span>
+                        </div>
+                      </div>
+                      <div className="h-3 bg-zinc-900 rounded-lg overflow-hidden ml-9">
+                        <motion.div
+                          className="h-full rounded-lg"
+                          style={{ backgroundColor: color }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.max(pct, 1)}%` }}
+                          transition={{ duration: 0.8, delay: idx * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                        />
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Severity filter pills */}
+          {!loading && allActions.length > 0 && (
+            <motion.div variants={itemVariants}>
+              <h2 className="font-heading text-2xl font-bold tracking-tight uppercase text-zinc-50 mb-4">
+                All Enforcement Actions
+              </h2>
+
+              <div className="flex gap-3 mb-6">
+                {(['all', 'high', 'medium', 'low'] as const).map((level) => {
+                  const active = severityFilter === level;
+                  const count = level === 'all' ? totalActions : severityCounts[level];
+                  const color = level === 'all' ? '#FFFFFF' : getSeverityColor(level);
+
+                  return (
+                    <button
+                      key={level}
+                      onClick={() => setSeverityFilter(level)}
+                      className="flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 font-body text-sm font-medium transition-all duration-200"
+                      style={{
+                        borderColor: active ? color : 'rgba(255,255,255,0.1)',
+                        backgroundColor: active ? `${color}15` : 'transparent',
+                        color: active ? color : 'rgba(255,255,255,0.5)',
+                      }}
+                    >
+                      {level === 'all' ? 'All' : getSeverityLabel(level)}
+                      <span
+                        className="rounded-full px-1.5 py-0.5 font-mono text-[10px]"
+                        style={{
+                          backgroundColor: active ? `${color}33` : 'rgba(255,255,255,0.1)',
+                          color: active ? color : 'rgba(255,255,255,0.4)',
+                        }}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Action list */}
+              <div className="flex flex-col gap-3">
+                {filtered.map((action) => {
+                  const severity = getSeverity(action.penalty_amount);
+                  const severityColor = getSeverityColor(severity);
+                  const cardKey = `${action.company_id}-${action.id}`;
+                  const isExpanded = expandedId === cardKey;
+
+                  return (
+                    <motion.div
+                      key={cardKey}
+                      variants={itemVariants}
+                      onClick={() => setExpandedId(isExpanded ? null : cardKey)}
+                      className={`group rounded-xl border p-5 transition-all hover:bg-white/[0.06] cursor-pointer ${getSeverityBg(severity)}`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <span
+                              className="rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase"
+                              style={{
+                                backgroundColor: `${severityColor}20`,
+                                color: severityColor,
+                              }}
+                            >
+                              {getSeverityLabel(severity)}
+                            </span>
+                            <Link
+                              to={`/technology/${action.company_id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="font-mono text-xs text-[#8B5CF6] hover:text-[#A78BFA] no-underline"
+                            >
+                              {action.company_name}
+                            </Link>
+                          </div>
+
+                          <p className="font-body text-base font-medium text-white mb-1">
+                            {action.case_title || 'Enforcement Action'}
+                          </p>
+
+                          <div className="flex items-center gap-4 flex-wrap">
+                            {action.penalty_amount != null && action.penalty_amount > 0 && (
+                              <span className="font-mono text-sm font-bold" style={{ color: severityColor }}>
+                                {fmtDollar(action.penalty_amount)}
+                              </span>
+                            )}
+                            {action.enforcement_type && (
+                              <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-[10px] text-white/50">
+                                {action.enforcement_type}
+                              </span>
+                            )}
+                            {action.case_date && (
+                              <span className="flex items-center gap-1 font-mono text-xs text-white/40">
+                                <Calendar size={12} />{fmtDate(action.case_date)}
+                              </span>
+                            )}
+                            {action.source && (
+                              <span className="font-mono text-xs text-white/30">{action.source}</span>
+                            )}
+                          </div>
+
+                          {action.description && (
+                            <p className={`mt-2 font-body text-sm text-white/50 ${isExpanded ? '' : 'line-clamp-3'}`}>{action.description}</p>
+                          )}
+                        </div>
+
+                        {action.case_url && (
+                          <a
+                            href={action.case_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/10 transition-colors hover:bg-white/20"
+                          >
+                            <ExternalLink size={14} className="text-white" />
+                          </a>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Loading state */}
+          {loading && (
+            <div className="flex flex-col gap-3">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-28 rounded-xl bg-zinc-900 animate-pulse" />
+              ))}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loading && allActions.length === 0 && (
+            <motion.div variants={itemVariants} className="flex flex-col items-center justify-center py-20">
+              <Shield size={48} className="text-white/20 mb-4" />
+              <p className="font-body text-xl text-white/40">No enforcement actions found</p>
+            </motion.div>
+          )}
+        </motion.div>
+      </div>
+    </div>
+  );
+}

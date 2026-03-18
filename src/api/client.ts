@@ -37,6 +37,12 @@ import type {
   LobbyingSummary,
   EnforcementResponse,
   TechComparisonResponse,
+  EnergyDashboardStats,
+  EnergyCompaniesResponse,
+  EnergyCompanyDetail,
+  EmissionsResponse,
+  EmissionsSummary,
+  EnergyComparisonResponse,
   NewsResponse,
   BillDetail,
   PersonVotesResponse,
@@ -472,6 +478,117 @@ class WTPClient {
   async getTechComparison(ids: string[]): Promise<TechComparisonResponse> {
     return this.fetchJSON<TechComparisonResponse>(
       `${this.baseUrl}/tech/compare?ids=${ids.join(',')}`
+    );
+  }
+
+  // ── Energy Sector ──
+
+  async getEnergyDashboardStats(): Promise<EnergyDashboardStats> {
+    return this.fetchJSON<EnergyDashboardStats>(`${this.baseUrl}/energy/dashboard/stats`);
+  }
+
+  async getEnergyCompanies(params?: {
+    limit?: number; offset?: number; q?: string; sector_type?: string;
+  }): Promise<EnergyCompaniesResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    if (params?.q) sp.set('q', params.q);
+    if (params?.sector_type) sp.set('sector_type', params.sector_type);
+    return this.fetchJSON<EnergyCompaniesResponse>(`${this.baseUrl}/energy/companies?${sp}`);
+  }
+
+  async getEnergyCompanyDetail(id: string): Promise<EnergyCompanyDetail> {
+    return this.fetchJSON<EnergyCompanyDetail>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}`
+    );
+  }
+
+  async getEnergyCompanyFilings(
+    id: string, params?: { form_type?: string; limit?: number; offset?: number }
+  ): Promise<FilingsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.form_type) sp.set('form_type', params.form_type);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<FilingsResponse>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}/filings?${sp}`
+    );
+  }
+
+  async getEnergyCompanyEmissions(
+    id: string, params?: { reporting_year?: number; limit?: number; offset?: number }
+  ): Promise<EmissionsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.reporting_year !== undefined) sp.set('reporting_year', params.reporting_year.toString());
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<EmissionsResponse>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}/emissions?${sp}`
+    );
+  }
+
+  async getEnergyCompanyEmissionsSummary(id: string): Promise<EmissionsSummary> {
+    return this.fetchJSON<EmissionsSummary>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}/emissions/summary`
+    );
+  }
+
+  async getEnergyCompanyContracts(
+    id: string, params?: { limit?: number; offset?: number }
+  ): Promise<ContractsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<ContractsResponse>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}/contracts?${sp}`
+    );
+  }
+
+  async getEnergyCompanyContractSummary(id: string): Promise<ContractSummary> {
+    return this.fetchJSON<ContractSummary>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}/contracts/summary`
+    );
+  }
+
+  async getEnergyCompanyLobbying(
+    id: string, params?: { filing_year?: number; limit?: number; offset?: number }
+  ): Promise<LobbyingResponse> {
+    const sp = new URLSearchParams();
+    if (params?.filing_year !== undefined) sp.set('filing_year', params.filing_year.toString());
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<LobbyingResponse>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}/lobbying?${sp}`
+    );
+  }
+
+  async getEnergyCompanyLobbySummary(id: string): Promise<LobbyingSummary> {
+    return this.fetchJSON<LobbyingSummary>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}/lobbying/summary`
+    );
+  }
+
+  async getEnergyCompanyEnforcement(
+    id: string, params?: { limit?: number; offset?: number }
+  ): Promise<EnforcementResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<EnforcementResponse>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}/enforcement?${sp}`
+    );
+  }
+
+  async getEnergyCompanyStock(id: string): Promise<StockResponse> {
+    return this.fetchJSON<StockResponse>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}/stock`
+    );
+  }
+
+  async getEnergyComparison(ids: string[]): Promise<EnergyComparisonResponse> {
+    return this.fetchJSON<EnergyComparisonResponse>(
+      `${this.baseUrl}/energy/compare?ids=${ids.join(',')}`
     );
   }
 

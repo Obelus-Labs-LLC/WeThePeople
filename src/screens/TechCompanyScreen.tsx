@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity, FlatList,
   StyleSheet, RefreshControl, Linking,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { UI_COLORS } from '../constants/colors';
+import { UI_COLORS, TECH_SECTOR_COLORS, ENFORCEMENT_SOURCE_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type {
   TechCompanyDetail, SECFiling, TechPatentItem,
@@ -15,14 +15,6 @@ import type {
 } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
-
-const SECTOR_COLORS: Record<string, string> = {
-  platform: '#8B5CF6',
-  enterprise: '#2563EB',
-  semiconductor: '#F59E0B',
-  automotive: '#10B981',
-  media: '#EC4899',
-};
 
 type Tab = 'overview' | 'patents' | 'contracts' | 'lobbying' | 'enforcement';
 
@@ -84,7 +76,7 @@ export default function TechCompanyScreen() {
 
   // Load filings + news on mount for overview
   useEffect(() => {
-    apiClient.getTechCompanyFilings(companyId, { limit: 5 })
+    apiClient.getTechCompanyFilings(companyId, { limit: 20 })
       .then((res) => setFilings(res.filings || []))
       .catch(() => {});
   }, [companyId]);
@@ -161,9 +153,9 @@ export default function TechCompanyScreen() {
   const onRefresh = () => { setRefreshing(true); loadCompany(); };
 
   if (loading) return <LoadingSpinner message="Loading company..." />;
-  if (error || !company) return <EmptyState title="Error" message={error || 'Company not found'} />;
+  if (error || !company) return <EmptyState title="Error" message={error || 'Company not found'} onRetry={loadCompany} />;
 
-  const sectorColor = SECTOR_COLORS[company.sector_type] || '#6B7280';
+  const sectorColor = TECH_SECTOR_COLORS[company.sector_type] || '#6B7280';
 
   const TABS: { key: Tab; label: string; icon: string }[] = [
     { key: 'overview', label: 'Overview', icon: 'grid-outline' },
@@ -187,6 +179,9 @@ export default function TechCompanyScreen() {
             key={t.key}
             style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
             onPress={() => setTab(t.key)}
+            accessibilityRole="tab"
+            accessibilityLabel={t.label}
+            accessibilityState={{ selected: tab === t.key }}
           >
             <Ionicons
               name={t.icon as any}
@@ -244,17 +239,17 @@ function renderOverview(
     <View style={styles.tabContent}>
       {/* Stats row */}
       <View style={styles.statsRow}>
-        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('patents')}>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('patents')} accessibilityRole="button" accessibilityLabel="View Patents">
           <Ionicons name="bulb-outline" size={18} color="#F59E0B" />
           <Text style={styles.miniStatVal}>{company.patent_count}</Text>
           <Text style={styles.miniStatLabel}>Patents</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('contracts')}>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('contracts')} accessibilityRole="button" accessibilityLabel="View Contracts">
           <Ionicons name="document-text-outline" size={18} color="#2563EB" />
           <Text style={styles.miniStatVal}>{company.contract_count}</Text>
           <Text style={styles.miniStatLabel}>Contracts</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('lobbying')}>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('lobbying')} accessibilityRole="button" accessibilityLabel="View Filings">
           <Ionicons name="folder-outline" size={18} color="#8B5CF6" />
           <Text style={styles.miniStatVal}>{company.filing_count}</Text>
           <Text style={styles.miniStatLabel}>Filings</Text>
@@ -307,6 +302,36 @@ function renderOverview(
                 <Text style={styles.stockVal}>{(company.latest_stock.profit_margin * 100).toFixed(1)}%</Text>
               </View>
             )}
+            {company.latest_stock.forward_pe != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>Forward P/E</Text>
+                <Text style={styles.stockVal}>{company.latest_stock.forward_pe.toFixed(1)}</Text>
+              </View>
+            )}
+            {company.latest_stock.revenue_ttm != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>Revenue (TTM)</Text>
+                <Text style={styles.stockVal}>${formatLargeNum(company.latest_stock.revenue_ttm)}</Text>
+              </View>
+            )}
+            {company.latest_stock.operating_margin != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>Op. Margin</Text>
+                <Text style={styles.stockVal}>{(company.latest_stock.operating_margin * 100).toFixed(1)}%</Text>
+              </View>
+            )}
+            {company.latest_stock.dividend_yield != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>Div Yield</Text>
+                <Text style={styles.stockVal}>{(company.latest_stock.dividend_yield * 100).toFixed(2)}%</Text>
+              </View>
+            )}
+            {company.latest_stock.return_on_equity != null && (
+              <View style={styles.stockItem}>
+                <Text style={styles.stockLabel}>ROE</Text>
+                <Text style={styles.stockVal}>{(company.latest_stock.return_on_equity * 100).toFixed(1)}%</Text>
+              </View>
+            )}
             {company.latest_stock.week_52_high != null && (
               <View style={styles.stockItem}>
                 <Text style={styles.stockLabel}>52W High</Text>
@@ -338,6 +363,7 @@ function renderOverview(
               key={idx}
               style={styles.newsRow}
               onPress={() => article.link && Linking.openURL(article.link)}
+              accessibilityRole="link"
             >
               <View style={{ flex: 1 }}>
                 <Text style={styles.newsTitle} numberOfLines={2}>{article.title}</Text>
@@ -371,6 +397,7 @@ function renderOverview(
                 style={styles.filingRow}
                 onPress={() => filingUrl && Linking.openURL(filingUrl)}
                 disabled={!filingUrl}
+                accessibilityRole="link"
               >
                 <View style={styles.filingTypeBadge}>
                   <Text style={styles.filingTypeText}>{f.form_type}</Text>
@@ -422,43 +449,48 @@ function renderPatents(
       {filtered.length === 0 ? (
         <EmptyState title="No patents found" message="No USPTO patents on record." />
       ) : (
-        filtered.map((p) => {
-          const patentUrl = p.patent_number
-            ? `https://patents.google.com/patent/US${p.patent_number.replace(/[^0-9A-Za-z]/g, '')}`
-            : null;
-          return (
-            <TouchableOpacity
-              key={p.id}
-              style={styles.card}
-              onPress={() => patentUrl && Linking.openURL(patentUrl)}
-              disabled={!patentUrl}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Text style={styles.patentNum}>#{p.patent_number}</Text>
-                {p.num_claims != null && (
-                  <View style={styles.claimsBadge}>
-                    <Text style={styles.claimsBadgeText}>{p.num_claims} claims</Text>
-                  </View>
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          scrollEnabled={false}
+          renderItem={({ item: p }) => {
+            const patentUrl = p.patent_number
+              ? `https://patents.google.com/patent/US${p.patent_number.replace(/[^0-9A-Za-z]/g, '')}`
+              : null;
+            return (
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() => patentUrl && Linking.openURL(patentUrl)}
+                disabled={!patentUrl}
+                accessibilityRole="link"
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <Text style={styles.patentNum}>#{p.patent_number}</Text>
+                  {p.num_claims != null && (
+                    <View style={styles.claimsBadge}>
+                      <Text style={styles.claimsBadgeText}>{p.num_claims} claims</Text>
+                    </View>
+                  )}
+                </View>
+                {p.patent_title && (
+                  <Text style={styles.patentTitle} numberOfLines={2}>{p.patent_title}</Text>
                 )}
-              </View>
-              {p.patent_title && (
-                <Text style={styles.patentTitle} numberOfLines={2}>{p.patent_title}</Text>
-              )}
-              {p.patent_abstract && (
-                <Text style={styles.cardText} numberOfLines={3}>{p.patent_abstract}</Text>
-              )}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-                {p.patent_date && <Text style={styles.cardDate}>Granted: {p.patent_date}</Text>}
-                {patentUrl && (
-                  <View style={styles.sourceLink}>
-                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
-                    <Text style={styles.sourceLinkText}>Google Patents</Text>
-                  </View>
+                {p.patent_abstract && (
+                  <Text style={styles.cardText} numberOfLines={3}>{p.patent_abstract}</Text>
                 )}
-              </View>
-            </TouchableOpacity>
-          );
-        })
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                  {p.patent_date && <Text style={styles.cardDate}>Granted: {p.patent_date}</Text>}
+                  {patentUrl && (
+                    <View style={styles.sourceLink}>
+                      <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                      <Text style={styles.sourceLinkText}>Google Patents</Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
       )}
     </View>
   );
@@ -550,50 +582,55 @@ function renderContracts(
             {filteredContracts.length === 0 ? (
               <EmptyState title="No contracts found" message="No USASpending contract records." />
             ) : (
-              filteredContracts.map((ct) => {
-          const contractUrl = ct.award_id
-            ? `https://www.usaspending.gov/award/${ct.award_id}`
-            : null;
-          return (
-            <TouchableOpacity
-              key={ct.id}
-              style={styles.card}
-              onPress={() => contractUrl && Linking.openURL(contractUrl)}
-              disabled={!contractUrl}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                {ct.award_amount != null && (
-                  <Text style={styles.contractAmount}>
-                    ${ct.award_amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </Text>
-                )}
-                {ct.contract_type && (
-                  <View style={styles.contractTypeBadge}>
-                    <Text style={styles.contractTypeText}>{ct.contract_type}</Text>
-                  </View>
-                )}
-              </View>
-              {ct.awarding_agency && (
-                <Text style={styles.agencyName}>{ct.awarding_agency}</Text>
-              )}
-              {ct.description && (
-                <Text style={styles.cardText} numberOfLines={3}>{ct.description}</Text>
-              )}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                <View style={{ flexDirection: 'row', gap: 12 }}>
-                  {ct.start_date && <Text style={styles.cardDate}>Start: {ct.start_date}</Text>}
-                  {ct.end_date && <Text style={styles.cardDate}>End: {ct.end_date}</Text>}
-                </View>
-                {contractUrl && (
-                  <View style={styles.sourceLink}>
-                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
-                    <Text style={styles.sourceLinkText}>USASpending</Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })
+              <FlatList
+                data={filteredContracts}
+                keyExtractor={(item) => String(item.id)}
+                scrollEnabled={false}
+                renderItem={({ item: ct }) => {
+                  const contractUrl = ct.award_id
+                    ? `https://www.usaspending.gov/award/${ct.award_id}`
+                    : null;
+                  return (
+                    <TouchableOpacity
+                      style={styles.card}
+                      onPress={() => contractUrl && Linking.openURL(contractUrl)}
+                      disabled={!contractUrl}
+                      accessibilityRole="link"
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        {ct.award_amount != null && (
+                          <Text style={styles.contractAmount}>
+                            ${ct.award_amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </Text>
+                        )}
+                        {ct.contract_type && (
+                          <View style={styles.contractTypeBadge}>
+                            <Text style={styles.contractTypeText}>{ct.contract_type}</Text>
+                          </View>
+                        )}
+                      </View>
+                      {ct.awarding_agency && (
+                        <Text style={styles.agencyName}>{ct.awarding_agency}</Text>
+                      )}
+                      {ct.description && (
+                        <Text style={styles.cardText} numberOfLines={3}>{ct.description}</Text>
+                      )}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                          {ct.start_date && <Text style={styles.cardDate}>Start: {ct.start_date}</Text>}
+                          {ct.end_date && <Text style={styles.cardDate}>End: {ct.end_date}</Text>}
+                        </View>
+                        {contractUrl && (
+                          <View style={styles.sourceLink}>
+                            <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                            <Text style={styles.sourceLinkText}>USASpending</Text>
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
             )}
           </>
         );
@@ -663,54 +700,59 @@ function renderLobbying(
       {filings.length === 0 ? (
         <EmptyState title="No lobbying filings" message="No Senate LDA filings on record." />
       ) : (
-        filings.map((f) => {
-          const lobbyUrl = f.filing_uuid
-            ? `https://lda.senate.gov/filings/filing/${f.filing_uuid}/`
-            : null;
-          return (
-            <TouchableOpacity
-              key={f.id}
-              style={styles.card}
-              onPress={() => lobbyUrl && Linking.openURL(lobbyUrl)}
-              disabled={!lobbyUrl}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={styles.yearBadge}>
-                    <Text style={styles.yearBadgeText}>{f.filing_year}</Text>
+        <FlatList
+          data={filings}
+          keyExtractor={(item) => String(item.id)}
+          scrollEnabled={false}
+          renderItem={({ item: f }) => {
+            const lobbyUrl = f.filing_uuid
+              ? `https://lda.senate.gov/filings/filing/${f.filing_uuid}/`
+              : null;
+            return (
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() => lobbyUrl && Linking.openURL(lobbyUrl)}
+                disabled={!lobbyUrl}
+                accessibilityRole="link"
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={styles.yearBadge}>
+                      <Text style={styles.yearBadgeText}>{f.filing_year}</Text>
+                    </View>
+                    {f.filing_period && (
+                      <Text style={styles.periodText}>{f.filing_period}</Text>
+                    )}
                   </View>
-                  {f.filing_period && (
-                    <Text style={styles.periodText}>{f.filing_period}</Text>
+                  {f.income != null && f.income > 0 && (
+                    <Text style={styles.lobbyAmount}>${formatLargeNum(f.income)}</Text>
                   )}
                 </View>
-                {f.income != null && f.income > 0 && (
-                  <Text style={styles.lobbyAmount}>${formatLargeNum(f.income)}</Text>
+                {f.registrant_name && (
+                  <Text style={styles.firmName}>{f.registrant_name}</Text>
                 )}
-              </View>
-              {f.registrant_name && (
-                <Text style={styles.firmName}>{f.registrant_name}</Text>
-              )}
-              {f.lobbying_issues && (
-                <Text style={styles.cardText} numberOfLines={2}>
-                  Issues: {f.lobbying_issues}
-                </Text>
-              )}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-                {f.government_entities && (
-                  <Text style={styles.cardDate} numberOfLines={1}>
-                    Entities: {f.government_entities}
+                {f.lobbying_issues && (
+                  <Text style={styles.cardText} numberOfLines={2}>
+                    Issues: {f.lobbying_issues}
                   </Text>
                 )}
-                {lobbyUrl && (
-                  <View style={styles.sourceLink}>
-                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
-                    <Text style={styles.sourceLinkText}>Senate LDA</Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                  {f.government_entities && (
+                    <Text style={styles.cardDate} numberOfLines={1}>
+                      Entities: {f.government_entities}
+                    </Text>
+                  )}
+                  {lobbyUrl && (
+                    <View style={styles.sourceLink}>
+                      <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                      <Text style={styles.sourceLinkText}>Senate LDA</Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
       )}
     </View>
   );
@@ -726,12 +768,7 @@ function renderEnforcement(
 ) {
   if (loading) return <LoadingSpinner message="Loading enforcement data..." />;
 
-  const SOURCE_COLORS: Record<string, string> = {
-    FTC: '#DC2626',
-    DOJ: '#7C3AED',
-    'FTC/State AGs': '#EA580C',
-    'Private/Court': '#6B7280',
-  };
+  const SOURCE_COLORS = ENFORCEMENT_SOURCE_COLORS;
 
   return (
     <View style={styles.tabContent}>
@@ -775,45 +812,50 @@ function renderEnforcement(
             {filteredActions.length === 0 ? (
               <EmptyState title="No enforcement actions" message="No regulatory enforcement on record." />
             ) : (
-              filteredActions.map((a) => {
-          const srcColor = SOURCE_COLORS[a.source || ''] || '#6B7280';
-          return (
-            <TouchableOpacity
-              key={a.id}
-              style={styles.card}
-              onPress={() => a.case_url && Linking.openURL(a.case_url)}
-              disabled={!a.case_url}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                {a.source && (
-                  <View style={[styles.sourceBadge, { backgroundColor: srcColor + '15', borderColor: srcColor + '30' }]}>
-                    <Text style={[styles.sourceBadgeText, { color: srcColor }]}>{a.source}</Text>
-                  </View>
-                )}
-                {a.enforcement_type && (
-                  <View style={styles.enfTypeBadge}>
-                    <Text style={styles.enfTypeText}>{a.enforcement_type}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.caseTitle}>{a.case_title}</Text>
-              {a.penalty_amount != null && a.penalty_amount > 0 && (
-                <Text style={styles.penaltyAmount}>
-                  Penalty: ${a.penalty_amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </Text>
-              )}
-              {a.description && (
-                <Text style={styles.cardText} numberOfLines={3}>{a.description}</Text>
-              )}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-                {a.case_date && <Text style={styles.cardDate}>{a.case_date}</Text>}
-                {a.case_url && (
-                  <Ionicons name="open-outline" size={12} color={UI_COLORS.TEXT_MUTED} />
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })
+              <FlatList
+                data={filteredActions}
+                keyExtractor={(item) => String(item.id)}
+                scrollEnabled={false}
+                renderItem={({ item: a }) => {
+                  const srcColor = SOURCE_COLORS[a.source || ''] || '#6B7280';
+                  return (
+                    <TouchableOpacity
+                      style={styles.card}
+                      onPress={() => a.case_url && Linking.openURL(a.case_url)}
+                      disabled={!a.case_url}
+                      accessibilityRole="link"
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        {a.source && (
+                          <View style={[styles.sourceBadge, { backgroundColor: srcColor + '15', borderColor: srcColor + '30' }]}>
+                            <Text style={[styles.sourceBadgeText, { color: srcColor }]}>{a.source}</Text>
+                          </View>
+                        )}
+                        {a.enforcement_type && (
+                          <View style={styles.enfTypeBadge}>
+                            <Text style={styles.enfTypeText}>{a.enforcement_type}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.caseTitle}>{a.case_title}</Text>
+                      {a.penalty_amount != null && a.penalty_amount > 0 && (
+                        <Text style={styles.penaltyAmount}>
+                          Penalty: ${a.penalty_amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </Text>
+                      )}
+                      {a.description && (
+                        <Text style={styles.cardText} numberOfLines={3}>{a.description}</Text>
+                      )}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                        {a.case_date && <Text style={styles.cardDate}>{a.case_date}</Text>}
+                        {a.case_url && (
+                          <Ionicons name="open-outline" size={12} color={UI_COLORS.TEXT_MUTED} />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
             )}
           </>
         );

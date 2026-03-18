@@ -15,7 +15,11 @@ from models.finance_models import (
     CFPBComplaint,
     FREDObservation,
     FedPressRelease,
+    FinanceLobbyingRecord,
+    FinanceGovernmentContract,
+    FinanceEnforcement,
 )
+from models.database import CompanyDonation
 from models.market_models import StockFundamentals
 
 router = APIRouter(prefix="/finance", tags=["finance"])
@@ -33,6 +37,15 @@ def get_finance_dashboard_stats():
         total_fred = db.query(func.count(FREDObservation.id)).scalar() or 0
         total_press = db.query(func.count(FedPressRelease.id)).scalar() or 0
 
+        # Political data counts
+        total_lobbying = db.query(func.count(FinanceLobbyingRecord.id)).scalar() or 0
+        total_lobbying_spend = db.query(func.sum(FinanceLobbyingRecord.income)).scalar() or 0
+        total_contracts = db.query(func.count(FinanceGovernmentContract.id)).scalar() or 0
+        total_contract_value = db.query(func.sum(FinanceGovernmentContract.award_amount)).scalar() or 0
+        total_enforcement = db.query(func.count(FinanceEnforcement.id)).scalar() or 0
+        total_penalties = db.query(func.sum(FinanceEnforcement.penalty_amount)).scalar() or 0
+        total_insider_trades = db.query(func.count(SECInsiderTrade.id)).scalar() or 0
+
         by_sector = dict(
             db.query(TrackedInstitution.sector_type, func.count(TrackedInstitution.id))
             .filter(TrackedInstitution.is_active == 1)
@@ -43,6 +56,10 @@ def get_finance_dashboard_stats():
             "total_institutions": total_institutions, "total_filings": total_filings,
             "total_financials": total_financials, "total_complaints": total_complaints,
             "total_fred_observations": total_fred, "total_press_releases": total_press,
+            "total_lobbying": total_lobbying, "total_lobbying_spend": total_lobbying_spend,
+            "total_contracts": total_contracts, "total_contract_value": total_contract_value,
+            "total_enforcement": total_enforcement, "total_penalties": total_penalties,
+            "total_insider_trades": total_insider_trades,
             "by_sector": by_sector,
         }
     finally:
@@ -612,5 +629,168 @@ def get_finance_comparison(ids: str = Query(..., description="Comma-separated in
             })
 
         return {"institutions": results}
+    finally:
+        db.close()
+
+
+# ── Political data endpoints ──────────────────────────────────────────────
+
+
+@router.get("/institutions/{institution_id}/lobbying")
+def get_institution_lobbying(
+    institution_id: str, filing_year: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """Lobbying disclosure filings for an institution."""
+    db = SessionLocal()
+    try:
+        inst = db.query(TrackedInstitution).filter_by(institution_id=institution_id).first()
+        if not inst:
+            raise HTTPException(status_code=404, detail="Institution not found")
+        query = db.query(FinanceLobbyingRecord).filter_by(institution_id=institution_id)
+        if filing_year:
+            query = query.filter(FinanceLobbyingRecord.filing_year == filing_year)
+        total = query.count()
+        records = query.order_by(desc(FinanceLobbyingRecord.filing_year), FinanceLobbyingRecord.filing_period).offset(offset).limit(limit).all()
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "filings": [{
+                "id": r.id, "filing_uuid": r.filing_uuid, "filing_year": r.filing_year,
+                "filing_period": r.filing_period, "income": r.income, "expenses": r.expenses,
+                "registrant_name": r.registrant_name, "client_name": r.client_name,
+                "lobbying_issues": r.lobbying_issues, "government_entities": r.government_entities,
+            } for r in records],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/lobbying/summary")
+def get_institution_lobbying_summary(institution_id: str):
+    """Lobbying spend summary by year and top firms."""
+    db = SessionLocal()
+    try:
+        inst = db.query(TrackedInstitution).filter_by(institution_id=institution_id).first()
+        if not inst:
+            raise HTTPException(status_code=404, detail="Institution not found")
+        total_filings = db.query(FinanceLobbyingRecord).filter_by(institution_id=institution_id).count()
+        total_income = db.query(func.sum(FinanceLobbyingRecord.income)).filter_by(institution_id=institution_id).scalar() or 0
+        by_year = {}
+        rows = db.query(
+            FinanceLobbyingRecord.filing_year, func.sum(FinanceLobbyingRecord.income), func.count(),
+        ).filter_by(institution_id=institution_id).group_by(FinanceLobbyingRecord.filing_year).order_by(FinanceLobbyingRecord.filing_year).all()
+        for year, income, count in rows:
+            by_year[str(year)] = {"income": income or 0, "filings": count}
+        top_firms = {}
+        rows = db.query(
+            FinanceLobbyingRecord.registrant_name, func.sum(FinanceLobbyingRecord.income), func.count(),
+        ).filter_by(institution_id=institution_id).group_by(FinanceLobbyingRecord.registrant_name).order_by(func.sum(FinanceLobbyingRecord.income).desc()).limit(10).all()
+        for name, income, count in rows:
+            if name:
+                top_firms[name] = {"income": income or 0, "filings": count}
+        return {"total_filings": total_filings, "total_income": total_income, "by_year": by_year, "top_firms": top_firms}
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/contracts")
+def get_institution_contracts(
+    institution_id: str, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0),
+):
+    """Government contracts awarded to an institution."""
+    db = SessionLocal()
+    try:
+        inst = db.query(TrackedInstitution).filter_by(institution_id=institution_id).first()
+        if not inst:
+            raise HTTPException(status_code=404, detail="Institution not found")
+        query = db.query(FinanceGovernmentContract).filter_by(institution_id=institution_id)
+        total = query.count()
+        contracts = query.order_by(desc(FinanceGovernmentContract.award_amount)).offset(offset).limit(limit).all()
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "contracts": [{
+                "id": ct.id, "award_id": ct.award_id, "award_amount": ct.award_amount,
+                "awarding_agency": ct.awarding_agency, "description": ct.description,
+                "start_date": str(ct.start_date) if ct.start_date else None,
+                "end_date": str(ct.end_date) if ct.end_date else None, "contract_type": ct.contract_type,
+            } for ct in contracts],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/contracts/summary")
+def get_institution_contract_summary(institution_id: str):
+    """Contract summary with totals and breakdown by agency."""
+    db = SessionLocal()
+    try:
+        inst = db.query(TrackedInstitution).filter_by(institution_id=institution_id).first()
+        if not inst:
+            raise HTTPException(status_code=404, detail="Institution not found")
+        total_contracts = db.query(FinanceGovernmentContract).filter_by(institution_id=institution_id).count()
+        total_amount = db.query(func.sum(FinanceGovernmentContract.award_amount)).filter_by(institution_id=institution_id).scalar() or 0
+        by_agency = {}
+        rows = db.query(FinanceGovernmentContract.awarding_agency, func.count()).filter_by(
+            institution_id=institution_id
+        ).group_by(FinanceGovernmentContract.awarding_agency).order_by(func.count().desc()).limit(10).all()
+        for agency, count in rows:
+            if agency:
+                by_agency[agency] = count
+        return {"total_contracts": total_contracts, "total_amount": total_amount, "by_agency": by_agency}
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/enforcement")
+def get_institution_enforcement(
+    institution_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """Enforcement actions against an institution (CFPB, SEC, OCC, DOJ)."""
+    db = SessionLocal()
+    try:
+        inst = db.query(TrackedInstitution).filter_by(institution_id=institution_id).first()
+        if not inst:
+            raise HTTPException(status_code=404, detail="Institution not found")
+        query = db.query(FinanceEnforcement).filter_by(institution_id=institution_id)
+        total = query.count()
+        actions = query.order_by(desc(FinanceEnforcement.case_date)).offset(offset).limit(limit).all()
+        total_penalties = db.query(func.sum(FinanceEnforcement.penalty_amount)).filter_by(institution_id=institution_id).scalar() or 0
+        return {
+            "total": total, "total_penalties": total_penalties, "limit": limit, "offset": offset,
+            "actions": [{
+                "id": a.id, "case_title": a.case_title,
+                "case_date": str(a.case_date) if a.case_date else None,
+                "case_url": a.case_url, "enforcement_type": a.enforcement_type,
+                "penalty_amount": a.penalty_amount, "description": a.description, "source": a.source,
+            } for a in actions],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/institutions/{institution_id}/donations")
+def get_institution_donations(
+    institution_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """PAC/corporate donations from an institution to politicians."""
+    db = SessionLocal()
+    try:
+        inst = db.query(TrackedInstitution).filter_by(institution_id=institution_id).first()
+        if not inst:
+            raise HTTPException(status_code=404, detail="Institution not found")
+        query = db.query(CompanyDonation).filter_by(entity_type="finance", entity_id=institution_id)
+        total = query.count()
+        donations = query.order_by(desc(CompanyDonation.amount)).offset(offset).limit(limit).all()
+        total_amount = db.query(func.sum(CompanyDonation.amount)).filter_by(entity_type="finance", entity_id=institution_id).scalar() or 0
+        return {
+            "total": total, "total_amount": total_amount, "limit": limit, "offset": offset,
+            "donations": [{
+                "id": d.id, "committee_name": d.committee_name, "committee_id": d.committee_id,
+                "candidate_name": d.candidate_name, "candidate_id": d.candidate_id,
+                "person_id": d.person_id, "amount": d.amount, "cycle": d.cycle,
+                "donation_date": str(d.donation_date) if d.donation_date else None,
+                "source_url": d.source_url,
+            } for d in donations],
+        }
     finally:
         db.close()

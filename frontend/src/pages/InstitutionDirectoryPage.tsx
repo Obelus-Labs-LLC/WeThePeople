@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { Search, Building2, MapPin, SearchX, ArrowLeft } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
-import FinanceNav from '../components/FinanceNav';
+import { FinanceSectorHeader } from '../components/SectorHeader';
+import { LOCAL_LOGOS } from '../data/financeLogos';
 import {
   getInstitutions,
   type InstitutionListItem,
@@ -29,6 +30,12 @@ const SECTOR_LABELS: Record<string, string> = {
 
 function sectorColor(type: string): string {
   return SECTOR_COLORS[type] || '#34D399';
+}
+
+function instLogoUrl(inst: { institution_id: string; logo_url?: string | null; display_name: string }): string {
+  if (LOCAL_LOGOS.has(inst.institution_id)) return `/logos/${inst.institution_id}.png`;
+  if (inst.logo_url) return inst.logo_url;
+  return '';
 }
 
 // ── Filter Pill ──
@@ -99,9 +106,9 @@ function InstitutionCard({
             {/* Top row: logo + sector tag */}
             <div className="flex items-start justify-between mb-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#111111] border border-white/5">
-                {inst.logo_url ? (
+                {instLogoUrl(inst) ? (
                   <img
-                    src={inst.logo_url}
+                    src={instLogoUrl(inst)}
                     alt={inst.display_name}
                     className="h-8 w-8 rounded object-contain"
                   />
@@ -215,14 +222,7 @@ export default function InstitutionDirectoryPage() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
-        {/* Back to Sectors */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 font-body text-sm text-white/50 hover:text-white transition-colors no-underline mb-4 animate-fade-up"
-        >
-          <ArrowLeft size={16} />
-          Back to Sectors
-        </Link>
+        <FinanceSectorHeader />
 
         {/* Header */}
         <motion.div
@@ -258,9 +258,6 @@ export default function InstitutionDirectoryPage() {
             </div>
           </div>
         </motion.div>
-
-        {/* Navigation Tabs */}
-        <FinanceNav />
 
         {/* Sector filters */}
         <motion.div

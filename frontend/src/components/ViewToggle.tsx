@@ -52,7 +52,7 @@ export default function ViewToggle({ mode, onChange }: ViewToggleProps) {
               />
             ))}
             <span className="icon">
-              {isChecked ? <LayoutGrid size={16} /> : <Globe size={16} />}
+              {isChecked ? <LayoutGrid size={11} /> : <Globe size={11} />}
             </span>
           </span>
         </label>

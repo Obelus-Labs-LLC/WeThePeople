@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Animated,
+  TouchableOpacity,
 } from 'react-native';
 import { UI_COLORS, TIER_COLORS, PARTY_COLORS, ACCENT_COLORS } from '../constants/colors';
 
@@ -19,11 +20,16 @@ export function LoadingSpinner({ message }: { message?: string }) {
 }
 
 // ── Empty State ──
-export function EmptyState({ title, message }: { title: string; message?: string }) {
+export function EmptyState({ title, message, onRetry }: { title: string; message?: string; onRetry?: () => void }) {
   return (
     <View style={uiStyles.emptyContainer}>
       <Text style={uiStyles.emptyTitle}>{title}</Text>
       {message && <Text style={uiStyles.emptyMessage}>{message}</Text>}
+      {onRetry && (
+        <TouchableOpacity onPress={onRetry} style={uiStyles.retryBtn} accessibilityRole="button" accessibilityLabel="Retry loading">
+          <Text style={uiStyles.retryText}>Tap to retry</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -396,5 +402,17 @@ const uiStyles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: UI_COLORS.BORDER,
+  },
+  retryBtn: {
+    marginTop: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: UI_COLORS.ACCENT + '15',
+    borderRadius: 8,
+  },
+  retryText: {
+    color: UI_COLORS.ACCENT,
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

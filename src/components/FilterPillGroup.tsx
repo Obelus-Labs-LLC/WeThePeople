@@ -39,6 +39,8 @@ export function FilterPillGroup<T extends string>({
             key={opt.key}
             style={[styles.pill, active && styles.pillActive]}
             onPress={() => onSelect(opt.key)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
           >
             <Text style={[styles.pillText, active && styles.pillTextActive]}>
               {opt.label}

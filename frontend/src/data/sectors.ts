@@ -12,7 +12,7 @@ export const SECTORS: Sector[] = [
   {
     slug: "politics",
     name: "Politics",
-    tagline: "Votes, bills, and financial records for every member of Congress",
+    tagline: "Votes, bills, donor networks, and accountability for every member of Congress",
     icon: "\u{1F3DB}\uFE0F",
     gradient: "from-blue-600 to-indigo-700",
     route: "/politics",
@@ -21,7 +21,7 @@ export const SECTORS: Sector[] = [
   {
     slug: "finance",
     name: "Finance",
-    tagline: "Audit Wall Street, crypto, and financial disclosures",
+    tagline: "How Wall Street lobbies Washington and who profits",
     icon: "\u{1F4B0}",
     gradient: "from-emerald-500 to-teal-700",
     route: "/finance",
@@ -30,7 +30,7 @@ export const SECTORS: Sector[] = [
   {
     slug: "health",
     name: "Health",
-    tagline: "Adverse events, recalls, clinical trials, and physician payments across pharma, biotech, and insurers",
+    tagline: "Pharma lobbying, FDA enforcement, and government contracts",
     icon: "\u{1F3E5}",
     gradient: "from-rose-500 to-pink-700",
     route: "/health",
@@ -39,7 +39,7 @@ export const SECTORS: Sector[] = [
   {
     slug: "chemicals",
     name: "Chemicals",
-    tagline: "Chemical industry safety records and violations",
+    tagline: "Chemical industry lobbying and EPA enforcement",
     icon: "\u2697\uFE0F",
     gradient: "from-amber-500 to-orange-700",
     route: "/chemicals",
@@ -48,7 +48,7 @@ export const SECTORS: Sector[] = [
   {
     slug: "energy",
     name: "Oil, Gas & Energy",
-    tagline: "Emissions, contracts, lobbying, and enforcement across energy companies",
+    tagline: "Oil money in politics — lobbying, emissions policy, and enforcement",
     icon: "\u{1F6E2}\uFE0F",
     gradient: "from-orange-500 to-red-700",
     route: "/energy",
@@ -57,7 +57,7 @@ export const SECTORS: Sector[] = [
   {
     slug: "technology",
     name: "Technology",
-    tagline: "Patents, contracts, lobbying, and enforcement across Big Tech",
+    tagline: "Big Tech's political playbook — lobbying, contracts, and enforcement",
     icon: "\u{1F4BB}",
     gradient: "from-violet-500 to-purple-700",
     route: "/technology",
@@ -66,7 +66,7 @@ export const SECTORS: Sector[] = [
   {
     slug: "defense",
     name: "Defense",
-    tagline: "Military contracts, spending, and defense industry records",
+    tagline: "Military contracts, lobbying, and Congressional oversight",
     icon: "\u{1F6E1}\uFE0F",
     gradient: "from-red-600 to-rose-800",
     route: "/defense",
@@ -75,7 +75,7 @@ export const SECTORS: Sector[] = [
   {
     slug: "agriculture",
     name: "Agriculture",
-    tagline: "Food safety inspections, subsidies, and farming data",
+    tagline: "Farm subsidies, lobbying, and food safety enforcement",
     icon: "\u{1F33E}",
     gradient: "from-lime-500 to-green-700",
     route: "/agriculture",

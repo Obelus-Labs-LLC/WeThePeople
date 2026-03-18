@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
-import { Building2, FileText, Landmark, FileBadge, Search } from 'lucide-react';
+import { Building2, FileText, Landmark, FileBadge, DollarSign, Shield, Search, type LucideIcon } from 'lucide-react';
 import BackButton from '../components/BackButton';
-import TechNav from '../components/TechNav';
+import { TechSectorHeader } from '../components/SectorHeader';
 import {
   getTechDashboardStats,
   type TechDashboardStats,
@@ -69,7 +69,7 @@ function HeroStatCard({
 }: {
   label: string;
   value: string;
-  icon: React.ElementType;
+  icon: LucideIcon;
 }) {
   return (
     <motion.div
@@ -153,10 +153,13 @@ function SectorDistribution({
       {/* Legend */}
       <div className="grid grid-cols-5 gap-4 mt-5">
         {sectors.map((sector) => (
-          <motion.div
+          <Link
             key={sector.key}
+            to={`/technology/companies?sector=${encodeURIComponent(sector.key)}`}
+          >
+          <motion.div
             variants={itemVariants}
-            className="group rounded-xl border border-zinc-800 bg-zinc-900/80 p-5 flex flex-col gap-3 transition-all hover:bg-zinc-900 hover:border-zinc-700"
+            className="group rounded-xl border border-zinc-800 bg-zinc-900/80 p-5 flex flex-col gap-3 transition-all hover:bg-zinc-900 hover:border-zinc-700 cursor-pointer"
           >
             <div className="flex items-center gap-2.5">
               <div
@@ -176,6 +179,7 @@ function SectorDistribution({
               </span>
             </div>
           </motion.div>
+          </Link>
         ))}
       </div>
     </motion.div>
@@ -222,13 +226,26 @@ function DataSourcesFooter() {
 export default function TechDashboardPage() {
   const [stats, setStats] = useState<TechDashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     getTechDashboardStats()
       .then((statsRes) => setStats(statsRes))
-      .catch(console.error)
+      .catch((e) => setError(e.message || 'Failed to load dashboard'))
       .finally(() => setLoading(false));
   }, []);
+
+  if (error) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-red-400 mb-2">Failed to load dashboard</p>
+          <p className="text-sm text-white/50">{error}</p>
+          <button onClick={() => window.location.reload()} className="mt-4 rounded bg-[#8B5CF6] px-4 py-2 text-sm text-white hover:bg-[#7C3AED]">Retry</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -258,7 +275,7 @@ export default function TechDashboardPage() {
         >
           {/* Header */}
           <motion.div variants={itemVariants} className="flex flex-col gap-3">
-            <BackButton to="/" label="All Sectors" />
+            <TechSectorHeader />
 
             <div className="flex items-center gap-3 mt-1">
               <span className="relative flex h-2 w-2">
@@ -270,19 +287,14 @@ export default function TechDashboardPage() {
               </span>
             </div>
 
-            <div className="flex items-end justify-between gap-6">
-              <div className="flex flex-col gap-2">
-                <h1 className="font-heading text-4xl font-bold tracking-tight text-zinc-50 leading-tight xl:text-5xl">
-                  Technology Sector
-                </h1>
-                <p className="font-body text-base text-zinc-400 leading-relaxed max-w-2xl">
-                  Tracking patents, government contracts, SEC filings, and lobbying
-                  across the largest technology companies in the United States.
-                </p>
-              </div>
-
-              {/* Page nav tabs */}
-              <TechNav />
+            <div className="flex flex-col gap-2">
+              <h1 className="font-heading text-4xl font-bold tracking-tight text-zinc-50 leading-tight xl:text-5xl">
+                Technology Sector
+              </h1>
+              <p className="font-body text-base text-zinc-400 leading-relaxed max-w-2xl">
+                Big Tech's political playbook — lobbying, government contracts, enforcement, and patents
+                across the largest technology companies in the United States.
+              </p>
             </div>
           </motion.div>
 
@@ -295,10 +307,10 @@ export default function TechDashboardPage() {
             </div>
           ) : stats ? (
             <motion.div variants={containerVariants} className="grid grid-cols-4 gap-4">
-              <HeroStatCard label="Companies Tracked" value={stats.total_companies.toLocaleString()} icon={Building2} />
+              <HeroStatCard label="Lobbying Spend" value={stats.total_lobbying_spend ? `$${formatLargeNum(stats.total_lobbying_spend)}` : '$0'} icon={DollarSign} />
+              <HeroStatCard label="Gov Contract Value" value={stats.total_contract_value ? `$${formatLargeNum(stats.total_contract_value)}` : `$${formatLargeNum(stats.total_contracts)}`} icon={Landmark} />
+              <HeroStatCard label="Enforcement Actions" value={formatLargeNum(stats.total_enforcement || 0)} icon={Shield} />
               <HeroStatCard label="Patents Filed" value={formatLargeNum(stats.total_patents)} icon={FileBadge} />
-              <HeroStatCard label="Gov Contracts" value={formatLargeNum(stats.total_contracts)} icon={Landmark} />
-              <HeroStatCard label="SEC Filings" value={formatLargeNum(stats.total_filings)} icon={FileText} />
             </motion.div>
           ) : null}
 

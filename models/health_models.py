@@ -203,3 +203,92 @@ class SECHealthFiling(Base):
 
     # Relationships
     company = relationship("TrackedCompany", backref="sec_filings")
+
+
+class HealthLobbyingRecord(Base):
+    """
+    Lobbying disclosure filings from the Senate LDA API
+    for tracked healthcare/pharmaceutical companies.
+    """
+    __tablename__ = "health_lobbying_records"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_health_lobbying_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(String, ForeignKey("tracked_companies.company_id"), nullable=False, index=True)
+
+    filing_uuid = Column(String, nullable=True, index=True)
+    filing_year = Column(Integer, nullable=False, index=True)
+    filing_period = Column(String, nullable=True)  # 'Q1', 'Q2', 'H1', 'H2'
+    income = Column(Float, nullable=True)
+    expenses = Column(Float, nullable=True)
+    registrant_name = Column(String, nullable=True, index=True)
+    client_name = Column(String, nullable=True)
+    lobbying_issues = Column(Text, nullable=True)
+    government_entities = Column(Text, nullable=True)
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    company = relationship("TrackedCompany", backref="lobbying_records")
+
+
+class HealthGovernmentContract(Base):
+    """
+    Federal government contracts awarded to tracked health companies.
+    Data from USASpending.gov (Medicare, VA, HHS contracts).
+    """
+    __tablename__ = "health_government_contracts"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_health_gov_contracts_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(String, ForeignKey("tracked_companies.company_id"), nullable=False, index=True)
+
+    award_id = Column(String, nullable=True, index=True)
+    award_amount = Column(Float, nullable=True, index=True)
+    awarding_agency = Column(String, nullable=True, index=True)
+    description = Column(Text, nullable=True)
+    start_date = Column(Date, nullable=True, index=True)
+    end_date = Column(Date, nullable=True)
+    contract_type = Column(String, nullable=True, index=True)
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    company = relationship("TrackedCompany", backref="government_contracts")
+
+
+class HealthEnforcement(Base):
+    """
+    Enforcement actions against tracked health companies.
+    Sources: FDA warning letters, DOJ pharma actions, OIG exclusions.
+    """
+    __tablename__ = "health_enforcement_actions"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_health_enforcement_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(String, ForeignKey("tracked_companies.company_id"), nullable=False, index=True)
+
+    case_title = Column(String, nullable=False)
+    case_date = Column(Date, nullable=True, index=True)
+    case_url = Column(String, nullable=True)
+    enforcement_type = Column(String, nullable=True, index=True)  # 'Warning Letter', 'Consent Decree', 'Criminal Settlement'
+    penalty_amount = Column(Float, nullable=True)
+    description = Column(Text, nullable=True)
+    source = Column(String, nullable=True)  # 'FDA', 'DOJ', 'OIG', 'State AG'
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    company = relationship("TrackedCompany", backref="enforcement_actions")

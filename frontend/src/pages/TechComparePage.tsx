@@ -1,34 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Building2 } from 'lucide-react';
 import BackButton from '../components/BackButton';
-import TechNav from '../components/TechNav';
+import { TechSectorHeader } from '../components/SectorHeader';
 import {
   getTechCompanies,
   getTechComparison,
   type TechCompanyListItem,
   type TechComparisonItem,
 } from '../api/tech';
+import { fmtDollar, fmtNum } from '../utils/format';
 
 // ── Helpers ──
-
-function fmtDollar(n: number | null | undefined): string {
-  if (n == null) return '\u2014';
-  const abs = Math.abs(n);
-  if (abs >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (abs >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (abs >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
-  return `$${n.toFixed(0)}`;
-}
 
 function fmtPct(n: number | null | undefined): string {
   if (n == null) return '\u2014';
   return `${(n * 100).toFixed(1)}%`;
-}
-
-function fmtNum(n: number | null | undefined): string {
-  if (n == null) return '\u2014';
-  return n.toLocaleString();
 }
 
 interface Metric {
@@ -70,6 +56,9 @@ function bestIdx(items: TechComparisonItem[], key: string, higher: boolean): num
 const HIGHER_IS_BETTER = new Set([
   'market_cap', 'patent_count', 'contract_count', 'total_contract_value',
   'filing_count', 'profit_margin',
+]);
+const LOWER_IS_BETTER = new Set([
+  'lobbying_total', 'enforcement_count', 'total_penalties',
 ]);
 
 // ── Page ──
@@ -131,13 +120,13 @@ export default function TechComparePage() {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <div className="flex flex-1 flex-col overflow-hidden px-8 py-6 lg:px-12">
+    <div className="min-h-screen">
+      <div className="flex flex-col px-8 py-6 lg:px-12">
         {/* Header */}
         <div className="mb-6 shrink-0">
-          <div className="flex items-center justify-between mb-2">
+          <TechSectorHeader />
+          <div className="mb-2">
             <BackButton to="/technology" label="Tech Dashboard" />
-            <TechNav />
           </div>
           <div className="flex items-end justify-between mt-2">
             <div>
@@ -192,7 +181,7 @@ export default function TechComparePage() {
         </div>
 
         {/* Comparison table */}
-        <div className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-[#18181B]/60 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <div className="rounded-xl border border-zinc-800 bg-[#18181B]/60 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full">
           {compared.length < 2 ? (
             <div className="flex h-64 items-center justify-center">
               <p className="font-body text-sm text-zinc-500">
@@ -229,7 +218,9 @@ export default function TechComparePage() {
 
               {/* Metric rows */}
               {METRICS.map((metric, idx) => {
-                const best = bestIdx(compared, metric.key, HIGHER_IS_BETTER.has(metric.key));
+                const isHigher = HIGHER_IS_BETTER.has(metric.key);
+                const isLower = LOWER_IS_BETTER.has(metric.key);
+                const best = bestIdx(compared, metric.key, isHigher ? true : isLower ? false : true);
                 return (
                   <div
                     key={metric.key}

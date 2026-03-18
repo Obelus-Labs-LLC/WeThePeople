@@ -196,6 +196,95 @@ class CFPBComplaint(Base):
     institution = relationship("TrackedInstitution", backref="cfpb_complaints")
 
 
+class FinanceLobbyingRecord(Base):
+    """
+    Lobbying disclosure filings from the Senate LDA API
+    for tracked financial institutions.
+    """
+    __tablename__ = "finance_lobbying_records"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_finance_lobbying_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    institution_id = Column(String, ForeignKey("tracked_institutions.institution_id"), nullable=False, index=True)
+
+    filing_uuid = Column(String, nullable=True, index=True)
+    filing_year = Column(Integer, nullable=False, index=True)
+    filing_period = Column(String, nullable=True)  # 'Q1', 'Q2', 'H1', 'H2'
+    income = Column(Float, nullable=True)
+    expenses = Column(Float, nullable=True)
+    registrant_name = Column(String, nullable=True, index=True)
+    client_name = Column(String, nullable=True)
+    lobbying_issues = Column(Text, nullable=True)
+    government_entities = Column(Text, nullable=True)
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    institution = relationship("TrackedInstitution", backref="lobbying_records")
+
+
+class FinanceGovernmentContract(Base):
+    """
+    Federal government contracts awarded to tracked financial institutions.
+    Data from USASpending.gov.
+    """
+    __tablename__ = "finance_government_contracts"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_finance_gov_contracts_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    institution_id = Column(String, ForeignKey("tracked_institutions.institution_id"), nullable=False, index=True)
+
+    award_id = Column(String, nullable=True, index=True)
+    award_amount = Column(Float, nullable=True, index=True)
+    awarding_agency = Column(String, nullable=True, index=True)
+    description = Column(Text, nullable=True)
+    start_date = Column(Date, nullable=True, index=True)
+    end_date = Column(Date, nullable=True)
+    contract_type = Column(String, nullable=True, index=True)
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    institution = relationship("TrackedInstitution", backref="government_contracts")
+
+
+class FinanceEnforcement(Base):
+    """
+    Enforcement actions against tracked financial institutions.
+    Sources: CFPB enforcement, SEC enforcement, OCC consent orders.
+    """
+    __tablename__ = "finance_enforcement_actions"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_finance_enforcement_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    institution_id = Column(String, ForeignKey("tracked_institutions.institution_id"), nullable=False, index=True)
+
+    case_title = Column(String, nullable=False)
+    case_date = Column(Date, nullable=True, index=True)
+    case_url = Column(String, nullable=True)
+    enforcement_type = Column(String, nullable=True, index=True)  # 'Civil Penalty', 'Consent Order', 'Cease and Desist'
+    penalty_amount = Column(Float, nullable=True)
+    description = Column(Text, nullable=True)
+    source = Column(String, nullable=True)  # 'CFPB', 'SEC', 'OCC', 'DOJ'
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    institution = relationship("TrackedInstitution", backref="enforcement_actions")
+
+
 class FREDObservation(Base):
     """
     FRED economic time series observations for the Federal Reserve.

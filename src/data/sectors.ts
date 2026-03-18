@@ -57,8 +57,8 @@ export const SECTORS: Sector[] = [
     icon: '\u{1F6E2}\uFE0F',
     gradientStart: '#475569',
     gradientEnd: '#3F3F46',
-    route: 'ComingSoon',
-    available: false,
+    route: 'EnergyDashboard',
+    available: true,
   },
   {
     slug: 'technology',

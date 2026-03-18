@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, Image,
+  View, Text, ScrollView, TouchableOpacity, Image, FlatList,
   StyleSheet, RefreshControl, Linking,
 } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { UI_COLORS } from '../constants/colors';
+import { UI_COLORS, FINANCE_SECTOR_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type {
   InstitutionDetail, SECFiling, FDICFinancial,
@@ -17,11 +17,6 @@ import { SectorTypeBadge } from '../components/ui';
 import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
 
 type TabKey = 'overview' | 'filings' | 'complaints' | 'insider' | 'news';
-
-const SECTOR_COLORS: Record<string, string> = {
-  bank: '#2563EB', investment: '#8B5CF6', insurance: '#F59E0B',
-  fintech: '#10B981', central_bank: '#DC2626',
-};
 
 function formatCurrency(val: number | null | undefined): string {
   if (val == null) return 'N/A';
@@ -69,6 +64,7 @@ export default function InstitutionScreen() {
   const [insiderTrades, setInsiderTrades] = useState<InsiderTrade[]>([]);
   const [insiderLoading, setInsiderLoading] = useState(false);
   const [insiderTypeFilter, setInsiderTypeFilter] = useState<string>('all');
+  const [error, setError] = useState('');
 
   const loadData = async () => {
     try {
@@ -84,8 +80,9 @@ export default function InstitutionScreen() {
       setFinancials(financialsRes.financials || []);
       setComplaints(complaintsRes.complaints || []);
       setComplaintSummary(summaryRes);
+      setError('');
     } catch (err: any) {
-      console.error('Failed to load institution:', err);
+      setError(err.message || 'Failed to load institution');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -127,9 +124,9 @@ export default function InstitutionScreen() {
   }, [activeTab, detail]);
 
   if (loading) return <LoadingSpinner message="Loading institution..." />;
-  if (!detail) return <EmptyState title="Not Found" message="Institution data unavailable." />;
+  if (error || !detail) return <EmptyState title="Error" message={error || 'Institution data unavailable.'} onRetry={loadData} />;
 
-  const sColor = SECTOR_COLORS[detail.sector_type] || '#6B7280';
+  const sColor = FINANCE_SECTOR_COLORS[detail.sector_type] || '#6B7280';
   const latestFin = detail.latest_financial;
 
   const TABS: { key: TabKey; label: string; icon: any }[] = [
@@ -178,6 +175,9 @@ export default function InstitutionScreen() {
             key={tab.key}
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
+            accessibilityRole="tab"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected: activeTab === tab.key }}
           >
             <Ionicons name={tab.icon} size={14} color={activeTab === tab.key ? UI_COLORS.ACCENT : UI_COLORS.TEXT_MUTED} />
             <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
@@ -191,16 +191,16 @@ export default function InstitutionScreen() {
       {activeTab === 'overview' && (
         <View style={styles.tabContent}>
           <View style={styles.statsGrid}>
-            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('filings')}>
+            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('filings')} accessibilityRole="button" accessibilityLabel="View SEC Filings">
               <StatCard label="SEC Filings" value={detail.filing_count} accent="blue" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('complaints')}>
+            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('complaints')} accessibilityRole="button" accessibilityLabel="View CFPB Complaints">
               <StatCard label="CFPB Complaints" value={detail.complaint_count} accent="red" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('overview')}>
+            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('overview')} accessibilityRole="button" accessibilityLabel="View FDIC Reports">
               <StatCard label="FDIC Reports" value={detail.financial_count} accent="gold" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('complaints')}>
+            <TouchableOpacity style={styles.statHalf} onPress={() => setActiveTab('complaints')} accessibilityRole="button" accessibilityLabel="View Timely Response">
               <StatCard
                 label="Timely Response"
                 value={complaintSummary?.timely_response_pct != null ? `${complaintSummary.timely_response_pct}%` : 'N/A'}
@@ -223,6 +223,9 @@ export default function InstitutionScreen() {
                 <FinRow label="ROA" value={formatPct(latestFin.roa)} />
                 <FinRow label="ROE" value={formatPct(latestFin.roe)} />
                 <FinRow label="Tier 1 Capital" value={formatPct(latestFin.tier1_capital_ratio)} />
+                <FinRow label="Efficiency Ratio" value={formatPct(latestFin.efficiency_ratio)} />
+                <FinRow label="Noncurrent Loans" value={formatPct(latestFin.noncurrent_loan_ratio)} />
+                <FinRow label="Net Charge-offs" value={formatPct(latestFin.net_charge_off_ratio)} />
               </View>
             </View>
           )}
@@ -349,6 +352,7 @@ export default function InstitutionScreen() {
                 style={styles.filingCard}
                 onPress={() => f.primary_doc_url && Linking.openURL(f.primary_doc_url)}
                 activeOpacity={f.primary_doc_url ? 0.7 : 1}
+                accessibilityRole="link"
               >
                 <View style={styles.filingHeader}>
                   <View style={styles.formBadge}>
@@ -392,52 +396,57 @@ export default function InstitutionScreen() {
           {filteredComplaints.length === 0 ? (
             <EmptyState title="No complaints yet" message="Run data sync to ingest CFPB complaints." />
           ) : (
-            filteredComplaints.map((c) => {
-              const complaintUrl = c.complaint_id
-                ? `https://www.consumerfinance.gov/data-research/consumer-complaints/search/detail/${c.complaint_id}`
-                : null;
-              return (
-                <TouchableOpacity
-                  key={c.id}
-                  style={styles.complaintCard}
-                  onPress={() => complaintUrl && Linking.openURL(complaintUrl)}
-                  disabled={!complaintUrl}
-                >
-                  <View style={styles.complaintHeader}>
-                    <Text style={styles.complaintProduct}>{c.product || 'Unknown Product'}</Text>
-                    <Text style={styles.complaintDate}>{c.date_received || 'N/A'}</Text>
-                  </View>
-                  <Text style={styles.complaintIssue} numberOfLines={2}>
-                    {c.issue || 'No issue description'}
-                  </Text>
-                  <View style={styles.complaintMeta}>
-                    {c.company_response && (
-                      <Text style={styles.complaintResponse} numberOfLines={1}>
-                        {c.company_response}
-                      </Text>
-                    )}
-                    {c.timely_response && (
-                      <View style={[styles.timelyBadge, {
-                        backgroundColor: c.timely_response === 'Yes' ? '#10B981' + '15' : '#DC2626' + '15',
-                      }]}>
-                        <Text style={[styles.timelyText, {
-                          color: c.timely_response === 'Yes' ? '#10B981' : '#DC2626',
-                        }]}>
-                          {c.timely_response === 'Yes' ? 'Timely' : 'Late'}
+            <FlatList
+              data={filteredComplaints}
+              keyExtractor={(item) => String(item.id)}
+              scrollEnabled={false}
+              renderItem={({ item: c }) => {
+                const complaintUrl = c.complaint_id
+                  ? `https://www.consumerfinance.gov/data-research/consumer-complaints/search/detail/${c.complaint_id}`
+                  : null;
+                return (
+                  <TouchableOpacity
+                    style={styles.complaintCard}
+                    onPress={() => complaintUrl && Linking.openURL(complaintUrl)}
+                    disabled={!complaintUrl}
+                    accessibilityRole="link"
+                  >
+                    <View style={styles.complaintHeader}>
+                      <Text style={styles.complaintProduct}>{c.product || 'Unknown Product'}</Text>
+                      <Text style={styles.complaintDate}>{c.date_received || 'N/A'}</Text>
+                    </View>
+                    <Text style={styles.complaintIssue} numberOfLines={2}>
+                      {c.issue || 'No issue description'}
+                    </Text>
+                    <View style={styles.complaintMeta}>
+                      {c.company_response && (
+                        <Text style={styles.complaintResponse} numberOfLines={1}>
+                          {c.company_response}
                         </Text>
+                      )}
+                      {c.timely_response && (
+                        <View style={[styles.timelyBadge, {
+                          backgroundColor: c.timely_response === 'Yes' ? '#10B981' + '15' : '#DC2626' + '15',
+                        }]}>
+                          <Text style={[styles.timelyText, {
+                            color: c.timely_response === 'Yes' ? '#10B981' : '#DC2626',
+                          }]}>
+                            {c.timely_response === 'Yes' ? 'Timely' : 'Late'}
+                          </Text>
+                        </View>
+                      )}
+                      {c.state && <Text style={styles.complaintState}>{c.state}</Text>}
+                    </View>
+                    {complaintUrl && (
+                      <View style={[styles.linkRow, { marginTop: 6 }]}>
+                        <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                        <Text style={styles.linkText}>View on CFPB</Text>
                       </View>
                     )}
-                    {c.state && <Text style={styles.complaintState}>{c.state}</Text>}
-                  </View>
-                  {complaintUrl && (
-                    <View style={[styles.linkRow, { marginTop: 6 }]}>
-                      <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
-                      <Text style={styles.linkText}>View on CFPB</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })
+                  </TouchableOpacity>
+                );
+              }}
+            />
           )}
         </View>
         );
@@ -468,53 +477,58 @@ export default function InstitutionScreen() {
                   </View>
                 )}
                 <Text style={styles.sectionTitle}>Form 4 Filings ({filtered.length})</Text>
-                {filtered.map((trade) => {
-                  const typeColor = trade.transaction_type === 'P' ? '#10B981'
-                    : trade.transaction_type === 'S' ? '#DC2626' : '#F59E0B';
-                  return (
-                    <TouchableOpacity
-                      key={trade.id}
-                      style={styles.card}
-                      onPress={() => trade.filing_url && Linking.openURL(trade.filing_url)}
-                      disabled={!trade.filing_url}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <View style={[styles.insiderTypeBadge, { backgroundColor: typeColor + '15' }]}>
-                            <Text style={[styles.insiderTypeText, { color: typeColor }]}>
-                              {TYPE_LABELS[trade.transaction_type || ''] || trade.transaction_type || '?'}
-                            </Text>
+                <FlatList
+                  data={filtered}
+                  keyExtractor={(item) => String(item.id)}
+                  scrollEnabled={false}
+                  renderItem={({ item: trade }) => {
+                    const typeColor = trade.transaction_type === 'P' ? '#10B981'
+                      : trade.transaction_type === 'S' ? '#DC2626' : '#F59E0B';
+                    return (
+                      <TouchableOpacity
+                        style={styles.card}
+                        onPress={() => trade.filing_url && Linking.openURL(trade.filing_url)}
+                        disabled={!trade.filing_url}
+                        accessibilityRole="link"
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View style={[styles.insiderTypeBadge, { backgroundColor: typeColor + '15' }]}>
+                              <Text style={[styles.insiderTypeText, { color: typeColor }]}>
+                                {TYPE_LABELS[trade.transaction_type || ''] || trade.transaction_type || '?'}
+                              </Text>
+                            </View>
+                            <Text style={styles.insiderName} numberOfLines={1}>{trade.filer_name}</Text>
                           </View>
-                          <Text style={styles.insiderName} numberOfLines={1}>{trade.filer_name}</Text>
+                          {trade.filing_url && <Ionicons name="open-outline" size={14} color={UI_COLORS.TEXT_MUTED} />}
                         </View>
-                        {trade.filing_url && <Ionicons name="open-outline" size={14} color={UI_COLORS.TEXT_MUTED} />}
-                      </View>
-                      {trade.filer_title && (
-                        <Text style={styles.insiderTitle}>{trade.filer_title}</Text>
-                      )}
-                      <View style={{ flexDirection: 'row', gap: 16, marginTop: 4 }}>
-                        {trade.shares != null && (
-                          <Text style={styles.insiderDetail}>
-                            {trade.shares.toLocaleString()} shares
-                          </Text>
+                        {trade.filer_title && (
+                          <Text style={styles.insiderTitle}>{trade.filer_title}</Text>
                         )}
-                        {trade.price_per_share != null && (
-                          <Text style={styles.insiderDetail}>
-                            @ ${trade.price_per_share.toFixed(2)}
-                          </Text>
+                        <View style={{ flexDirection: 'row', gap: 16, marginTop: 4 }}>
+                          {trade.shares != null && (
+                            <Text style={styles.insiderDetail}>
+                              {trade.shares.toLocaleString()} shares
+                            </Text>
+                          )}
+                          {trade.price_per_share != null && (
+                            <Text style={styles.insiderDetail}>
+                              @ ${trade.price_per_share.toFixed(2)}
+                            </Text>
+                          )}
+                          {trade.total_value != null && (
+                            <Text style={[styles.insiderDetail, { fontWeight: '700' }]}>
+                              ${trade.total_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </Text>
+                          )}
+                        </View>
+                        {trade.transaction_date && (
+                          <Text style={styles.cardDate}>{trade.transaction_date}</Text>
                         )}
-                        {trade.total_value != null && (
-                          <Text style={[styles.insiderDetail, { fontWeight: '700' }]}>
-                            ${trade.total_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </Text>
-                        )}
-                      </View>
-                      {trade.transaction_date && (
-                        <Text style={styles.cardDate}>{trade.transaction_date}</Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
               </>
             );
           })()}
@@ -535,6 +549,7 @@ export default function InstitutionScreen() {
                 style={styles.newsCard}
                 onPress={() => article.link && Linking.openURL(article.link)}
                 activeOpacity={0.7}
+                accessibilityRole="link"
               >
                 <View style={styles.newsSourceRow}>
                   {article.source ? (
@@ -630,7 +645,7 @@ const styles = StyleSheet.create({
 
   // Filings
   filingCard: {
-    backgroundColor: UI_COLORS.CARD_BG, borderRadius: 10, padding: 14, marginBottom: 8,
+    backgroundColor: UI_COLORS.CARD_BG, borderRadius: 12, padding: 14, marginBottom: 8,
     borderWidth: 1, borderColor: UI_COLORS.BORDER,
   },
   filingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
@@ -643,7 +658,7 @@ const styles = StyleSheet.create({
 
   // Complaints
   complaintCard: {
-    backgroundColor: UI_COLORS.CARD_BG, borderRadius: 10, padding: 14, marginBottom: 8,
+    backgroundColor: UI_COLORS.CARD_BG, borderRadius: 12, padding: 14, marginBottom: 8,
     borderWidth: 1, borderColor: UI_COLORS.BORDER,
   },
   complaintHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
@@ -658,7 +673,7 @@ const styles = StyleSheet.create({
 
   // News
   newsCard: {
-    backgroundColor: UI_COLORS.CARD_BG, borderRadius: 10, padding: 14, marginBottom: 8,
+    backgroundColor: UI_COLORS.CARD_BG, borderRadius: 12, padding: 14, marginBottom: 8,
     borderWidth: 1, borderColor: UI_COLORS.BORDER,
   },
   newsSourceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
