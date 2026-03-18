@@ -57,6 +57,12 @@ export interface CompanyDetail {
   payment_count: number;
   filing_count: number;
   serious_event_count: number;
+  lobbying_count: number;
+  lobbying_spend: number;
+  contract_count: number;
+  contract_value: number;
+  enforcement_count: number;
+  penalty_total: number;
   trials_by_status: Record<string, number>;
   latest_stock: {
     snapshot_date: string | null;

@@ -17,6 +17,10 @@ import {
   getHealthCompanyPaymentSummary,
   getHealthCompanyFilings,
   getHealthCompanyStock,
+  getHealthCompanyLobbying,
+  getHealthCompanyLobbySummary,
+  getHealthCompanyContracts,
+  getHealthCompanyEnforcement,
   type CompanyDetail,
   type AdverseEventItem,
   type RecallItem,
@@ -25,6 +29,10 @@ import {
   type PaymentSummary,
   type HealthFiling,
   type HealthStockSnapshot,
+  type HealthLobbyingFiling,
+  type HealthLobbySummary,
+  type HealthContractItem,
+  type HealthEnforcementAction,
 } from '../api/health';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import { LOCAL_LOGOS } from '../data/healthLogos';
@@ -758,13 +766,180 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
+// -- Lobbying Tab --
+
+function LobbyingTab({ companyId }: { companyId: string }) {
+  const [filings, setFilings] = useState<HealthLobbyingFiling[]>([]);
+  const [summary, setSummary] = useState<HealthLobbySummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      getHealthCompanyLobbying(companyId, { limit: 50 }),
+      getHealthCompanyLobbySummary(companyId),
+    ])
+      .then(([lobbyRes, sumRes]) => { setFilings(lobbyRes.filings || []); setSummary(sumRes); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [companyId]);
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-6">
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="rounded-xl border p-4" style={{ borderColor: 'rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+            <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Total Filings</p>
+            <p className="text-2xl font-bold text-white font-mono">{summary.total_filings.toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border p-4" style={{ borderColor: 'rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+            <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Total Spend</p>
+            <p className="text-2xl font-bold text-white font-mono">{fmtDollar(summary.total_income)}</p>
+          </div>
+        </div>
+      )}
+      {filings.length === 0 ? (
+        <EmptyState text="No lobbying filings found" />
+      ) : (
+        <div className="space-y-3">
+          {filings.map((f) => (
+            <div key={f.id} className="rounded-xl border p-4" style={{ borderColor: 'rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="text-sm font-bold text-white">{f.registrant_name || 'Unknown Firm'}</p>
+                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>{f.filing_period} {f.filing_year}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold font-mono text-emerald-400">{fmtDollar(f.income || 0)}</p>
+                </div>
+              </div>
+              {f.lobbying_issues && (
+                <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <span className="font-semibold">Issues:</span> {f.lobbying_issues}
+                </p>
+              )}
+              {f.government_entities && (
+                <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  <span className="font-semibold">Entities:</span> {f.government_entities}
+                </p>
+              )}
+              {f.filing_uuid && (
+                <a href={`https://lda.senate.gov/filings/filing/${f.filing_uuid}/`} target="_blank" rel="noopener noreferrer" className="text-xs text-red-400 hover:underline mt-2 inline-flex items-center gap-1">
+                  <ExternalLink size={10} /> Senate LDA Filing
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -- Contracts Tab --
+
+function ContractsTab({ companyId }: { companyId: string }) {
+  const [contracts, setContracts] = useState<HealthContractItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getHealthCompanyContracts(companyId, { limit: 50 })
+      .then((res) => setContracts(res.contracts || []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [companyId]);
+
+  if (loading) return <LoadingSpinner />;
+  if (contracts.length === 0) return <EmptyState text="No government contracts found" />;
+
+  return (
+    <div className="space-y-3">
+      {contracts.map((ct) => (
+        <div key={ct.id} className="rounded-xl border p-4" style={{ borderColor: 'rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1 mr-4">
+              <p className="text-sm font-bold text-white line-clamp-2">{ct.description || 'Government Contract'}</p>
+              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{ct.awarding_agency || 'Unknown Agency'}</p>
+            </div>
+            <p className="text-lg font-bold font-mono text-emerald-400 shrink-0">{fmtDollar(ct.award_amount || 0)}</p>
+          </div>
+          <div className="flex items-center gap-4 mt-2">
+            {ct.start_date && <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>{fmtDate(ct.start_date)} — {ct.end_date ? fmtDate(ct.end_date) : 'Ongoing'}</span>}
+            {ct.contract_type && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)' }}>{ct.contract_type}</span>}
+          </div>
+          {ct.award_id && (
+            <a href={`https://www.usaspending.gov/award/${ct.award_id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-red-400 hover:underline mt-2 inline-flex items-center gap-1">
+              <ExternalLink size={10} /> USASpending
+            </a>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// -- Enforcement Tab --
+
+function EnforcementTab({ companyId }: { companyId: string }) {
+  const [actions, setActions] = useState<HealthEnforcementAction[]>([]);
+  const [totalPenalties, setTotalPenalties] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getHealthCompanyEnforcement(companyId, { limit: 50 })
+      .then((res) => { setActions(res.actions || []); setTotalPenalties(res.total_penalties || 0); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [companyId]);
+
+  if (loading) return <LoadingSpinner />;
+  if (actions.length === 0) return <EmptyState text="No enforcement actions found" />;
+
+  return (
+    <div className="space-y-4">
+      {totalPenalties > 0 && (
+        <div className="rounded-xl border p-4" style={{ borderColor: 'rgba(220,38,38,0.3)', background: 'rgba(220,38,38,0.1)' }}>
+          <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Total Penalties</p>
+          <p className="text-2xl font-bold font-mono text-red-400">{fmtDollar(totalPenalties)}</p>
+        </div>
+      )}
+      <div className="space-y-3">
+        {actions.map((a) => (
+          <div key={a.id} className="rounded-xl border p-4" style={{ borderColor: 'rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex-1 mr-4">
+                <p className="text-sm font-bold text-white line-clamp-2">{a.case_title}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  {a.source && <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: 'rgba(220,38,38,0.2)', color: '#FCA5A5' }}>{a.source}</span>}
+                  {a.enforcement_type && <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>{a.enforcement_type}</span>}
+                </div>
+              </div>
+              {(a.penalty_amount || 0) > 0 && (
+                <p className="text-lg font-bold font-mono text-red-400 shrink-0">{fmtDollar(a.penalty_amount || 0)}</p>
+              )}
+            </div>
+            {a.case_date && <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{fmtDate(a.case_date)}</p>}
+            {a.description && <p className="text-xs mt-2 line-clamp-3" style={{ color: 'rgba(255,255,255,0.5)' }}>{a.description}</p>}
+            {a.case_url && (
+              <a href={a.case_url} target="_blank" rel="noopener noreferrer" className="text-xs text-red-400 hover:underline mt-2 inline-flex items-center gap-1">
+                <ExternalLink size={10} /> View Source
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // -- Main Page --
 
 export default function HealthCompanyProfilePage() {
   const { companyId } = useParams<{ companyId: string }>();
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabKey>('adverse');
+  const [activeTab, setActiveTab] = useState<TabKey>('lobbying');
 
   useEffect(() => {
     if (!companyId) return;
@@ -910,7 +1085,8 @@ export default function HealthCompanyProfilePage() {
               const count = tab.key === 'adverse' ? company.adverse_event_count
                 : tab.key === 'recalls' ? company.recall_count
                 : tab.key === 'trials' ? company.trial_count
-                : company.payment_count + company.filing_count;
+                : tab.key === 'payments' ? company.payment_count + company.filing_count
+                : 0; // lobbying/contracts/enforcement counts loaded lazily
 
               return (
                 <button
@@ -955,6 +1131,9 @@ export default function HealthCompanyProfilePage() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
+                {activeTab === 'lobbying' && <LobbyingTab companyId={company.company_id} />}
+                {activeTab === 'contracts' && <ContractsTab companyId={company.company_id} />}
+                {activeTab === 'enforcement' && <EnforcementTab companyId={company.company_id} />}
                 {activeTab === 'adverse' && <AdverseEventsTab companyId={company.company_id} />}
                 {activeTab === 'recalls' && <RecallsTab companyId={company.company_id} />}
                 {activeTab === 'trials' && <TrialsTab companyId={company.company_id} />}
