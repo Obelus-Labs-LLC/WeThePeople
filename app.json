@@ -27,7 +27,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "owner": "rocketshon",
+    "owner": "obelus-labs-llc",
     "runtimeVersion": {
       "policy": "appVersion"
     },
