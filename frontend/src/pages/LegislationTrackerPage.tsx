@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, ChevronDown, FileText } from 'lucide-react';
+import { Search, Filter, ChevronDown, FileText, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getApiBaseUrl } from '../api/client';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
+import BillPipeline from '../components/BillPipeline';
 
 // ── Types ──
 
@@ -125,6 +126,8 @@ export default function LegislationTrackerPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [chamberFilter, setChamberFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [pipelineStage, setPipelineStage] = useState('');
+  const [sponsorFilter, setSponsorFilter] = useState('');
 
   // Debounce search
   useEffect(() => {
@@ -174,6 +177,47 @@ export default function LegislationTrackerPage() {
   const loadMore = () => {
     if (bills.length < total) setOffset(bills.length);
   };
+
+  // Unique sponsors for the dropdown
+  const uniqueSponsors = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const bill of bills) {
+      const primary = bill.sponsors?.find((s) => s.role === 'sponsor') || bill.sponsors?.[0];
+      if (primary?.display_name) {
+        map.set(primary.display_name, primary.display_name);
+      }
+    }
+    return Array.from(map.values()).sort();
+  }, [bills]);
+
+  // Pipeline stage key → status_bucket mapping for client-side filtering
+  const pipelineStageToBuckets: Record<string, string[]> = {
+    introduced: ['introduced'],
+    in_committee: ['in_committee'],
+    passed_one: ['passed_one', 'passed_house', 'passed_senate'],
+    passed_both: ['passed_both'],
+    president: ['vetoed'],
+    became_law: ['enacted', 'became_law', 'signed'],
+  };
+
+  // Filtered bills (client-side pipeline + sponsor filters on top of server-side filters)
+  const filteredBills = useMemo(() => {
+    let result = bills;
+    if (pipelineStage) {
+      const allowed = pipelineStageToBuckets[pipelineStage] || [];
+      result = result.filter((b) => {
+        const bucket = b.status_bucket?.toLowerCase().replace(/\s+/g, '_') || 'introduced';
+        return allowed.includes(bucket);
+      });
+    }
+    if (sponsorFilter) {
+      result = result.filter((b) => {
+        const primary = b.sponsors?.find((s) => s.role === 'sponsor') || b.sponsors?.[0];
+        return primary?.display_name === sponsorFilter;
+      });
+    }
+    return result;
+  }, [bills, pipelineStage, sponsorFilter]);
 
   return (
     <div className="min-h-screen">
@@ -281,10 +325,82 @@ export default function LegislationTrackerPage() {
           )}
         </motion.div>
 
+        {/* Bill Pipeline visualization */}
+        {bills.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.25 }}
+            className="mb-6"
+          >
+            <BillPipeline
+              bills={bills}
+              onStageClick={(stage) => setPipelineStage(stage)}
+              activeStage={pipelineStage}
+            />
+          </motion.div>
+        )}
+
+        {/* Sponsor filter + active pipeline filter indicator */}
+        {bills.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.3 }}
+            className="flex flex-wrap items-center gap-3 mb-4"
+          >
+            {/* Sponsor dropdown */}
+            {uniqueSponsors.length > 0 && (
+              <div className="relative">
+                <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+                <select
+                  value={sponsorFilter}
+                  onChange={(e) => setSponsorFilter(e.target.value)}
+                  className="appearance-none rounded-lg border border-white/10 bg-white/[0.03] pl-8 pr-8 py-1.5 font-body text-xs text-white/60 focus:border-blue-500/50 focus:outline-none transition-colors cursor-pointer"
+                  style={{ backgroundImage: 'none' }}
+                >
+                  <option value="">All Sponsors</option>
+                  {uniqueSponsors.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+              </div>
+            )}
+
+            {/* Active filters display */}
+            {(pipelineStage || sponsorFilter) && (
+              <div className="flex items-center gap-2">
+                {pipelineStage && (
+                  <button
+                    onClick={() => setPipelineStage('')}
+                    className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2.5 py-1 text-[10px] font-medium text-blue-400 hover:bg-blue-500/25 transition-colors"
+                  >
+                    Stage: {pipelineStage.replace(/_/g, ' ')}
+                    <span className="text-blue-400/60">&times;</span>
+                  </button>
+                )}
+                {sponsorFilter && (
+                  <button
+                    onClick={() => setSponsorFilter('')}
+                    className="inline-flex items-center gap-1 rounded-full bg-purple-500/15 px-2.5 py-1 text-[10px] font-medium text-purple-400 hover:bg-purple-500/25 transition-colors"
+                  >
+                    Sponsor: {sponsorFilter}
+                    <span className="text-purple-400/60">&times;</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Results count */}
         {!loading && !error && (
           <p className="mb-4 font-mono text-xs text-white/30">
-            {total.toLocaleString()} bill{total !== 1 ? 's' : ''} found
+            {filteredBills.length !== bills.length
+              ? `${filteredBills.length} of ${total.toLocaleString()} bill${total !== 1 ? 's' : ''} shown`
+              : `${total.toLocaleString()} bill${total !== 1 ? 's' : ''} found`
+            }
           </p>
         )}
 
@@ -309,7 +425,7 @@ export default function LegislationTrackerPage() {
         )}
 
         {/* Empty state */}
-        {!loading && !error && bills.length === 0 && (
+        {!loading && !error && filteredBills.length === 0 && (
           <div className="rounded-xl border border-white/10 bg-white/[0.02] py-16 text-center">
             <FileText size={40} className="mx-auto mb-4 text-white/10" />
             <p className="font-body text-sm text-white/40">
@@ -322,9 +438,9 @@ export default function LegislationTrackerPage() {
         )}
 
         {/* Bill cards */}
-        {bills.length > 0 && (
+        {filteredBills.length > 0 && (
           <div className="flex flex-col gap-4">
-            {bills.map((bill, idx) => (
+            {filteredBills.map((bill, idx) => (
               <motion.div
                 key={bill.bill_id}
                 initial={{ opacity: 0, y: 10 }}

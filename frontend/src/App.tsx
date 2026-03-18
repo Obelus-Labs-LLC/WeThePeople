@@ -53,6 +53,8 @@ const EnergyCompaniesPage = React.lazy(() => import("./pages/EnergyCompaniesPage
 const EnergyCompanyProfilePage = React.lazy(() => import("./pages/EnergyCompanyProfilePage"));
 const EnergyComparePage = React.lazy(() => import("./pages/EnergyComparePage"));
 const CongressionalTradesPage = React.lazy(() => import("./pages/CongressionalTradesPage"));
+const StateExplorerPage = React.lazy(() => import("./pages/StateExplorerPage"));
+const StateDashboardPage = React.lazy(() => import("./pages/StateDashboardPage"));
 const InfluenceExplorerPage = React.lazy(() => import("./pages/InfluenceExplorerPage"));
 const InfluenceMapPage = React.lazy(() => import("./pages/InfluenceMapPage"));
 const InfluenceNetworkPage = React.lazy(() => import("./pages/InfluenceNetworkPage"));
@@ -96,6 +98,8 @@ const App: React.FC = () => (
           <Route path="/politics/lobbying" element={<PoliticsLayout><SectorLobbyingPage /></PoliticsLayout>} />
           <Route path="/politics/contracts" element={<PoliticsLayout><SectorContractsPage /></PoliticsLayout>} />
           <Route path="/politics/enforcement" element={<PoliticsLayout><SectorEnforcementPage /></PoliticsLayout>} />
+          <Route path="/politics/states" element={<PoliticsLayout><StateExplorerPage /></PoliticsLayout>} />
+          <Route path="/politics/states/:stateCode" element={<PoliticsLayout><StateDashboardPage /></PoliticsLayout>} />
           <Route path="/politics/press" element={<PoliticsLayout><DashboardLayout><PressToolsPage /></DashboardLayout></PoliticsLayout>} />
 
           {/* Cross-sector Influence Explorer */}

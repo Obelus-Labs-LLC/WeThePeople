@@ -75,6 +75,37 @@ export async function fetchSpendingByState(
   return res.json();
 }
 
+// ── Trade Timeline Types ──
+
+export interface TradeMarker {
+  date: string | null;
+  person_id: string;
+  display_name: string;
+  party: string | null;
+  transaction_type: string;
+  amount_range: string | null;
+  reporting_gap: string | null;
+}
+
+export interface TradeTimelineResponse {
+  ticker: string;
+  trades: TradeMarker[];
+}
+
+export type TradeTimelineRange = '3m' | '6m' | '1y' | '2y';
+
+export async function fetchTradeTimeline(
+  ticker: string,
+  personId?: string,
+  range: TradeTimelineRange = '1y',
+): Promise<TradeTimelineResponse> {
+  const params = new URLSearchParams({ ticker, range });
+  if (personId) params.set('person_id', personId);
+  const res = await fetch(`${API_BASE}/influence/trade-timeline?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 // ── Influence Network Types ──
 
 export interface NetworkNode {

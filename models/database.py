@@ -608,6 +608,7 @@ import models.health_models  # noqa: F401 — register health tables for Alembic
 import models.market_models  # noqa: F401 — register market/stock tables for Alembic
 import models.tech_models  # noqa: F401 — register tech tables for Alembic
 import models.energy_models  # noqa: F401 — register energy tables for Alembic
+import models.state_models  # noqa: F401 — register state legislature tables
 
 
 if __name__ == "__main__":
