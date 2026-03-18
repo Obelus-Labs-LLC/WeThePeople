@@ -66,7 +66,7 @@ def fetch_company_submissions(cik: str) -> Optional[Dict[str, Any]]:
 def extract_filings(
     submissions: Dict[str, Any],
     form_types: Optional[List[str]] = None,
-    limit: int = 100,
+    limit: int = 10000,
 ) -> List[Dict[str, Any]]:
     """
     Extract structured filing records from a submissions response.

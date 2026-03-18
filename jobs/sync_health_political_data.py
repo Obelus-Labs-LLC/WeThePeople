@@ -77,63 +77,72 @@ def _safe_float(val) -> float:
         return 0.0
 
 
-def fetch_lobbying(session, company: TrackedCompany, limit: int = 50):
-    """Fetch lobbying disclosures from Senate LDA API."""
+def fetch_lobbying(session, company: TrackedCompany):
+    """Fetch lobbying disclosures from Senate LDA API with full pagination."""
     import time
     search_name = company.display_name
-    all_results = []
-
-    for year in [2024, 2023, 2022]:
-        time.sleep(1)  # Rate limit
-        params = {
-            "client_name": search_name,
-            "filing_year": year,
-            "page_size": 25,
-        }
-        try:
-            resp = requests.get("https://lda.senate.gov/api/v1/filings/", params=params,
-                                headers={"Accept": "application/json"}, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-        except Exception as e:
-            log.warning(f"  [{company.company_id}] Senate LDA error ({year}): {e}")
-            continue
-
-        for r in data.get("results", []):
-            all_results.append(r)
+    current_year = datetime.now().year
+    years = list(range(current_year, 2019, -1))  # 2020-present
 
     count = 0
-    for r in all_results[:limit]:
-        filing_uuid = r.get("filing_uuid", "")
-        dedupe = md5(f"{company.company_id}:lda:{filing_uuid}")
-        if session.query(HealthLobbyingRecord).filter_by(dedupe_hash=dedupe).first():
-            continue
+    for year in years:
+        page_url = "https://lda.senate.gov/api/v1/filings/"
+        page_num = 0
 
-        issues = []
-        gov_entities = set()
-        for activity in (r.get("lobbying_activities") or []):
-            issue_code = activity.get("general_issue_code_display")
-            if issue_code:
-                issues.append(issue_code)
-            for entity in (activity.get("government_entities") or []):
-                name = entity.get("name") if isinstance(entity, dict) else str(entity)
-                if name:
-                    gov_entities.add(name)
+        while page_url:
+            params = {
+                "client_name": search_name,
+                "filing_year": year,
+                "page_size": 25,  # API max
+            }
+            try:
+                time.sleep(1)  # Rate limit
+                if page_num == 0:
+                    resp = requests.get(page_url, params=params,
+                                        headers={"Accept": "application/json"}, timeout=30)
+                else:
+                    resp = requests.get(page_url,
+                                        headers={"Accept": "application/json"}, timeout=30)
+                resp.raise_for_status()
+                data = resp.json()
+            except Exception as e:
+                log.warning(f"  [{company.company_id}] Senate LDA error ({year}, page {page_num}): {e}")
+                break
 
-        session.add(HealthLobbyingRecord(
-            company_id=company.company_id,
-            filing_uuid=filing_uuid,
-            filing_year=r.get("filing_year", 0),
-            filing_period=r.get("filing_period_display"),
-            income=_safe_float(r.get("income")),
-            expenses=_safe_float(r.get("expenses")),
-            registrant_name=(r.get("registrant") or {}).get("name"),
-            client_name=(r.get("client") or {}).get("name"),
-            lobbying_issues=", ".join(sorted(set(issues))) if issues else None,
-            government_entities=", ".join(sorted(gov_entities)) if gov_entities else None,
-            dedupe_hash=dedupe,
-        ))
-        count += 1
+            for r in data.get("results", []):
+                filing_uuid = r.get("filing_uuid", "")
+                dedupe = md5(f"{company.company_id}:lda:{filing_uuid}")
+                if session.query(HealthLobbyingRecord).filter_by(dedupe_hash=dedupe).first():
+                    continue
+
+                issues = []
+                gov_entities = set()
+                for activity in (r.get("lobbying_activities") or []):
+                    issue_code = activity.get("general_issue_code_display")
+                    if issue_code:
+                        issues.append(issue_code)
+                    for entity in (activity.get("government_entities") or []):
+                        name = entity.get("name") if isinstance(entity, dict) else str(entity)
+                        if name:
+                            gov_entities.add(name)
+
+                session.add(HealthLobbyingRecord(
+                    company_id=company.company_id,
+                    filing_uuid=filing_uuid,
+                    filing_year=r.get("filing_year", 0),
+                    filing_period=r.get("filing_period_display"),
+                    income=_safe_float(r.get("income")),
+                    expenses=_safe_float(r.get("expenses")),
+                    registrant_name=(r.get("registrant") or {}).get("name"),
+                    client_name=(r.get("client") or {}).get("name"),
+                    lobbying_issues=", ".join(sorted(set(issues))) if issues else None,
+                    government_entities=", ".join(sorted(gov_entities)) if gov_entities else None,
+                    dedupe_hash=dedupe,
+                ))
+                count += 1
+
+            page_url = data.get("next")
+            page_num += 1
 
     session.commit()
     log.info(f"  [{company.company_id}] {count} new lobbying filings")
@@ -142,51 +151,64 @@ def fetch_lobbying(session, company: TrackedCompany, limit: int = 50):
 
 # ─── USASpending Contracts ────────────────────────────────────
 
-def fetch_contracts(session, company: TrackedCompany, limit: int = 50):
-    """Fetch government contracts from USASpending.gov."""
+def fetch_contracts(session, company: TrackedCompany):
+    """Fetch government contracts from USASpending.gov with pagination."""
+    import time
     search_name = company.display_name
     url = "https://api.usaspending.gov/api/v2/search/spending_by_award/"
-    payload = {
-        "filters": {
-            "recipient_search_text": [search_name],
-            "award_type_codes": ["A", "B", "C", "D"],
-            "time_period": [{"start_date": "2015-01-01", "end_date": datetime.now().strftime("%Y-%m-%d")}],
-        },
-        "fields": ["Award ID", "Award Amount", "Awarding Agency", "Description", "Start Date", "End Date", "Award Type"],
-        "limit": limit,
-        "page": 1,
-        "sort": "Award Amount",
-        "order": "desc",
-    }
-
-    try:
-        resp = requests.post(url, json=payload, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        log.warning(f"  [{company.company_id}] USASpending error: {e}")
-        return 0
-
-    results = data.get("results", [])
+    page_size = 100  # API max per page
+    page = 1
     count = 0
-    for r in results:
-        award_id = r.get("Award ID") or r.get("generated_internal_id", "")
-        dedupe = md5(f"{company.company_id}:usa:{award_id}")
-        if session.query(HealthGovernmentContract).filter_by(dedupe_hash=dedupe).first():
-            continue
 
-        session.add(HealthGovernmentContract(
-            company_id=company.company_id,
-            award_id=award_id,
-            award_amount=r.get("Award Amount"),
-            awarding_agency=r.get("Awarding Agency"),
-            description=r.get("Description"),
-            start_date=parse_date(r.get("Start Date")),
-            end_date=parse_date(r.get("End Date")),
-            contract_type=r.get("Award Type"),
-            dedupe_hash=dedupe,
-        ))
-        count += 1
+    while True:
+        payload = {
+            "filters": {
+                "recipient_search_text": [search_name],
+                "award_type_codes": ["A", "B", "C", "D"],
+                "time_period": [{"start_date": "2015-01-01", "end_date": datetime.now().strftime("%Y-%m-%d")}],
+            },
+            "fields": ["Award ID", "Award Amount", "Awarding Agency", "Description", "Start Date", "End Date", "Award Type"],
+            "limit": page_size,
+            "page": page,
+            "sort": "Award Amount",
+            "order": "desc",
+        }
+
+        try:
+            resp = requests.post(url, json=payload, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            log.warning(f"  [{company.company_id}] USASpending error (page {page}): {e}")
+            break
+
+        results = data.get("results", [])
+        if not results:
+            break
+
+        for r in results:
+            award_id = r.get("Award ID") or r.get("generated_internal_id", "")
+            dedupe = md5(f"{company.company_id}:usa:{award_id}")
+            if session.query(HealthGovernmentContract).filter_by(dedupe_hash=dedupe).first():
+                continue
+
+            session.add(HealthGovernmentContract(
+                company_id=company.company_id,
+                award_id=award_id,
+                award_amount=r.get("Award Amount"),
+                awarding_agency=r.get("Awarding Agency"),
+                description=r.get("Description"),
+                start_date=parse_date(r.get("Start Date")),
+                end_date=parse_date(r.get("End Date")),
+                contract_type=r.get("Award Type"),
+                dedupe_hash=dedupe,
+            ))
+            count += 1
+
+        if len(results) < page_size:
+            break
+        page += 1
+        time.sleep(1)
 
     session.commit()
     log.info(f"  [{company.company_id}] {count} new contracts")

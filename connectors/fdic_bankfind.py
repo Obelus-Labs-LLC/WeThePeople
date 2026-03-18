@@ -41,7 +41,7 @@ def _safe_float(val) -> float | None:
 
 def fetch_quarterly_financials(
     cert_number: int | str,
-    limit: int = 20,
+    limit: int = 200,
 ) -> List[Dict[str, Any]]:
     """
     Fetch quarterly financial data for an FDIC-insured institution.

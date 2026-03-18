@@ -166,7 +166,7 @@ def search_committees(company_name: str) -> list[dict]:
     data = fec_get("committees/", {
         "q": company_name,
         "committee_type": ["O", "Q", "N", "W"],  # PAC types: Super PAC, Qualified, Non-qualified, Independent
-        "per_page": 20,
+        "per_page": 100,
         "sort": "-receipts",
     })
     if not data:
@@ -205,7 +205,7 @@ def fetch_committee_disbursements(committee_id: str, cycle: str = "2024") -> lis
 
         pagination = data.get("pagination", {})
         last_index = pagination.get("last_indexes", {}).get("last_index")
-        if not last_index or len(results) < 100 or len(all_results) >= 500:
+        if not last_index or len(results) < 100 or len(all_results) >= 5000:
             break
 
         page += 1

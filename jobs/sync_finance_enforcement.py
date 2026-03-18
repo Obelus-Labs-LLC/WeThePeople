@@ -109,7 +109,7 @@ def classify_enforcement_type(title: str, abstract: str = "") -> str:
         return "Regulatory Action"
 
 
-def fetch_enforcement_from_fr(company_name: str, agency_slug: str, source_label: str, limit: int = 25):
+def fetch_enforcement_from_fr(company_name: str, agency_slug: str, source_label: str, limit: int = 100):
     """Fetch enforcement-related documents from Federal Register for a company."""
     # Search terms that indicate enforcement actions
     enforcement_terms = [
@@ -180,7 +180,7 @@ def sync_institution_enforcement(session, institution: TrackedInstitution) -> in
 
     for search_name in search_names:
         for source_label, agency_slug in AGENCY_SLUGS.items():
-            results = fetch_enforcement_from_fr(search_name, agency_slug, source_label, limit=10)
+            results = fetch_enforcement_from_fr(search_name, agency_slug, source_label, limit=100)
 
             for r in results:
                 dedupe = md5(f"{institution.institution_id}:{r['source']}:{r['doc_number']}")
