@@ -45,12 +45,21 @@ export type TechnologyStackParamList = {
   TechCompare: { ids: string[] };
 };
 
+// ── Energy Stack ──
+export type EnergyStackParamList = {
+  EnergyDashboard: undefined;
+  EnergyCompaniesDirectory: undefined;
+  EnergyCompanyDetail: { company_id: string };
+  EnergyCompare: undefined;
+};
+
 // ── Bottom Tabs ──
 export type RootTabParamList = {
   HomeTab: undefined;
   PoliticsTab: undefined;
   FinanceTab: undefined;
   HealthTab: undefined;
+  EnergyTab: undefined;
   TechnologyTab: undefined;
   SettingsTab: undefined;
 };

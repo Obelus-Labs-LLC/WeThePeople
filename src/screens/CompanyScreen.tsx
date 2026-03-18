@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { UI_COLORS } from '../constants/colors';
+import { UI_COLORS, HEALTH_SECTOR_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type {
   CompanyDetail, FDAAdverseEvent, FDARecall,
@@ -16,14 +16,6 @@ import { LoadingSpinner, EmptyState } from '../components/ui';
 import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
 
 const { width } = Dimensions.get('window');
-
-const SECTOR_COLORS: Record<string, string> = {
-  pharma: '#2563EB',
-  biotech: '#8B5CF6',
-  insurer: '#F59E0B',
-  pharmacy: '#10B981',
-  distributor: '#64748B',
-};
 
 type Tab = 'overview' | 'safety' | 'trials' | 'filings';
 
@@ -125,7 +117,7 @@ export default function CompanyScreen() {
   // Load payment data on mount
   useEffect(() => {
     Promise.all([
-      apiClient.getCompanyPayments(companyId, { limit: 10 }),
+      apiClient.getCompanyPayments(companyId, { limit: 50 }),
       apiClient.getCompanyPaymentSummary(companyId),
     ])
       .then(([payRes, sumRes]) => {
@@ -138,9 +130,9 @@ export default function CompanyScreen() {
   const onRefresh = () => { setRefreshing(true); loadCompany(); };
 
   if (loading) return <LoadingSpinner message="Loading company..." />;
-  if (error || !company) return <EmptyState title="Error" message={error || 'Company not found'} />;
+  if (error || !company) return <EmptyState title="Error" message={error || 'Company not found'} onRetry={loadCompany} />;
 
-  const sectorColor = SECTOR_COLORS[company.sector_type] || '#6B7280';
+  const sectorColor = HEALTH_SECTOR_COLORS[company.sector_type] || '#6B7280';
 
   return (
     <View style={styles.container}>
@@ -156,6 +148,9 @@ export default function CompanyScreen() {
             key={t.key}
             style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
             onPress={() => setTab(t.key)}
+            accessibilityRole="tab"
+            accessibilityLabel={t.label}
+            accessibilityState={{ selected: tab === t.key }}
           >
             <Ionicons
               name={t.icon as any}
@@ -212,22 +207,22 @@ function renderOverview(
     <View style={styles.tabContent}>
       {/* Stats row — tap to jump to tab */}
       <View style={styles.statsRow}>
-        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('safety')}>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('safety')} accessibilityRole="button" accessibilityLabel="View Events">
           <Ionicons name="warning-outline" size={18} color="#E11D48" />
           <Text style={styles.miniStatVal}>{company.adverse_event_count}</Text>
           <Text style={styles.miniStatLabel}>Events</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('safety')}>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('safety')} accessibilityRole="button" accessibilityLabel="View Recalls">
           <Ionicons name="alert-circle-outline" size={18} color="#F59E0B" />
           <Text style={styles.miniStatVal}>{company.recall_count}</Text>
           <Text style={styles.miniStatLabel}>Recalls</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('trials')}>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('trials')} accessibilityRole="button" accessibilityLabel="View Trials">
           <Ionicons name="flask-outline" size={18} color="#10B981" />
           <Text style={styles.miniStatVal}>{company.trial_count}</Text>
           <Text style={styles.miniStatLabel}>Trials</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('overview')}>
+        <TouchableOpacity style={styles.miniStat} onPress={() => setTab('overview')} accessibilityRole="button" accessibilityLabel="View Payments">
           <Ionicons name="cash-outline" size={18} color="#2563EB" />
           <Text style={styles.miniStatVal}>{company.payment_count}</Text>
           <Text style={styles.miniStatLabel}>Payments</Text>
@@ -426,50 +421,55 @@ function renderSafety(
       {filteredRecalls.length === 0 ? (
         <EmptyState title="No recalls found" message="No FDA recall actions on record." />
       ) : (
-        filteredRecalls.map((r) => {
-          const recallUrl = r.recall_number
-            ? `https://api.fda.gov/drug/enforcement.json?search=recall_number:"${r.recall_number}"&limit=1`
-            : null;
-          return (
-            <TouchableOpacity
-              key={r.id}
-              style={styles.card}
-              onPress={() => recallUrl && Linking.openURL(recallUrl)}
-              disabled={!recallUrl}
-            >
-              <View style={styles.recallBadgeRow}>
-                <View style={[styles.classBadge, {
-                  backgroundColor: r.classification === 'Class I' ? '#FEE2E2'
-                    : r.classification === 'Class II' ? '#FEF3C7' : '#E0F2FE',
-                }]}>
-                  <Text style={[styles.classBadgeText, {
-                    color: r.classification === 'Class I' ? '#DC2626'
-                      : r.classification === 'Class II' ? '#D97706' : '#2563EB',
-                  }]}>{r.classification || 'Unknown'}</Text>
-                </View>
-                {r.recall_number && <Text style={styles.recallNum}>#{r.recall_number}</Text>}
-                {r.status && <Text style={styles.recallStatus}>{r.status}</Text>}
-              </View>
-              {r.product_description && (
-                <Text style={styles.cardText} numberOfLines={3}>{r.product_description}</Text>
-              )}
-              {r.reason_for_recall && (
-                <Text style={styles.cardReason} numberOfLines={2}>Reason: {r.reason_for_recall}</Text>
-              )}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                {r.recall_initiation_date && (
-                  <Text style={styles.cardDate}>{r.recall_initiation_date}</Text>
-                )}
-                {r.recall_number && (
-                  <View style={styles.sourceLink}>
-                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
-                    <Text style={styles.sourceLinkText}>FDA</Text>
+        <FlatList
+          data={filteredRecalls}
+          keyExtractor={(item) => String(item.id)}
+          scrollEnabled={false}
+          renderItem={({ item: r }) => {
+            const recallUrl = r.recall_number
+              ? `https://api.fda.gov/drug/enforcement.json?search=recall_number:"${r.recall_number}"&limit=1`
+              : null;
+            return (
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() => recallUrl && Linking.openURL(recallUrl)}
+                disabled={!recallUrl}
+                accessibilityRole="link"
+              >
+                <View style={styles.recallBadgeRow}>
+                  <View style={[styles.classBadge, {
+                    backgroundColor: r.classification === 'Class I' ? '#FEE2E2'
+                      : r.classification === 'Class II' ? '#FEF3C7' : '#E0F2FE',
+                  }]}>
+                    <Text style={[styles.classBadgeText, {
+                      color: r.classification === 'Class I' ? '#DC2626'
+                        : r.classification === 'Class II' ? '#D97706' : '#2563EB',
+                    }]}>{r.classification || 'Unknown'}</Text>
                   </View>
+                  {r.recall_number && <Text style={styles.recallNum}>#{r.recall_number}</Text>}
+                  {r.status && <Text style={styles.recallStatus}>{r.status}</Text>}
+                </View>
+                {r.product_description && (
+                  <Text style={styles.cardText} numberOfLines={3}>{r.product_description}</Text>
                 )}
-              </View>
-            </TouchableOpacity>
-          );
-        })
+                {r.reason_for_recall && (
+                  <Text style={styles.cardReason} numberOfLines={2}>Reason: {r.reason_for_recall}</Text>
+                )}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                  {r.recall_initiation_date && (
+                    <Text style={styles.cardDate}>{r.recall_initiation_date}</Text>
+                  )}
+                  {r.recall_number && (
+                    <View style={styles.sourceLink}>
+                      <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                      <Text style={styles.sourceLinkText}>FDA</Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
       )}
 
       {/* Adverse events section */}
@@ -482,43 +482,48 @@ function renderSafety(
       {filteredEvents.length === 0 ? (
         <EmptyState title="No adverse events found" message="No FDA adverse event reports on file." />
       ) : (
-        filteredEvents.map((e) => {
-          const eventUrl = e.report_id
-            ? `https://api.fda.gov/drug/event.json?search=safetyreportid:"${e.report_id}"&limit=1`
-            : null;
-          return (
-            <TouchableOpacity
-              key={e.id}
-              style={styles.card}
-              onPress={() => eventUrl && Linking.openURL(eventUrl)}
-              disabled={!eventUrl}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                {e.serious === 1 && (
-                  <View style={styles.seriousBadge}>
-                    <Text style={styles.seriousBadgeText}>SERIOUS</Text>
-                  </View>
-                )}
-                {e.drug_name && <Text style={styles.drugName}>{e.drug_name}</Text>}
-              </View>
-              {e.reaction && (
-                <Text style={styles.cardText} numberOfLines={2}>{e.reaction}</Text>
-              )}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {e.outcome && <Text style={styles.outcome}>{e.outcome}</Text>}
-                  {e.receive_date && <Text style={styles.cardDate}>{e.receive_date}</Text>}
+        <FlatList
+          data={filteredEvents}
+          keyExtractor={(item) => String(item.id)}
+          scrollEnabled={false}
+          renderItem={({ item: e }) => {
+            const eventUrl = e.report_id
+              ? `https://api.fda.gov/drug/event.json?search=safetyreportid:"${e.report_id}"&limit=1`
+              : null;
+            return (
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() => eventUrl && Linking.openURL(eventUrl)}
+                disabled={!eventUrl}
+                accessibilityRole="link"
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  {e.serious === 1 && (
+                    <View style={styles.seriousBadge}>
+                      <Text style={styles.seriousBadgeText}>SERIOUS</Text>
+                    </View>
+                  )}
+                  {e.drug_name && <Text style={styles.drugName}>{e.drug_name}</Text>}
                 </View>
-                {eventUrl && (
-                  <View style={styles.sourceLink}>
-                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
-                    <Text style={styles.sourceLinkText}>openFDA</Text>
-                  </View>
+                {e.reaction && (
+                  <Text style={styles.cardText} numberOfLines={2}>{e.reaction}</Text>
                 )}
-              </View>
-            </TouchableOpacity>
-          );
-        })
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {e.outcome && <Text style={styles.outcome}>{e.outcome}</Text>}
+                    {e.receive_date && <Text style={styles.cardDate}>{e.receive_date}</Text>}
+                  </View>
+                  {eventUrl && (
+                    <View style={styles.sourceLink}>
+                      <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                      <Text style={styles.sourceLinkText}>openFDA</Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
       )}
     </View>
   );
@@ -534,63 +539,68 @@ function renderTrials(trials: ClinicalTrialItem[], loading: boolean) {
       {trials.length === 0 ? (
         <EmptyState title="No clinical trials found" message="No ClinicalTrials.gov studies on record." />
       ) : (
-        trials.map((t) => {
-          const trialUrl = t.nct_id
-            ? `https://clinicaltrials.gov/study/${t.nct_id}`
-            : null;
-          return (
-            <TouchableOpacity
-              key={t.id}
-              style={styles.card}
-              onPress={() => trialUrl && Linking.openURL(trialUrl)}
-              disabled={!trialUrl}
-            >
-              {/* Status + Phase */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <View style={[styles.statusBadge, { backgroundColor: getTrialStatusColor(t.overall_status || '') + '15' }]}>
-                  <View style={[styles.statusDot, { backgroundColor: getTrialStatusColor(t.overall_status || '') }]} />
-                  <Text style={[styles.statusBadgeText, { color: getTrialStatusColor(t.overall_status || '') }]}>
-                    {t.overall_status || 'Unknown'}
-                  </Text>
-                </View>
-                {t.phase && (
-                  <View style={styles.phaseBadge}>
-                    <Text style={styles.phaseBadgeText}>{t.phase}</Text>
+        <FlatList
+          data={trials}
+          keyExtractor={(item) => String(item.id)}
+          scrollEnabled={false}
+          renderItem={({ item: t }) => {
+            const trialUrl = t.nct_id
+              ? `https://clinicaltrials.gov/study/${t.nct_id}`
+              : null;
+            return (
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() => trialUrl && Linking.openURL(trialUrl)}
+                disabled={!trialUrl}
+                accessibilityRole="link"
+              >
+                {/* Status + Phase */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <View style={[styles.statusBadge, { backgroundColor: getTrialStatusColor(t.overall_status || '') + '15' }]}>
+                    <View style={[styles.statusDot, { backgroundColor: getTrialStatusColor(t.overall_status || '') }]} />
+                    <Text style={[styles.statusBadgeText, { color: getTrialStatusColor(t.overall_status || '') }]}>
+                      {t.overall_status || 'Unknown'}
+                    </Text>
                   </View>
-                )}
-              </View>
-
-              {/* NCT ID */}
-              <Text style={styles.nctId}>{t.nct_id}</Text>
-
-              {/* Title */}
-              {t.title && <Text style={styles.trialTitle} numberOfLines={3}>{t.title}</Text>}
-
-              {/* Conditions */}
-              {t.conditions && (
-                <Text style={styles.trialConditions} numberOfLines={2}>
-                  Conditions: {t.conditions}
-                </Text>
-              )}
-
-              {/* Bottom row */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-                <View>
-                  {t.enrollment != null && (
-                    <Text style={styles.enrollment}>Enrollment: {t.enrollment.toLocaleString()}</Text>
+                  {t.phase && (
+                    <View style={styles.phaseBadge}>
+                      <Text style={styles.phaseBadgeText}>{t.phase}</Text>
+                    </View>
                   )}
-                  {t.start_date && <Text style={styles.cardDate}>Started: {t.start_date}</Text>}
                 </View>
-                {trialUrl && (
-                  <View style={styles.sourceLink}>
-                    <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
-                    <Text style={styles.sourceLinkText}>ClinicalTrials.gov</Text>
-                  </View>
+
+                {/* NCT ID */}
+                <Text style={styles.nctId}>{t.nct_id}</Text>
+
+                {/* Title */}
+                {t.title && <Text style={styles.trialTitle} numberOfLines={3}>{t.title}</Text>}
+
+                {/* Conditions */}
+                {t.conditions && (
+                  <Text style={styles.trialConditions} numberOfLines={2}>
+                    Conditions: {t.conditions}
+                  </Text>
                 )}
-              </View>
-            </TouchableOpacity>
-          );
-        })
+
+                {/* Bottom row */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                  <View>
+                    {t.enrollment != null && (
+                      <Text style={styles.enrollment}>Enrollment: {t.enrollment.toLocaleString()}</Text>
+                    )}
+                    {t.start_date && <Text style={styles.cardDate}>Started: {t.start_date}</Text>}
+                  </View>
+                  {trialUrl && (
+                    <View style={styles.sourceLink}>
+                      <Ionicons name="open-outline" size={12} color={UI_COLORS.ACCENT} />
+                      <Text style={styles.sourceLinkText}>ClinicalTrials.gov</Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
       )}
     </View>
   );
@@ -612,6 +622,7 @@ function renderFilings(filings: SECFiling[], loading: boolean) {
             style={styles.card}
             onPress={() => f.primary_doc_url && Linking.openURL(f.primary_doc_url)}
             disabled={!f.primary_doc_url}
+            accessibilityRole="link"
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <View style={styles.formBadge}>

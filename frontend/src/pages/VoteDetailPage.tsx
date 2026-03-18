@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { apiClient } from "../api/client";
 import type { VoteDetailResponse, MemberVoteEntry } from "../api/types";
 import BackButton from "../components/BackButton";
-import PoliticsNav from "../components/PoliticsNav";
+import { PoliticsSectorHeader } from "../components/SectorHeader";
 
 type PositionFilter = "All" | "Yea" | "Nay" | "Not Voting" | "Present";
 
@@ -193,9 +193,9 @@ const VoteDetailPage: React.FC = () => {
     <div className="h-screen flex flex-col overflow-hidden">
       {/* ── HEADER ── */}
       <div className="shrink-0 px-8 pt-6 pb-4">
-        <div className="flex items-center justify-between mb-4">
+        <PoliticsSectorHeader />
+        <div className="mb-4">
           <BackButton to="/politics/activity" label="Activity" />
-          <PoliticsNav />
         </div>
 
         <p className="font-fira-code text-lg text-slate-400 tracking-wider mb-2">

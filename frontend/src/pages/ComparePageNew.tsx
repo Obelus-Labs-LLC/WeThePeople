@@ -4,7 +4,7 @@ import { Search, ArrowLeft, X, Loader2 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Person, CompareResponse, ComparePersonData } from '../api/types';
 import BackButton from '../components/BackButton';
-import PoliticsNav from '../components/PoliticsNav';
+import { PoliticsSectorHeader } from '../components/SectorHeader';
 
 // ── Constants ──
 
@@ -293,7 +293,7 @@ export default function ComparePageNew() {
               <ArrowLeft size={16} />
               <span className="font-dm-sans text-sm">New Comparison</span>
             </button>
-            <PoliticsNav />
+            <PoliticsSectorHeader />
           </div>
 
           {/* Sticky column headers */}
@@ -320,7 +320,7 @@ export default function ComparePageNew() {
                       className="text-xs font-bold px-2 py-0.5 rounded"
                       style={{ backgroundColor: 'rgba(100,116,139,0.2)', color: '#94A3B8' }}
                     >
-                      {person.chamber === 'senate' ? 'Senate' : 'House'}
+                      {person.chamber?.toLowerCase() === 'senate' ? 'Senate' : 'House'}
                     </span>
                   </div>
                   <span className="font-fira-code text-xs text-slate-400">{person.state}</span>
@@ -434,12 +434,10 @@ export default function ComparePageNew() {
         <div className="flex-1 flex flex-col overflow-hidden px-6 py-6">
           {/* Header */}
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="font-oswald text-5xl md:text-6xl font-bold uppercase text-white leading-none">
-                Compare Members
-              </h1>
-              <PoliticsNav />
-            </div>
+            <PoliticsSectorHeader />
+            <h1 className="font-oswald text-5xl md:text-6xl font-bold uppercase text-white leading-none mb-4">
+              Compare Members
+            </h1>
             <p className="font-dm-sans text-lg text-slate-400">
               Side-by-side legislative analysis
             </p>

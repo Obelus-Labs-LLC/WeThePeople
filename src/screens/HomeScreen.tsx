@@ -26,6 +26,7 @@ export default function HomeScreen() {
     politics: 'PoliticsTab',
     finance: 'FinanceTab',
     health: 'HealthTab',
+    energy: 'EnergyTab',
     technology: 'TechnologyTab',
   };
 

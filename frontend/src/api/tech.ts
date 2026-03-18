@@ -9,6 +9,12 @@ export interface TechDashboardStats {
   total_filings: number;
   total_patents: number;
   total_contracts: number;
+  // Political data
+  total_lobbying?: number;
+  total_lobbying_spend?: number;
+  total_contract_value?: number;
+  total_enforcement?: number;
+  total_penalties?: number;
   by_sector: Record<string, number>;
 }
 
@@ -217,7 +223,8 @@ export interface TechContractTrendsResponse {
 
 // ── Client ──
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+import { getApiBaseUrl } from './client';
+const API_BASE = getApiBaseUrl();
 
 async function fetchJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -316,5 +323,5 @@ export async function getTechCompanyStock(id: string): Promise<TechStockData> {
 }
 
 export async function getTechComparison(ids: string[]): Promise<TechComparisonResponse> {
-  return fetchJSON<TechComparisonResponse>(`${API_BASE}/tech/compare?ids=${ids.join(',')}`);
+  return fetchJSON<TechComparisonResponse>(`${API_BASE}/tech/compare?ids=${ids.map(id => encodeURIComponent(id)).join(',')}`);
 }

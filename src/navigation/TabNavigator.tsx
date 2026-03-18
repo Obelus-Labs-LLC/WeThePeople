@@ -14,6 +14,9 @@ import InstitutionScreen from '../screens/InstitutionScreen';
 import HealthDashboardScreen from '../screens/HealthDashboardScreen';
 import CompaniesScreen from '../screens/CompaniesScreen';
 import CompanyScreen from '../screens/CompanyScreen';
+import EnergyDashboardScreen from '../screens/EnergyDashboardScreen';
+import EnergyCompaniesScreen from '../screens/EnergyCompaniesScreen';
+import EnergyCompanyScreen from '../screens/EnergyCompanyScreen';
 import TechDashboardScreen from '../screens/TechDashboardScreen';
 import TechCompaniesScreen from '../screens/TechCompaniesScreen';
 import TechCompanyScreen from '../screens/TechCompanyScreen';
@@ -31,6 +34,7 @@ const HomeStack = createNativeStackNavigator();
 const PoliticsStack = createNativeStackNavigator();
 const FinanceStack = createNativeStackNavigator();
 const HealthStack = createNativeStackNavigator();
+const EnergyStack = createNativeStackNavigator();
 const TechnologyStack = createNativeStackNavigator();
 
 const stackScreenOptions = {
@@ -145,6 +149,28 @@ function HealthStackScreen() {
   );
 }
 
+function EnergyStackScreen() {
+  return (
+    <EnergyStack.Navigator screenOptions={stackScreenOptions}>
+      <EnergyStack.Screen
+        name="EnergyDashboard"
+        component={EnergyDashboardScreen}
+        options={{ title: 'Energy' }}
+      />
+      <EnergyStack.Screen
+        name="EnergyCompaniesDirectory"
+        component={EnergyCompaniesScreen}
+        options={{ title: 'Companies' }}
+      />
+      <EnergyStack.Screen
+        name="EnergyCompanyDetail"
+        component={EnergyCompanyScreen}
+        options={{ title: '' }}
+      />
+    </EnergyStack.Navigator>
+  );
+}
+
 function TechnologyStackScreen() {
   return (
     <TechnologyStack.Navigator screenOptions={stackScreenOptions}>
@@ -177,6 +203,7 @@ const TAB_ICONS: Record<string, { focused: IoniconsName; default: IoniconsName }
   PoliticsTab: { focused: 'business', default: 'business-outline' },
   FinanceTab: { focused: 'trending-up', default: 'trending-up-outline' },
   HealthTab: { focused: 'medkit', default: 'medkit-outline' },
+  EnergyTab: { focused: 'flame', default: 'flame-outline' },
   TechnologyTab: { focused: 'hardware-chip', default: 'hardware-chip-outline' },
   SettingsTab: { focused: 'settings', default: 'settings-outline' },
 };
@@ -227,6 +254,11 @@ export default function TabNavigator() {
         name="HealthTab"
         component={HealthStackScreen}
         options={{ title: 'Health' }}
+      />
+      <Tab.Screen
+        name="EnergyTab"
+        component={EnergyStackScreen}
+        options={{ title: 'Energy' }}
       />
       <Tab.Screen
         name="TechnologyTab"

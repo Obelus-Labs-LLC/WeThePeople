@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  Landmark, TrendingUp, FileSearch, Calendar, Hash, Download, ArrowLeft,
+  Landmark, TrendingUp, FileSearch, Calendar, Hash, Download,
   ExternalLink, CheckCircle, XCircle,
 } from 'lucide-react';
+import BackButton from '../components/BackButton';
+import { FinanceSectorHeader } from '../components/SectorHeader';
+import { LOCAL_LOGOS } from '../data/financeLogos';
 import {
   getInstitutionDetail,
   getInstitutionFilings,
@@ -14,6 +17,10 @@ import {
   getInstitutionInsiderTrades,
   getInstitutionPressReleases,
   getInstitutionFRED,
+  getInstitutionLobbying,
+  getInstitutionContracts,
+  getInstitutionEnforcement,
+  getInstitutionDonations,
   type InstitutionDetail,
   type SECFiling,
   type FDICFinancial,
@@ -22,18 +29,19 @@ import {
   type ComplaintSummary,
   type PressRelease,
   type FREDObservation,
+  type LobbyingFiling,
+  type GovernmentContractItem,
+  type EnforcementAction,
+  type DonationItem,
 } from '../api/finance';
+import { fmtDollar } from '../utils/format';
 
 // ── Helpers ──
 
-function fmtDollar(n: number | null | undefined): string {
-  if (n == null) return '—';
-  const abs = Math.abs(n);
-  if (abs >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (abs >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (abs >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
-  return `$${n.toFixed(2)}`;
+function instLogoUrl(inst: { institution_id: string; logo_url?: string | null; display_name: string }): string {
+  if (LOCAL_LOGOS.has(inst.institution_id)) return `/logos/${inst.institution_id}.png`;
+  if (inst.logo_url) return inst.logo_url;
+  return '';
 }
 
 function fmtPct(n: number | null | undefined): string {
@@ -99,14 +107,16 @@ function FilingRow({ filing }: { filing: SECFiling }) {
 
 // ── Tab Types ──
 
-type TabKey = 'overview' | 'complaints' | 'insider' | 'news' | 'macro';
+type TabKey = 'overview' | 'lobbying' | 'contracts' | 'enforcement' | 'insider' | 'donations' | 'financials';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
-  { key: 'complaints', label: 'Complaints' },
+  { key: 'lobbying', label: 'Lobbying' },
+  { key: 'contracts', label: 'Contracts' },
+  { key: 'enforcement', label: 'Enforcement' },
   { key: 'insider', label: 'Insider Trades' },
-  { key: 'news', label: 'Press Releases' },
-  { key: 'macro', label: 'Economic Data' },
+  { key: 'donations', label: 'Donations' },
+  { key: 'financials', label: 'Financials' },
 ];
 
 // ── Page ──
@@ -126,6 +136,8 @@ export default function InstitutionPage() {
   const [complaints, setComplaints] = useState<CFPBComplaintItem[]>([]);
   const [complaintSummary, setComplaintSummary] = useState<ComplaintSummary | null>(null);
   const [complaintsLoaded, setComplaintsLoaded] = useState(false);
+  const [complaintsTotal, setComplaintsTotal] = useState(0);
+  const [complaintsLoadingMore, setComplaintsLoadingMore] = useState(false);
 
   // Insider trades (lazy)
   const [trades, setTrades] = useState<Array<{ id: number; filer_name: string; filer_title: string | null; transaction_date: string | null; transaction_type: string | null; shares: number | null; price_per_share: number | null; total_value: number | null; filing_url: string | null }>>([]);
@@ -139,6 +151,27 @@ export default function InstitutionPage() {
   // FRED data (lazy)
   const [fredData, setFredData] = useState<FREDObservation[]>([]);
   const [fredLoaded, setFredLoaded] = useState(false);
+
+  // Lobbying (lazy)
+  const [lobbyingData, setLobbyingData] = useState<LobbyingFiling[]>([]);
+  const [lobbyingLoaded, setLobbyingLoaded] = useState(false);
+  const [lobbyingTotal, setLobbyingTotal] = useState(0);
+
+  // Contracts (lazy)
+  const [contractsData, setContractsData] = useState<GovernmentContractItem[]>([]);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
+  const [contractsTotal, setContractsTotal] = useState(0);
+
+  // Enforcement (lazy)
+  const [enforcementData, setEnforcementData] = useState<EnforcementAction[]>([]);
+  const [enforcementLoaded, setEnforcementLoaded] = useState(false);
+  const [enforcementTotal, setEnforcementTotal] = useState(0);
+  const [enforcementPenalties, setEnforcementPenalties] = useState(0);
+
+  // Donations (lazy)
+  const [donationsData, setDonationsData] = useState<DonationItem[]>([]);
+  const [donationsLoaded, setDonationsLoaded] = useState(false);
+  const [donationsTotal, setDonationsTotal] = useState(0);
 
   // Narrative expansion
   const [expandedNarratives, setExpandedNarratives] = useState<Set<number>>(new Set());
@@ -166,12 +199,12 @@ export default function InstitutionPage() {
   // Lazy load tab data
   useEffect(() => {
     if (!institution_id) return;
-    if (activeTab === 'complaints' && !complaintsLoaded) {
+    if (activeTab === 'financials' && !complaintsLoaded) {
       Promise.all([
         getInstitutionComplaints(institution_id, { limit: 50 }),
         getInstitutionComplaintSummary(institution_id),
       ])
-        .then(([c, s]) => { setComplaints(c.complaints || []); setComplaintSummary(s); setComplaintsLoaded(true); })
+        .then(([c, s]) => { setComplaints(c.complaints || []); setComplaintsTotal(c.total || 0); setComplaintSummary(s); setComplaintsLoaded(true); })
         .catch(console.error);
     }
     if (activeTab === 'insider' && !tradesLoaded) {
@@ -179,17 +212,37 @@ export default function InstitutionPage() {
         .then((r) => { setTrades(r.trades || []); setTradesLoaded(true); })
         .catch(console.error);
     }
-    if (activeTab === 'news' && !pressLoaded) {
-      getInstitutionPressReleases(institution_id, { limit: 50 })
-        .then((r) => { setPressReleases(r.press_releases || []); setPressLoaded(true); })
+    if (activeTab === 'lobbying' && !lobbyingLoaded) {
+      getInstitutionLobbying(institution_id, { limit: 100 })
+        .then((r) => { setLobbyingData(r.filings || []); setLobbyingTotal(r.total || 0); setLobbyingLoaded(true); })
         .catch(console.error);
     }
-    if (activeTab === 'macro' && !fredLoaded) {
-      getInstitutionFRED(institution_id, { limit: 200 })
-        .then((r) => { setFredData(r.observations || []); setFredLoaded(true); })
+    if (activeTab === 'contracts' && !contractsLoaded) {
+      getInstitutionContracts(institution_id, { limit: 100 })
+        .then((r) => { setContractsData(r.contracts || []); setContractsTotal(r.total || 0); setContractsLoaded(true); })
         .catch(console.error);
     }
-  }, [activeTab, institution_id, complaintsLoaded, tradesLoaded, pressLoaded, fredLoaded, tradeFilter]);
+    if (activeTab === 'enforcement' && !enforcementLoaded) {
+      getInstitutionEnforcement(institution_id, { limit: 100 })
+        .then((r) => { setEnforcementData(r.actions || []); setEnforcementTotal(r.total || 0); setEnforcementPenalties(r.total_penalties || 0); setEnforcementLoaded(true); })
+        .catch(console.error);
+    }
+    if (activeTab === 'donations' && !donationsLoaded) {
+      getInstitutionDonations(institution_id, { limit: 100 })
+        .then((r) => { setDonationsData(r.donations || []); setDonationsTotal(r.total || 0); setDonationsLoaded(true); })
+        .catch(console.error);
+    }
+    if (activeTab === 'financials' && !pressLoaded) {
+      // Load press + FRED + filings in the collapsed financials tab
+      Promise.all([
+        pressLoaded ? Promise.resolve(null) : getInstitutionPressReleases(institution_id, { limit: 50 }),
+        fredLoaded ? Promise.resolve(null) : getInstitutionFRED(institution_id, { limit: 200 }),
+      ]).then(([pr, fr]) => {
+        if (pr) { setPressReleases(pr.press_releases || []); setPressLoaded(true); }
+        if (fr) { setFredData(fr.observations || []); setFredLoaded(true); }
+      }).catch(console.error);
+    }
+  }, [activeTab, institution_id, complaintsLoaded, tradesLoaded, pressLoaded, fredLoaded, lobbyingLoaded, contractsLoaded, enforcementLoaded, donationsLoaded, tradeFilter]);
 
   // Re-fetch trades on filter change
   useEffect(() => {
@@ -220,17 +273,16 @@ export default function InstitutionPage() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-transparent">
       <div className="flex flex-1 flex-col overflow-hidden px-8 py-8 lg:px-12">
-        {/* Back link */}
-        <Link to="/finance/institutions" className="mb-4 inline-flex items-center gap-2 font-body text-sm text-white/50 transition-colors hover:text-white no-underline shrink-0">
-          <ArrowLeft size={16} />
-          Back to Institutions
-        </Link>
+        <FinanceSectorHeader />
+        <div className="mb-4 shrink-0">
+          <BackButton to="/finance/institutions" label="Institutions" />
+        </div>
 
         {/* ── Top Banner ── */}
         <div className="mb-6 flex items-center gap-6 rounded-xl border border-white/10 bg-white/[0.03] p-6 animate-fade-up shrink-0">
           <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/[0.05] border border-white/5">
-            {detail.logo_url ? (
-              <img src={detail.logo_url} alt={detail.display_name} className="h-12 w-12 object-contain" />
+            {instLogoUrl(detail) ? (
+              <img src={instLogoUrl(detail)} alt={detail.display_name} className="h-12 w-12 object-contain" />
             ) : (
               <Landmark size={24} className="text-white/20" />
             )}
@@ -249,7 +301,7 @@ export default function InstitutionPage() {
           </div>
           <div className="hidden flex-shrink-0 text-right md:block">
             {detail.sec_cik && (<div className="mb-2"><p className="font-mono text-xs text-white/40">CIK</p><p className="font-mono text-lg text-white">{detail.sec_cik}</p></div>)}
-            {detail.fdic_cert_number && (<div><p className="font-mono text-xs text-white/40">FDIC CERT</p><p className="font-mono text-lg text-white">{detail.fdic_cert_number}</p></div>)}
+            {detail.fdic_cert && (<div><p className="font-mono text-xs text-white/40">FDIC CERT</p><p className="font-mono text-lg text-white">{detail.fdic_cert}</p></div>)}
           </div>
         </div>
 
@@ -360,107 +412,6 @@ export default function InstitutionPage() {
             </div>
           )}
 
-          {/* COMPLAINTS TAB */}
-          {activeTab === 'complaints' && (
-            <div className="h-full overflow-y-auto pr-4">
-              {!complaintsLoaded ? (
-                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
-              ) : (
-                <>
-                  {/* Summary */}
-                  {complaintSummary && (
-                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-3 mb-8">
-                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
-                        <p className="font-mono text-xs text-white/40 uppercase mb-2">Total Complaints</p>
-                        <p className="font-heading text-4xl font-bold text-[#34D399]">{complaintSummary.total_complaints.toLocaleString()}</p>
-                      </div>
-                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
-                        <p className="font-mono text-xs text-white/40 uppercase mb-2">Timely Response</p>
-                        <p className="font-heading text-4xl font-bold text-[#34D399]">{complaintSummary.timely_response_pct != null ? `${complaintSummary.timely_response_pct}%` : '—'}</p>
-                        {complaintSummary.timely_response_pct != null && (
-                          <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/10">
-                            <div className="h-full rounded-full bg-[#34D399]" style={{ width: `${complaintSummary.timely_response_pct}%` }} />
-                          </div>
-                        )}
-                      </div>
-                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
-                        <p className="font-mono text-xs text-white/40 uppercase mb-4">Product Breakdown</p>
-                        <div className="space-y-3">
-                          {Object.entries(complaintSummary.by_product).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([product, count]) => {
-                            const pct = complaintSummary.total_complaints > 0 ? Math.round((count / complaintSummary.total_complaints) * 100) : 0;
-                            return (
-                              <div key={product}>
-                                <div className="flex justify-between mb-1">
-                                  <span className="font-body text-xs text-white/60 truncate mr-2">{product}</span>
-                                  <span className="font-mono text-xs text-[#34D399] flex-shrink-0">{count}</span>
-                                </div>
-                                <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                                  <div className="h-full rounded-full bg-[#34D399]" style={{ width: `${pct}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Feed */}
-                  <div className="space-y-4">
-                    {complaints.length === 0 ? (
-                      <p className="font-body text-sm text-white/40">No complaints on record.</p>
-                    ) : complaints.map((c) => (
-                      <a key={c.id} href={`https://www.consumerfinance.gov/data-research/consumer-complaints/search/detail/${c.complaint_id}`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="block rounded-lg border border-white/10 bg-white/[0.05] p-5 transition-all duration-150 hover:border-[#34D399]/50 no-underline">
-                        {/* Meta row */}
-                        <div className="flex flex-wrap items-center gap-3 border-b border-white/5 pb-4 mb-4">
-                          {c.product && <span className="rounded bg-[rgba(52,211,153,0.1)] px-2 py-1 font-mono text-xs font-bold text-[#34D399]">{c.product}</span>}
-                          {c.date_received && <span className="rounded bg-white/10 px-2 py-1 font-mono text-xs text-white/60">{c.date_received}</span>}
-                          {c.state && <span className="rounded bg-white/10 px-2 py-1 font-mono text-xs text-white/60">{c.state}</span>}
-                          {c.consumer_disputed === 'Yes' && (
-                            <span className="rounded bg-[rgba(245,158,11,0.2)] px-2 py-1 font-mono text-xs font-bold text-[#FBBF24] border border-[rgba(245,158,11,0.3)]">DISPUTED</span>
-                          )}
-                        </div>
-                        {/* Issue */}
-                        <p className="font-mono text-xs text-[#34D399] mb-1">ISSUE</p>
-                        <p className="font-body text-base text-white/80 leading-relaxed mb-3">
-                          {c.issue}{c.sub_issue ? ` — ${c.sub_issue}` : ''}
-                        </p>
-                        {/* Narrative */}
-                        {c.complaint_narrative && (
-                          <div className="rounded-lg border border-white/5 bg-white/5 p-4 mb-3">
-                            <p className="font-mono text-xs text-white/50 mb-2">CONSUMER NARRATIVE</p>
-                            <p className={`font-body text-sm italic text-white/60 leading-relaxed ${expandedNarratives.has(c.id) ? '' : 'line-clamp-3'}`}>
-                              {c.complaint_narrative}
-                            </p>
-                            <button
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setExpandedNarratives((prev) => { const next = new Set(prev); next.has(c.id) ? next.delete(c.id) : next.add(c.id); return next; }); }}
-                              className="mt-2 font-mono text-xs text-[#34D399] hover:text-[#34D399]/80 transition-colors"
-                            >
-                              {expandedNarratives.has(c.id) ? 'Show less' : 'Show full narrative'}
-                            </button>
-                          </div>
-                        )}
-                        {/* Footer */}
-                        <div className="flex items-center justify-between rounded bg-white/[0.05] border border-white/5 px-3 py-3">
-                          <span className="font-mono text-xs text-white/50">{c.company_response || 'No response'}</span>
-                          <span className="flex items-center gap-1.5 font-mono text-xs">
-                            {c.timely_response === 'Yes' ? (
-                              <><CheckCircle size={16} strokeWidth={1.5} className="text-[#34D399]" /><span className="text-[#34D399]">Timely</span></>
-                            ) : (
-                              <><XCircle size={16} strokeWidth={1.5} className="text-[#F87171]" /><span className="text-[#F87171]">Not Timely</span></>
-                            )}
-                          </span>
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
           {/* INSIDER TRADES TAB */}
           {activeTab === 'insider' && (
             <div className="flex h-full flex-col overflow-hidden">
@@ -524,79 +475,210 @@ export default function InstitutionPage() {
             </div>
           )}
 
-          {/* PRESS RELEASES TAB */}
-          {activeTab === 'news' && (
+          {/* LOBBYING TAB */}
+          {activeTab === 'lobbying' && (
             <div className="h-full overflow-y-auto pr-4">
-              {!pressLoaded ? (
+              {!lobbyingLoaded ? (
                 <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
-              ) : pressReleases.length === 0 ? (
-                <p className="font-body text-sm text-white/40">No press releases on record.</p>
+              ) : lobbyingData.length === 0 ? (
+                <p className="font-body text-sm text-white/40">No lobbying disclosures found. Data will appear after sync jobs run.</p>
               ) : (
-                <div className="space-y-4">
-                  {pressReleases.map((pr) => (
-                    <a key={pr.id} href={pr.url || '#'} target="_blank" rel="noopener noreferrer"
-                      className="group block rounded-lg border border-white/10 bg-white/5 p-5 transition-all duration-150 hover:bg-white/10 hover:border-[#34D399]/50 no-underline">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-body text-lg font-medium text-white group-hover:text-[#34D399] transition-colors mb-2">{pr.title}</p>
-                          <div className="flex items-center gap-3 mb-2">
-                            {pr.release_date && <span className="font-mono text-xs text-white/40">{pr.release_date}</span>}
-                            {pr.category && <span className="rounded bg-[#34D399]/10 px-2 py-0.5 font-mono text-xs text-[#34D399]">{pr.category}</span>}
-                          </div>
-                          {pr.summary && <p className="font-body text-sm text-white/60 leading-relaxed line-clamp-2">{pr.summary}</p>}
+                <div className="space-y-3">
+                  <p className="font-mono text-xs text-white/40 mb-4">{lobbyingTotal} total filings</p>
+                  {lobbyingData.map((f) => (
+                    <div key={f.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <span className="font-mono text-sm font-bold text-white">{f.registrant_name || 'Unknown Firm'}</span>
+                          {f.client_name && <span className="text-white/40 text-xs ml-2">for {f.client_name}</span>}
                         </div>
-                        <ExternalLink size={16} className="flex-shrink-0 text-white/30 group-hover:text-[#34D399] transition-colors mt-1" />
+                        <div className="text-right">
+                          {f.income != null && <span className="font-mono text-sm font-bold text-[#34D399]">{fmtDollar(f.income)}</span>}
+                        </div>
                       </div>
-                    </a>
+                      <div className="flex gap-3 text-xs text-white/40 font-mono">
+                        <span>{f.filing_year} {f.filing_period || ''}</span>
+                        {f.filing_uuid && (
+                          <a href={`https://lda.senate.gov/filings/filing/${f.filing_uuid}/`} target="_blank" rel="noopener noreferrer" className="text-[#34D399]/60 hover:text-[#34D399]">
+                            View Filing <ExternalLink size={10} className="inline" />
+                          </a>
+                        )}
+                      </div>
+                      {f.lobbying_issues && <p className="text-xs text-white/30 mt-2 line-clamp-1">{f.lobbying_issues}</p>}
+                    </div>
                   ))}
                 </div>
               )}
             </div>
           )}
 
-          {/* ECONOMIC DATA TAB */}
-          {activeTab === 'macro' && (
+          {/* CONTRACTS TAB */}
+          {activeTab === 'contracts' && (
             <div className="h-full overflow-y-auto pr-4">
-              {!fredLoaded ? (
+              {!contractsLoaded ? (
                 <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
-              ) : fredData.length === 0 ? (
-                <p className="font-body text-sm text-white/40">No economic data available.</p>
+              ) : contractsData.length === 0 ? (
+                <p className="font-body text-sm text-white/40">No government contracts found. Data will appear after sync jobs run.</p>
               ) : (
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                  {/* Group by series_id */}
-                  {(() => {
-                    const grouped = new Map<string, FREDObservation[]>();
-                    fredData.forEach((obs) => {
-                      if (!grouped.has(obs.series_id)) grouped.set(obs.series_id, []);
-                      grouped.get(obs.series_id)!.push(obs);
-                    });
-                    return Array.from(grouped.entries()).map(([seriesId, observations]) => {
-                      const latest = observations[0];
-                      return (
-                        <div key={seriesId} className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-heading text-lg font-bold uppercase text-white">{seriesId}</h3>
-                            <Landmark size={16} className="text-[#34D399] opacity-30" />
-                          </div>
-                          <p className="font-mono text-4xl font-bold text-[#34D399] mb-2">
-                            {latest?.value != null ? latest.value.toFixed(2) : '—'}
-                          </p>
-                          <p className="font-mono text-xs text-white/40 mb-4">
-                            Latest: {latest?.observation_date || '—'}
-                          </p>
-                          {/* Recent history */}
-                          <div className="space-y-2 border-t border-white/10 pt-3">
-                            {observations.slice(0, 5).map((obs, i) => (
-                              <div key={i} className="flex justify-between">
-                                <span className="font-mono text-xs text-white/40">{obs.observation_date}</span>
-                                <span className="font-mono text-sm text-white">{obs.value != null ? obs.value.toFixed(2) : '—'}</span>
-                              </div>
-                            ))}
-                          </div>
+                <div className="space-y-3">
+                  <p className="font-mono text-xs text-white/40 mb-4">{contractsTotal} total contracts</p>
+                  {contractsData.map((c) => (
+                    <div key={c.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <p className="font-body text-sm text-white flex-1 mr-4 line-clamp-2">{c.description || 'No description'}</p>
+                        {c.award_amount != null && <span className="font-mono text-sm font-bold text-[#34D399] whitespace-nowrap">{fmtDollar(c.award_amount)}</span>}
+                      </div>
+                      <div className="flex gap-3 text-xs text-white/40 font-mono">
+                        {c.awarding_agency && <span>{c.awarding_agency}</span>}
+                        {c.start_date && <span>{c.start_date}</span>}
+                        {c.award_id && (
+                          <a href={`https://www.usaspending.gov/award/${c.award_id}`} target="_blank" rel="noopener noreferrer" className="text-[#34D399]/60 hover:text-[#34D399]">
+                            USASpending <ExternalLink size={10} className="inline" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ENFORCEMENT TAB */}
+          {activeTab === 'enforcement' && (
+            <div className="h-full overflow-y-auto pr-4">
+              {!enforcementLoaded ? (
+                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
+              ) : enforcementData.length === 0 ? (
+                <p className="font-body text-sm text-white/40">No enforcement actions found. Data will appear after sync jobs run.</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex gap-6 mb-4">
+                    <span className="font-mono text-xs text-white/40">{enforcementTotal} actions</span>
+                    {enforcementPenalties > 0 && <span className="font-mono text-xs text-[#FF3366]">Total penalties: {fmtDollar(enforcementPenalties)}</span>}
+                  </div>
+                  {enforcementData.map((a) => (
+                    <div key={a.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <p className="font-body text-sm font-medium text-white flex-1 mr-4">{a.case_title}</p>
+                        {a.penalty_amount != null && a.penalty_amount > 0 && (
+                          <span className="font-mono text-sm font-bold text-[#FF3366] whitespace-nowrap">{fmtDollar(a.penalty_amount)}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-xs font-mono">
+                        {a.case_date && <span className="text-white/40">{a.case_date}</span>}
+                        {a.enforcement_type && <span className="rounded bg-[#FF3366]/10 px-2 py-0.5 text-[#FF3366]">{a.enforcement_type}</span>}
+                        {a.source && <span className="text-white/30">{a.source}</span>}
+                        {a.case_url && (
+                          <a href={a.case_url} target="_blank" rel="noopener noreferrer" className="text-[#34D399]/60 hover:text-[#34D399]">
+                            Source <ExternalLink size={10} className="inline" />
+                          </a>
+                        )}
+                      </div>
+                      {a.description && <p className="text-xs text-white/30 mt-2 line-clamp-2">{a.description}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* DONATIONS TAB */}
+          {activeTab === 'donations' && (
+            <div className="h-full overflow-y-auto pr-4">
+              {!donationsLoaded ? (
+                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
+              ) : donationsData.length === 0 ? (
+                <p className="font-body text-sm text-white/40">No political donations found. Data will appear after sync jobs run.</p>
+              ) : (
+                <div className="space-y-3">
+                  <p className="font-mono text-xs text-white/40 mb-4">{donationsTotal} total donations</p>
+                  {donationsData.map((d) => (
+                    <div key={d.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <span className="font-body text-sm font-medium text-white">{d.candidate_name || d.committee_name || 'Unknown'}</span>
+                          {d.committee_name && d.candidate_name && <span className="text-white/40 text-xs ml-2">via {d.committee_name}</span>}
                         </div>
-                      );
-                    });
-                  })()}
+                        {d.amount != null && <span className="font-mono text-sm font-bold text-[#34D399]">{fmtDollar(d.amount)}</span>}
+                      </div>
+                      <div className="flex gap-3 text-xs text-white/40 font-mono">
+                        {d.cycle && <span>Cycle: {d.cycle}</span>}
+                        {d.donation_date && <span>{d.donation_date}</span>}
+                        {d.person_id && (
+                          <Link to={`/politics/people/${d.person_id}`} className="text-blue-400 hover:text-blue-300 no-underline">
+                            View Profile
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* FINANCIALS TAB (collapsed: SEC filings + FDIC + complaints + FRED) */}
+          {activeTab === 'financials' && (
+            <div className="h-full overflow-y-auto pr-4 space-y-6">
+              {/* SEC Filings */}
+              <div>
+                <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">SEC Filings ({filings.length})</h3>
+                {filings.length === 0 ? (
+                  <p className="font-body text-sm text-white/30">No SEC filings.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {filings.slice(0, 10).map((f) => (
+                      <div key={f.id} className="flex items-center justify-between rounded border border-white/5 bg-white/[0.02] p-3">
+                        <div className="flex items-center gap-3">
+                          <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-xs text-white/70">{f.form_type}</span>
+                          <span className="text-sm text-white/50 line-clamp-1">{f.description || 'Filing'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs text-white/30">{f.filing_date}</span>
+                          {f.filing_url && (
+                            <a href={f.filing_url} target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-[#34D399]">
+                              <ExternalLink size={12} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Complaints summary */}
+              {complaintSummary && (
+                <div>
+                  <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">CFPB Complaints ({complaintsTotal})</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(complaintSummary.by_product || {}).slice(0, 6).map(([product, count]) => (
+                      <div key={product} className="rounded border border-white/5 bg-white/[0.02] p-3">
+                        <p className="text-xs text-white/40 mb-1">{product}</p>
+                        <p className="font-mono text-lg text-white">{count}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Stock data */}
+              {stock && (
+                <div>
+                  <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">Market Data</h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: 'Market Cap', value: stock.market_cap ? fmtDollar(stock.market_cap) : '—' },
+                      { label: 'P/E Ratio', value: stock.pe_ratio?.toFixed(1) || '—' },
+                      { label: 'Profit Margin', value: stock.profit_margin != null ? `${(stock.profit_margin * 100).toFixed(1)}%` : '—' },
+                    ].map((s) => (
+                      <div key={s.label} className="rounded border border-white/5 bg-white/[0.02] p-3">
+                        <p className="text-xs text-white/40 mb-1">{s.label}</p>
+                        <p className="font-mono text-lg text-white">{s.value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -180,6 +180,9 @@ export interface FinancialSnapshot {
   roa: number | null;
   roe: number | null;
   tier1_capital_ratio: number | null;
+  efficiency_ratio: number | null;
+  noncurrent_loan_ratio: number | null;
+  net_charge_off_ratio: number | null;
 }
 
 export interface SECFiling {
@@ -652,6 +655,92 @@ export interface PoliticsComparisonResponse {
   people: PoliticsComparisonItem[];
 }
 
+// ── Energy Sector Types ──
+
+export interface EnergyDashboardStats {
+  total_companies: number;
+  total_filings: number;
+  total_emissions_records: number;
+  total_contracts: number;
+  total_enforcement: number;
+  by_sector: Record<string, number>;
+}
+
+export interface EnergyCompany {
+  company_id: string;
+  display_name: string;
+  ticker: string | null;
+  sector_type: string;
+  headquarters: string | null;
+  logo_url: string | null;
+  emission_count: number;
+  contract_count: number;
+  filing_count: number;
+  enforcement_count: number;
+}
+
+export interface EnergyCompaniesResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  companies: EnergyCompany[];
+}
+
+export interface EnergyCompanyDetail extends EnergyCompany {
+  sec_cik: string | null;
+  lobbying_count: number;
+  total_contract_value: number;
+  total_penalties: number;
+  latest_stock: StockSnapshot | null;
+}
+
+export interface EnergyEmissionItem {
+  id: number;
+  facility_name: string | null;
+  facility_state: string | null;
+  reporting_year: number;
+  total_emissions: number | null;
+  emission_type: string | null;
+  industry_type: string | null;
+  source_url: string | null;
+}
+
+export interface EmissionsResponse {
+  total: number;
+  total_co2e: number;
+  limit: number;
+  offset: number;
+  emissions: EnergyEmissionItem[];
+}
+
+export interface EmissionsSummary {
+  total_records: number;
+  total_co2e: number;
+  by_year: Record<string, { total_emissions: number; facilities: number }>;
+  by_state: Record<string, { total_emissions: number; facilities: number }>;
+}
+
+export interface EnergyComparisonItem {
+  company_id: string;
+  display_name: string;
+  ticker: string | null;
+  sector_type: string;
+  emission_count: number;
+  total_emissions: number;
+  contract_count: number;
+  total_contract_value: number;
+  lobbying_total: number;
+  enforcement_count: number;
+  total_penalties: number;
+  market_cap: number | null;
+  pe_ratio: number | null;
+  profit_margin: number | null;
+}
+
+export interface EnergyComparisonResponse {
+  companies: EnergyComparisonItem[];
+}
+
 // ── Legislative Activity Types ────────────────────────────────
 export interface ActivityEntry {
   bill_id: string;
@@ -693,6 +782,8 @@ export interface PersonVoteEntry {
   related_bill_congress: number | null;
   related_bill_type: string | null;
   related_bill_number: number | null;
+  bill_title: string | null;
+  bill_summary: string | null;
 }
 
 export interface PersonVotesResponse {

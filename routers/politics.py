@@ -23,6 +23,8 @@ from models.database import (
     GoldLedgerEntry,
     TrackedMember,
     MemberBillGroundTruth,
+    CompanyDonation,
+    CongressionalTrade,
 )
 from services.coverage import compute_coverage_report
 from services.ops.pilot_cohort import get_pilot_person_ids
@@ -1586,6 +1588,123 @@ def get_dashboard_stats():
             "total_people": total_people, "total_claims": total_claims,
             "total_actions": total_actions, "total_bills": total_bills,
             "by_tier": by_tier, "match_rate": match_rate,
+        }
+    finally:
+        db.close()
+
+
+# ── Cross-sector political connections ────────────────────────────────────
+
+
+@router.get("/people/{person_id}/industry-donors")
+def get_person_industry_donors(
+    person_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """Which companies across ALL sectors donate to this politician, grouped by sector."""
+    db = SessionLocal()
+    try:
+        member = db.query(TrackedMember).filter_by(person_id=person_id).first()
+        if not member:
+            raise HTTPException(status_code=404, detail={"error": "Person not found"})
+
+        query = db.query(CompanyDonation).filter_by(person_id=person_id)
+        total = query.count()
+        total_amount = db.query(func.sum(CompanyDonation.amount)).filter_by(person_id=person_id).scalar() or 0
+
+        donations = query.order_by(desc(CompanyDonation.amount)).offset(offset).limit(limit).all()
+
+        # Group by sector
+        by_sector = {}
+        sector_rows = db.query(
+            CompanyDonation.entity_type, func.sum(CompanyDonation.amount), func.count(),
+        ).filter_by(person_id=person_id).group_by(CompanyDonation.entity_type).all()
+        for sector, amount, count in sector_rows:
+            by_sector[sector] = {"total_amount": amount or 0, "donor_count": count}
+
+        return {
+            "person_id": person_id, "display_name": member.display_name,
+            "total": total, "total_amount": total_amount, "limit": limit, "offset": offset,
+            "by_sector": by_sector,
+            "donations": [{
+                "id": d.id, "entity_type": d.entity_type, "entity_id": d.entity_id,
+                "committee_name": d.committee_name, "amount": d.amount, "cycle": d.cycle,
+                "donation_date": str(d.donation_date) if d.donation_date else None,
+                "source_url": d.source_url,
+            } for d in donations],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/people/{person_id}/trades")
+def get_person_trades(
+    person_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+    transaction_type: Optional[str] = Query(None, description="purchase, sale, exchange"),
+):
+    """Congressional stock trades (STOCK Act disclosures) for a politician."""
+    db = SessionLocal()
+    try:
+        member = db.query(TrackedMember).filter_by(person_id=person_id).first()
+        if not member:
+            raise HTTPException(status_code=404, detail={"error": "Person not found"})
+
+        query = db.query(CongressionalTrade).filter_by(person_id=person_id)
+        if transaction_type:
+            query = query.filter(CongressionalTrade.transaction_type == transaction_type)
+        total = query.count()
+        trades = query.order_by(desc(CongressionalTrade.transaction_date)).offset(offset).limit(limit).all()
+
+        return {
+            "person_id": person_id, "display_name": member.display_name,
+            "total": total, "limit": limit, "offset": offset,
+            "trades": [{
+                "id": t.id, "ticker": t.ticker, "asset_name": t.asset_name,
+                "transaction_type": t.transaction_type, "amount_range": t.amount_range,
+                "disclosure_date": str(t.disclosure_date) if t.disclosure_date else None,
+                "transaction_date": str(t.transaction_date) if t.transaction_date else None,
+                "owner": t.owner, "source_url": t.source_url,
+            } for t in trades],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/congressional-trades")
+def get_all_congressional_trades(
+    limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+    transaction_type: Optional[str] = Query(None),
+    ticker: Optional[str] = Query(None),
+    person_id: Optional[str] = Query(None),
+):
+    """All Congressional stock trades, sortable/filterable."""
+    db = SessionLocal()
+    try:
+        query = db.query(CongressionalTrade)
+        if transaction_type:
+            query = query.filter(CongressionalTrade.transaction_type == transaction_type)
+        if ticker:
+            query = query.filter(CongressionalTrade.ticker == ticker.upper())
+        if person_id:
+            query = query.filter(CongressionalTrade.person_id == person_id)
+
+        total = query.count()
+        trades = query.order_by(desc(CongressionalTrade.disclosure_date)).offset(offset).limit(limit).all()
+
+        # Bulk-fetch member names
+        person_ids = list({t.person_id for t in trades})
+        members = {m.person_id: m.display_name for m in db.query(TrackedMember).filter(TrackedMember.person_id.in_(person_ids)).all()} if person_ids else {}
+
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "trades": [{
+                "id": t.id, "person_id": t.person_id,
+                "member_name": members.get(t.person_id, t.person_id),
+                "ticker": t.ticker, "asset_name": t.asset_name,
+                "transaction_type": t.transaction_type, "amount_range": t.amount_range,
+                "disclosure_date": str(t.disclosure_date) if t.disclosure_date else None,
+                "transaction_date": str(t.transaction_date) if t.transaction_date else None,
+                "owner": t.owner, "source_url": t.source_url,
+            } for t in trades],
         }
     finally:
         db.close()

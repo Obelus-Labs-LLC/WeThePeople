@@ -14,7 +14,11 @@ from models.health_models import (
     ClinicalTrial,
     CMSPayment,
     SECHealthFiling,
+    HealthLobbyingRecord,
+    HealthGovernmentContract,
+    HealthEnforcement,
 )
+from models.database import CompanyDonation
 from models.market_models import StockFundamentals
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -32,6 +36,14 @@ def get_health_dashboard_stats():
         total_payments = db.query(func.count(CMSPayment.id)).scalar() or 0
         total_sec_filings = db.query(func.count(SECHealthFiling.id)).scalar() or 0
 
+        # Political data counts
+        total_lobbying = db.query(func.count(HealthLobbyingRecord.id)).scalar() or 0
+        total_lobbying_spend = db.query(func.sum(HealthLobbyingRecord.income)).scalar() or 0
+        total_contracts = db.query(func.count(HealthGovernmentContract.id)).scalar() or 0
+        total_contract_value = db.query(func.sum(HealthGovernmentContract.award_amount)).scalar() or 0
+        total_enforcement = db.query(func.count(HealthEnforcement.id)).scalar() or 0
+        total_penalties = db.query(func.sum(HealthEnforcement.penalty_amount)).scalar() or 0
+
         by_sector = dict(
             db.query(TrackedCompany.sector_type, func.count(TrackedCompany.id))
             .filter(TrackedCompany.is_active == 1)
@@ -42,6 +54,9 @@ def get_health_dashboard_stats():
             "total_companies": total_companies, "total_adverse_events": total_events,
             "total_recalls": total_recalls, "total_trials": total_trials,
             "total_payments": total_payments, "total_sec_filings": total_sec_filings,
+            "total_lobbying": total_lobbying, "total_lobbying_spend": total_lobbying_spend,
+            "total_contracts": total_contracts, "total_contract_value": total_contract_value,
+            "total_enforcement": total_enforcement, "total_penalties": total_penalties,
             "by_sector": by_sector,
         }
     finally:
@@ -326,6 +341,169 @@ def get_company_stock(company_id: str):
                 "day_50_moving_avg": latest.day_50_moving_avg, "day_200_moving_avg": latest.day_200_moving_avg,
                 "sector": latest.sector, "industry": latest.industry,
             }
+        }
+    finally:
+        db.close()
+
+
+# ── Political data endpoints ──────────────────────────────────────────────
+
+
+@router.get("/companies/{company_id}/lobbying")
+def get_health_company_lobbying(
+    company_id: str, filing_year: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """Lobbying disclosure filings for a health company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Health company not found")
+        query = db.query(HealthLobbyingRecord).filter_by(company_id=company_id)
+        if filing_year:
+            query = query.filter(HealthLobbyingRecord.filing_year == filing_year)
+        total = query.count()
+        records = query.order_by(desc(HealthLobbyingRecord.filing_year), HealthLobbyingRecord.filing_period).offset(offset).limit(limit).all()
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "filings": [{
+                "id": r.id, "filing_uuid": r.filing_uuid, "filing_year": r.filing_year,
+                "filing_period": r.filing_period, "income": r.income, "expenses": r.expenses,
+                "registrant_name": r.registrant_name, "client_name": r.client_name,
+                "lobbying_issues": r.lobbying_issues, "government_entities": r.government_entities,
+            } for r in records],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/lobbying/summary")
+def get_health_company_lobbying_summary(company_id: str):
+    """Lobbying spend summary by year and top firms."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Health company not found")
+        total_filings = db.query(HealthLobbyingRecord).filter_by(company_id=company_id).count()
+        total_income = db.query(func.sum(HealthLobbyingRecord.income)).filter_by(company_id=company_id).scalar() or 0
+        by_year = {}
+        rows = db.query(
+            HealthLobbyingRecord.filing_year, func.sum(HealthLobbyingRecord.income), func.count(),
+        ).filter_by(company_id=company_id).group_by(HealthLobbyingRecord.filing_year).order_by(HealthLobbyingRecord.filing_year).all()
+        for year, income, count in rows:
+            by_year[str(year)] = {"income": income or 0, "filings": count}
+        top_firms = {}
+        rows = db.query(
+            HealthLobbyingRecord.registrant_name, func.sum(HealthLobbyingRecord.income), func.count(),
+        ).filter_by(company_id=company_id).group_by(HealthLobbyingRecord.registrant_name).order_by(func.sum(HealthLobbyingRecord.income).desc()).limit(10).all()
+        for name, income, count in rows:
+            if name:
+                top_firms[name] = {"income": income or 0, "filings": count}
+        return {"total_filings": total_filings, "total_income": total_income, "by_year": by_year, "top_firms": top_firms}
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/contracts")
+def get_health_company_contracts(
+    company_id: str, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0),
+):
+    """Government contracts awarded to a health company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Health company not found")
+        query = db.query(HealthGovernmentContract).filter_by(company_id=company_id)
+        total = query.count()
+        contracts = query.order_by(desc(HealthGovernmentContract.award_amount)).offset(offset).limit(limit).all()
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "contracts": [{
+                "id": ct.id, "award_id": ct.award_id, "award_amount": ct.award_amount,
+                "awarding_agency": ct.awarding_agency, "description": ct.description,
+                "start_date": str(ct.start_date) if ct.start_date else None,
+                "end_date": str(ct.end_date) if ct.end_date else None, "contract_type": ct.contract_type,
+            } for ct in contracts],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/contracts/summary")
+def get_health_company_contract_summary(company_id: str):
+    """Contract summary with totals and breakdown by agency."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Health company not found")
+        total_contracts = db.query(HealthGovernmentContract).filter_by(company_id=company_id).count()
+        total_amount = db.query(func.sum(HealthGovernmentContract.award_amount)).filter_by(company_id=company_id).scalar() or 0
+        by_agency = {}
+        rows = db.query(HealthGovernmentContract.awarding_agency, func.count()).filter_by(
+            company_id=company_id
+        ).group_by(HealthGovernmentContract.awarding_agency).order_by(func.count().desc()).limit(10).all()
+        for agency, count in rows:
+            if agency:
+                by_agency[agency] = count
+        return {"total_contracts": total_contracts, "total_amount": total_amount, "by_agency": by_agency}
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/enforcement")
+def get_health_company_enforcement(
+    company_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """Enforcement actions against a health company (FDA, DOJ, OIG)."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Health company not found")
+        query = db.query(HealthEnforcement).filter_by(company_id=company_id)
+        total = query.count()
+        actions = query.order_by(desc(HealthEnforcement.case_date)).offset(offset).limit(limit).all()
+        total_penalties = db.query(func.sum(HealthEnforcement.penalty_amount)).filter_by(company_id=company_id).scalar() or 0
+        return {
+            "total": total, "total_penalties": total_penalties, "limit": limit, "offset": offset,
+            "actions": [{
+                "id": a.id, "case_title": a.case_title,
+                "case_date": str(a.case_date) if a.case_date else None,
+                "case_url": a.case_url, "enforcement_type": a.enforcement_type,
+                "penalty_amount": a.penalty_amount, "description": a.description, "source": a.source,
+            } for a in actions],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/donations")
+def get_health_company_donations(
+    company_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """PAC/corporate donations from a health company to politicians."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Health company not found")
+        query = db.query(CompanyDonation).filter_by(entity_type="health", entity_id=company_id)
+        total = query.count()
+        donations = query.order_by(desc(CompanyDonation.amount)).offset(offset).limit(limit).all()
+        total_amount = db.query(func.sum(CompanyDonation.amount)).filter_by(entity_type="health", entity_id=company_id).scalar() or 0
+        return {
+            "total": total, "total_amount": total_amount, "limit": limit, "offset": offset,
+            "donations": [{
+                "id": d.id, "committee_name": d.committee_name, "committee_id": d.committee_id,
+                "candidate_name": d.candidate_name, "candidate_id": d.candidate_id,
+                "person_id": d.person_id, "amount": d.amount, "cycle": d.cycle,
+                "donation_date": str(d.donation_date) if d.donation_date else None,
+                "source_url": d.source_url,
+            } for d in donations],
         }
     finally:
         db.close()

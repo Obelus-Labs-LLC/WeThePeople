@@ -4,12 +4,12 @@
   --light: #d9d9d9;
   --dark: #121212;
   --gray: #414344;
-  --gap: 5px;
-  --width: 42px;
+  --gap: 3px;
+  --width: 20px;
   position: relative;
   z-index: 10;
   width: fit-content;
-  height: 42px;
+  height: 20px;
   border-radius: 9999px;
   container-type: style;
 }
@@ -22,7 +22,7 @@
   cursor: pointer;
   position: relative;
   display: inline-block;
-  padding: 0.4rem;
+  padding: 0.25rem;
   width: calc((var(--width) + var(--gap)) * 2);
   height: 100%;
   background-color: var(--dark);
@@ -40,8 +40,8 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: calc(100% + 1.2rem);
-  height: calc(100% + 1.2rem);
+  width: calc(100% + 0.8rem);
+  height: calc(100% + 0.8rem);
   background-color: var(--gray);
   border: 1px solid #777777;
   border-bottom: 0;
@@ -72,7 +72,7 @@
   align-items: center;
   position: relative;
   width: var(--width);
-  height: 42px;
+  height: 20px;
   background-image: radial-gradient(
     circle at 50% 0%,
     #666666 0%,
@@ -111,7 +111,7 @@
 }
 
 .cont-icon .icon {
-  width: 1rem;
+  width: 0.75rem;
   color: var(--light);
   position: relative;
   z-index: 1;
@@ -163,12 +163,12 @@
 .view-toggle-labels {
   display: flex;
   justify-content: center;
-  gap: 2rem;
-  margin-top: 0.35rem;
+  gap: 1.5rem;
+  margin-top: 0.2rem;
 }
 
 .view-toggle-labels span {
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;

@@ -12,7 +12,7 @@ import {
   Search,
 } from 'lucide-react';
 import SpotlightCard from '../components/SpotlightCard';
-import FinanceNav from '../components/FinanceNav';
+import { FinanceSectorHeader } from '../components/SectorHeader';
 import {
   getInstitutions,
   getSectorNews,
@@ -27,12 +27,9 @@ import {
   type ComplaintSummary,
   type CFPBComplaintItem,
 } from '../api/finance';
+import { fmtNum } from '../utils/format';
 
 // ── Helpers ──
-
-function fmtNum(n: number): string {
-  return n.toLocaleString();
-}
 
 function categoryColor(cat: string | null): string {
   if (!cat) return '#34D399';
@@ -416,14 +413,7 @@ export default function NewsRegulatoryPage() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
-        {/* Back to Sectors */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 font-body text-sm text-white/50 hover:text-white transition-colors no-underline mb-4 animate-fade-up"
-        >
-          <ArrowLeft size={16} />
-          Back to Sectors
-        </Link>
+        <FinanceSectorHeader />
 
         {/* Header */}
         <div className="flex items-end justify-between mb-6 animate-fade-up">
@@ -446,9 +436,6 @@ export default function NewsRegulatoryPage() {
             </p>
           </div>
         </div>
-
-        {/* Navigation Tabs */}
-        <FinanceNav />
 
         {/* Institution Selector */}
         <div className="relative z-50 mb-8">

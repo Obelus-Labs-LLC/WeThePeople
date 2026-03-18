@@ -1,0 +1,166 @@
+"""
+Cross-sector influence routes — aggregate lobbying, contracts, enforcement, donations across all sectors.
+"""
+
+from fastapi import APIRouter, Query, HTTPException
+from sqlalchemy import func, desc
+from typing import Optional
+
+from models.database import SessionLocal, CompanyDonation, CongressionalTrade, TrackedMember
+from models.finance_models import (
+    TrackedInstitution, FinanceLobbyingRecord, FinanceGovernmentContract, FinanceEnforcement,
+)
+from models.health_models import (
+    TrackedCompany, HealthLobbyingRecord, HealthGovernmentContract, HealthEnforcement,
+)
+from models.tech_models import TrackedTechCompany, LobbyingRecord, GovernmentContract, FTCEnforcement
+from models.energy_models import (
+    TrackedEnergyCompany, EnergyLobbyingRecord, EnergyGovernmentContract, EnergyEnforcement,
+)
+
+router = APIRouter(prefix="/influence", tags=["influence"])
+
+
+@router.get("/stats")
+def get_influence_stats():
+    """Aggregate influence stats across all sectors."""
+    db = SessionLocal()
+    try:
+        # Lobbying totals
+        finance_lobbying = db.query(func.sum(FinanceLobbyingRecord.income)).scalar() or 0
+        health_lobbying = db.query(func.sum(HealthLobbyingRecord.income)).scalar() or 0
+        tech_lobbying = db.query(func.sum(LobbyingRecord.income)).scalar() or 0
+        energy_lobbying = db.query(func.sum(EnergyLobbyingRecord.income)).scalar() or 0
+        total_lobbying = finance_lobbying + health_lobbying + tech_lobbying + energy_lobbying
+
+        # Contract totals
+        finance_contracts = db.query(func.sum(FinanceGovernmentContract.award_amount)).scalar() or 0
+        health_contracts = db.query(func.sum(HealthGovernmentContract.award_amount)).scalar() or 0
+        tech_contracts = db.query(func.sum(GovernmentContract.award_amount)).scalar() or 0
+        energy_contracts = db.query(func.sum(EnergyGovernmentContract.award_amount)).scalar() or 0
+        total_contracts = finance_contracts + health_contracts + tech_contracts + energy_contracts
+
+        # Enforcement totals
+        finance_enforcement = db.query(func.count(FinanceEnforcement.id)).scalar() or 0
+        health_enforcement = db.query(func.count(HealthEnforcement.id)).scalar() or 0
+        tech_enforcement = db.query(func.count(FTCEnforcement.id)).scalar() or 0
+        energy_enforcement = db.query(func.count(EnergyEnforcement.id)).scalar() or 0
+        total_enforcement = finance_enforcement + health_enforcement + tech_enforcement + energy_enforcement
+
+        # Politicians connected (via donations)
+        politicians_connected = db.query(func.count(func.distinct(CompanyDonation.person_id))).filter(
+            CompanyDonation.person_id.isnot(None)
+        ).scalar() or 0
+
+        return {
+            "total_lobbying_spend": total_lobbying,
+            "total_contract_value": total_contracts,
+            "total_enforcement_actions": total_enforcement,
+            "politicians_connected": politicians_connected,
+            "by_sector": {
+                "finance": {"lobbying": finance_lobbying, "contracts": finance_contracts, "enforcement": finance_enforcement},
+                "health": {"lobbying": health_lobbying, "contracts": health_contracts, "enforcement": health_enforcement},
+                "tech": {"lobbying": tech_lobbying, "contracts": tech_contracts, "enforcement": tech_enforcement},
+                "energy": {"lobbying": energy_lobbying, "contracts": energy_contracts, "enforcement": energy_enforcement},
+            },
+        }
+    finally:
+        db.close()
+
+
+@router.get("/top-lobbying")
+def get_top_lobbying(limit: int = Query(10, ge=1, le=50)):
+    """Top lobbying spenders across all sectors."""
+    db = SessionLocal()
+    try:
+        results = []
+
+        # Finance
+        rows = db.query(
+            TrackedInstitution.institution_id, TrackedInstitution.display_name,
+            func.sum(FinanceLobbyingRecord.income),
+        ).join(FinanceLobbyingRecord, FinanceLobbyingRecord.institution_id == TrackedInstitution.institution_id
+        ).group_by(TrackedInstitution.institution_id).all()
+        for eid, name, total in rows:
+            results.append({"entity_id": eid, "display_name": name, "sector": "finance", "total_lobbying": total or 0})
+
+        # Health
+        rows = db.query(
+            TrackedCompany.company_id, TrackedCompany.display_name,
+            func.sum(HealthLobbyingRecord.income),
+        ).join(HealthLobbyingRecord, HealthLobbyingRecord.company_id == TrackedCompany.company_id
+        ).group_by(TrackedCompany.company_id).all()
+        for eid, name, total in rows:
+            results.append({"entity_id": eid, "display_name": name, "sector": "health", "total_lobbying": total or 0})
+
+        # Tech
+        rows = db.query(
+            TrackedTechCompany.company_id, TrackedTechCompany.display_name,
+            func.sum(LobbyingRecord.income),
+        ).join(LobbyingRecord, LobbyingRecord.company_id == TrackedTechCompany.company_id
+        ).group_by(TrackedTechCompany.company_id).all()
+        for eid, name, total in rows:
+            results.append({"entity_id": eid, "display_name": name, "sector": "tech", "total_lobbying": total or 0})
+
+        # Energy
+        rows = db.query(
+            TrackedEnergyCompany.company_id, TrackedEnergyCompany.display_name,
+            func.sum(EnergyLobbyingRecord.income),
+        ).join(EnergyLobbyingRecord, EnergyLobbyingRecord.company_id == TrackedEnergyCompany.company_id
+        ).group_by(TrackedEnergyCompany.company_id).all()
+        for eid, name, total in rows:
+            results.append({"entity_id": eid, "display_name": name, "sector": "energy", "total_lobbying": total or 0})
+
+        results.sort(key=lambda x: x["total_lobbying"], reverse=True)
+        return {"leaders": results[:limit]}
+    finally:
+        db.close()
+
+
+@router.get("/top-contracts")
+def get_top_contracts(limit: int = Query(10, ge=1, le=50)):
+    """Top government contract recipients across all sectors."""
+    db = SessionLocal()
+    try:
+        results = []
+
+        # Finance
+        rows = db.query(
+            TrackedInstitution.institution_id, TrackedInstitution.display_name,
+            func.sum(FinanceGovernmentContract.award_amount),
+        ).join(FinanceGovernmentContract, FinanceGovernmentContract.institution_id == TrackedInstitution.institution_id
+        ).group_by(TrackedInstitution.institution_id).all()
+        for eid, name, total in rows:
+            results.append({"entity_id": eid, "display_name": name, "sector": "finance", "total_contracts": total or 0})
+
+        # Health
+        rows = db.query(
+            TrackedCompany.company_id, TrackedCompany.display_name,
+            func.sum(HealthGovernmentContract.award_amount),
+        ).join(HealthGovernmentContract, HealthGovernmentContract.company_id == TrackedCompany.company_id
+        ).group_by(TrackedCompany.company_id).all()
+        for eid, name, total in rows:
+            results.append({"entity_id": eid, "display_name": name, "sector": "health", "total_contracts": total or 0})
+
+        # Tech
+        rows = db.query(
+            TrackedTechCompany.company_id, TrackedTechCompany.display_name,
+            func.sum(GovernmentContract.award_amount),
+        ).join(GovernmentContract, GovernmentContract.company_id == TrackedTechCompany.company_id
+        ).group_by(TrackedTechCompany.company_id).all()
+        for eid, name, total in rows:
+            results.append({"entity_id": eid, "display_name": name, "sector": "tech", "total_contracts": total or 0})
+
+        # Energy
+        rows = db.query(
+            TrackedEnergyCompany.company_id, TrackedEnergyCompany.display_name,
+            func.sum(EnergyGovernmentContract.award_amount),
+        ).join(EnergyGovernmentContract, EnergyGovernmentContract.company_id == TrackedEnergyCompany.company_id
+        ).group_by(TrackedEnergyCompany.company_id).all()
+        for eid, name, total in rows:
+            results.append({"entity_id": eid, "display_name": name, "sector": "energy", "total_contracts": total or 0})
+
+        results.sort(key=lambda x: x["total_contracts"], reverse=True)
+        return {"leaders": results[:limit]}
+    finally:
+        db.close()

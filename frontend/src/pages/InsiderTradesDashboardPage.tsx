@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Filter, Landmark, ArrowLeft } from 'lucide-react';
-import FinanceNav from '../components/FinanceNav';
+import { Filter, Landmark, ArrowLeft, Search } from 'lucide-react';
+import { FinanceSectorHeader } from '../components/SectorHeader';
 import {
   getAllInsiderTrades,
   getMacroIndicators,
@@ -10,18 +10,9 @@ import {
   type MacroIndicator,
   type SectorNewsItem,
 } from '../api/finance';
+import { fmtDollar } from '../utils/format';
 
 // ── Helpers ──
-
-function fmtDollar(n: number | null | undefined): string {
-  if (n == null) return '—';
-  const abs = Math.abs(n);
-  if (abs >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (abs >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (abs >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
-  return `$${n.toFixed(2)}`;
-}
 
 function fmtShares(n: number | null | undefined): string {
   if (n == null) return '—';
@@ -44,8 +35,20 @@ export default function InsiderTradesDashboardPage() {
   const [news, setNews] = useState<SectorNewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  const filteredTrades = useMemo(() => {
+    if (!search.trim()) return trades;
+    const q = search.toLowerCase();
+    return trades.filter(
+      (t) =>
+        t.company_name?.toLowerCase().includes(q) ||
+        t.filer_name?.toLowerCase().includes(q)
+    );
+  }, [trades, search]);
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
       getAllInsiderTrades({ limit: 100, transaction_type: filter || undefined }),
       getMacroIndicators(),
@@ -71,14 +74,7 @@ export default function InsiderTradesDashboardPage() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
-        {/* Back to Sectors */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 font-body text-sm text-white/50 hover:text-white transition-colors no-underline mb-4 animate-fade-up"
-        >
-          <ArrowLeft size={16} />
-          Back to Sectors
-        </Link>
+        <FinanceSectorHeader />
 
         {/* Header */}
         <div className="flex items-end justify-between mb-6 animate-fade-up">
@@ -100,9 +96,6 @@ export default function InsiderTradesDashboardPage() {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <FinanceNav />
-
         {/* Main Grid */}
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-3" style={{ minHeight: 'calc(100vh - 300px)' }}>
           {/* Left Column: Insider Trades Table */}
@@ -115,7 +108,17 @@ export default function InsiderTradesDashboardPage() {
               <h2 className="font-heading text-lg font-bold uppercase tracking-wider text-white">
                 Recent Insider Trades
               </h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40" />
+                  <input
+                    type="text"
+                    placeholder="Search company or insider…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="rounded bg-white/[0.03] border border-white/10 pl-8 pr-3 py-1 font-mono text-xs text-white placeholder-white/30 outline-none focus:border-[#34D399]/50 w-52"
+                  />
+                </div>
                 <Filter size={16} className="text-white/50" />
                 <select
                   className="rounded bg-white/[0.03] border border-white/10 px-2 py-1 font-mono text-xs text-white/50 outline-none"
@@ -144,7 +147,7 @@ export default function InsiderTradesDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {trades.map((t, idx) => (
+                  {filteredTrades.map((t, idx) => (
                     <tr
                       key={t.id}
                       className="border-b border-white/10 transition-colors hover:bg-white/[0.05] animate-fade-up cursor-pointer"
@@ -179,10 +182,10 @@ export default function InsiderTradesDashboardPage() {
                       </td>
                     </tr>
                   ))}
-                  {trades.length === 0 && (
+                  {filteredTrades.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center font-body text-sm text-white/40">
-                        No insider trades on record.
+                        {search.trim() ? 'No trades match your search.' : 'No insider trades on record.'}
                       </td>
                     </tr>
                   )}
