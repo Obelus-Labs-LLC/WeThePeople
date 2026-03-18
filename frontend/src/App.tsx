@@ -54,6 +54,8 @@ const EnergyCompanyProfilePage = React.lazy(() => import("./pages/EnergyCompanyP
 const EnergyComparePage = React.lazy(() => import("./pages/EnergyComparePage"));
 const CongressionalTradesPage = React.lazy(() => import("./pages/CongressionalTradesPage"));
 const InfluenceExplorerPage = React.lazy(() => import("./pages/InfluenceExplorerPage"));
+const InfluenceMapPage = React.lazy(() => import("./pages/InfluenceMapPage"));
+const InfluenceNetworkPage = React.lazy(() => import("./pages/InfluenceNetworkPage"));
 const SectorLobbyingPage = React.lazy(() => import("./pages/SectorLobbyingPage"));
 const SectorContractsPage = React.lazy(() => import("./pages/SectorContractsPage"));
 const SectorEnforcementPage = React.lazy(() => import("./pages/SectorEnforcementPage"));
@@ -98,6 +100,9 @@ const App: React.FC = () => (
 
           {/* Cross-sector Influence Explorer */}
           <Route path="/influence" element={<InfluenceExplorerPage />} />
+          <Route path="/influence/map" element={<InfluenceMapPage />} />
+          <Route path="/influence/network" element={<InfluenceNetworkPage />} />
+          <Route path="/influence/network/:entityType/:entityId" element={<InfluenceNetworkPage />} />
 
           {/* Finance section — all wrapped in FinanceLayout (Waves bg) */}
           <Route path="/finance" element={<FinanceLayout><FinanceDashboardPage /></FinanceLayout>} />
