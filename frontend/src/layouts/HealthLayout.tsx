@@ -1,22 +1,28 @@
 import React from 'react';
-import Plasma from '../components/Plasma';
+import LightRays from '../components/LightRays';
 
 /**
  * Shared layout for all health sector pages.
- * Full-screen Plasma WebGL shader background in white.
+ * LightRays background — lightweight, no WebGL.
  */
 export default function HealthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative min-h-screen" style={{ background: '#0a0a0f' }}>
-      {/* Plasma shader background — fixed, full viewport */}
-      <div className="fixed inset-0 z-0" style={{ width: '100%', height: '100%' }}>
-        <Plasma
-          color="#ffffff"
-          speed={1}
-          direction="forward"
-          scale={1.7}
-          opacity={0.15}
-          mouseInteractive
+      {/* LightRays background — fixed, full viewport */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <LightRays
+          raysOrigin="top-center"
+          raysColor="#ff0000"
+          raysSpeed={1}
+          lightSpread={2}
+          rayLength={3}
+          pulsating
+          fadeDistance={2}
+          saturation={1}
+          followMouse={false}
+          mouseInfluence={0}
+          noiseAmount={0.3}
+          distortion={0}
         />
       </div>
 
