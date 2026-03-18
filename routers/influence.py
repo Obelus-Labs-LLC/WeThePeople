@@ -198,6 +198,99 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50)):
         db.close()
 
 
+@router.get("/spending-by-state")
+def get_spending_by_state(
+    metric: str = Query("donations", regex="^(donations|members|lobbying)$"),
+    sector: Optional[str] = Query(None, regex="^(finance|health|tech|energy)$"),
+):
+    """
+    Aggregate political-influence data by US state.
+
+    Supported metrics:
+      - donations: total CompanyDonation.amount flowing to politicians in each state
+      - members:   count of tracked members per state
+      - lobbying:  total lobbying spend from companies donating to each state's politicians
+    """
+    db = SessionLocal()
+    try:
+        states: dict = {}
+
+        if metric == "members":
+            # Simple: count TrackedMembers per state
+            q = db.query(
+                TrackedMember.state,
+                func.count(TrackedMember.id),
+            ).filter(TrackedMember.state.isnot(None))
+            if sector:
+                # Members don't have a sector, so we skip sector filter for this metric
+                pass
+            rows = q.group_by(TrackedMember.state).all()
+            for st, cnt in rows:
+                if st:
+                    states[st] = {"value": cnt, "count": cnt}
+
+        elif metric == "donations":
+            # Sum CompanyDonation.amount grouped by the recipient member's state
+            q = db.query(
+                TrackedMember.state,
+                func.sum(CompanyDonation.amount),
+                func.count(CompanyDonation.id),
+            ).join(
+                TrackedMember,
+                TrackedMember.person_id == CompanyDonation.person_id,
+            ).filter(
+                TrackedMember.state.isnot(None),
+                CompanyDonation.amount.isnot(None),
+            )
+            if sector:
+                q = q.filter(CompanyDonation.entity_type == sector)
+            rows = q.group_by(TrackedMember.state).all()
+            for st, total, cnt in rows:
+                if st:
+                    states[st] = {"value": float(total or 0), "count": cnt}
+
+        elif metric == "lobbying":
+            # Total lobbying spend from companies that donate to politicians in each state.
+            # We join lobbying tables → company donations → members to attribute lobbying by state.
+            # For simplicity in V1, sum lobbying income per sector grouped by donation-recipient state.
+            lobby_configs = []
+            if sector is None or sector == "finance":
+                lobby_configs.append((FinanceLobbyingRecord, FinanceLobbyingRecord.institution_id, "finance"))
+            if sector is None or sector == "health":
+                lobby_configs.append((HealthLobbyingRecord, HealthLobbyingRecord.company_id, "health"))
+            if sector is None or sector == "tech":
+                lobby_configs.append((LobbyingRecord, LobbyingRecord.company_id, "tech"))
+            if sector is None or sector == "energy":
+                lobby_configs.append((EnergyLobbyingRecord, EnergyLobbyingRecord.company_id, "energy"))
+
+            for lobby_model, entity_col, sec in lobby_configs:
+                q = db.query(
+                    TrackedMember.state,
+                    func.sum(lobby_model.income),
+                    func.count(lobby_model.id),
+                ).select_from(lobby_model).join(
+                    CompanyDonation,
+                    (CompanyDonation.entity_id == entity_col) & (CompanyDonation.entity_type == sec),
+                ).join(
+                    TrackedMember,
+                    TrackedMember.person_id == CompanyDonation.person_id,
+                ).filter(
+                    TrackedMember.state.isnot(None),
+                )
+                rows = q.group_by(TrackedMember.state).all()
+                for st, total, cnt in rows:
+                    if st:
+                        prev = states.get(st, {"value": 0, "count": 0})
+                        states[st] = {
+                            "value": prev["value"] + float(total or 0),
+                            "count": prev["count"] + cnt,
+                        }
+
+        return {"metric": metric, "sector": sector, "states": states}
+    finally:
+        db.close()
+
+
 @router.get("/top-contracts")
 def get_top_contracts(limit: int = Query(10, ge=1, le=50)):
     """Top government contract recipients across all sectors."""
@@ -243,5 +336,22 @@ def get_top_contracts(limit: int = Query(10, ge=1, le=50)):
 
         results.sort(key=lambda x: x["total_contracts"], reverse=True)
         return {"leaders": results[:limit]}
+    finally:
+        db.close()
+
+
+@router.get("/network")
+def get_influence_network(
+    entity_type: str = Query(..., regex="^(person|finance|health|tech|energy)$"),
+    entity_id: str = Query(..., min_length=1),
+    depth: int = Query(1, ge=1, le=2),
+    limit: int = Query(50, ge=1, le=100),
+):
+    """Build an influence network graph centred on a person or company."""
+    from services.influence_network import build_influence_network
+
+    db = SessionLocal()
+    try:
+        return build_influence_network(db, entity_type, entity_id, depth=depth, limit=limit)
     finally:
         db.close()
