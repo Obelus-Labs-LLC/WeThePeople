@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import BackButton from '../components/BackButton';
+import { ExternalLink } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import type {
   Person,
@@ -166,6 +167,10 @@ export default function PersonProfilePage() {
   const [finance, setFinance] = useState<PersonFinance | null>(null);
   const [financeLoading, setFinanceLoading] = useState(false);
 
+  // ── State: trades tab ──
+  const [trades, setTrades] = useState<any[]>([]);
+  const [tradesLoading, setTradesLoading] = useState(false);
+
   // ── Tabs ──
   const [tab, setTab] = useState<TabKey>('overview');
   const [loadedTabs, setLoadedTabs] = useState<Set<TabKey>>(new Set(['overview']));
@@ -277,6 +282,20 @@ export default function PersonProfilePage() {
       })
       .catch(() => {})
       .finally(() => setFinanceLoading(false));
+  }, [tab, person_id, loadedTabs, markLoaded]);
+
+  // ── Lazy load: trades ──
+  useEffect(() => {
+    if (tab !== 'trades' || !person_id || loadedTabs.has('trades')) return;
+    setTradesLoading(true);
+    fetch(`/api/people/${person_id}/trades?limit=50`)
+      .then((r) => r.json())
+      .then((data) => {
+        setTrades(data.trades || []);
+        markLoaded('trades');
+      })
+      .catch(() => setTrades([]))
+      .finally(() => setTradesLoading(false));
   }, [tab, person_id, loadedTabs, markLoaded]);
 
   // ── Load more: legislation ──
@@ -515,6 +534,19 @@ export default function PersonProfilePage() {
         )}
         {tab === 'finance' && (
           <FinanceTab loading={financeLoading} finance={finance} />
+        )}
+        {tab === 'donors' && (
+          <div className="py-12 text-center">
+            <p className="text-white/40 text-sm">Industry donor data coming soon.</p>
+          </div>
+        )}
+        {tab === 'trades' && (
+          <StockTradesTab
+            loading={tradesLoading}
+            trades={trades}
+            bioguideId={person?.bioguide_id}
+            personName={person?.display_name || ''}
+          />
         )}
       </main>
     </div>
@@ -1241,6 +1273,118 @@ function FinanceStatCard({ label, value }: { label: string; value: number | null
         {value != null ? formatCurrency(value) : '—'}
       </div>
       <div className="mt-1 font-body text-xs uppercase text-white/40">{label}</div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
+//  STOCK TRADES TAB
+// ══════════════════════════════════════════════
+
+function StockTradesTab({
+  loading,
+  trades,
+  bioguideId,
+  personName,
+}: {
+  loading: boolean;
+  trades: any[];
+  bioguideId?: string;
+  personName: string;
+}) {
+  if (loading) return <Spinner />;
+
+  const capitolTradesUrl = bioguideId
+    ? `https://www.capitoltrades.com/politicians/${bioguideId}`
+    : 'https://www.capitoltrades.com/trades';
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Capitol Trades link */}
+      <div className="flex items-center justify-between">
+        <h3 className="font-heading text-lg font-bold text-white">Stock Trades</h3>
+        <a
+          href={capitolTradesUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+        >
+          View full history on Capitol Trades
+          <ExternalLink size={14} />
+        </a>
+      </div>
+
+      {trades.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-white/40 text-sm">No stock trades found for this member.</p>
+          <a
+            href={capitolTradesUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300"
+          >
+            Check Capitol Trades <ExternalLink size={12} />
+          </a>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {trades.map((t: any, i: number) => (
+            <div
+              key={t.id || i}
+              className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4"
+            >
+              {/* Ticker */}
+              <div className="w-16 shrink-0">
+                <span className="font-mono text-sm font-bold text-white">{t.ticker || '—'}</span>
+              </div>
+
+              {/* Type badge */}
+              <div className="w-20 shrink-0">
+                <span
+                  className={`inline-block rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                    t.transaction_type?.includes('purchase')
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : t.transaction_type?.includes('sale')
+                      ? 'bg-red-500/20 text-red-400'
+                      : 'bg-white/10 text-white/50'
+                  }`}
+                >
+                  {t.transaction_type || 'unknown'}
+                </span>
+              </div>
+
+              {/* Asset name */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white/70 truncate">{t.asset_name || t.ticker || '—'}</p>
+              </div>
+
+              {/* Amount */}
+              <div className="w-32 shrink-0 text-right">
+                <span className="font-mono text-sm text-white/50">{t.amount_range || '—'}</span>
+              </div>
+
+              {/* Date */}
+              <div className="w-24 shrink-0 text-right">
+                <span className="font-mono text-[11px] text-white/30">
+                  {t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : '—'}
+                </span>
+              </div>
+
+              {/* Source link */}
+              {t.source_url && (
+                <a
+                  href={t.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-white/20 hover:text-white/50 transition-colors"
+                >
+                  <ExternalLink size={14} />
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

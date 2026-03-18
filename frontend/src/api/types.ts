@@ -16,6 +16,7 @@ export interface PeopleResponse {
 export interface Person {
   person_id: string;
   display_name: string;
+  bioguide_id: string;
   chamber: string;
   state: string;
   party: string;

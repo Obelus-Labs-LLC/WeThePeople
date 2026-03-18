@@ -48,10 +48,23 @@ export default function CongressionalTradesPage() {
         <PoliticsSectorHeader />
 
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Congressional Stock Trades</h1>
-          <p className="text-white/50">
-            STOCK Act financial disclosures — what members of Congress are buying and selling.
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-4xl font-bold text-white mb-2">Congressional Stock Trades</h1>
+              <p className="text-white/50">
+                STOCK Act financial disclosures — what members of Congress are buying and selling.
+              </p>
+            </div>
+            <a
+              href="https://www.capitoltrades.com/trades"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-blue-400 transition-colors hover:bg-white/10 hover:text-blue-300"
+            >
+              Explore more on Capitol Trades
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
 
         {/* Filters */}
@@ -149,11 +162,22 @@ export default function CongressionalTradesPage() {
                       {t.owner || '—'}
                     </td>
                     <td className="px-4 py-3">
-                      {t.source_url && (
-                        <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-white/60">
-                          <ExternalLink className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-2">
+                        {t.source_url && (
+                          <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-white/60" title="Source filing">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        <a
+                          href="https://www.capitoltrades.com/trades"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400/40 hover:text-blue-300 transition-colors"
+                          title="Capitol Trades"
+                        >
+                          <TrendingUp className="w-3.5 h-3.5" />
                         </a>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}
