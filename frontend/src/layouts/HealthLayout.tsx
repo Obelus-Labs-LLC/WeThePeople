@@ -19,10 +19,7 @@ export default function HealthLayout({ children }: { children: React.ReactNode }
           pulsating
           fadeDistance={2}
           saturation={1}
-          followMouse={false}
-          mouseInfluence={0}
           noiseAmount={0.3}
-          distortion={0}
         />
       </div>
 

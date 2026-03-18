@@ -21,17 +21,11 @@ export default function TechLayout({ children }: { children: React.ReactNode }) 
           radiusStep={0.12}
           scaleRate={0.08}
           opacity={0.4}
-          blur={0}
           noiseAmount={0.06}
           rotation={-15}
           ringGap={1.6}
           fadeIn={0.8}
           fadeOut={0.6}
-          followMouse={true}
-          mouseInfluence={0.15}
-          hoverScale={1.1}
-          parallax={0.03}
-          clickBurst={true}
         />
       </div>
       {/* Page content */}

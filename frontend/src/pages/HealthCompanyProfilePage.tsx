@@ -973,10 +973,7 @@ export default function HealthCompanyProfilePage() {
           pulsating
           fadeDistance={2}
           saturation={1}
-          followMouse
-          mouseInfluence={0.1}
           noiseAmount={0.3}
-          distortion={0}
         />
       </div>
       <div className="relative z-10 px-6 pt-4 shrink-0">
