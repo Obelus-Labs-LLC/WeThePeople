@@ -121,7 +121,7 @@ export default function InsiderTradesDashboardPage() {
                 </div>
                 <Filter size={16} className="text-white/50" />
                 <select
-                  className="rounded bg-white/[0.03] border border-white/10 px-2 py-1 font-mono text-xs text-white/50 outline-none"
+                  className="rounded bg-slate-900 border border-white/10 px-2 py-1 font-mono text-xs text-white outline-none [&>option]:bg-slate-900 [&>option]:text-white"
                   value={filter || ''}
                   onChange={(e) => setFilter(e.target.value || null)}
                 >

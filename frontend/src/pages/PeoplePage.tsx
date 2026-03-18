@@ -237,8 +237,8 @@ export default function PeoplePage() {
   }, [people]);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <div className="flex flex-1 flex-col overflow-hidden px-8 py-8 xl:px-16">
+    <div className="min-h-screen">
+      <div className="px-8 py-8 xl:px-16">
         {/* Header */}
         <motion.div
           ref={headerRef}
@@ -383,8 +383,8 @@ export default function PeoplePage() {
           </select>
         </motion.div>
 
-        {/* Cards grid — scrollable area */}
-        <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar">
+        {/* Cards grid */}
+        <div>
           {loading ? (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 9 }).map((_, i) => (

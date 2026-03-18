@@ -180,29 +180,69 @@ export default function CommitteesPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="rounded-xl border border-white/10 bg-white/[0.02] py-20 text-center"
           >
-            <Building2 size={48} className="mx-auto mb-5 text-blue-500/30" />
-            <h2 className="font-heading text-2xl font-bold text-white mb-3">
-              Committee Data Coming Soon
-            </h2>
-            <p className="max-w-md mx-auto font-body text-sm text-white/40 leading-relaxed">
-              We're building out committee data including membership rosters, hearing schedules,
-              and jurisdiction details. This feature will be available in an upcoming release.
-            </p>
-            <div className="mt-8 flex justify-center gap-3">
-              <Link
-                to="/politics/people"
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-5 py-2.5 font-body text-sm font-semibold text-white transition-colors hover:bg-blue-600 no-underline"
-              >
-                Browse Members
-              </Link>
-              <Link
-                to="/politics"
-                className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 font-body text-sm font-semibold text-white/70 transition-colors hover:border-white/20 hover:text-white no-underline"
-              >
-                Dashboard
-              </Link>
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] py-16 text-center mb-8">
+              <Building2 size={48} className="mx-auto mb-5 text-blue-500/30" />
+              <h2 className="font-heading text-2xl font-bold text-white mb-3">
+                Committee Data Coming Soon
+              </h2>
+              <p className="max-w-md mx-auto font-body text-sm text-white/40 leading-relaxed">
+                We're building out committee data including membership rosters, hearing schedules,
+                and jurisdiction details. This feature will be available in an upcoming release.
+              </p>
+              <div className="mt-8 flex justify-center gap-3">
+                <Link
+                  to="/politics/people"
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-5 py-2.5 font-body text-sm font-semibold text-white transition-colors hover:bg-blue-600 no-underline"
+                >
+                  <Users size={16} />
+                  Browse Members
+                </Link>
+                <Link
+                  to="/politics"
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 font-body text-sm font-semibold text-white/70 transition-colors hover:border-white/20 hover:text-white no-underline"
+                >
+                  Dashboard
+                </Link>
+              </div>
+            </div>
+
+            {/* Placeholder preview of what committees will look like */}
+            <div className="mb-4 flex items-center gap-2">
+              <span className="font-mono text-xs text-white/20 uppercase tracking-wider">Preview</span>
+              <div className="flex-1 h-px bg-white/5" />
+            </div>
+            <div className="flex flex-col gap-3 opacity-50 pointer-events-none">
+              {[
+                { name: 'Committee on Appropriations', chamber: 'House', members: 53 },
+                { name: 'Committee on Armed Services', chamber: 'Senate', members: 27 },
+                { name: 'Committee on the Judiciary', chamber: 'House', members: 40 },
+              ].map((placeholder) => (
+                <div
+                  key={placeholder.name}
+                  className="rounded-xl border border-white/5 p-5 flex items-center gap-4"
+                  style={{ backgroundColor: '#0F172A' }}
+                >
+                  <div
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}
+                  >
+                    <Building2 size={18} className="text-blue-500/50" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-body text-base font-medium text-white/60 truncate">
+                      {placeholder.name}
+                    </h3>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-white/20">
+                      <span className="rounded-full bg-blue-500/10 px-2 py-0.5 font-body text-[10px] font-bold uppercase text-blue-400/40">
+                        {placeholder.chamber}
+                      </span>
+                      <span className="font-mono">{placeholder.members} members</span>
+                    </div>
+                  </div>
+                  <ChevronRight size={18} className="flex-shrink-0 text-white/10" />
+                </div>
+              ))}
             </div>
           </motion.div>
         )}
