@@ -56,6 +56,20 @@ def md5(text: str) -> str:
     return hashlib.md5(text.encode()).hexdigest()
 
 
+def parse_date(val):
+    """Parse YYYY-MM-DD string to date object, or return None."""
+    if val is None:
+        return None
+    from datetime import date as date_type
+    if isinstance(val, date_type):
+        return val
+    s = str(val).strip()[:10]
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
 # ─── Seed Companies ───────────────────────────────────────────
 
 ENERGY_COMPANIES = [
@@ -228,8 +242,8 @@ def fetch_contracts(session, company: TrackedEnergyCompany, limit: int = 50):
             award_amount=r.get("Award Amount"),
             awarding_agency=r.get("Awarding Agency"),
             description=r.get("Description"),
-            start_date=r.get("Start Date"),
-            end_date=r.get("End Date"),
+            start_date=parse_date(r.get("Start Date")),
+            end_date=parse_date(r.get("End Date")),
             contract_type=r.get("Award Type"),
             dedupe_hash=dedupe,
         ))
