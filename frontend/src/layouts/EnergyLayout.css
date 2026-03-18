@@ -30,7 +30,7 @@
   left: -30%;
   top: -20%;
   background: transparent;
-  opacity: 0.7;
+  opacity: 0.15;
   z-index: 1;
   animation: energy-cubeMove 18s linear infinite alternate;
 }

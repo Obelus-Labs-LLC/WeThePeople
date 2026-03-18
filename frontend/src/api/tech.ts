@@ -221,6 +221,21 @@ export interface TechContractTrendsResponse {
   trends: TechContractTrend[];
 }
 
+export interface TechRecentActivityItem {
+  type: 'enforcement' | 'patent' | 'contract' | 'lobbying';
+  title: string;
+  description: string | null;
+  date: string | null;
+  company_id: string;
+  company_name: string;
+  url: string | null;
+  meta: Record<string, any>;
+}
+
+export interface TechRecentActivityResponse {
+  items: TechRecentActivityItem[];
+}
+
 // ── Client ──
 
 import { getApiBaseUrl } from './client';
@@ -234,6 +249,10 @@ async function fetchJSON<T>(url: string): Promise<T> {
 
 export async function getTechDashboardStats(): Promise<TechDashboardStats> {
   return fetchJSON<TechDashboardStats>(`${API_BASE}/tech/dashboard/stats`);
+}
+
+export async function getTechRecentActivity(limit = 10): Promise<TechRecentActivityResponse> {
+  return fetchJSON<TechRecentActivityResponse>(`${API_BASE}/tech/dashboard/recent-activity?limit=${limit}`);
 }
 
 export async function getTechCompanies(params?: {

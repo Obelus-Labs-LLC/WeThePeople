@@ -214,6 +214,21 @@ export interface EnergyComparisonResponse {
   companies: EnergyComparisonItem[];
 }
 
+export interface RecentActivityItem {
+  type: 'enforcement' | 'contract' | 'lobbying';
+  title: string;
+  description: string | null;
+  date: string | null;
+  company_id: string;
+  company_name: string;
+  url: string | null;
+  meta: Record<string, any>;
+}
+
+export interface RecentActivityResponse {
+  items: RecentActivityItem[];
+}
+
 // ── Client ──
 
 import { getApiBaseUrl } from './client';
@@ -227,6 +242,10 @@ async function fetchJSON<T>(url: string): Promise<T> {
 
 export async function getEnergyDashboardStats(): Promise<EnergyDashboardStats> {
   return fetchJSON<EnergyDashboardStats>(`${API_BASE}/energy/dashboard/stats`);
+}
+
+export async function getEnergyRecentActivity(limit = 10): Promise<RecentActivityResponse> {
+  return fetchJSON<RecentActivityResponse>(`${API_BASE}/energy/dashboard/recent-activity?limit=${limit}`);
 }
 
 export async function getEnergyCompanies(params?: {

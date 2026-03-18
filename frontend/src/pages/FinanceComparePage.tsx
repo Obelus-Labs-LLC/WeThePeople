@@ -427,18 +427,27 @@ export default function FinanceComparePage() {
                       <div className="flex-1 h-px bg-white/5" />
                     </div>
 
-                    {/* Metrics grid — 2 columns of metric rows */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-0">
-                      {group.metrics.map((metric) => {
+                    {/* Column headers for this section */}
+                    <div className="grid grid-cols-[1fr_1fr_1fr] items-center py-2 border-b border-white/10 mb-1">
+                      <span className="font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase">Metric</span>
+                      <span className="text-center font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase">{instA.display_name}</span>
+                      <span className="text-center font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase">{instB.display_name}</span>
+                    </div>
+
+                    {/* Metric rows — full width, one per row */}
+                    <div>
+                      {group.metrics.map((metric, idx) => {
                         const winner = getWinner(metric, instA, instB);
                         const valA = (instA as unknown as Record<string, number | null>)[metric.key];
                         const valB = (instB as unknown as Record<string, number | null>)[metric.key];
                         return (
                           <div
                             key={metric.key}
-                            className="grid grid-cols-[1fr_1fr_1fr] items-center py-2.5 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors"
+                            className={`grid grid-cols-[1fr_1fr_1fr] items-center py-3 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${
+                              idx % 2 === 0 ? 'bg-white/[0.01]' : ''
+                            }`}
                           >
-                            <span className="font-body text-sm text-white/50">{metric.label}</span>
+                            <span className="font-body text-sm text-white/50 pl-1">{metric.label}</span>
                             <span className={`text-center font-mono text-sm font-semibold ${
                               winner === 'a' ? 'text-[#34D399]' : 'text-white'
                             }`}>
