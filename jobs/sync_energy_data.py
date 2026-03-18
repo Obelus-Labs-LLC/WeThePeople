@@ -188,7 +188,7 @@ def fetch_sec_filings(session, company: TrackedEnergyCompany, limit: int = 10000
             company_id=company.company_id,
             accession_number=acc,
             form_type=forms[i],
-            filing_date=dates[i] if i < len(dates) else None,
+            filing_date=parse_date(dates[i]) if i < len(dates) else None,
             primary_doc_url=filing_url,
             filing_url=f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={forms[i]}&dateb=&owner=include&count=10",
             description=descs[i] if i < len(descs) else None,
