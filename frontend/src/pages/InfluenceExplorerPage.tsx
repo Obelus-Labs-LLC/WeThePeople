@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { DollarSign, FileText, Shield, Users, TrendingUp } from 'lucide-react';
+import { DollarSign, FileText, Shield, Users, TrendingUp, Map, Share2 } from 'lucide-react';
 import {
   fetchInfluenceStats,
   fetchTopLobbying,
@@ -103,6 +103,22 @@ export default function InfluenceExplorerPage() {
           </p>
         </div>
 
+        {/* Network Graph CTA */}
+        <Link
+          to="/influence/network"
+          className="mb-8 flex items-center gap-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 hover:border-blue-500/40 hover:bg-blue-500/10 transition-all no-underline group"
+        >
+          <Share2 className="w-10 h-10 text-blue-400 group-hover:scale-110 transition-transform flex-shrink-0" />
+          <div>
+            <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">
+              Influence Network Graph
+            </h3>
+            <p className="text-sm text-white/40 mt-0.5">
+              Explore the web of connections between politicians, companies, lobbying, and legislation in an interactive force-directed graph.
+            </p>
+          </div>
+        </Link>
+
         {/* Aggregate Stats */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
@@ -156,6 +172,29 @@ export default function InfluenceExplorerPage() {
             </div>
           </div>
         )}
+
+        {/* Spending Map CTA */}
+        <div className="mb-12">
+          <Link
+            to="/influence/map"
+            className="group flex items-center gap-5 bg-white/[0.03] border border-white/10 rounded-xl p-6 hover:border-blue-500/30 hover:bg-blue-500/[0.03] transition-all no-underline"
+          >
+            <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+              <Map className="w-6 h-6 text-blue-400" />
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors">
+                Spending Map
+              </h3>
+              <p className="text-white/40 text-sm mt-0.5">
+                Geographic heatmap of lobbying spend, donations, and political connections by US state
+              </p>
+            </div>
+            <span className="ml-auto text-white/20 group-hover:text-blue-400 transition-colors text-xl">
+              &rarr;
+            </span>
+          </Link>
+        </div>
 
         {/* Leaderboards */}
         {loading ? (

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import BackButton from '../components/BackButton';
-import { ExternalLink, Heart } from 'lucide-react';
+import { ExternalLink, Heart, Share2 } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import type {
   Person,
@@ -479,6 +479,14 @@ export default function PersonProfilePage() {
                   Contribute
                 </a>
               )}
+              {/* View Network button */}
+              <Link
+                to={`/influence/network/person/${person_id}`}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-body text-xs font-bold uppercase transition-colors no-underline bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25"
+              >
+                <Share2 className="w-3 h-3" />
+                View Network
+              </Link>
             </div>
           </div>
         </div>
