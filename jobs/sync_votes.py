@@ -274,8 +274,16 @@ def main():
         sys.exit(1)
 
     bioguide_map = build_bioguide_map()
-    stats = sync_house_votes(args.congress, args.session, args.limit, bioguide_map)
-    logger.info(f"Vote sync complete: {stats}")
+
+    # Sync session 1
+    stats1 = sync_house_votes(args.congress, args.session, args.limit, bioguide_map)
+    logger.info(f"Vote sync session {args.session} complete: {stats1}")
+
+    # Also sync session 2 if we just did session 1 (Congress may be in session 2)
+    if args.session == 1:
+        logger.info("Also syncing session 2...")
+        stats2 = sync_house_votes(args.congress, 2, args.limit, bioguide_map)
+        logger.info(f"Vote sync session 2 complete: {stats2}")
 
 
 if __name__ == "__main__":

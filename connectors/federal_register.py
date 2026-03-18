@@ -93,7 +93,7 @@ def search_documents(
     date_to: Optional[str] = None,
     president: Optional[str] = None,
     significant: Optional[bool] = None,
-    per_page: int = 100,
+    per_page: int = 1000,
     page: int = 1,
     order: str = "newest",
     fields: Optional[List[str]] = None,

@@ -213,7 +213,6 @@ def sync_sec_filings(company: TrackedCompany, db) -> int:
     filings = extract_filings(
         submissions,
         form_types=["10-K", "10-Q", "8-K", "DEF 14A", "S-1"],
-        limit=100,
     )
 
     inserted = 0

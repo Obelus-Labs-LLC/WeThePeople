@@ -74,7 +74,6 @@ def sync_sec_filings(company: TrackedTechCompany, db) -> int:
     filings = extract_filings(
         submissions,
         form_types=["10-K", "10-Q", "8-K", "DEF 14A", "S-1"],
-        limit=100,
     )
 
     inserted = 0
@@ -109,7 +108,7 @@ def sync_patents(company: TrackedTechCompany, db) -> int:
         logger.info("Skipping patents for %s (no assignee name)", company.company_id)
         return 0
 
-    patents = fetch_patents(company.uspto_assignee_name, limit=50)
+    patents = fetch_patents(company.uspto_assignee_name)
     inserted = 0
     for p in patents:
         # Dedupe on patent_number (unique constraint)
@@ -142,7 +141,7 @@ def sync_government_contracts(company: TrackedTechCompany, db) -> int:
         logger.info("Skipping contracts for %s (no recipient name)", company.company_id)
         return 0
 
-    contracts = fetch_contracts(company.usaspending_recipient_name, limit=50)
+    contracts = fetch_contracts(company.usaspending_recipient_name)
     inserted = 0
     for c in contracts:
         # Dedupe on hash
@@ -288,7 +287,7 @@ def sync_ftc_enforcement(company: TrackedTechCompany, db) -> int:
 
     # 2. Scrape FTC Legal Library for additional cases
     search_name = company.display_name.split(",")[0].strip()
-    scraped = fetch_ftc_cases(search_name, limit=10)
+    scraped = fetch_ftc_cases(search_name)
     scraped_inserted = 0
     for s in scraped:
         h = s["dedupe_hash"]

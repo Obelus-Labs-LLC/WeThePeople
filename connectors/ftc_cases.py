@@ -31,7 +31,7 @@ def _compute_hash(*parts: str) -> str:
 
 def fetch_ftc_cases(
     company_name: str,
-    limit: int = 20,
+    limit: int = 100,
 ) -> List[Dict[str, Any]]:
     """
     Fetch FTC enforcement cases for a company by scraping the FTC Legal Library.

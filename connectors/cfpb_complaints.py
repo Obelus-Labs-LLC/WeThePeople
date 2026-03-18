@@ -31,7 +31,7 @@ def _compute_hash(*parts: str) -> str:
 
 def fetch_complaints(
     company_name: str,
-    size: int = 100,
+    size: int = 10000,
 ) -> Dict[str, Any]:
     """
     Search CFPB complaints for a financial institution.
