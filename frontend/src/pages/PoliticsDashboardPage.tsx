@@ -219,13 +219,14 @@ export default function PoliticsDashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.7 }}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-12"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-12"
         >
           {[
             { to: '/politics/people', label: 'Representatives', desc: 'Full member directory', color: '#3B82F6' },
             { to: '/politics/activity', label: 'Activity Feed', desc: 'Latest legislative actions', color: '#F59E0B' },
             { to: '/politics/power', label: 'Balance of Power', desc: 'Party analytics & breakdown', color: '#10B981' },
             { to: '/politics/compare', label: 'Compare', desc: 'Side-by-side member analysis', color: '#A855F7' },
+            { to: '/politics/states', label: 'Explore by State', desc: 'State legislatures & bills', color: '#06B6D4' },
           ].map((link) => (
             <Link
               key={link.to}

@@ -4,6 +4,8 @@ import { apiClient } from '../api/client';
 import BackButton from '../components/BackButton';
 import { ExternalLink, Heart, Share2 } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
+import TradeTimeline from '../components/TradeTimeline';
+import type { TradeMarker } from '../api/influence';
 import type {
   Person,
   PersonProfile,
@@ -584,6 +586,8 @@ export default function PersonProfilePage() {
             trades={trades}
             bioguideId={person?.bioguide_id}
             personName={person?.display_name || ''}
+            personId={person_id}
+            party={person?.party}
           />
         )}
       </main>
@@ -1324,13 +1328,46 @@ function StockTradesTab({
   trades,
   bioguideId,
   personName,
+  personId,
+  party,
 }: {
   loading: boolean;
   trades: any[];
   bioguideId?: string;
   personName: string;
+  personId?: string;
+  party?: string;
 }) {
   if (loading) return <Spinner />;
+
+  // Build timeline markers from trade data
+  const timelineMarkers: TradeMarker[] = useMemo(() => {
+    return trades
+      .filter((t: any) => t.transaction_date && t.ticker)
+      .map((t: any) => ({
+        date: t.transaction_date,
+        person_id: personId || '',
+        display_name: personName,
+        party: party || null,
+        transaction_type: t.transaction_type || 'unknown',
+        amount_range: t.amount_range || null,
+        reporting_gap: t.reporting_gap || null,
+      }));
+  }, [trades, personId, personName, party]);
+
+  // Get the most-traded ticker for the timeline display
+  const topTicker = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const t of trades) {
+      if (t.ticker) counts[t.ticker] = (counts[t.ticker] || 0) + 1;
+    }
+    let best = '';
+    let bestCount = 0;
+    for (const [k, v] of Object.entries(counts)) {
+      if (v > bestCount) { best = k; bestCount = v; }
+    }
+    return best;
+  }, [trades]);
 
   const capitolTradesUrl = bioguideId
     ? `https://www.capitoltrades.com/politicians/${bioguideId}`
@@ -1351,6 +1388,11 @@ function StockTradesTab({
           <ExternalLink size={14} />
         </a>
       </div>
+
+      {/* Trade Timeline visualization */}
+      {timelineMarkers.length > 0 && topTicker && (
+        <TradeTimeline trades={timelineMarkers} ticker={topTicker} />
+      )}
 
       {trades.length === 0 ? (
         <div className="text-center py-12">

@@ -1,0 +1,245 @@
+"""
+OpenStates API v3 Connector
+
+Fetch state-level legislative data: legislators and bills.
+
+API docs: https://v3.openstates.org/docs
+Rate limit: Rate-limited for anonymous access; higher limits with API key.
+Auth: Optional — set OPENSTATES_API_KEY env var for higher limits.
+"""
+
+import os
+import hashlib
+import time
+import requests
+from typing import Optional, List, Dict, Any
+
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+OPENSTATES_BASE = "https://v3.openstates.org"
+POLITE_DELAY = 0.5
+
+
+def _compute_hash(*parts: str) -> str:
+    """MD5 hash for deduplication."""
+    raw = "|".join(str(p) for p in parts)
+    return hashlib.md5(raw.encode()).hexdigest()
+
+
+def _headers() -> Dict[str, str]:
+    """Build request headers, including API key if available."""
+    h = {"Accept": "application/json"}
+    api_key = os.getenv("OPENSTATES_API_KEY")
+    if api_key:
+        h["X-API-KEY"] = api_key
+    return h
+
+
+def fetch_state_legislators(
+    state: str,
+    chamber: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Fetch state legislators from OpenStates API.
+
+    Args:
+        state: Two-letter state abbreviation or full jurisdiction (e.g. 'ny', 'california')
+        chamber: Optional — 'upper' (senate) or 'lower' (house/assembly)
+
+    Returns:
+        List of legislator dicts with keys: ocd_id, name, state, chamber,
+        party, district, photo_url, is_active
+    """
+    params: Dict[str, Any] = {
+        "jurisdiction": state.lower(),
+        "per_page": 100,
+    }
+    if chamber:
+        params["org_classification"] = chamber
+
+    all_results: List[Dict[str, Any]] = []
+    page = 1
+
+    while True:
+        params["page"] = page
+        try:
+            time.sleep(POLITE_DELAY)
+            resp = requests.get(
+                f"{OPENSTATES_BASE}/people",
+                params=params,
+                headers=_headers(),
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            logger.error("OpenStates legislators fetch failed for '%s': %s", state, e)
+            break
+
+        results = data.get("results") or []
+        if not results:
+            break
+
+        for person in results:
+            ocd_id = person.get("id", "")
+            name = person.get("name", "")
+            current_role = person.get("current_role") or {}
+            party_list = person.get("party") or []
+            party_name = party_list[0].get("name", "") if party_list else ""
+
+            # Normalize party to single letter
+            party = party_name
+            if "democrat" in party_name.lower():
+                party = "D"
+            elif "republican" in party_name.lower():
+                party = "R"
+            elif party_name.lower() in ("independent", "libertarian", "green"):
+                party = "I"
+
+            all_results.append({
+                "ocd_id": ocd_id,
+                "name": name,
+                "state": state.upper()[:2],
+                "chamber": current_role.get("org_classification", ""),
+                "party": party,
+                "district": current_role.get("district", ""),
+                "photo_url": person.get("image", ""),
+                "is_active": True,
+            })
+
+        # Check pagination
+        pagination = data.get("pagination") or {}
+        max_page = pagination.get("max_page", 1)
+        if page >= max_page:
+            break
+        page += 1
+
+    logger.info("OpenStates legislators '%s': %d results", state, len(all_results))
+    return all_results
+
+
+def fetch_state_bills(
+    state: str,
+    query: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> List[Dict[str, Any]]:
+    """
+    Fetch state bills from OpenStates API.
+
+    Args:
+        state: Two-letter state abbreviation or full jurisdiction
+        query: Optional search query
+        page: Page number (1-based)
+        per_page: Results per page (max 50)
+
+    Returns:
+        List of bill dicts with keys: bill_id, state, session, identifier,
+        title, subjects, latest_action, latest_action_date, sponsor_name, source_url
+    """
+    params: Dict[str, Any] = {
+        "jurisdiction": state.lower(),
+        "page": page,
+        "per_page": min(per_page, 50),
+        "sort": "updated_desc",
+    }
+    if query:
+        params["q"] = query
+
+    try:
+        time.sleep(POLITE_DELAY)
+        resp = requests.get(
+            f"{OPENSTATES_BASE}/bills",
+            params=params,
+            headers=_headers(),
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        logger.error("OpenStates bills fetch failed for '%s': %s", state, e)
+        return []
+
+    results = data.get("results") or []
+    bills: List[Dict[str, Any]] = []
+
+    for bill in results:
+        identifier = bill.get("identifier", "")
+        session = bill.get("legislative_session", "")
+        state_upper = state.upper()[:2]
+
+        # Build a unique bill_id
+        bill_id = f"{state_upper.lower()}-{session}-{identifier}".replace(" ", "")
+
+        # Latest action
+        latest_action = ""
+        latest_action_date = None
+        actions = bill.get("latest_action") or {}
+        if actions:
+            latest_action = actions.get("description", "")
+            latest_action_date = actions.get("date")
+
+        # Primary sponsor
+        sponsor_name = ""
+        sponsorships = bill.get("sponsorships") or []
+        for sp in sponsorships:
+            if sp.get("primary"):
+                sponsor_name = sp.get("name", "")
+                break
+        if not sponsor_name and sponsorships:
+            sponsor_name = sponsorships[0].get("name", "")
+
+        # Subjects
+        subjects = bill.get("subject") or []
+
+        # Source URL
+        source_url = ""
+        sources = bill.get("sources") or []
+        if sources:
+            source_url = sources[0].get("url", "")
+        openstates_url = bill.get("openstates_url", "")
+
+        bills.append({
+            "bill_id": bill_id,
+            "state": state_upper,
+            "session": session,
+            "identifier": identifier,
+            "title": bill.get("title", ""),
+            "subjects": subjects,
+            "latest_action": latest_action,
+            "latest_action_date": latest_action_date,
+            "sponsor_name": sponsor_name,
+            "source_url": source_url or openstates_url,
+        })
+
+    logger.info(
+        "OpenStates bills '%s' (page %d): %d results",
+        state, page, len(bills),
+    )
+    return bills
+
+
+def fetch_state_legislator_detail(person_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch full legislator profile from OpenStates.
+
+    Args:
+        person_id: OpenStates person ID (OCD-ID format)
+
+    Returns:
+        Full person dict or None on failure
+    """
+    try:
+        time.sleep(POLITE_DELAY)
+        resp = requests.get(
+            f"{OPENSTATES_BASE}/people/{person_id}",
+            headers=_headers(),
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        logger.error("OpenStates person detail failed for '%s': %s", person_id, e)
+        return None

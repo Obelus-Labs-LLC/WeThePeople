@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { TrendingUp, TrendingDown, ArrowUpDown, Search, ExternalLink, User } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
+import TradeTimeline from '../components/TradeTimeline';
+import { fetchTradeTimeline, type TradeMarker, type TradeTimelineRange } from '../api/influence';
 
 const API_BASE = getApiBaseUrl();
 
@@ -28,6 +30,24 @@ export default function CongressionalTradesPage() {
   const [filter, setFilter] = useState<'all' | 'purchase' | 'sale'>('all');
   const [search, setSearch] = useState('');
   const [memberSearch, setMemberSearch] = useState('');
+
+  // Trade timeline state
+  const [timelineTrades, setTimelineTrades] = useState<TradeMarker[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineRange, setTimelineRange] = useState<TradeTimelineRange>('1y');
+
+  // Fetch timeline when ticker search changes
+  useEffect(() => {
+    if (!search || search.length < 1) {
+      setTimelineTrades([]);
+      return;
+    }
+    setTimelineLoading(true);
+    fetchTradeTimeline(search.toUpperCase(), undefined, timelineRange)
+      .then((data) => setTimelineTrades(data.trades || []))
+      .catch(() => setTimelineTrades([]))
+      .finally(() => setTimelineLoading(false));
+  }, [search, timelineRange]);
 
   useEffect(() => {
     setLoading(true);
@@ -113,6 +133,33 @@ export default function CongressionalTradesPage() {
             {total.toLocaleString()} trades
           </span>
         </div>
+
+        {/* Trade Timeline (visible when ticker is searched) */}
+        {search && timelineTrades.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              {(['3m', '6m', '1y', '2y'] as TradeTimelineRange[]).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setTimelineRange(r)}
+                  className={`px-3 py-1 rounded-md text-xs font-mono transition-colors ${
+                    timelineRange === r
+                      ? 'bg-blue-500/20 text-blue-400'
+                      : 'text-white/30 hover:text-white/50'
+                  }`}
+                >
+                  {r.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <TradeTimeline trades={timelineTrades} ticker={search.toUpperCase()} />
+          </div>
+        )}
+        {search && timelineLoading && (
+          <div className="flex justify-center py-6 mb-6">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+          </div>
+        )}
 
         {/* Client-side member name filter */}
         {(() => {

@@ -340,6 +340,51 @@ def get_top_contracts(limit: int = Query(10, ge=1, le=50)):
         db.close()
 
 
+@router.get("/trade-timeline")
+def get_trade_timeline(
+    ticker: str = Query(..., min_length=1),
+    person_id: Optional[str] = Query(None),
+    range: str = Query("1y", regex="^(3m|6m|1y|2y)$"),
+):
+    """
+    Return congressional trade markers for a given ticker, optionally filtered
+    by person_id. Used to overlay buy/sell events on a timeline chart.
+    """
+    from datetime import date, timedelta
+
+    range_days = {"3m": 90, "6m": 180, "1y": 365, "2y": 730}
+    cutoff = date.today() - timedelta(days=range_days[range])
+
+    db = SessionLocal()
+    try:
+        q = (
+            db.query(CongressionalTrade, TrackedMember)
+            .outerjoin(TrackedMember, TrackedMember.person_id == CongressionalTrade.person_id)
+            .filter(CongressionalTrade.ticker == ticker.upper())
+            .filter(CongressionalTrade.transaction_date >= cutoff)
+        )
+        if person_id:
+            q = q.filter(CongressionalTrade.person_id == person_id)
+
+        q = q.order_by(CongressionalTrade.transaction_date.asc())
+
+        trades = []
+        for trade, member in q.all():
+            trades.append({
+                "date": str(trade.transaction_date) if trade.transaction_date else None,
+                "person_id": trade.person_id,
+                "display_name": member.display_name if member else trade.person_id,
+                "party": member.party if member else None,
+                "transaction_type": trade.transaction_type,
+                "amount_range": trade.amount_range,
+                "reporting_gap": trade.reporting_gap,
+            })
+
+        return {"ticker": ticker.upper(), "trades": trades}
+    finally:
+        db.close()
+
+
 @router.get("/network")
 def get_influence_network(
     entity_type: str = Query(..., regex="^(person|finance|health|tech|energy)$"),
