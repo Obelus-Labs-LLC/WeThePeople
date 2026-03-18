@@ -267,10 +267,7 @@ export default function HealthDashboardPage() {
           pulsating
           fadeDistance={2}
           saturation={1}
-          followMouse
-          mouseInfluence={0.1}
           noiseAmount={0.3}
-          distortion={0}
         />
       </div>
       <div className="relative z-10 mx-auto w-full max-w-[1600px] flex flex-col px-8 py-8 md:px-12 md:py-10">

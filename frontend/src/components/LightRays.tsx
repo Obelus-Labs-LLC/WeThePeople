@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, memo } from 'react';
 import { Renderer, Program, Triangle, Mesh } from 'ogl';
 
 export type RaysOrigin =
@@ -20,8 +20,6 @@ interface LightRaysProps {
   pulsating?: boolean;
   fadeDistance?: number;
   saturation?: number;
-  followMouse?: boolean;
-  mouseInfluence?: number;
   noiseAmount?: number;
   distortion?: number;
   className?: string;
@@ -75,8 +73,6 @@ interface Uniforms {
   pulsating: { value: number };
   fadeDistance: { value: number };
   saturation: { value: number };
-  mousePos: { value: Vec2 };
-  mouseInfluence: { value: number };
   noiseAmount: { value: number };
   distortion: { value: number };
 }
@@ -90,19 +86,15 @@ const LightRays: React.FC<LightRaysProps> = ({
   pulsating = false,
   fadeDistance = 1.0,
   saturation = 1.0,
-  followMouse = true,
-  mouseInfluence = 0.1,
   noiseAmount = 0.0,
   distortion = 0.0,
   className = ''
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const uniformsRef = useRef<Uniforms | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
-  const mouseRef = useRef({ x: 0.5, y: 0.5 });
-  const smoothMouseRef = useRef({ x: 0.5, y: 0.5 });
   const animationIdRef = useRef<number | null>(null);
   const meshRef = useRef<Mesh | null>(null);
+  const uniformsRef = useRef<Uniforms | null>(null);
   const cleanupFunctionRef = useRef<(() => void) | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -180,8 +172,6 @@ uniform float rayLength;
 uniform float pulsating;
 uniform float fadeDistance;
 uniform float saturation;
-uniform vec2  mousePos;
-uniform float mouseInfluence;
 uniform float noiseAmount;
 uniform float distortion;
 
@@ -198,13 +188,13 @@ float rayStrength(vec2 raySource, vec2 rayRefDirection, vec2 coord,
   float cosAngle = dot(dirNorm, rayRefDirection);
 
   float distortedAngle = cosAngle + distortion * sin(iTime * 2.0 + length(sourceToCoord) * 0.01) * 0.2;
-  
+
   float spreadFactor = pow(max(distortedAngle, 0.0), 1.0 / max(lightSpread, 0.001));
 
   float distance = length(sourceToCoord);
   float maxDistance = iResolution.x * rayLength;
   float lengthFalloff = clamp((maxDistance - distance) / maxDistance, 0.0, 1.0);
-  
+
   float fadeFalloff = clamp((iResolution.x * fadeDistance - distance) / (iResolution.x * fadeDistance), 0.5, 1.0);
   float pulse = pulsating > 0.5 ? (0.8 + 0.2 * sin(iTime * speed * 3.0)) : 1.0;
 
@@ -219,19 +209,12 @@ float rayStrength(vec2 raySource, vec2 rayRefDirection, vec2 coord,
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   vec2 coord = vec2(fragCoord.x, iResolution.y - fragCoord.y);
-  
-  vec2 finalRayDir = rayDir;
-  if (mouseInfluence > 0.0) {
-    vec2 mouseScreenPos = mousePos * iResolution.xy;
-    vec2 mouseDirection = normalize(mouseScreenPos - rayPos);
-    finalRayDir = normalize(mix(rayDir, mouseDirection, mouseInfluence));
-  }
 
   vec4 rays1 = vec4(1.0) *
-               rayStrength(rayPos, finalRayDir, coord, 36.2214, 21.11349,
+               rayStrength(rayPos, rayDir, coord, 36.2214, 21.11349,
                            1.5 * raysSpeed);
   vec4 rays2 = vec4(1.0) *
-               rayStrength(rayPos, finalRayDir, coord, 22.3991, 18.0234,
+               rayStrength(rayPos, rayDir, coord, 22.3991, 18.0234,
                            1.1 * raysSpeed);
 
   fragColor = rays1 * 0.5 + rays2 * 0.4;
@@ -263,10 +246,8 @@ void main() {
       const uniforms: Uniforms = {
         iTime: { value: 0 },
         iResolution: { value: [1, 1] },
-
         rayPos: { value: [0, 0] },
         rayDir: { value: [0, 1] },
-
         raysColor: { value: hexToRgb(raysColor) },
         raysSpeed: { value: raysSpeed },
         lightSpread: { value: lightSpread },
@@ -274,8 +255,6 @@ void main() {
         pulsating: { value: pulsating ? 1.0 : 0.0 },
         fadeDistance: { value: fadeDistance },
         saturation: { value: saturation },
-        mousePos: { value: [0.5, 0.5] },
-        mouseInfluence: { value: mouseInfluence },
         noiseAmount: { value: noiseAmount },
         distortion: { value: distortion }
       };
@@ -315,15 +294,6 @@ void main() {
         }
 
         uniforms.iTime.value = t * 0.001;
-
-        if (followMouse && mouseInfluence > 0.0) {
-          const smoothing = 0.92;
-
-          smoothMouseRef.current.x = smoothMouseRef.current.x * smoothing + mouseRef.current.x * (1 - smoothing);
-          smoothMouseRef.current.y = smoothMouseRef.current.y * smoothing + mouseRef.current.y * (1 - smoothing);
-
-          uniforms.mousePos.value = [smoothMouseRef.current.x, smoothMouseRef.current.y];
-        }
 
         try {
           renderer.render({ scene: mesh });
@@ -376,72 +346,7 @@ void main() {
         cleanupFunctionRef.current = null;
       }
     };
-  }, [
-    isVisible,
-    raysOrigin,
-    raysColor,
-    raysSpeed,
-    lightSpread,
-    rayLength,
-    pulsating,
-    fadeDistance,
-    saturation,
-    followMouse,
-    mouseInfluence,
-    noiseAmount,
-    distortion
-  ]);
-
-  useEffect(() => {
-    if (!uniformsRef.current || !containerRef.current || !rendererRef.current) return;
-
-    const u = uniformsRef.current;
-    const renderer = rendererRef.current;
-
-    u.raysColor.value = hexToRgb(raysColor);
-    u.raysSpeed.value = raysSpeed;
-    u.lightSpread.value = lightSpread;
-    u.rayLength.value = rayLength;
-    u.pulsating.value = pulsating ? 1.0 : 0.0;
-    u.fadeDistance.value = fadeDistance;
-    u.saturation.value = saturation;
-    u.mouseInfluence.value = mouseInfluence;
-    u.noiseAmount.value = noiseAmount;
-    u.distortion.value = distortion;
-
-    const { clientWidth: wCSS, clientHeight: hCSS } = containerRef.current;
-    const dpr = renderer.dpr;
-    const { anchor, dir } = getAnchorAndDir(raysOrigin, wCSS * dpr, hCSS * dpr);
-    u.rayPos.value = anchor;
-    u.rayDir.value = dir;
-  }, [
-    raysColor,
-    raysSpeed,
-    lightSpread,
-    raysOrigin,
-    rayLength,
-    pulsating,
-    fadeDistance,
-    saturation,
-    mouseInfluence,
-    noiseAmount,
-    distortion
-  ]);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current || !rendererRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
-      mouseRef.current = { x, y };
-    };
-
-    if (followMouse) {
-      window.addEventListener('mousemove', handleMouseMove);
-      return () => window.removeEventListener('mousemove', handleMouseMove);
-    }
-  }, [followMouse]);
+  }, [isVisible]);
 
   return (
     <div
@@ -451,4 +356,4 @@ void main() {
   );
 };
 
-export default LightRays;
+export default memo(LightRays);

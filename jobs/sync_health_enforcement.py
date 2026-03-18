@@ -1,0 +1,246 @@
+"""
+Health sector enforcement data ingestion.
+
+Fetches enforcement actions from:
+- FDA (Food and Drug Administration) — via Federal Register API
+- HHS (Health and Human Services) — via Federal Register API
+- DOJ (Department of Justice) — via Federal Register API
+
+Usage:
+    python jobs/sync_health_enforcement.py [--company COMPANY_ID]
+"""
+
+import os
+import sys
+import hashlib
+import argparse
+import logging
+import time
+import re
+from datetime import datetime, date
+
+import requests
+from dotenv import load_dotenv
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from models.database import Base
+from models.health_models import TrackedCompany, HealthEnforcement
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+log = logging.getLogger(__name__)
+
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./wethepeople.db")
+FR_BASE = "https://www.federalregister.gov/api/v1"
+
+AGENCY_SLUGS = {
+    "FDA": "food-and-drug-administration",
+    "HHS": "health-and-human-services-department",
+    "DOJ": "justice-department",
+}
+
+
+def md5(text: str) -> str:
+    return hashlib.md5(text.encode()).hexdigest()
+
+
+def parse_date(val):
+    if val is None:
+        return None
+    if isinstance(val, date):
+        return val
+    s = str(val).strip()[:10]
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
+def extract_penalty(title: str, abstract: str = "") -> float:
+    """Try to extract a dollar penalty amount from title or abstract."""
+    text = f"{title} {abstract}"
+    patterns = [
+        r'\$(\d+(?:\.\d+)?)\s*billion',
+        r'\$(\d+(?:\.\d+)?)\s*million',
+        r'\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?)',
+    ]
+    for i, pattern in enumerate(patterns):
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            amount = float(match.group(1).replace(",", ""))
+            if i == 0:
+                return amount * 1_000_000_000
+            elif i == 1:
+                return amount * 1_000_000
+            else:
+                return amount
+    return 0.0
+
+
+def classify_enforcement_type(title: str, abstract: str = "") -> str:
+    """Classify enforcement action type from text."""
+    text = f"{title} {abstract}".lower()
+    if "warning letter" in text:
+        return "Warning Letter"
+    elif "consent decree" in text:
+        return "Consent Decree"
+    elif "criminal" in text and "settlement" in text:
+        return "Criminal Settlement"
+    elif "false claims" in text:
+        return "False Claims Act"
+    elif "civil penalty" in text or "civil money penalty" in text:
+        return "Civil Penalty"
+    elif "settlement" in text:
+        return "Settlement"
+    elif "recall" in text:
+        return "Recall"
+    elif "enforcement" in text:
+        return "Enforcement Action"
+    else:
+        return "Regulatory Action"
+
+
+def fetch_enforcement_from_fr(company_name: str, agency_slug: str, source_label: str, limit: int = 25):
+    """Fetch enforcement-related documents from Federal Register for a company."""
+    enforcement_terms = [
+        f'"{company_name}" enforcement',
+        f'"{company_name}" penalty',
+        f'"{company_name}" violation',
+        f'"{company_name}" settlement',
+    ]
+
+    all_results = []
+    seen_doc_numbers = set()
+
+    for term in enforcement_terms:
+        params = {
+            "per_page": limit,
+            "order": "newest",
+            "conditions[term]": term,
+            "conditions[agencies][]": agency_slug,
+            "fields[]": [
+                "document_number", "title", "abstract", "type",
+                "publication_date", "html_url", "action",
+            ],
+        }
+
+        try:
+            time.sleep(1.0)
+            resp = requests.get(f"{FR_BASE}/documents.json", params=params, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            log.warning(f"  Federal Register search failed ({source_label}, term='{term[:40]}'): {e}")
+            continue
+
+        for doc in data.get("results", []):
+            doc_num = doc.get("document_number", "")
+            if doc_num in seen_doc_numbers:
+                continue
+            seen_doc_numbers.add(doc_num)
+
+            title = doc.get("title", "")
+            abstract = doc.get("abstract", "") or ""
+
+            all_results.append({
+                "case_title": title[:500],
+                "case_date": parse_date(doc.get("publication_date")),
+                "case_url": doc.get("html_url", ""),
+                "enforcement_type": classify_enforcement_type(title, abstract),
+                "penalty_amount": extract_penalty(title, abstract),
+                "description": abstract[:1000] if abstract else title[:500],
+                "source": source_label,
+                "doc_number": doc_num,
+            })
+
+    return all_results
+
+
+def sync_company_enforcement(session, company: TrackedCompany) -> int:
+    """Sync enforcement actions for a single health company."""
+    search_names = [company.display_name]
+    if "," in company.display_name:
+        search_names.append(company.display_name.split(",")[0].strip())
+    short = (company.display_name
+             .replace(" Corporation", "").replace(" Inc.", "").replace(" Inc", "")
+             .replace(" Co.", "").replace(" plc", "").replace(" LP", "")
+             .replace(" LLC", "").replace(" Ltd.", "").replace(" Ltd", "")
+             .replace(" Pharmaceuticals", "").replace(" Biotech", "")
+             .strip())
+    if short != company.display_name:
+        search_names.append(short)
+
+    count = 0
+    seen_hashes = set()
+
+    for search_name in search_names:
+        for source_label, agency_slug in AGENCY_SLUGS.items():
+            results = fetch_enforcement_from_fr(search_name, agency_slug, source_label, limit=10)
+
+            for r in results:
+                dedupe = md5(f"{company.company_id}:{r['source']}:{r['doc_number']}")
+                if dedupe in seen_hashes:
+                    continue
+                seen_hashes.add(dedupe)
+
+                if session.query(HealthEnforcement).filter_by(dedupe_hash=dedupe).first():
+                    continue
+
+                session.add(HealthEnforcement(
+                    company_id=company.company_id,
+                    case_title=r["case_title"],
+                    case_date=r["case_date"],
+                    case_url=r["case_url"],
+                    enforcement_type=r["enforcement_type"],
+                    penalty_amount=r["penalty_amount"],
+                    description=r["description"],
+                    source=r["source"],
+                    dedupe_hash=dedupe,
+                ))
+                count += 1
+
+    if count:
+        session.commit()
+    log.info(f"  [{company.company_id}] {count} new enforcement actions")
+    return count
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--company", type=str, help="Sync a specific company")
+    args = parser.parse_args()
+
+    engine = create_engine(DATABASE_URL)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    log.info(f"Database: {DATABASE_URL}")
+
+    if args.company:
+        company = session.query(TrackedCompany).filter_by(company_id=args.company).first()
+        if not company:
+            log.error(f"Company '{args.company}' not found")
+            return
+        companies = [company]
+    else:
+        companies = session.query(TrackedCompany).all()
+
+    log.info(f"Syncing enforcement for {len(companies)} health companies...")
+    total = 0
+
+    for company in companies:
+        log.info(f"\n{'='*60}")
+        log.info(f"Processing: {company.display_name} ({company.company_id})")
+        total += sync_company_enforcement(session, company)
+
+    log.info(f"\nDone! Total new enforcement actions: {total}")
+    session.close()
+
+
+if __name__ == "__main__":
+    main()

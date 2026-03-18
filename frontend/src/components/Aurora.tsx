@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 import { Renderer, Program, Mesh, Color, Triangle } from 'ogl';
 
 const VERT = `#version 300 es
@@ -111,7 +111,7 @@ interface AuroraProps {
   speed?: number;
 }
 
-export default function Aurora(props: AuroraProps) {
+function Aurora(props: AuroraProps) {
   const { colorStops = ['#5227FF', '#7cff67', '#5227FF'], amplitude = 1.0, blend = 0.5 } = props;
   const propsRef = useRef<AuroraProps>(props);
   propsRef.current = props;
@@ -204,3 +204,5 @@ export default function Aurora(props: AuroraProps) {
 
   return <div ref={ctnDom} className="w-full h-full" />;
 }
+
+export default memo(Aurora);

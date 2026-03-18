@@ -13,12 +13,6 @@ export default function PoliticsLayout({ children }: { children: React.ReactNode
         <FloatingLines
           linesGradient={['#e90101', '#fafafa', '#0804fb']}
           animationSpeed={1}
-          interactive
-          bendRadius={5}
-          bendStrength={-0.5}
-          mouseDamping={0.05}
-          parallax
-          parallaxStrength={0.2}
         />
       </div>
       {/* Page content */}

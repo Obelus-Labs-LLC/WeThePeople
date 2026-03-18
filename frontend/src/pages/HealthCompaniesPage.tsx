@@ -73,10 +73,7 @@ export default function HealthCompaniesPage() {
           pulsating
           fadeDistance={2}
           saturation={1}
-          followMouse
-          mouseInfluence={0.1}
           noiseAmount={0.3}
-          distortion={0}
         />
       </div>
       <div className="relative z-10 mx-auto max-w-[1400px] px-8 py-8 md:px-12 md:py-10">
