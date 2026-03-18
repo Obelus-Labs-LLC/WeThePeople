@@ -128,6 +128,14 @@ def get_health_company(company_id: str):
         )
         serious_count = db.query(func.count(FDAAdverseEvent.id)).filter_by(company_id=company_id, serious=1).scalar() or 0
 
+        # Political data counts
+        lobbying_count = db.query(func.count(HealthLobbyingRecord.id)).filter_by(company_id=company_id).scalar() or 0
+        lobbying_spend = db.query(func.sum(HealthLobbyingRecord.income)).filter_by(company_id=company_id).scalar() or 0.0
+        contract_count = db.query(func.count(HealthGovernmentContract.id)).filter_by(company_id=company_id).scalar() or 0
+        contract_value = db.query(func.sum(HealthGovernmentContract.award_amount)).filter_by(company_id=company_id).scalar() or 0.0
+        enforcement_count = db.query(func.count(HealthEnforcement.id)).filter_by(company_id=company_id).scalar() or 0
+        penalty_total = db.query(func.sum(HealthEnforcement.penalty_amount)).filter_by(company_id=company_id).scalar() or 0.0
+
         latest_stock = (
             db.query(StockFundamentals).filter_by(entity_type="company", entity_id=company_id)
             .order_by(desc(StockFundamentals.snapshot_date)).first()
@@ -151,7 +159,11 @@ def get_health_company(company_id: str):
             "adverse_event_count": event_count, "recall_count": recall_count,
             "trial_count": trial_count, "payment_count": payment_count,
             "filing_count": filing_count, "serious_event_count": serious_count,
-            "trials_by_status": trials_by_status, "latest_stock": stock_data,
+            "trials_by_status": trials_by_status,
+            "lobbying_count": lobbying_count, "lobbying_spend": lobbying_spend,
+            "contract_count": contract_count, "contract_value": contract_value,
+            "enforcement_count": enforcement_count, "penalty_total": penalty_total,
+            "latest_stock": stock_data,
             "latest_recall": {
                 "recall_number": latest_recall.recall_number,
                 "classification": latest_recall.classification,
