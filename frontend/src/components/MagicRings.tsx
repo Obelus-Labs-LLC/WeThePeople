@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 import * as THREE from 'three';
 
 const vertexShader = `
@@ -13,8 +13,7 @@ uniform float uTime, uAttenuation, uLineThickness;
 uniform float uBaseRadius, uRadiusStep, uScaleRate;
 uniform float uOpacity, uNoiseAmount, uRotation, uRingGap;
 uniform float uFadeIn, uFadeOut;
-uniform float uMouseInfluence, uHoverAmount, uHoverScale, uParallax, uBurst;
-uniform vec2 uResolution, uMouse;
+uniform vec2 uResolution;
 uniform vec3 uColor, uColorTwo;
 uniform int uRingCount;
 
@@ -41,19 +40,14 @@ void main() {
   vec2 p = (gl_FragCoord.xy - 0.5 * uResolution.xy) * px;
   float cr = cos(uRotation), sr = sin(uRotation);
   p = mat2(cr, -sr, sr, cr) * p;
-  p -= uMouse * uMouseInfluence;
-  float sc = mix(1.0, uHoverScale, uHoverAmount) + uBurst * 0.3;
-  p /= sc;
   vec3 c = vec3(0.0);
   float rcf = max(float(uRingCount) - 1.0, 1.0);
   for (int i = 0; i < 10; i++) {
     if (i >= uRingCount) break;
     float fi = float(i);
-    vec2 pr = p - fi * uParallax * uMouse;
     vec3 rc = mix(uColor, uColorTwo, fi / rcf);
-    c = mix(c, rc, vec3(ring(pr, uBaseRadius + fi * uRadiusStep, pow(uRingGap, fi), i == 0 ? 0.0 : 2.95 * fi, px)));
+    c = mix(c, rc, vec3(ring(p, uBaseRadius + fi * uRadiusStep, pow(uRingGap, fi), i == 0 ? 0.0 : 2.95 * fi, px)));
   }
-  c *= 1.0 + uBurst * 2.0;
   float n = fract(sin(dot(gl_FragCoord.xy + uTime * 100.0, vec2(12.9898, 78.233))) * 43758.5453);
   c += (n - 0.5) * uNoiseAmount;
   gl_FragColor = vec4(c, max(c.r, max(c.g, c.b)) * uOpacity);
@@ -77,14 +71,9 @@ interface MagicRingsProps {
   ringGap?: number;
   fadeIn?: number;
   fadeOut?: number;
-  followMouse?: boolean;
-  mouseInfluence?: number;
-  hoverScale?: number;
-  parallax?: number;
-  clickBurst?: boolean;
 }
 
-export default function MagicRings({
+function MagicRings({
   color = '#fc42ff',
   colorTwo = '#42fcff',
   speed = 1,
@@ -101,25 +90,14 @@ export default function MagicRings({
   ringGap = 1.5,
   fadeIn = 0.7,
   fadeOut = 0.5,
-  followMouse = false,
-  mouseInfluence = 0.2,
-  hoverScale = 1.2,
-  parallax = 0.05,
-  clickBurst = false,
 }: MagicRingsProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const propsRef = useRef<Required<MagicRingsProps> | null>(null);
-  const mouseRef = useRef([0, 0]);
-  const smoothMouseRef = useRef([0, 0]);
-  const hoverAmountRef = useRef(0);
-  const isHoveredRef = useRef(false);
-  const burstRef = useRef(0);
 
   propsRef.current = {
     color, colorTwo, speed, ringCount, attenuation, lineThickness,
     baseRadius, radiusStep, scaleRate, opacity, blur, noiseAmount,
-    rotation, ringGap, fadeIn, fadeOut, followMouse, mouseInfluence,
-    hoverScale, parallax, clickBurst,
+    rotation, ringGap, fadeIn, fadeOut,
   };
 
   useEffect(() => {
@@ -161,12 +139,6 @@ export default function MagicRings({
       uRingGap: { value: 1.6 },
       uFadeIn: { value: 0.5 },
       uFadeOut: { value: 0.75 },
-      uMouse: { value: new THREE.Vector2() },
-      uMouseInfluence: { value: 0 },
-      uHoverAmount: { value: 0 },
-      uHoverScale: { value: 1 },
-      uParallax: { value: 0 },
-      uBurst: { value: 0 },
     };
 
     const material = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms, transparent: true });
@@ -186,34 +158,10 @@ export default function MagicRings({
     const ro = new ResizeObserver(resize);
     ro.observe(mount);
 
-    const onMouseMove = (e: MouseEvent) => {
-      const rect = mount.getBoundingClientRect();
-      mouseRef.current[0] = (e.clientX - rect.left) / rect.width - 0.5;
-      mouseRef.current[1] = -((e.clientY - rect.top) / rect.height - 0.5);
-    };
-    const onMouseEnter = () => { isHoveredRef.current = true; };
-    const onMouseLeave = () => {
-      isHoveredRef.current = false;
-      mouseRef.current[0] = 0;
-      mouseRef.current[1] = 0;
-    };
-    const onClick = () => { burstRef.current = 1; };
-
-    mount.addEventListener('mousemove', onMouseMove);
-    mount.addEventListener('mouseenter', onMouseEnter);
-    mount.addEventListener('mouseleave', onMouseLeave);
-    mount.addEventListener('click', onClick);
-
     let frameId: number;
     const animate = (t: number) => {
       frameId = requestAnimationFrame(animate);
       const p = propsRef.current!;
-
-      smoothMouseRef.current[0] += (mouseRef.current[0] - smoothMouseRef.current[0]) * 0.08;
-      smoothMouseRef.current[1] += (mouseRef.current[1] - smoothMouseRef.current[1]) * 0.08;
-      hoverAmountRef.current += ((isHoveredRef.current ? 1 : 0) - hoverAmountRef.current) * 0.08;
-      burstRef.current *= 0.95;
-      if (burstRef.current < 0.001) burstRef.current = 0;
 
       uniforms.uTime.value = t * 0.001 * p.speed;
       uniforms.uAttenuation.value = p.attenuation;
@@ -230,12 +178,6 @@ export default function MagicRings({
       uniforms.uRingGap.value = p.ringGap;
       uniforms.uFadeIn.value = p.fadeIn;
       uniforms.uFadeOut.value = p.fadeOut;
-      uniforms.uMouse.value.set(smoothMouseRef.current[0], smoothMouseRef.current[1]);
-      uniforms.uMouseInfluence.value = p.followMouse ? p.mouseInfluence : 0;
-      uniforms.uHoverAmount.value = hoverAmountRef.current;
-      uniforms.uHoverScale.value = p.hoverScale;
-      uniforms.uParallax.value = p.parallax;
-      uniforms.uBurst.value = p.clickBurst ? burstRef.current : 0;
 
       renderer.render(scene, camera);
     };
@@ -245,10 +187,6 @@ export default function MagicRings({
       cancelAnimationFrame(frameId);
       window.removeEventListener('resize', resize);
       ro.disconnect();
-      mount.removeEventListener('mousemove', onMouseMove);
-      mount.removeEventListener('mouseenter', onMouseEnter);
-      mount.removeEventListener('mouseleave', onMouseLeave);
-      mount.removeEventListener('click', onClick);
       mount.removeChild(renderer.domElement);
       renderer.dispose();
       material.dispose();
@@ -263,3 +201,5 @@ export default function MagicRings({
     />
   );
 }
+
+export default memo(MagicRings);
