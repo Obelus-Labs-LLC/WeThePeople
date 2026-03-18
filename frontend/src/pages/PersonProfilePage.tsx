@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import BackButton from '../components/BackButton';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Heart } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import type {
   Person,
@@ -21,6 +21,18 @@ import type {
 // ── Constants ──
 
 const PARTY_COLORS: Record<string, string> = { D: '#3B82F6', R: '#EF4444', I: '#A855F7' };
+
+/**
+ * Generate a campaign contribution link based on party affiliation.
+ * Democrats → ActBlue search, Republicans → WinRed search, Others → FEC candidate page.
+ */
+function getCampaignUrl(name: string, party: string): string {
+  const q = encodeURIComponent(name);
+  const p = party?.charAt(0);
+  if (p === 'D') return `https://secure.actblue.com/search?q=${q}`;
+  if (p === 'R') return `https://secure.winred.com/search?query=${q}`;
+  return `https://www.fec.gov/data/candidates/?search=${q}`;
+}
 
 const TIER_COLORS: Record<string, string> = {
   strong: '#10B981',
@@ -448,6 +460,24 @@ export default function PersonProfilePage() {
                 <span className="rounded-full bg-white/5 px-3 py-1 font-body text-xs font-bold uppercase text-white/70">
                   {chamberLabel(chamber)}
                 </span>
+              )}
+              {/* Contribute to campaign */}
+              {displayName && (
+                <a
+                  href={getCampaignUrl(displayName, party)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-body text-xs font-bold uppercase transition-colors"
+                  style={{
+                    backgroundColor: `${pColor}15`,
+                    color: pColor,
+                    borderWidth: 1,
+                    borderColor: `${pColor}30`,
+                  }}
+                >
+                  <Heart className="w-3 h-3" />
+                  Contribute
+                </a>
               )}
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Heart } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -22,6 +23,26 @@ export default function Footer() {
             <Link to="/disclaimer" className="hover:text-white transition-colors">Disclaimer</Link>
             <Link to="/methodology" className="hover:text-white transition-colors">Methodology</Link>
           </div>
+        </div>
+
+        {/* Support banner */}
+        <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl bg-white/[0.03] border border-white/10 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <Heart className="w-5 h-5 text-rose-400 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-white">Support this open-source project</p>
+              <p className="text-xs text-slate-400">WeThePeople is free and open source. Help us keep it running.</p>
+            </div>
+          </div>
+          <a
+            href="https://github.com/sponsors/Obelus-Labs-LLC"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-2 text-sm font-medium text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-colors"
+          >
+            <Heart className="w-4 h-4" />
+            Sponsor on GitHub
+          </a>
         </div>
 
         {/* Disclaimer text */}

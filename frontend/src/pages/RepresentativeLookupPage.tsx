@@ -324,6 +324,29 @@ function RepCard({ rep }: { rep: Representative }) {
             </span>
           )}
         </div>
+
+        {/* Contribute to campaign */}
+        <a
+          href={(() => {
+            const q = encodeURIComponent(rep.display_name);
+            const p = rep.party?.charAt(0);
+            if (p === 'D') return `https://secure.actblue.com/search?q=${q}`;
+            if (p === 'R') return `https://secure.winred.com/search?query=${q}`;
+            return `https://www.fec.gov/data/candidates/?search=${q}`;
+          })()}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="mt-4 flex items-center justify-center gap-2 rounded-lg py-2 font-body text-xs font-semibold transition-colors"
+          style={{
+            backgroundColor: `${color}10`,
+            color,
+            borderWidth: 1,
+            borderColor: `${color}20`,
+          }}
+        >
+          ♥ Contribute to Campaign
+        </a>
       </div>
     </Link>
   );
