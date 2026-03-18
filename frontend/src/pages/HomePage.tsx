@@ -18,6 +18,7 @@ import {
   TrendingUp,
   ArrowRight,
 } from "lucide-react";
+import Footer from "../components/Footer";
 
 // Free Unsplash images (Unsplash license — free for commercial use)
 const FLAG_BG =
@@ -256,25 +257,7 @@ const HomePage: React.FC = () => {
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="border-t border-white/5 bg-slate-950">
-        <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span className="text-xs text-slate-500">
-            WeThePeople — Follow the money from industry to politics
-          </span>
-          <span className="text-xs text-slate-600">
-            Photos by{" "}
-            <a
-              href="https://unsplash.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-slate-500 hover:text-slate-400 underline"
-            >
-              Unsplash
-            </a>
-          </span>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };
