@@ -40,6 +40,9 @@ QUIVER_API_KEY = os.getenv("QUIVER_API_KEY", "")
 QUIVER_LIVE_URL = "https://api.quiverquant.com/beta/live/congresstrading"
 QUIVER_HISTORICAL_URL = "https://api.quiverquant.com/beta/historical/congresstrading"
 
+AINVEST_API_KEY = os.getenv("AINVEST_API_KEY", "")
+AINVEST_URL = "https://openapi.ainvest.com/open/ownership/congress"
+
 engine = create_engine(DB_PATH, connect_args={"check_same_thread": False} if "sqlite" in DB_PATH else {})
 Session = sessionmaker(bind=engine)
 
@@ -113,6 +116,46 @@ def fetch_quiver_trades() -> list[dict]:
         return []
 
 
+def fetch_ainvest_reporting_gaps(tickers: set[str]) -> dict[str, dict]:
+    """
+    Fetch reporting gaps from AInvest API for a set of tickers.
+    Returns a lookup: (name_lower, trade_date) → reporting_gap string.
+    """
+    if not AINVEST_API_KEY:
+        log.info("AINVEST_API_KEY not set, skipping reporting gap enrichment")
+        return {}
+
+    headers = {"Authorization": f"Bearer {AINVEST_API_KEY}"}
+    gap_lookup: dict[str, str] = {}
+    fetched = 0
+
+    for ticker in list(tickers)[:50]:  # Limit to 50 tickers to avoid rate limits
+        try:
+            resp = requests.get(
+                AINVEST_URL,
+                params={"ticker": ticker, "size": 20},
+                headers=headers,
+                timeout=15,
+            )
+            if resp.status_code != 200:
+                continue
+            data = resp.json()
+            for item in data.get("data", {}).get("data", []):
+                name = (item.get("name") or "").lower().strip()
+                trade_date = item.get("trade_date", "")
+                gap = item.get("reporting_gap", "")
+                if name and trade_date and gap:
+                    gap_lookup[f"{name}:{trade_date}"] = gap
+            fetched += 1
+            time.sleep(0.5)  # Rate limit
+        except Exception as e:
+            log.debug(f"AInvest error for {ticker}: {e}")
+            continue
+
+    log.info(f"AInvest: fetched reporting gaps for {fetched} tickers ({len(gap_lookup)} entries)")
+    return gap_lookup
+
+
 def main():
     parser = argparse.ArgumentParser(description="Sync Congressional stock trades from Quiver Quantitative")
     parser.add_argument("--person-id", type=str, help="Only sync for this person_id")
@@ -144,6 +187,10 @@ def main():
         log.info("No trades to process")
         session.close()
         return
+
+    # Enrich with AInvest reporting gaps
+    unique_tickers = {t.get("Ticker", "") for t in trades if t.get("Ticker")}
+    gap_lookup = fetch_ainvest_reporting_gaps(unique_tickers)
 
     count = 0
     skipped_no_member = 0
@@ -186,6 +233,10 @@ def main():
             skipped_dupe += 1
             continue
 
+        # Look up reporting gap from AInvest
+        gap_key = f"{representative.lower().strip()}:{txn_date}"
+        reporting_gap = gap_lookup.get(gap_key)
+
         session.add(CongressionalTrade(
             person_id=member.person_id,
             ticker=ticker,
@@ -196,6 +247,7 @@ def main():
             transaction_date=parse_date_str(txn_date),
             owner="Self",
             source_url=f"https://www.quiverquant.com/congresstrading/politician/{representative.replace(' ', '%20')}",
+            reporting_gap=reporting_gap,
             dedupe_hash=dedupe,
         ))
         count += 1
