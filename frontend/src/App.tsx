@@ -49,6 +49,9 @@ import EnergyCompanyProfilePage from "./pages/EnergyCompanyProfilePage";
 import EnergyComparePage from "./pages/EnergyComparePage";
 import CongressionalTradesPage from "./pages/CongressionalTradesPage";
 import InfluenceExplorerPage from "./pages/InfluenceExplorerPage";
+import SectorLobbyingPage from "./pages/SectorLobbyingPage";
+import SectorContractsPage from "./pages/SectorContractsPage";
+import SectorEnforcementPage from "./pages/SectorEnforcementPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NotFoundPage from "./pages/NotFoundPage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
@@ -77,6 +80,9 @@ const App: React.FC = () => (
         <Route path="/politics/committees" element={<PoliticsLayout><CommitteesPage /></PoliticsLayout>} />
         <Route path="/politics/find-rep" element={<PoliticsLayout><RepresentativeLookupPage /></PoliticsLayout>} />
         <Route path="/politics/trades" element={<PoliticsLayout><CongressionalTradesPage /></PoliticsLayout>} />
+        <Route path="/politics/lobbying" element={<PoliticsLayout><SectorLobbyingPage /></PoliticsLayout>} />
+        <Route path="/politics/contracts" element={<PoliticsLayout><SectorContractsPage /></PoliticsLayout>} />
+        <Route path="/politics/enforcement" element={<PoliticsLayout><SectorEnforcementPage /></PoliticsLayout>} />
         <Route path="/politics/press" element={<PoliticsLayout><DashboardLayout><PressToolsPage /></DashboardLayout></PoliticsLayout>} />
 
         {/* Cross-sector Influence Explorer */}
@@ -89,6 +95,9 @@ const App: React.FC = () => (
         <Route path="/finance/institutions" element={<FinanceLayout><InstitutionDirectoryPage /></FinanceLayout>} />
         <Route path="/finance/compare" element={<FinanceLayout><FinanceComparePage /></FinanceLayout>} />
         <Route path="/finance/market-movers" element={<FinanceLayout><MarketMoversPage /></FinanceLayout>} />
+        <Route path="/finance/lobbying" element={<FinanceLayout><SectorLobbyingPage /></FinanceLayout>} />
+        <Route path="/finance/contracts" element={<FinanceLayout><SectorContractsPage /></FinanceLayout>} />
+        <Route path="/finance/enforcement" element={<FinanceLayout><SectorEnforcementPage /></FinanceLayout>} />
         <Route path="/finance/:institution_id" element={<FinanceLayout><InstitutionPage /></FinanceLayout>} />
 
         {/* Technology section — all wrapped in TechLayout (MagicRings bg) */}
@@ -108,12 +117,18 @@ const App: React.FC = () => (
         <Route path="/health/drugs" element={<HealthLayout><DrugLookupPage /></HealthLayout>} />
         <Route path="/health/pipeline" element={<HealthLayout><ClinicalTrialPipelinePage /></HealthLayout>} />
         <Route path="/health/fda-approvals" element={<HealthLayout><FDAApprovalsPage /></HealthLayout>} />
+        <Route path="/health/lobbying" element={<HealthLayout><SectorLobbyingPage /></HealthLayout>} />
+        <Route path="/health/contracts" element={<HealthLayout><SectorContractsPage /></HealthLayout>} />
+        <Route path="/health/enforcement" element={<HealthLayout><SectorEnforcementPage /></HealthLayout>} />
         <Route path="/health/:companyId" element={<HealthLayout><HealthCompanyProfilePage /></HealthLayout>} />
 
         {/* Energy section — all wrapped in EnergyLayout (blur-blob bg) */}
         <Route path="/energy" element={<EnergyLayout><EnergyDashboardPage /></EnergyLayout>} />
         <Route path="/energy/companies" element={<EnergyLayout><EnergyCompaniesPage /></EnergyLayout>} />
         <Route path="/energy/compare" element={<EnergyLayout><EnergyComparePage /></EnergyLayout>} />
+        <Route path="/energy/lobbying" element={<EnergyLayout><SectorLobbyingPage /></EnergyLayout>} />
+        <Route path="/energy/contracts" element={<EnergyLayout><SectorContractsPage /></EnergyLayout>} />
+        <Route path="/energy/enforcement" element={<EnergyLayout><SectorEnforcementPage /></EnergyLayout>} />
         <Route path="/energy/:companyId" element={<EnergyLayout><EnergyCompanyProfilePage /></EnergyLayout>} />
 
         {/* Legal / Info pages */}

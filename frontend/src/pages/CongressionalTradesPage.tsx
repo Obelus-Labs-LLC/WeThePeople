@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, TrendingDown, ArrowUpDown, Search, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, ArrowUpDown, Search, ExternalLink, User } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 
@@ -27,6 +27,7 @@ export default function CongressionalTradesPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'purchase' | 'sale'>('all');
   const [search, setSearch] = useState('');
+  const [memberSearch, setMemberSearch] = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -97,17 +98,35 @@ export default function CongressionalTradesPage() {
             />
           </div>
 
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+            <input
+              type="text"
+              placeholder="Search by politician..."
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              className="pl-9 pr-4 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-blue-500/50"
+            />
+          </div>
+
           <span className="text-white/30 text-sm ml-auto">
             {total.toLocaleString()} trades
           </span>
         </div>
 
+        {/* Client-side member name filter */}
+        {(() => {
+          const filteredTrades = memberSearch
+            ? trades.filter((t) => t.member_name.toLowerCase().includes(memberSearch.toLowerCase()))
+            : trades;
+
+          return (<>
         {/* Table */}
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
           </div>
-        ) : trades.length === 0 ? (
+        ) : filteredTrades.length === 0 ? (
           <div className="text-center py-20 text-white/30">
             <ArrowUpDown className="w-12 h-12 mx-auto mb-4 opacity-30" />
             <p className="text-lg">No congressional trades found yet.</p>
@@ -126,7 +145,7 @@ export default function CongressionalTradesPage() {
                 </tr>
               </thead>
               <tbody>
-                {trades.map((t) => (
+                {filteredTrades.map((t) => (
                   <tr key={t.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
                     <td className="px-4 py-3">
                       <Link to={`/politics/people/${t.person_id}`} className="text-blue-400 hover:text-blue-300 text-sm font-medium no-underline">
@@ -201,6 +220,8 @@ export default function CongressionalTradesPage() {
             </table>
           </div>
         )}
+        </>);
+        })()}
       </div>
     </div>
   );

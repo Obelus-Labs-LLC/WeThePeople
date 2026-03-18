@@ -45,6 +45,81 @@ def get_tech_dashboard_stats():
         db.close()
 
 
+@router.get("/dashboard/recent-activity")
+def get_tech_recent_activity(limit: int = Query(10, ge=1, le=30)):
+    """Return recent enforcement actions, patents, contracts, and lobbying filings across all tech companies."""
+    db = SessionLocal()
+    try:
+        items = []
+
+        # Recent enforcement actions
+        enforcements = db.query(FTCEnforcement).order_by(desc(FTCEnforcement.case_date)).limit(limit).all()
+        for e in enforcements:
+            co = db.query(TrackedTechCompany).filter_by(company_id=e.company_id).first()
+            items.append({
+                "type": "enforcement",
+                "title": e.case_title or "Enforcement Action",
+                "description": e.description,
+                "date": str(e.case_date) if e.case_date else None,
+                "company_id": e.company_id,
+                "company_name": co.display_name if co else e.company_id,
+                "url": e.case_url,
+                "meta": {"penalty_amount": e.penalty_amount, "enforcement_type": e.enforcement_type},
+            })
+
+        # Recent patents
+        patents = db.query(TechPatent).order_by(desc(TechPatent.patent_date)).limit(limit).all()
+        for p in patents:
+            co = db.query(TrackedTechCompany).filter_by(company_id=p.company_id).first()
+            items.append({
+                "type": "patent",
+                "title": p.patent_title or f"Patent #{p.patent_number}",
+                "description": p.patent_abstract[:200] + "..." if p.patent_abstract and len(p.patent_abstract) > 200 else p.patent_abstract,
+                "date": str(p.patent_date) if p.patent_date else None,
+                "company_id": p.company_id,
+                "company_name": co.display_name if co else p.company_id,
+                "url": None,
+                "meta": {"patent_number": p.patent_number, "num_claims": p.num_claims},
+            })
+
+        # Recent contracts (by start_date)
+        contracts = db.query(GovernmentContract).order_by(desc(GovernmentContract.start_date)).limit(limit).all()
+        for ct in contracts:
+            co = db.query(TrackedTechCompany).filter_by(company_id=ct.company_id).first()
+            items.append({
+                "type": "contract",
+                "title": ct.description or f"Contract Award — {ct.awarding_agency or 'Unknown Agency'}",
+                "description": ct.description,
+                "date": str(ct.start_date) if ct.start_date else None,
+                "company_id": ct.company_id,
+                "company_name": co.display_name if co else ct.company_id,
+                "url": None,
+                "meta": {"award_amount": ct.award_amount, "awarding_agency": ct.awarding_agency},
+            })
+
+        # Recent lobbying filings
+        lobbying = db.query(LobbyingRecord).order_by(desc(LobbyingRecord.filing_year), desc(LobbyingRecord.filing_period)).limit(limit).all()
+        for r in lobbying:
+            co = db.query(TrackedTechCompany).filter_by(company_id=r.company_id).first()
+            period_str = f"{r.filing_year}" + (f" {r.filing_period}" if r.filing_period else "")
+            items.append({
+                "type": "lobbying",
+                "title": f"Lobbying Filing — {r.client_name or r.registrant_name or 'Unknown'}",
+                "description": r.lobbying_issues,
+                "date": f"{r.filing_year}-01-01" if r.filing_year else None,
+                "company_id": r.company_id,
+                "company_name": co.display_name if co else r.company_id,
+                "url": f"https://lda.senate.gov/filings/public/filing/{r.filing_uuid}/" if r.filing_uuid else None,
+                "meta": {"income": r.income, "filing_period": period_str, "registrant_name": r.registrant_name},
+            })
+
+        # Sort all items by date descending, nulls last
+        items.sort(key=lambda x: x["date"] or "0000-00-00", reverse=True)
+        return {"items": items[:limit]}
+    finally:
+        db.close()
+
+
 @router.get("/companies")
 def get_tech_companies(
     limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),

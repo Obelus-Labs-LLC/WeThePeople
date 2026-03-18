@@ -181,7 +181,7 @@ export default function HealthCompaniesPage() {
                   {/* Stats */}
                   <div className="mt-auto grid grid-cols-3 gap-2 pt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#94A3B8' }}>AE</p>
+                      <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#94A3B8' }}>ADVERSE EFFECTS</p>
                       <p className="text-sm font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#DC2626' }}>
                         {c.adverse_event_count.toLocaleString()}
                       </p>

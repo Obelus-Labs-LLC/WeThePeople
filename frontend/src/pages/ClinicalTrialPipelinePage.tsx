@@ -74,8 +74,8 @@ export default function ClinicalTrialPipelinePage() {
         const companiesRes = await getHealthCompanies({ limit: 200 });
         const companies = companiesRes.companies || [];
 
-        // Fetch trials for all companies in parallel (limit to 30 for performance)
-        const companySlice = companies.slice(0, 30);
+        // Fetch trials for all companies in parallel (up to 100)
+        const companySlice = companies.slice(0, 100);
         const allTrialSets = await Promise.all(
           companySlice.map((c) =>
             getHealthCompanyTrials(c.company_id, { limit: 100 })
@@ -376,7 +376,7 @@ export default function ClinicalTrialPipelinePage() {
                 </tr>
               </thead>
               <tbody>
-                {data.companyBreakdown.slice(0, 20).map((comp, idx) => (
+                {data.companyBreakdown.map((comp, idx) => (
                   <tr
                     key={comp.companyId}
                     className="transition-colors hover:bg-white/[0.03]"

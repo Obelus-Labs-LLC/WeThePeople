@@ -226,9 +226,16 @@ export default function RepresentativeLookupPage() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
-            <p className="mb-4 font-mono text-xs text-white/30">
+            <p className="mb-2 font-mono text-xs text-white/30">
               {reps.length} representative{reps.length !== 1 ? 's' : ''} for {submittedZip}
             </p>
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+              <AlertCircle size={16} className="mt-0.5 shrink-0 text-blue-400/60" />
+              <p className="font-body text-xs text-white/40 leading-relaxed">
+                <span className="font-semibold text-white/50">State-level lookup</span> — Showing all senators and House members for your state.
+                District-level matching is not yet available, so some House members shown may not represent your specific congressional district.
+              </p>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {reps.map((rep, idx) => (
@@ -306,6 +313,11 @@ function RepCard({ rep }: { rep: Representative }) {
           <span className="rounded-full bg-white/5 px-3 py-1 font-body text-xs font-bold uppercase text-white/50">
             {chamberLabel(rep.chamber)}
           </span>
+          {chamberLabel(rep.chamber) === 'Senate' && (
+            <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 font-body text-[10px] font-bold text-emerald-400">
+              Your Senator
+            </span>
+          )}
           {!rep.is_active && (
             <span className="rounded-full bg-red-500/10 px-2 py-0.5 font-body text-[10px] text-red-400">
               Inactive

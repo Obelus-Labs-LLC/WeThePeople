@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
-import { DollarSign, Landmark, Shield, FileBadge, ArrowRight, type LucideIcon } from 'lucide-react';
+import { DollarSign, Landmark, Shield, FileBadge, ArrowRight, ChevronDown, ChevronUp, type LucideIcon } from 'lucide-react';
 import { TechSectorHeader } from '../components/SectorHeader';
 import SpotlightCard from '../components/SpotlightCard';
 import {
   getTechDashboardStats,
   getTechCompanies,
+  getTechRecentActivity,
   type TechDashboardStats,
   type TechCompanyListItem,
+  type TechRecentActivityItem,
 } from '../api/tech';
 import { LOCAL_LOGOS } from '../data/techLogos';
 
@@ -117,6 +119,8 @@ export default function TechDashboardPage() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<TechDashboardStats | null>(null);
   const [companies, setCompanies] = useState<TechCompanyListItem[]>([]);
+  const [recentActivity, setRecentActivity] = useState<TechRecentActivityItem[]>([]);
+  const [expandedAction, setExpandedAction] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,10 +128,12 @@ export default function TechDashboardPage() {
     Promise.all([
       getTechDashboardStats(),
       getTechCompanies({ limit: 6 }),
+      getTechRecentActivity(10).catch(() => ({ items: [] })),
     ])
-      .then(([s, c]) => {
+      .then(([s, c, activity]) => {
         setStats(s);
         setCompanies(c.companies || []);
+        setRecentActivity(activity.items || []);
       })
       .catch((e) => setError(e.message || 'Failed to load dashboard'))
       .finally(() => setLoading(false));
@@ -223,42 +229,175 @@ export default function TechDashboardPage() {
           ))}
         </motion.div>
 
-        {/* Featured Companies */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.8 }}>
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white">Featured Companies</h2>
-            <Link to="/technology/companies" className="font-body text-xs font-medium text-violet-400 hover:text-violet-300 transition-colors no-underline">View all &rarr;</Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {companies.slice(0, 6).map((c, idx) => {
-              const logo = companyLogo(c);
-              return (
-                <motion.div key={c.company_id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.85 + idx * 0.06 }}>
-                  <Link to={`/technology/${c.company_id}`} className="block no-underline">
-                    <SpotlightCard className="rounded-xl border border-white/10 bg-white/[0.03]" spotlightColor="rgba(139, 92, 246, 0.10)">
-                      <div className="flex items-center gap-4 p-4">
-                        {logo ? (
-                          <img src={logo} alt={c.display_name} className="h-11 w-11 rounded-lg object-contain bg-white/5 p-1" />
-                        ) : (
-                          <div className="flex h-11 w-11 items-center justify-center rounded-lg font-heading text-sm font-bold text-white bg-white/5">
-                            {c.display_name.charAt(0)}
+        {/* Two columns: Featured Companies + Recent Activity */}
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          {/* Featured Companies */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.8 }}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white">Featured Companies</h2>
+              <Link to="/technology/companies" className="font-body text-xs font-medium text-violet-400 hover:text-violet-300 transition-colors no-underline">View all &rarr;</Link>
+            </div>
+            <div className="space-y-3">
+              {companies.slice(0, 6).map((c, idx) => {
+                const logo = companyLogo(c);
+                return (
+                  <motion.div key={c.company_id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.85 + idx * 0.06 }}>
+                    <Link to={`/technology/${c.company_id}`} className="block no-underline">
+                      <SpotlightCard className="rounded-xl border border-white/10 bg-white/[0.03]" spotlightColor="rgba(139, 92, 246, 0.10)">
+                        <div className="flex items-center gap-4 p-4">
+                          {logo ? (
+                            <img src={logo} alt={c.display_name} className="h-11 w-11 rounded-lg object-contain bg-white/5 p-1" />
+                          ) : (
+                            <div className="flex h-11 w-11 items-center justify-center rounded-lg font-heading text-sm font-bold text-white bg-white/5">
+                              {c.display_name.charAt(0)}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="font-body text-sm font-semibold text-white truncate">{c.display_name}</p>
+                            <p className="font-mono text-[11px] text-white/30">{c.ticker || c.company_id}</p>
                           </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="font-body text-sm font-semibold text-white truncate">{c.display_name}</p>
-                          <p className="font-mono text-[11px] text-white/30">{c.ticker || c.company_id}</p>
+                          <span className="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold" style={{ backgroundColor: getSectorColor(c.sector_type) + '22', color: getSectorColor(c.sector_type) }}>
+                            {getSectorLabel(c.sector_type)}
+                          </span>
                         </div>
-                        <span className="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold" style={{ backgroundColor: getSectorColor(c.sector_type) + '22', color: getSectorColor(c.sector_type) }}>
-                          {getSectorLabel(c.sector_type)}
-                        </span>
-                      </div>
-                    </SpotlightCard>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </div>
-        </motion.div>
+                      </SpotlightCard>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+
+          {/* Recent Activity */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.9 }}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white">
+                Recent Activity
+              </h2>
+              <Link
+                to="/technology/companies"
+                className="font-body text-xs font-medium text-violet-400 hover:text-violet-300 transition-colors no-underline"
+              >
+                Full feed &rarr;
+              </Link>
+            </div>
+            <SpotlightCard
+              className="rounded-xl border border-white/10 bg-white/[0.03]"
+              spotlightColor="rgba(139, 92, 246, 0.10)"
+            >
+              <div className="divide-y divide-white/5">
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((item, idx) => {
+                    const isExpanded = expandedAction === idx;
+                    const typeBadgeColors: Record<string, { bg: string; text: string }> = {
+                      enforcement: { bg: '#EF444422', text: '#EF4444' },
+                      patent: { bg: '#F59E0B22', text: '#F59E0B' },
+                      contract: { bg: '#2563EB22', text: '#3B82F6' },
+                      lobbying: { bg: '#8B5CF622', text: '#8B5CF6' },
+                    };
+                    const badge = typeBadgeColors[item.type] || { bg: '#52525B22', text: '#A1A1AA' };
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => setExpandedAction(isExpanded ? null : idx)}
+                        className="w-full p-4 text-left cursor-pointer transition-colors hover:bg-white/[0.02]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className={`font-body text-sm font-medium text-white/90 ${isExpanded ? '' : 'truncate'}`}>
+                              {item.title}
+                            </p>
+                            <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                              <span
+                                className="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold uppercase"
+                                style={{ backgroundColor: badge.bg, color: badge.text }}
+                              >
+                                {item.type}
+                              </span>
+                              <span className="font-mono text-[10px] text-white/30">
+                                {item.company_name}
+                              </span>
+                              {item.date && (
+                                <span className="font-mono text-[10px] text-white/20">
+                                  {item.date}
+                                </span>
+                              )}
+                            </div>
+                            {isExpanded && (
+                              <div className="mt-3 space-y-2">
+                                {item.description && (
+                                  <p className="font-body text-xs text-white/50 leading-relaxed">
+                                    {item.description}
+                                  </p>
+                                )}
+                                {item.meta?.award_amount && (
+                                  <p className="font-mono text-xs text-white/40">
+                                    Award: {fmtMoney(item.meta.award_amount)}
+                                  </p>
+                                )}
+                                {item.meta?.penalty_amount && (
+                                  <p className="font-mono text-xs text-white/40">
+                                    Penalty: {fmtMoney(item.meta.penalty_amount)}
+                                  </p>
+                                )}
+                                {item.meta?.income && (
+                                  <p className="font-mono text-xs text-white/40">
+                                    Income: {fmtMoney(item.meta.income)}
+                                  </p>
+                                )}
+                                {item.meta?.patent_number && (
+                                  <p className="font-mono text-xs text-white/40">
+                                    Patent #{item.meta.patent_number}
+                                    {item.meta.num_claims ? ` (${item.meta.num_claims} claims)` : ''}
+                                  </p>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <Link
+                                    to={`/technology/${item.company_id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="rounded bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] text-violet-400 hover:bg-violet-500/20 transition-colors no-underline"
+                                  >
+                                    View company &rarr;
+                                  </Link>
+                                  {item.url && (
+                                    <a
+                                      href={item.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-white/40 hover:bg-white/10 transition-colors no-underline"
+                                    >
+                                      Source &rarr;
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0">
+                            {isExpanded ? (
+                              <ChevronUp size={12} className="text-white/20" />
+                            ) : (
+                              <ChevronDown size={12} className="text-white/20" />
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="p-6 text-center">
+                    <p className="font-body text-sm text-white/30">No recent activity data available</p>
+                  </div>
+                )}
+              </div>
+            </SpotlightCard>
+          </motion.div>
+        </div>
 
         {/* Data Sources */}
         <div className="border-t border-white/10 pt-6 mt-12">

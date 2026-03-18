@@ -262,13 +262,13 @@ export default function ComparePageNew() {
     if (!comparisonPairs.length) return [];
     const areaSet = new Set<string>();
     comparisonPairs.forEach(({ data }) => {
-      Object.keys(data.by_category).forEach((k) => areaSet.add(k));
+      Object.keys(data.by_category || {}).forEach((k) => areaSet.add(k));
     });
     return Array.from(areaSet)
       .map((area) => ({
         area,
-        total: comparisonPairs.reduce((sum, { data }) => sum + (data.by_category[area] || 0), 0),
-        values: comparisonPairs.map(({ data }) => data.by_category[area] || 0),
+        total: comparisonPairs.reduce((sum, { data }) => sum + ((data.by_category || {})[area] || 0), 0),
+        values: comparisonPairs.map(({ data }) => (data.by_category || {})[area] || 0),
       }))
       .sort((a, b) => b.total - a.total);
   }, [comparisonPairs]);
@@ -335,9 +335,9 @@ export default function ComparePageNew() {
             <SectionTitle>Overview Metrics</SectionTitle>
             {(() => {
               const metrics = [
-                { label: 'Legislative Actions', values: comparisonPairs.map(({ data }) => data.total_claims) },
-                { label: 'Actions Scored', values: comparisonPairs.map(({ data }) => data.total_scored) },
-                { label: 'Total Actions', values: comparisonPairs.map(({ data }) => data.total_actions || 0) },
+                { label: 'Legislative Actions', values: comparisonPairs.map(({ data }) => data.total_claims ?? 0) },
+                { label: 'Actions Scored', values: comparisonPairs.map(({ data }) => data.total_scored ?? 0) },
+                { label: 'Total Actions', values: comparisonPairs.map(({ data }) => data.total_actions ?? 0) },
               ];
               return metrics.map((m) => {
                 const best = maxIndices(m.values);
@@ -370,7 +370,7 @@ export default function ComparePageNew() {
             })()}
 
             {/* ACTIVITY BREAKDOWN */}
-            {comparisonPairs.some(({ data }) => data.by_tier && Object.keys(data.by_tier).length > 0) && (
+            {comparisonPairs.some(({ data }) => data.by_tier && Object.keys(data.by_tier || {}).length > 0) && (
               <>
                 <SectionTitle>Activity Breakdown</SectionTitle>
                 <div className="flex">
