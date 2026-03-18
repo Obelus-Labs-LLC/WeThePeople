@@ -18,6 +18,7 @@ interface CongressionalTrade {
   transaction_date: string | null;
   owner: string | null;
   source_url: string | null;
+  reporting_gap: string | null;
 }
 
 export default function CongressionalTradesPage() {
@@ -117,7 +118,7 @@ export default function CongressionalTradesPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10 bg-white/[0.02]">
-                  {['Member', 'Ticker', 'Type', 'Amount', 'Trade Date', 'Disclosed', 'Owner', ''].map((h) => (
+                  {['Member', 'Ticker', 'Type', 'Amount', 'Trade Date', 'Disclosed', 'Filing Delay', 'Owner', ''].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-mono text-white/40 uppercase tracking-wider">
                       {h}
                     </th>
@@ -157,6 +158,21 @@ export default function CongressionalTradesPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-white/50">
                       {t.disclosure_date || '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      {t.reporting_gap ? (
+                        <span className={`font-mono text-xs font-semibold px-2 py-0.5 rounded ${
+                          parseInt(t.reporting_gap) > 45
+                            ? 'bg-red-500/15 text-red-400'
+                            : parseInt(t.reporting_gap) > 30
+                            ? 'bg-yellow-500/15 text-yellow-400'
+                            : 'bg-emerald-500/15 text-emerald-400'
+                        }`}>
+                          {t.reporting_gap}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-white/20">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-white/40">
                       {t.owner || '—'}
