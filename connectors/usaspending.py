@@ -53,15 +53,16 @@ def _parse_date(val) -> Optional[str]:
 
 def fetch_contracts(
     recipient_name: str,
-    limit: int = 50,
+    limit: int = 100,
     fiscal_year: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
     Fetch federal contract awards for a recipient from USASpending.gov.
+    Paginates through all pages (API max 100 per page).
 
     Args:
         recipient_name: Recipient organization name (e.g. 'APPLE INC.')
-        limit: Max contracts to return
+        limit: Results per page (max 100, the API maximum)
         fiscal_year: Optional fiscal year filter
 
     Returns:
@@ -69,71 +70,81 @@ def fetch_contracts(
         awarding_agency, description, start_date, end_date,
         contract_type, dedupe_hash
     """
-    # USASpending uses a POST-based search endpoint
-    payload = {
-        "filters": {
-            "recipient_search_text": [recipient_name],
-            "award_type_codes": ["A", "B", "C", "D"],  # Contracts only
-        },
-        "fields": [
-            "Award ID",
-            "Award Amount",
-            "Awarding Agency",
-            "Description",
-            "Start Date",
-            "End Date",
-            "Award Type",
-            "Recipient Name",
-        ],
-        "limit": limit,
-        "page": 1,
-        "sort": "Award Amount",
-        "order": "desc",
-    }
-
-    if fiscal_year:
-        payload["filters"]["time_period"] = [
-            {"start_date": f"{fiscal_year - 1}-10-01", "end_date": f"{fiscal_year}-09-30"}
-        ]
-
+    page_size = min(limit, 100)  # API max per page is 100
     url = f"{USASPENDING_BASE}/search/spending_by_award/"
-
-    try:
-        time.sleep(POLITE_DELAY)
-        resp = requests.post(
-            url,
-            json=payload,
-            headers={"Content-Type": "application/json"},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        logger.error("USASpending fetch failed for '%s': %s", recipient_name, e)
-        return []
-
-    results_raw = data.get("results", [])
     results = []
+    page = 1
 
-    for award in results_raw:
-        award_id = award.get("Award ID", "")
-        award_amount = _safe_float(award.get("Award Amount"))
-        awarding_agency = award.get("Awarding Agency")
-        description = (award.get("Description") or "")[:500]
-        start_date = _parse_date(award.get("Start Date"))
-        end_date = _parse_date(award.get("End Date"))
-        contract_type = award.get("Award Type")
+    while True:
+        payload = {
+            "filters": {
+                "recipient_search_text": [recipient_name],
+                "award_type_codes": ["A", "B", "C", "D"],  # Contracts only
+            },
+            "fields": [
+                "Award ID",
+                "Award Amount",
+                "Awarding Agency",
+                "Description",
+                "Start Date",
+                "End Date",
+                "Award Type",
+                "Recipient Name",
+            ],
+            "limit": page_size,
+            "page": page,
+            "sort": "Award Amount",
+            "order": "desc",
+        }
 
-        results.append({
-            "award_id": award_id,
-            "award_amount": award_amount,
-            "awarding_agency": awarding_agency,
-            "description": description,
-            "start_date": start_date,
-            "end_date": end_date,
-            "contract_type": contract_type,
-            "dedupe_hash": _compute_hash(award_id or description[:50]),
-        })
+        if fiscal_year:
+            payload["filters"]["time_period"] = [
+                {"start_date": f"{fiscal_year - 1}-10-01", "end_date": f"{fiscal_year}-09-30"}
+            ]
+
+        try:
+            time.sleep(POLITE_DELAY)
+            resp = requests.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            logger.error("USASpending fetch failed for '%s' (page %d): %s", recipient_name, page, e)
+            break
+
+        results_raw = data.get("results", [])
+        if not results_raw:
+            break
+
+        for award in results_raw:
+            award_id = award.get("Award ID", "")
+            award_amount = _safe_float(award.get("Award Amount"))
+            awarding_agency = award.get("Awarding Agency")
+            description = (award.get("Description") or "")[:500]
+            start_date = _parse_date(award.get("Start Date"))
+            end_date = _parse_date(award.get("End Date"))
+            contract_type = award.get("Award Type")
+
+            results.append({
+                "award_id": award_id,
+                "award_amount": award_amount,
+                "awarding_agency": awarding_agency,
+                "description": description,
+                "start_date": start_date,
+                "end_date": end_date,
+                "contract_type": contract_type,
+                "dedupe_hash": _compute_hash(award_id or description[:50]),
+            })
+
+        # Stop if we got fewer than a full page (no more results)
+        if len(results_raw) < page_size:
+            break
+
+        page += 1
 
     logger.info(
         "USASpending '%s': %d contracts",

@@ -36,7 +36,7 @@ def _compute_hash(*parts: str) -> str:
 def fetch_patents(
     assignee_name: str,
     date_from: Optional[str] = None,
-    limit: int = 50,
+    limit: int = 1000,
 ) -> List[Dict[str, Any]]:
     """
     Fetch granted patents for a company from PatentsView v1 API.
@@ -57,73 +57,86 @@ def fetch_patents(
     if not date_from:
         date_from = (datetime.now() - timedelta(days=3 * 365)).strftime("%Y-%m-%d")
 
-    payload = {
-        "q": {
-            "_and": [
-                {"_contains": {"assignees_at_grant.assignee_organization": assignee_name}},
-                {"_gte": {"patent_date": date_from}},
-            ]
-        },
-        "f": [
-            "patent_id",
-            "patent_title",
-            "patent_date",
-            "patent_abstract",
-            "patent_num_claims",
-            "cpc_at_issue.cpc_group",
-        ],
-        "o": {
-            "size": min(limit, 1000),
-        },
-        "s": [{"patent_date": "desc"}],
-    }
-
     headers = {
         "X-Api-Key": API_KEY,
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
 
-    try:
-        time.sleep(POLITE_DELAY)
-        resp = requests.post(
-            PATENTSVIEW_BASE,
-            json=payload,
-            headers=headers,
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        logger.error("PatentsView fetch failed for '%s': %s", assignee_name, e)
-        return []
-
-    patents_raw = data.get("patents") or []
+    page_size = min(limit, 1000)
     results = []
+    after = None
 
-    for p in patents_raw:
-        patent_id = p.get("patent_id", "")
+    while len(results) < limit:
+        options: Dict[str, Any] = {"size": page_size}
+        if after:
+            options["after"] = after
 
-        # Extract CPC codes from nested structure
-        cpc_list = []
-        for cpc in (p.get("cpc_at_issue") or []):
-            cpc_group = cpc.get("cpc_group")
-            if cpc_group:
-                cpc_list.append(cpc_group)
-        cpc_codes = ", ".join(sorted(set(cpc_list))) if cpc_list else None
+        payload = {
+            "q": {
+                "_and": [
+                    {"_contains": {"assignees_at_grant.assignee_organization": assignee_name}},
+                    {"_gte": {"patent_date": date_from}},
+                ]
+            },
+            "f": [
+                "patent_id",
+                "patent_title",
+                "patent_date",
+                "patent_abstract",
+                "patent_num_claims",
+                "cpc_at_issue.cpc_group",
+            ],
+            "o": options,
+            "s": [{"patent_date": "desc"}],
+        }
 
-        results.append({
-            "patent_number": patent_id,
-            "patent_title": p.get("patent_title"),
-            "patent_date": p.get("patent_date"),
-            "patent_abstract": p.get("patent_abstract"),
-            "num_claims": p.get("patent_num_claims"),
-            "cpc_codes": cpc_codes,
-            "dedupe_hash": _compute_hash(patent_id),
-        })
+        try:
+            time.sleep(POLITE_DELAY)
+            resp = requests.post(
+                PATENTSVIEW_BASE,
+                json=payload,
+                headers=headers,
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            logger.error("PatentsView fetch failed for '%s': %s", assignee_name, e)
+            break
+
+        patents_raw = data.get("patents") or []
+        if not patents_raw:
+            break
+
+        for p in patents_raw:
+            patent_id = p.get("patent_id", "")
+
+            # Extract CPC codes from nested structure
+            cpc_list = []
+            for cpc in (p.get("cpc_at_issue") or []):
+                cpc_group = cpc.get("cpc_group")
+                if cpc_group:
+                    cpc_list.append(cpc_group)
+            cpc_codes = ", ".join(sorted(set(cpc_list))) if cpc_list else None
+
+            results.append({
+                "patent_number": patent_id,
+                "patent_title": p.get("patent_title"),
+                "patent_date": p.get("patent_date"),
+                "patent_abstract": p.get("patent_abstract"),
+                "num_claims": p.get("patent_num_claims"),
+                "cpc_codes": cpc_codes,
+                "dedupe_hash": _compute_hash(patent_id),
+            })
+
+        # Cursor-based pagination — use the last patent_id as the cursor
+        after = data.get("after")
+        if not after or len(patents_raw) < page_size:
+            break
 
     logger.info(
         "PatentsView '%s': %d patents (from %s)",
         assignee_name, len(results), date_from,
     )
-    return results
+    return results[:limit]

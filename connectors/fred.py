@@ -50,7 +50,7 @@ def _compute_hash(*parts: str) -> str:
 
 def fetch_series_observations(
     series_id: str,
-    limit: int = 24,
+    limit: int = 100000,
     sort_order: str = "desc",
 ) -> List[Dict[str, Any]]:
     """

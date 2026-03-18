@@ -52,7 +52,7 @@ def _parse_rss_date(date_str: str) -> Optional[datetime]:
 
 
 def fetch_press_releases(
-    limit: int = 50,
+    limit: int = 500,
     feed_url: str = FED_RSS_URL,
 ) -> List[Dict[str, Any]]:
     """

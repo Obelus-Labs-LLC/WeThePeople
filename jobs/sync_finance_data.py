@@ -80,7 +80,6 @@ def sync_sec_filings(institution: TrackedInstitution, db) -> int:
     filings = extract_filings(
         submissions,
         form_types=["10-K", "10-Q", "8-K", "DEF 14A", "S-1", "4", "4/A"],
-        limit=100,
     )
 
     inserted = 0
@@ -121,7 +120,7 @@ def sync_fdic_financials(institution: TrackedInstitution, db) -> int:
         logger.info("Skipping FDIC for %s (no cert)", institution.institution_id)
         return 0
 
-    quarters = fetch_quarterly_financials(institution.fdic_cert, limit=20)
+    quarters = fetch_quarterly_financials(institution.fdic_cert)
 
     inserted = 0
     for q in quarters:
@@ -165,7 +164,7 @@ def sync_cfpb_complaints(institution: TrackedInstitution, db) -> int:
         logger.info("Skipping CFPB for %s (no company name)", institution.institution_id)
         return 0
 
-    result = fetch_complaints(institution.cfpb_company_name, size=100)
+    result = fetch_complaints(institution.cfpb_company_name)
     complaints = result.get("complaints", [])
 
     inserted = 0
@@ -212,7 +211,7 @@ def sync_fred_observations(institution: TrackedInstitution, db) -> int:
 
     inserted = 0
     for series_id in TRACKED_SERIES:
-        observations = fetch_series_observations(series_id, limit=24)
+        observations = fetch_series_observations(series_id)
 
         for obs in observations:
             dedupe = obs["dedupe_hash"]
@@ -247,7 +246,7 @@ def sync_fed_press(institution: TrackedInstitution, db) -> int:
     if institution.institution_id != "federal-reserve":
         return 0
 
-    releases = fetch_press_releases(limit=50)
+    releases = fetch_press_releases()
     inserted = 0
 
     for rel in releases:
