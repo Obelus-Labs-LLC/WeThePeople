@@ -4,6 +4,7 @@ import { motion, useInView } from 'framer-motion';
 import { DollarSign, Landmark, Shield, FileBadge, ArrowRight, ChevronDown, ChevronUp, type LucideIcon } from 'lucide-react';
 import { TechSectorHeader } from '../components/SectorHeader';
 import SpotlightCard from '../components/SpotlightCard';
+import CompanyLogo from '../components/CompanyLogo';
 import DataFreshness from '../components/DataFreshness';
 import {
   getTechDashboardStats,
@@ -48,11 +49,6 @@ const SECTOR_LABELS: Record<string, string> = {
 
 function getSectorColor(s: string): string { return SECTOR_COLORS[s.toLowerCase()] || '#52525B'; }
 function getSectorLabel(s: string): string { return SECTOR_LABELS[s.toLowerCase()] || s.toUpperCase(); }
-
-function companyLogo(c: TechCompanyListItem): string | null {
-  if (LOCAL_LOGOS.has(c.company_id)) return `/logos/${c.company_id}.png`;
-  return c.logo_url || null;
-}
 
 // ── Animation variants ──
 
@@ -243,19 +239,18 @@ export default function TechDashboardPage() {
             </div>
             <div className="space-y-3">
               {companies.slice(0, 6).map((c, idx) => {
-                const logo = companyLogo(c);
                 return (
                   <motion.div key={c.company_id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.85 + idx * 0.06 }}>
                     <Link to={`/technology/${c.company_id}`} className="block no-underline">
                       <SpotlightCard className="rounded-xl border border-white/10 bg-white/[0.03]" spotlightColor="rgba(139, 92, 246, 0.10)">
                         <div className="flex items-center gap-4 p-4">
-                          {logo ? (
-                            <img src={logo} alt={c.display_name} className="h-11 w-11 rounded-lg object-contain bg-white/5 p-1" />
-                          ) : (
-                            <div className="flex h-11 w-11 items-center justify-center rounded-lg font-heading text-sm font-bold text-white bg-white/5">
-                              {c.display_name.charAt(0)}
-                            </div>
-                          )}
+                          <CompanyLogo
+                            id={c.company_id}
+                            name={c.display_name}
+                            logoUrl={c.logo_url}
+                            localLogos={LOCAL_LOGOS}
+                            size={44}
+                          />
                           <div className="min-w-0 flex-1">
                             <p className="font-body text-sm font-semibold text-white truncate">{c.display_name}</p>
                             <p className="font-mono text-[11px] text-white/30">{c.ticker || c.company_id}</p>

@@ -4,6 +4,7 @@ import { motion, useInView } from 'framer-motion';
 import { DollarSign, Landmark, Shield, Flame, Building2, ArrowRight, ChevronDown, ChevronUp, type LucideIcon } from 'lucide-react';
 import { EnergySectorHeader } from '../components/SectorHeader';
 import SpotlightCard from '../components/SpotlightCard';
+import CompanyLogo from '../components/CompanyLogo';
 import DataFreshness from '../components/DataFreshness';
 import {
   getEnergyDashboardStats,
@@ -242,13 +243,12 @@ export default function EnergyDashboardPage() {
                   <Link to={`/energy/${c.company_id}`} className="block no-underline">
                     <SpotlightCard className="rounded-xl border border-white/10 bg-white/[0.03]" spotlightColor="rgba(245, 158, 11, 0.10)">
                       <div className="flex items-center gap-4 p-4">
-                        {c.logo_url ? (
-                          <img src={c.logo_url} alt={c.display_name} className="h-11 w-11 rounded-lg object-contain bg-white/5 p-1" />
-                        ) : (
-                          <div className="flex h-11 w-11 items-center justify-center rounded-lg font-heading text-sm font-bold text-white bg-white/5">
-                            {c.display_name.charAt(0)}
-                          </div>
-                        )}
+                        <CompanyLogo
+                          id={c.company_id}
+                          name={c.display_name}
+                          logoUrl={c.logo_url}
+                          size={44}
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="font-body text-sm font-semibold text-white truncate">{c.display_name}</p>
                           <p className="font-mono text-[11px] text-white/30">{c.ticker || c.company_id}</p>
