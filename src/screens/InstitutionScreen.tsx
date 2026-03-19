@@ -105,6 +105,21 @@ export default function InstitutionScreen() {
 
   useEffect(() => { loadData(); }, [institution_id]);
 
+  // Reset all lazy-loaded state when institution changes
+  useEffect(() => {
+    setInsiderTrades([]);
+    setNews([]);
+    setLobbyingFilings(null);
+    setLobbySummary(null);
+    setContractsList(null);
+    setContractSummary(null);
+    setEnforcementActions(null);
+    setEnfTotalPenalties(0);
+    setDonations(null);
+    setStockData(null);
+    setFredData([]);
+  }, [institution_id]);
+
   // Load stock + FRED data on mount
   useEffect(() => {
     apiClient.getInstitutionStock(institution_id)
@@ -124,7 +139,7 @@ export default function InstitutionScreen() {
         .catch(() => {})
         .finally(() => setInsiderLoading(false));
     }
-  }, [activeTab]);
+  }, [activeTab, institution_id]);
 
   // Load news when tab switches
   useEffect(() => {
@@ -135,7 +150,7 @@ export default function InstitutionScreen() {
         .catch(() => {})
         .finally(() => setNewsLoading(false));
     }
-  }, [activeTab, detail]);
+  }, [activeTab, detail, institution_id]);
 
   // Lazy-load lobbying
   useEffect(() => {
@@ -152,7 +167,7 @@ export default function InstitutionScreen() {
         .catch(() => setLobbyingFilings([]))
         .finally(() => setLobbyingLoading(false));
     }
-  }, [activeTab]);
+  }, [activeTab, institution_id]);
 
   // Lazy-load contracts
   useEffect(() => {
@@ -169,7 +184,7 @@ export default function InstitutionScreen() {
         .catch(() => setContractsList([]))
         .finally(() => setContractsLoading(false));
     }
-  }, [activeTab]);
+  }, [activeTab, institution_id]);
 
   // Lazy-load enforcement
   useEffect(() => {
@@ -183,7 +198,7 @@ export default function InstitutionScreen() {
         .catch(() => setEnforcementActions([]))
         .finally(() => setEnforcementLoading(false));
     }
-  }, [activeTab]);
+  }, [activeTab, institution_id]);
 
   // Lazy-load donations
   useEffect(() => {
@@ -194,7 +209,7 @@ export default function InstitutionScreen() {
         .catch(() => setDonations([]))
         .finally(() => setDonationsLoading(false));
     }
-  }, [activeTab]);
+  }, [activeTab, institution_id]);
 
   if (loading) return <LoadingSpinner message="Loading institution..." />;
   if (error || !detail) return <EmptyState title="Error" message={error || 'Institution data unavailable.'} onRetry={loadData} />;

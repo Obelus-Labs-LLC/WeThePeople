@@ -24,7 +24,14 @@ def global_search(q: str = Query(..., min_length=1, max_length=200)):
         # Politicians — TrackedMember
         politicians_raw = (
             db.query(TrackedMember)
-            .filter(TrackedMember.display_name.ilike(pattern))
+            .filter(
+                or_(
+                    TrackedMember.display_name.ilike(pattern),
+                    TrackedMember.state.ilike(pattern),
+                    TrackedMember.bioguide_id.ilike(pattern),
+                    TrackedMember.person_id.ilike(pattern),
+                )
+            )
             .limit(5)
             .all()
         )
@@ -46,7 +53,7 @@ def global_search(q: str = Query(..., min_length=1, max_length=200)):
         # Finance
         for inst in (
             db.query(TrackedInstitution)
-            .filter(TrackedInstitution.display_name.ilike(pattern))
+            .filter(or_(TrackedInstitution.display_name.ilike(pattern), TrackedInstitution.ticker.ilike(pattern)))
             .limit(5)
             .all()
         ):
@@ -60,7 +67,7 @@ def global_search(q: str = Query(..., min_length=1, max_length=200)):
         # Health
         for co in (
             db.query(TrackedCompany)
-            .filter(TrackedCompany.display_name.ilike(pattern))
+            .filter(or_(TrackedCompany.display_name.ilike(pattern), TrackedCompany.ticker.ilike(pattern)))
             .limit(5)
             .all()
         ):
@@ -74,7 +81,7 @@ def global_search(q: str = Query(..., min_length=1, max_length=200)):
         # Tech
         for co in (
             db.query(TrackedTechCompany)
-            .filter(TrackedTechCompany.display_name.ilike(pattern))
+            .filter(or_(TrackedTechCompany.display_name.ilike(pattern), TrackedTechCompany.ticker.ilike(pattern)))
             .limit(5)
             .all()
         ):
@@ -88,7 +95,7 @@ def global_search(q: str = Query(..., min_length=1, max_length=200)):
         # Energy
         for co in (
             db.query(TrackedEnergyCompany)
-            .filter(TrackedEnergyCompany.display_name.ilike(pattern))
+            .filter(or_(TrackedEnergyCompany.display_name.ilike(pattern), TrackedEnergyCompany.ticker.ilike(pattern)))
             .limit(5)
             .all()
         ):

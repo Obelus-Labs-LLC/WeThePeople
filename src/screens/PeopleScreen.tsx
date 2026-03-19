@@ -47,12 +47,14 @@ export default function PeopleScreen() {
   const [searchDebounced, setSearchDebounced] = useState('');
   const [partyFilter, setPartyFilter] = useState<PartyFilter>('all');
   const [chamberFilter, setChamberFilter] = useState<ChamberFilter>('all');
+  const [filterVersion, setFilterVersion] = useState(0);
 
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearchDebounced(search);
       setPage(1); // Reset to page 1 on new search
+      setFilterVersion(v => v + 1);
     }, 400);
     return () => clearTimeout(timer);
   }, [search]);
@@ -60,6 +62,7 @@ export default function PeopleScreen() {
   // Reset to page 1 on filter change
   useEffect(() => {
     setPage(1);
+    setFilterVersion(v => v + 1);
   }, [partyFilter, chamberFilter]);
 
   // Fetch data from API with server-side pagination + filters
@@ -89,7 +92,7 @@ export default function PeopleScreen() {
 
   useEffect(() => {
     fetchPage(page);
-  }, [page, fetchPage]);
+  }, [page, fetchPage, filterVersion]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const startItem = (page - 1) * PAGE_SIZE + 1;

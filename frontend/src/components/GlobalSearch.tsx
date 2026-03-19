@@ -46,7 +46,6 @@ export default function GlobalSearch() {
   // Flatten results for keyboard nav
   const flatItems = React.useMemo(() => {
     if (!results) return [];
-    const items: { type: "politician"; data: PoliticianResult }[] | { type: "company"; data: CompanyResult }[] = [];
     const arr: ({ type: "politician"; data: PoliticianResult } | { type: "company"; data: CompanyResult })[] = [];
     for (const p of results.politicians) arr.push({ type: "politician", data: p });
     for (const c of results.companies) arr.push({ type: "company", data: c });

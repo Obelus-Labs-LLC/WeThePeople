@@ -2,7 +2,7 @@
 Politics sector routes — Members, ledger, claims, votes, bills, actions.
 """
 
-from fastapi import APIRouter, Query, HTTPException, Request
+from fastapi import APIRouter, Query, HTTPException, Request, Depends
 from sqlalchemy import func, desc, case
 from typing import Optional, Dict, Any
 from datetime import date
@@ -47,6 +47,7 @@ from connectors.fec import build_finance_profile
 from services.power_map import build_person_power_map
 from utils.normalization import normalize_bill_id
 from services.bill_text import format_text_receipt
+from services.auth import require_press_key
 
 import os
 import json
@@ -243,7 +244,7 @@ def get_ledger_claim(claim_id: int):
 
 # ── Coverage ──
 
-@router.get("/ops/coverage")
+@router.get("/ops/coverage", dependencies=[Depends(require_press_key)])
 def get_ops_coverage(
     person_id: Optional[str] = Query(None, description="Optional person_id filter. Comma-separated for multiple."),
     pilot_only: bool = Query(False, description="If true, filters to the canonical pilot cohort."),
@@ -358,6 +359,7 @@ def get_person_directory_entry(person_id: str):
             "state": row.state,
             "party": row.party,
             "is_active": bool(row.is_active),
+            "photo_url": row.photo_url,
         }
     finally:
         db.close()
@@ -445,20 +447,30 @@ def get_person_activity(
             .offset(offset).limit(limit).all()
         )
 
-        sponsored_count = (
+        sponsored_q = (
             db.query(func.count(MemberBillGroundTruth.id))
+            .outerjoin(Bill, MemberBillGroundTruth.bill_id == Bill.bill_id)
             .filter(
                 MemberBillGroundTruth.bioguide_id == member.bioguide_id,
                 MemberBillGroundTruth.role.in_(["sponsored", "sponsor"]),
-            ).scalar() or 0
+            )
         )
-        cosponsored_count = (
+        cosponsored_q = (
             db.query(func.count(MemberBillGroundTruth.id))
+            .outerjoin(Bill, MemberBillGroundTruth.bill_id == Bill.bill_id)
             .filter(
                 MemberBillGroundTruth.bioguide_id == member.bioguide_id,
                 MemberBillGroundTruth.role.in_(["cosponsored", "cosponsor"]),
-            ).scalar() or 0
+            )
         )
+        if congress is not None:
+            sponsored_q = sponsored_q.filter(Bill.congress == congress)
+            cosponsored_q = cosponsored_q.filter(Bill.congress == congress)
+        if policy_area is not None:
+            sponsored_q = sponsored_q.filter(func.lower(Bill.policy_area) == func.lower(policy_area))
+            cosponsored_q = cosponsored_q.filter(func.lower(Bill.policy_area) == func.lower(policy_area))
+        sponsored_count = sponsored_q.scalar() or 0
+        cosponsored_count = cosponsored_q.scalar() or 0
 
         policy_areas = dict(
             db.query(Bill.policy_area, func.count(MemberBillGroundTruth.id))
@@ -507,12 +519,11 @@ def get_person_stats(person_id: str):
     """Summary metrics for a person."""
     db = SessionLocal()
     try:
-        actions = db.query(Action).filter(Action.person_id == person_id).all()
-        actions_count = len(actions)
+        actions_count = db.query(func.count(Action.id)).filter(Action.person_id == person_id).scalar() or 0
         last_action_date = None
         if actions_count > 0:
-            last_action = max(actions, key=lambda a: a.date if a.date else "")
-            last_action_date = last_action.date.isoformat() if last_action.date else None
+            last = db.query(Action.date).filter(Action.person_id == person_id, Action.date.isnot(None)).order_by(desc(Action.date)).limit(1).scalar()
+            last_action_date = last.isoformat() if last else None
         return {"id": person_id, "actions_count": actions_count, "last_action_date": last_action_date, "top_tags": []}
     finally:
         db.close()
@@ -910,11 +921,11 @@ def get_action_detail(action_id: int):
 
 # ── Claims ──
 
-@router.post("/claims")
+@router.post("/claims", dependencies=[Depends(require_press_key)])
 def create_claim(
     request: Request,
     person_id: str,
-    text: str,
+    text: str = Query(..., max_length=2000),
     category: Optional[str] = None,
     claim_date: Optional[str] = None,
     claim_source_url: Optional[str] = None,
@@ -1281,7 +1292,7 @@ def get_person_powermap(person_id: str, limit: int = Query(25)):
 
 # ── Votes ──
 
-@router.post("/votes/ingest")
+@router.post("/votes/ingest", dependencies=[Depends(require_press_key)])
 def ingest_votes(request: Request, congress: int = Query(119), limit: int = Query(50)):
     """Trigger vote ingestion from Congress.gov."""
     from connectors.congress_votes import ingest_recent_house_votes
@@ -1740,6 +1751,66 @@ def get_person_industry_donors(
                 "donation_date": str(d.donation_date) if d.donation_date else None,
                 "source_url": d.source_url,
             } for d in donations],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/people/{person_id}/committees")
+def get_person_committees(person_id: str):
+    """All committees a politician sits on, with their role on each."""
+    db = SessionLocal()
+    try:
+        member = db.query(TrackedMember).filter_by(person_id=person_id).first()
+        if not member:
+            raise HTTPException(status_code=404, detail={"error": "Person not found"})
+
+        memberships = (
+            db.query(CommitteeMembership)
+            .filter(
+                (CommitteeMembership.person_id == person_id) |
+                (CommitteeMembership.bioguide_id == member.bioguide_id)
+            )
+            .all()
+        )
+
+        # Bulk-fetch committee details
+        thomas_ids = list({m.committee_thomas_id for m in memberships})
+        committees_map = {}
+        if thomas_ids:
+            comms = db.query(Committee).filter(Committee.thomas_id.in_(thomas_ids)).all()
+            committees_map = {c.thomas_id: c for c in comms}
+
+        results = []
+        for m in memberships:
+            c = committees_map.get(m.committee_thomas_id)
+            if not c:
+                continue
+            results.append({
+                "thomas_id": c.thomas_id,
+                "name": c.name,
+                "chamber": c.chamber,
+                "committee_type": c.committee_type,
+                "url": c.url,
+                "parent_thomas_id": c.parent_thomas_id,
+                "role": m.role,
+                "rank": m.rank,
+                "party": m.party,
+            })
+
+        # Sort: parent committees first, then subcommittees; chairs before members
+        role_order = {"chair": 0, "vice_chair": 1, "ranking_member": 2, "ex_officio": 3, "member": 4}
+        results.sort(key=lambda r: (
+            0 if r["parent_thomas_id"] is None else 1,
+            role_order.get(r["role"], 5),
+            r["name"],
+        ))
+
+        return {
+            "person_id": person_id,
+            "display_name": member.display_name,
+            "total": len(results),
+            "committees": results,
         }
     finally:
         db.close()

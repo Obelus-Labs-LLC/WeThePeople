@@ -986,6 +986,7 @@ export interface GlobalSearchResponse {
 
 export interface CongressionalTrade {
   id: number;
+  person_id: string;
   member_name: string;
   party: string;
   state: string;

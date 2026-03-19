@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { apiClient } from '../api/client';
+import { apiClient, getApiBaseUrl } from '../api/client';
 import BackButton from '../components/BackButton';
 import { ExternalLink, Heart, Share2 } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
@@ -163,6 +163,7 @@ export default function PersonProfilePage() {
   const [performanceError, setPerformanceError] = useState(false);
   const [stats, setStats] = useState<PersonStats | null>(null);
   const [graph, setGraph] = useState<PersonGraphResponse | null>(null);
+  const [committees, setCommittees] = useState<any[]>([]);
   const [overviewLoading, setOverviewLoading] = useState(true);
 
   // ── State: legislation tab ──
@@ -202,7 +203,6 @@ export default function PersonProfilePage() {
       .then((res) => {
         const match = res.people.find((p) => p.person_id === person_id);
         if (match) setPerson(match);
-        else if (res.people.length > 0) setPerson(res.people[0]);
       })
       .catch(() => {});
   }, [person_id]);
@@ -232,6 +232,11 @@ export default function PersonProfilePage() {
 
     const graphP = apiClient.getPersonGraph(person_id, 5).then(setGraph).catch(() => {});
 
+    const committeesP = apiClient
+      .getPersonCommittees(person_id)
+      .then((res) => setCommittees(res.committees || []))
+      .catch(() => {});
+
     // Eagerly load activity + votes for stat pills in header
     const actP = apiClient
       .getPersonActivity(person_id, { limit: 50 })
@@ -251,7 +256,7 @@ export default function PersonProfilePage() {
       })
       .catch(() => {});
 
-    Promise.all([profileP, perfP, statsP, graphP, actP, votesP]).finally(() => setOverviewLoading(false));
+    Promise.all([profileP, perfP, statsP, graphP, committeesP, actP, votesP]).finally(() => setOverviewLoading(false));
   }, [person_id]);
 
   // ── Lazy load: legislation ──
@@ -302,7 +307,7 @@ export default function PersonProfilePage() {
   useEffect(() => {
     if (tab !== 'trades' || !person_id || loadedTabs.has('trades')) return;
     setTradesLoading(true);
-    fetch(`/api/people/${person_id}/trades?limit=50`)
+    fetch(`${getApiBaseUrl()}/people/${person_id}/trades?limit=50`)
       .then((r) => r.json())
       .then((data) => {
         setTrades(data.trades || []);
@@ -548,6 +553,7 @@ export default function PersonProfilePage() {
             sortedPolicyAreas={sortedPolicyAreas}
             accountabilityTier={accountabilityTier}
             matchRate={matchRate}
+            committees={committees}
           />
         )}
         {tab === 'legislation' && (
@@ -625,6 +631,7 @@ function OverviewTab({
   sortedPolicyAreas,
   accountabilityTier,
   matchRate,
+  committees,
 }: {
   loading: boolean;
   profile: PersonProfile | null;
@@ -637,6 +644,7 @@ function OverviewTab({
   sortedPolicyAreas: [string, number][];
   accountabilityTier: string | null;
   matchRate: number | null;
+  committees: any[];
 }) {
   if (loading) return <Spinner />;
 
@@ -752,6 +760,78 @@ function OverviewTab({
             />
           </div>
         </div>
+
+        {/* COMMITTEES */}
+        {committees.length > 0 && (
+          <Card>
+            <CardTitle>Committees</CardTitle>
+            <div className="space-y-2">
+              {committees
+                .filter((c) => !c.parent_thomas_id)
+                .map((c) => {
+                  const roleLabel = c.role?.replace(/_/g, ' ');
+                  const isLeadership = c.role && c.role !== 'member';
+                  return (
+                    <Link
+                      key={c.thomas_id}
+                      to={`/politics/committees`}
+                      className="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] p-3 transition-colors hover:border-white/10 no-underline group"
+                    >
+                      <div
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold"
+                        style={{
+                          backgroundColor: c.chamber === 'senate' ? '#8B5CF620' : '#3B82F620',
+                          color: c.chamber === 'senate' ? '#8B5CF6' : '#3B82F6',
+                        }}
+                      >
+                        {c.chamber === 'senate' ? 'S' : c.chamber === 'joint' ? 'J' : 'H'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-body text-sm text-white group-hover:text-blue-400 transition-colors truncate">
+                          {c.name}
+                        </p>
+                        {isLeadership && (
+                          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[9px] text-blue-400 capitalize">
+                            {roleLabel}
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+            </div>
+            {committees.filter((c) => c.parent_thomas_id).length > 0 && (
+              <details className="mt-3">
+                <summary className="cursor-pointer font-mono text-xs text-white/30 hover:text-white/50 transition-colors">
+                  {committees.filter((c) => c.parent_thomas_id).length} subcommittee{committees.filter((c) => c.parent_thomas_id).length !== 1 ? 's' : ''}
+                </summary>
+                <div className="mt-2 space-y-1.5">
+                  {committees
+                    .filter((c) => c.parent_thomas_id)
+                    .map((c) => {
+                      const roleLabel = c.role?.replace(/_/g, ' ');
+                      const isLeadership = c.role && c.role !== 'member';
+                      return (
+                        <div
+                          key={c.thomas_id}
+                          className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.01] px-3 py-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-body text-xs text-white/60 truncate">{c.name}</p>
+                          </div>
+                          {isLeadership && (
+                            <span className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[9px] text-blue-400 capitalize flex-shrink-0">
+                              {roleLabel}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </details>
+            )}
+          </Card>
+        )}
 
         {/* NETWORK */}
         <Card>

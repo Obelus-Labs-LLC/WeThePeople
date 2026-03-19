@@ -65,53 +65,65 @@ def get_tech_recent_activity(limit: int = Query(10, ge=1, le=30)):
 
         # Recent enforcement actions
         enforcements = db.query(FTCEnforcement).order_by(desc(FTCEnforcement.case_date)).limit(limit).all()
+        # Recent patents
+        patents = db.query(TechPatent).order_by(desc(TechPatent.patent_date)).limit(limit).all()
+        # Recent contracts (by start_date)
+        contracts = db.query(GovernmentContract).order_by(desc(GovernmentContract.start_date)).limit(limit).all()
+        # Recent lobbying filings
+        lobbying = db.query(LobbyingRecord).order_by(desc(LobbyingRecord.filing_year), desc(LobbyingRecord.filing_period)).limit(limit).all()
+
+        # Bulk-fetch company names
+        all_cids = set()
         for e in enforcements:
-            co = db.query(TrackedTechCompany).filter_by(company_id=e.company_id).first()
+            all_cids.add(e.company_id)
+        for p in patents:
+            all_cids.add(p.company_id)
+        for ct in contracts:
+            all_cids.add(ct.company_id)
+        for r in lobbying:
+            all_cids.add(r.company_id)
+        company_names = {}
+        if all_cids:
+            for co in db.query(TrackedTechCompany).filter(TrackedTechCompany.company_id.in_(list(all_cids))).all():
+                company_names[co.company_id] = co.display_name
+
+        for e in enforcements:
             items.append({
                 "type": "enforcement",
                 "title": e.case_title or "Enforcement Action",
                 "description": e.description,
                 "date": str(e.case_date) if e.case_date else None,
                 "company_id": e.company_id,
-                "company_name": co.display_name if co else e.company_id,
+                "company_name": company_names.get(e.company_id, e.company_id),
                 "url": e.case_url,
                 "meta": {"penalty_amount": e.penalty_amount, "enforcement_type": e.enforcement_type},
             })
 
-        # Recent patents
-        patents = db.query(TechPatent).order_by(desc(TechPatent.patent_date)).limit(limit).all()
         for p in patents:
-            co = db.query(TrackedTechCompany).filter_by(company_id=p.company_id).first()
             items.append({
                 "type": "patent",
                 "title": p.patent_title or f"Patent #{p.patent_number}",
                 "description": p.patent_abstract[:200] + "..." if p.patent_abstract and len(p.patent_abstract) > 200 else p.patent_abstract,
                 "date": str(p.patent_date) if p.patent_date else None,
                 "company_id": p.company_id,
-                "company_name": co.display_name if co else p.company_id,
+                "company_name": company_names.get(p.company_id, p.company_id),
                 "url": None,
                 "meta": {"patent_number": p.patent_number, "num_claims": p.num_claims},
             })
 
-        # Recent contracts (by start_date)
-        contracts = db.query(GovernmentContract).order_by(desc(GovernmentContract.start_date)).limit(limit).all()
         for ct in contracts:
-            co = db.query(TrackedTechCompany).filter_by(company_id=ct.company_id).first()
             items.append({
                 "type": "contract",
                 "title": ct.description or f"Contract Award — {ct.awarding_agency or 'Unknown Agency'}",
                 "description": ct.description,
                 "date": str(ct.start_date) if ct.start_date else None,
                 "company_id": ct.company_id,
-                "company_name": co.display_name if co else ct.company_id,
+                "company_name": company_names.get(ct.company_id, ct.company_id),
                 "url": None,
                 "meta": {"award_amount": ct.award_amount, "awarding_agency": ct.awarding_agency},
             })
 
-        # Recent lobbying filings
-        lobbying = db.query(LobbyingRecord).order_by(desc(LobbyingRecord.filing_year), desc(LobbyingRecord.filing_period)).limit(limit).all()
         for r in lobbying:
-            co = db.query(TrackedTechCompany).filter_by(company_id=r.company_id).first()
             period_str = f"{r.filing_year}" + (f" {r.filing_period}" if r.filing_period else "")
             items.append({
                 "type": "lobbying",
@@ -119,7 +131,7 @@ def get_tech_recent_activity(limit: int = Query(10, ge=1, le=30)):
                 "description": r.lobbying_issues,
                 "date": f"{r.filing_year}-01-01" if r.filing_year else None,
                 "company_id": r.company_id,
-                "company_name": co.display_name if co else r.company_id,
+                "company_name": company_names.get(r.company_id, r.company_id),
                 "url": f"https://lda.senate.gov/filings/public/filing/{r.filing_uuid}/" if r.filing_uuid else None,
                 "meta": {"income": r.income, "filing_period": period_str, "registrant_name": r.registrant_name},
             })
@@ -152,16 +164,20 @@ def get_tech_companies(
         total = query.count()
         companies = query.order_by(TrackedTechCompany.display_name).offset(offset).limit(limit).all()
 
+        company_ids = [co.company_id for co in companies]
+        patent_counts = dict(db.query(TechPatent.company_id, func.count(TechPatent.id)).filter(TechPatent.company_id.in_(company_ids)).group_by(TechPatent.company_id).all()) if company_ids else {}
+        contract_counts = dict(db.query(GovernmentContract.company_id, func.count(GovernmentContract.id)).filter(GovernmentContract.company_id.in_(company_ids)).group_by(GovernmentContract.company_id).all()) if company_ids else {}
+        filing_counts = dict(db.query(SECTechFiling.company_id, func.count(SECTechFiling.id)).filter(SECTechFiling.company_id.in_(company_ids)).group_by(SECTechFiling.company_id).all()) if company_ids else {}
+
         results = []
         for co in companies:
-            patent_count = db.query(TechPatent).filter_by(company_id=co.company_id).count()
-            contract_count = db.query(GovernmentContract).filter_by(company_id=co.company_id).count()
-            filing_count = db.query(SECTechFiling).filter_by(company_id=co.company_id).count()
             results.append({
                 "company_id": co.company_id, "display_name": co.display_name,
                 "ticker": co.ticker, "sector_type": co.sector_type,
                 "headquarters": co.headquarters, "logo_url": co.logo_url,
-                "patent_count": patent_count, "contract_count": contract_count, "filing_count": filing_count,
+                "patent_count": patent_counts.get(co.company_id, 0),
+                "contract_count": contract_counts.get(co.company_id, 0),
+                "filing_count": filing_counts.get(co.company_id, 0),
             })
 
         return {"total": total, "limit": limit, "offset": offset, "companies": results}

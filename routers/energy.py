@@ -65,38 +65,49 @@ def get_energy_recent_activity(limit: int = Query(10, ge=1, le=30)):
 
         # Recent enforcement actions
         enforcements = db.query(EnergyEnforcement).order_by(desc(EnergyEnforcement.case_date)).limit(limit).all()
+        # Recent contracts (by start_date)
+        contracts = db.query(EnergyGovernmentContract).order_by(desc(EnergyGovernmentContract.start_date)).limit(limit).all()
+        # Recent lobbying filings (by filing_year + filing_period)
+        lobbying = db.query(EnergyLobbyingRecord).order_by(desc(EnergyLobbyingRecord.filing_year), desc(EnergyLobbyingRecord.filing_period)).limit(limit).all()
+
+        # Bulk-fetch company names
+        all_cids = set()
         for e in enforcements:
-            co = db.query(TrackedEnergyCompany).filter_by(company_id=e.company_id).first()
+            all_cids.add(e.company_id)
+        for ct in contracts:
+            all_cids.add(ct.company_id)
+        for r in lobbying:
+            all_cids.add(r.company_id)
+        company_names = {}
+        if all_cids:
+            for co in db.query(TrackedEnergyCompany).filter(TrackedEnergyCompany.company_id.in_(list(all_cids))).all():
+                company_names[co.company_id] = co.display_name
+
+        for e in enforcements:
             items.append({
                 "type": "enforcement",
                 "title": e.case_title or "Enforcement Action",
                 "description": e.description,
                 "date": str(e.case_date) if e.case_date else None,
                 "company_id": e.company_id,
-                "company_name": co.display_name if co else e.company_id,
+                "company_name": company_names.get(e.company_id, e.company_id),
                 "url": e.case_url,
                 "meta": {"penalty_amount": e.penalty_amount, "enforcement_type": e.enforcement_type},
             })
 
-        # Recent contracts (by start_date)
-        contracts = db.query(EnergyGovernmentContract).order_by(desc(EnergyGovernmentContract.start_date)).limit(limit).all()
         for ct in contracts:
-            co = db.query(TrackedEnergyCompany).filter_by(company_id=ct.company_id).first()
             items.append({
                 "type": "contract",
                 "title": ct.description or f"Contract Award — {ct.awarding_agency or 'Unknown Agency'}",
                 "description": ct.description,
                 "date": str(ct.start_date) if ct.start_date else None,
                 "company_id": ct.company_id,
-                "company_name": co.display_name if co else ct.company_id,
+                "company_name": company_names.get(ct.company_id, ct.company_id),
                 "url": None,
                 "meta": {"award_amount": ct.award_amount, "awarding_agency": ct.awarding_agency},
             })
 
-        # Recent lobbying filings (by filing_year + filing_period)
-        lobbying = db.query(EnergyLobbyingRecord).order_by(desc(EnergyLobbyingRecord.filing_year), desc(EnergyLobbyingRecord.filing_period)).limit(limit).all()
         for r in lobbying:
-            co = db.query(TrackedEnergyCompany).filter_by(company_id=r.company_id).first()
             period_str = f"{r.filing_year}" + (f" {r.filing_period}" if r.filing_period else "")
             items.append({
                 "type": "lobbying",
@@ -104,7 +115,7 @@ def get_energy_recent_activity(limit: int = Query(10, ge=1, le=30)):
                 "description": r.lobbying_issues,
                 "date": f"{r.filing_year}-01-01" if r.filing_year else None,
                 "company_id": r.company_id,
-                "company_name": co.display_name if co else r.company_id,
+                "company_name": company_names.get(r.company_id, r.company_id),
                 "url": f"https://lda.senate.gov/filings/public/filing/{r.filing_uuid}/" if r.filing_uuid else None,
                 "meta": {"income": r.income, "filing_period": period_str, "registrant_name": r.registrant_name},
             })
@@ -137,18 +148,22 @@ def get_energy_companies(
         total = query.count()
         companies = query.order_by(TrackedEnergyCompany.display_name).offset(offset).limit(limit).all()
 
+        company_ids = [co.company_id for co in companies]
+        emission_counts = dict(db.query(EnergyEmission.company_id, func.count(EnergyEmission.id)).filter(EnergyEmission.company_id.in_(company_ids)).group_by(EnergyEmission.company_id).all()) if company_ids else {}
+        contract_counts = dict(db.query(EnergyGovernmentContract.company_id, func.count(EnergyGovernmentContract.id)).filter(EnergyGovernmentContract.company_id.in_(company_ids)).group_by(EnergyGovernmentContract.company_id).all()) if company_ids else {}
+        filing_counts = dict(db.query(SECEnergyFiling.company_id, func.count(SECEnergyFiling.id)).filter(SECEnergyFiling.company_id.in_(company_ids)).group_by(SECEnergyFiling.company_id).all()) if company_ids else {}
+        enforcement_counts = dict(db.query(EnergyEnforcement.company_id, func.count(EnergyEnforcement.id)).filter(EnergyEnforcement.company_id.in_(company_ids)).group_by(EnergyEnforcement.company_id).all()) if company_ids else {}
+
         results = []
         for co in companies:
-            emission_count = db.query(EnergyEmission).filter_by(company_id=co.company_id).count()
-            contract_count = db.query(EnergyGovernmentContract).filter_by(company_id=co.company_id).count()
-            filing_count = db.query(SECEnergyFiling).filter_by(company_id=co.company_id).count()
-            enforcement_count = db.query(EnergyEnforcement).filter_by(company_id=co.company_id).count()
             results.append({
                 "company_id": co.company_id, "display_name": co.display_name,
                 "ticker": co.ticker, "sector_type": co.sector_type,
                 "headquarters": co.headquarters, "logo_url": co.logo_url,
-                "emission_count": emission_count, "contract_count": contract_count,
-                "filing_count": filing_count, "enforcement_count": enforcement_count,
+                "emission_count": emission_counts.get(co.company_id, 0),
+                "contract_count": contract_counts.get(co.company_id, 0),
+                "filing_count": filing_counts.get(co.company_id, 0),
+                "enforcement_count": enforcement_counts.get(co.company_id, 0),
             })
 
         return {"total": total, "limit": limit, "offset": offset, "companies": results}

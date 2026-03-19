@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Users, FileText, Search, ChevronDown, ChevronUp, ExternalLink, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -51,6 +51,8 @@ export default function StateDashboardPage() {
   // Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'legislators' | 'bills'>('overview');
 
+  const initialLoadedRef = useRef(false);
+
   useEffect(() => {
     if (!code) return;
     setLoading(true);
@@ -64,12 +66,13 @@ export default function StateDashboardPage() {
         setLegTotal(legs.total);
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); initialLoadedRef.current = true; });
   }, [code]);
 
   // Refetch legislators when filters change
   useEffect(() => {
     if (!code || loading) return;
+    if (!initialLoadedRef.current) return;
     fetchStateLegislators(code, {
       chamber: chamberFilter || undefined,
       party: partyFilter || undefined,
@@ -195,6 +198,7 @@ export default function StateDashboardPage() {
           <BillsTab
             stateCode={code}
             recentBills={dashboard.recent_bills}
+            totalBills={dashboard.total_bills}
           />
         )}
 
@@ -559,10 +563,10 @@ function LegislatorCard({ legislator }: { legislator: StateLegislator }) {
 
 // ── Bills Tab ──
 
-function BillsTab({ stateCode, recentBills }: { stateCode: string; recentBills: StateBill[] }) {
+function BillsTab({ stateCode, recentBills, totalBills }: { stateCode: string; recentBills: StateBill[]; totalBills: number }) {
   const [bills, setBills] = useState<StateBill[]>(recentBills);
   const [search, setSearch] = useState('');
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(totalBills);
   const [offset, setOffset] = useState(0);
   const [searching, setSearching] = useState(false);
 

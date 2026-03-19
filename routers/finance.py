@@ -90,15 +90,18 @@ def get_finance_institutions(
         total = query.count()
         rows = query.order_by(TrackedInstitution.display_name).offset(offset).limit(limit).all()
 
+        inst_ids = [r.institution_id for r in rows]
+        filing_counts = dict(db.query(SECFiling.institution_id, func.count(SECFiling.id)).filter(SECFiling.institution_id.in_(inst_ids)).group_by(SECFiling.institution_id).all()) if inst_ids else {}
+        complaint_counts = dict(db.query(CFPBComplaint.institution_id, func.count(CFPBComplaint.id)).filter(CFPBComplaint.institution_id.in_(inst_ids)).group_by(CFPBComplaint.institution_id).all()) if inst_ids else {}
+
         institutions = []
         for r in rows:
-            filing_count = db.query(func.count(SECFiling.id)).filter(SECFiling.institution_id == r.institution_id).scalar() or 0
-            complaint_count = db.query(func.count(CFPBComplaint.id)).filter(CFPBComplaint.institution_id == r.institution_id).scalar() or 0
             institutions.append({
                 "institution_id": r.institution_id, "display_name": r.display_name,
                 "ticker": r.ticker, "sector_type": r.sector_type,
                 "headquarters": r.headquarters, "logo_url": r.logo_url,
-                "filing_count": filing_count, "complaint_count": complaint_count,
+                "filing_count": filing_counts.get(r.institution_id, 0),
+                "complaint_count": complaint_counts.get(r.institution_id, 0),
             })
 
         return {"total": total, "limit": limit, "offset": offset, "institutions": institutions}
@@ -461,23 +464,43 @@ def get_macro_indicators():
     db = SessionLocal()
     try:
         from sqlalchemy import distinct
-        series_ids = [r[0] for r in db.query(distinct(FREDObservation.series_id)).all()]
-        indicators = []
-        for sid in series_ids:
-            latest = (
-                db.query(FREDObservation)
-                .filter(FREDObservation.series_id == sid, FREDObservation.value.isnot(None))
-                .order_by(desc(FREDObservation.observation_date))
-                .first()
+        from sqlalchemy.orm import aliased
+
+        # Subquery: max observation_date per series_id (where value is not null)
+        latest_sub = (
+            db.query(
+                FREDObservation.series_id,
+                func.max(FREDObservation.observation_date).label("max_date"),
             )
-            if latest:
-                indicators.append({
-                    "series_id": latest.series_id,
-                    "series_title": latest.series_title,
-                    "value": latest.value,
-                    "units": latest.units,
-                    "observation_date": str(latest.observation_date) if latest.observation_date else None,
-                })
+            .filter(FREDObservation.value.isnot(None))
+            .group_by(FREDObservation.series_id)
+            .subquery()
+        )
+
+        rows = (
+            db.query(FREDObservation)
+            .join(
+                latest_sub,
+                (FREDObservation.series_id == latest_sub.c.series_id)
+                & (FREDObservation.observation_date == latest_sub.c.max_date),
+            )
+            .filter(FREDObservation.value.isnot(None))
+            .all()
+        )
+
+        indicators = []
+        seen = set()
+        for latest in rows:
+            if latest.series_id in seen:
+                continue
+            seen.add(latest.series_id)
+            indicators.append({
+                "series_id": latest.series_id,
+                "series_title": latest.series_title,
+                "value": latest.value,
+                "units": latest.units,
+                "observation_date": str(latest.observation_date) if latest.observation_date else None,
+            })
         return {"indicators": indicators}
     finally:
         db.close()

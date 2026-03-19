@@ -218,7 +218,7 @@ export default function PoliticsDashboardScreen() {
         <NavCard icon="people" title="People Directory" subtitle="All tracked members" onPress={() => navigation.navigate('PeopleDirectory')} accent={UI_COLORS.ACCENT} />
         <NavCard icon="document-text" title="Legislation Tracker" subtitle="Bills & resolutions" onPress={() => navigation.navigate('LegislationTracker')} accent="#2563EB" />
         <NavCard icon="trending-up" title="Congressional Trades" subtitle="Stock trades by members" onPress={() => navigation.navigate('CongressionalTrades')} accent="#C5960C" />
-        <NavCard icon="search" title="Find Your Rep" subtitle="Look up by state" onPress={() => navigation.navigate('FindYourRep')} accent="#10B981" />
+        <NavCard icon="search" title="Find Your Rep" subtitle="Look up by state" onPress={() => navigation.navigate('FindRep')} accent="#10B981" />
         <NavCard icon="map" title="State Explorer" subtitle="State-level data" onPress={() => navigation.navigate('StateExplorer')} accent="#8B5CF6" />
         <NavCard icon="git-compare" title="Compare Members" subtitle="Side-by-side analysis" onPress={() => navigation.navigate('PoliticsCompare')} accent="#DC2626" />
         <NavCard icon="list" title="Activity Feed" subtitle="Latest legislative actions" onPress={() => navigation.navigate('ActivityFeed')} accent="#475569" />
