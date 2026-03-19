@@ -369,7 +369,7 @@ TECH_COMPANIES = [
 
     # ── AI / Cloud / Data ──
     {"company_id": "c3ai", "display_name": "C3.ai Inc.", "ticker": "AI", "sector_type": "ai", "sec_cik": "0001577526"},
-    {"company_id": "upstart-tech", "display_name": "UiPath Inc.", "ticker": "PATH", "sector_type": "ai", "sec_cik": "0001734722"},
+    {"company_id": "uipath", "display_name": "UiPath Inc.", "ticker": "PATH", "sector_type": "ai", "sec_cik": "0001734722"},
     {"company_id": "samsara", "display_name": "Samsara Inc.", "ticker": "IOT", "sector_type": "iot", "sec_cik": "0001642896"},
 
     # ── Telecom / Media ──
