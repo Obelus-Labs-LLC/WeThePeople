@@ -7,15 +7,15 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS, SECTOR_GRADIENTS } from '../constants/colors';
 import { apiClient } from '../api/client';
-import type { TechCompany, TechComparisonItem } from '../api/types';
+import type { EnergyCompany, EnergyComparisonItem } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-const ACCENT = SECTOR_GRADIENTS.technology[0];
+const ACCENT = SECTOR_GRADIENTS.energy[0];
 
 type MetricFormat = 'number' | 'money' | 'pct';
 
 type Metric = {
-  key: keyof TechComparisonItem;
+  key: keyof EnergyComparisonItem;
   label: string;
   format: MetricFormat;
   icon: string;
@@ -42,12 +42,12 @@ const SECTIONS: MetricSection[] = [
     ],
   },
   {
-    title: 'Innovation & Filings',
-    icon: 'bulb-outline',
-    color: '#F59E0B',
+    title: 'Emissions',
+    icon: 'cloud-outline',
+    color: '#475569',
     metrics: [
-      { key: 'patent_count', label: 'Patents', format: 'number', icon: 'bulb-outline', color: '#F59E0B' },
-      { key: 'filing_count', label: 'SEC Filings', format: 'number', icon: 'document-outline', color: '#8B5CF6' },
+      { key: 'total_emissions', label: 'Total CO2e Emissions', format: 'number', icon: 'cloud-outline', color: '#475569' },
+      { key: 'emission_count', label: 'Emission Records', format: 'number', icon: 'documents-outline', color: '#64748B' },
     ],
   },
   {
@@ -110,18 +110,18 @@ function DropdownPicker({
   );
 }
 
-export default function TechCompareScreen() {
+export default function EnergyCompareScreen() {
   const navigation = useNavigation<any>();
-  const [allCompanies, setAllCompanies] = useState<TechCompany[]>([]);
+  const [allCompanies, setAllCompanies] = useState<EnergyCompany[]>([]);
   const [selectedA, setSelectedA] = useState<string>('');
   const [selectedB, setSelectedB] = useState<string>('');
-  const [comparison, setComparison] = useState<TechComparisonItem[]>([]);
+  const [comparison, setComparison] = useState<EnergyComparisonItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [comparing, setComparing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    apiClient.getTechCompanies({ limit: 200 })
+    apiClient.getEnergyCompanies({ limit: 200 })
       .then((res) => {
         const list = res.companies || [];
         setAllCompanies(list);
@@ -137,7 +137,7 @@ export default function TechCompareScreen() {
   useEffect(() => {
     if (selectedA && selectedB) {
       setComparing(true);
-      apiClient.getTechComparison([selectedA, selectedB])
+      apiClient.getEnergyComparison([selectedA, selectedB])
         .then((res) => setComparison(res.companies || []))
         .catch(() => {})
         .finally(() => setComparing(false));
@@ -148,7 +148,7 @@ export default function TechCompareScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    apiClient.getTechCompanies({ limit: 200 })
+    apiClient.getEnergyCompanies({ limit: 200 })
       .then((res) => setAllCompanies(res.companies || []))
       .catch(() => {})
       .finally(() => setRefreshing(false));
@@ -161,7 +161,7 @@ export default function TechCompareScreen() {
     .filter((c) => c.company_id !== selectedA)
     .map((c) => ({ value: c.company_id, label: c.ticker ? `${c.ticker} - ${c.display_name}` : c.display_name }));
 
-  if (loading) return <LoadingSpinner message="Loading companies..." />;
+  if (loading) return <LoadingSpinner message="Loading energy companies..." />;
 
   return (
     <ScrollView
@@ -172,7 +172,7 @@ export default function TechCompareScreen() {
       <View style={styles.selectorCard}>
         <View style={styles.cardHeader}>
           <Ionicons name="git-compare-outline" size={16} color={ACCENT} />
-          <Text style={styles.cardTitle}>Compare Tech Companies</Text>
+          <Text style={styles.cardTitle}>Compare Energy Companies</Text>
         </View>
         <View style={styles.selectorRow}>
           <DropdownPicker label="Select Company A" selectedValue={selectedA} options={optionsA} onSelect={setSelectedA} />
@@ -187,12 +187,12 @@ export default function TechCompareScreen() {
         <View style={styles.resultsSection}>
           {/* Entity headers */}
           <View style={styles.entityHeaderRow}>
-            <TouchableOpacity style={styles.entityHeader} onPress={() => navigation.navigate('TechCompanyDetail', { company_id: comparison[0].company_id })}>
+            <TouchableOpacity style={styles.entityHeader} onPress={() => navigation.navigate('EnergyCompanyDetail', { company_id: comparison[0].company_id })}>
               <Text style={styles.entityName} numberOfLines={1}>{comparison[0].ticker || comparison[0].display_name}</Text>
               <Text style={styles.entitySub}>{comparison[0].sector_type}</Text>
             </TouchableOpacity>
             <View style={styles.vsCircle}><Text style={styles.vsCircleText}>VS</Text></View>
-            <TouchableOpacity style={styles.entityHeader} onPress={() => navigation.navigate('TechCompanyDetail', { company_id: comparison[1].company_id })}>
+            <TouchableOpacity style={styles.entityHeader} onPress={() => navigation.navigate('EnergyCompanyDetail', { company_id: comparison[1].company_id })}>
               <Text style={styles.entityName} numberOfLines={1}>{comparison[1].ticker || comparison[1].display_name}</Text>
               <Text style={styles.entitySub}>{comparison[1].sector_type}</Text>
             </TouchableOpacity>
@@ -217,7 +217,7 @@ export default function TechCompareScreen() {
       )}
 
       {!comparing && (!selectedA || !selectedB) && (
-        <EmptyState title="Select two companies" message="Use the dropdowns above to pick companies to compare" />
+        <EmptyState title="Select two companies" message="Use the dropdowns above to pick energy companies to compare" />
       )}
     </ScrollView>
   );
@@ -228,7 +228,7 @@ function ComparisonRow({
   companies,
 }: {
   metric: Metric;
-  companies: TechComparisonItem[];
+  companies: EnergyComparisonItem[];
 }) {
   const values = companies.map((c) => {
     const val = c[metric.key];
@@ -297,7 +297,7 @@ const dropdownStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 10, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: UI_COLORS.BORDER_LIGHT,
   },
-  optionSelected: { backgroundColor: '#8B5CF6' + '12' },
+  optionSelected: { backgroundColor: '#475569' + '12' },
   optionText: { fontSize: 13, color: UI_COLORS.TEXT_PRIMARY },
   optionTextSelected: { fontWeight: '700', color: ACCENT },
 });

@@ -14,6 +14,7 @@ import type {
   EnforcementAction, NewsArticle,
 } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
+import { DonationsTab } from '../components/company';
 
 const ENERGY_SECTOR_COLORS: Record<string, string> = {
   oil_gas: '#475569',
@@ -30,7 +31,7 @@ const ENFORCEMENT_SOURCE_COLORS: Record<string, string> = {
   'State AG': '#EA580C',
 };
 
-type Tab = 'overview' | 'emissions' | 'contracts' | 'lobbying' | 'enforcement';
+type Tab = 'overview' | 'emissions' | 'contracts' | 'lobbying' | 'enforcement' | 'donations';
 
 export default function EnergyCompanyScreen() {
   const route = useRoute<any>();
@@ -61,6 +62,10 @@ export default function EnergyCompanyScreen() {
   const [enforcement, setEnforcement] = useState<EnforcementAction[]>([]);
   const [enforcementLoading, setEnforcementLoading] = useState(false);
   const [totalPenalties, setTotalPenalties] = useState(0);
+
+  // Donations tab data
+  const [donations, setDonations] = useState<any[] | null>(null);
+  const [donationsLoading, setDonationsLoading] = useState(false);
 
   // News
   const [news, setNews] = useState<NewsArticle[]>([]);
@@ -131,7 +136,14 @@ export default function EnergyCompanyScreen() {
         .catch(() => {})
         .finally(() => setEnforcementLoading(false));
     }
-  }, [tab, company, companyId, emissions.length, contracts.length, filings.length, enforcement.length, emissionsLoading, contractsLoading, lobbyLoading, enforcementLoading]);
+    if (tab === 'donations' && donations === null && !donationsLoading) {
+      setDonationsLoading(true);
+      apiClient.getEnergyCompanyDonations(companyId, { limit: 50 })
+        .then((res) => setDonations(res.donations || res || []))
+        .catch(() => setDonations([]))
+        .finally(() => setDonationsLoading(false));
+    }
+  }, [tab, company, companyId, emissions.length, contracts.length, filings.length, enforcement.length, emissionsLoading, contractsLoading, lobbyLoading, enforcementLoading, donations, donationsLoading]);
 
   const onRefresh = () => { setRefreshing(true); loadCompany(); };
 
@@ -170,6 +182,7 @@ export default function EnergyCompanyScreen() {
     { key: 'contracts', label: 'Contracts' },
     { key: 'lobbying', label: 'Lobbying' },
     { key: 'enforcement', label: 'Enforcement' },
+    { key: 'donations', label: 'Donations' },
   ];
 
   const sectorColor = ENERGY_SECTOR_COLORS[company.sector_type] || '#6B7280';
@@ -498,6 +511,7 @@ export default function EnergyCompanyScreen() {
         {tab === 'contracts' && renderContracts()}
         {tab === 'lobbying' && renderLobbying()}
         {tab === 'enforcement' && renderEnforcement()}
+        {tab === 'donations' && <DonationsTab donations={donations} loading={donationsLoading} />}
       </View>
     </ScrollView>
   );

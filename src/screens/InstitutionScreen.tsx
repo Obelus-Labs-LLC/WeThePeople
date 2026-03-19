@@ -15,8 +15,9 @@ import type {
 import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
 import { SectorTypeBadge } from '../components/ui';
 import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
+import { LobbyingTab, ContractsTab, EnforcementTab, DonationsTab } from '../components/company';
 
-type TabKey = 'overview' | 'filings' | 'complaints' | 'insider' | 'news';
+type TabKey = 'overview' | 'filings' | 'complaints' | 'insider' | 'news' | 'lobbying' | 'contracts' | 'enforcement' | 'donations';
 
 function formatCurrency(val: number | null | undefined): string {
   if (val == null) return 'N/A';
@@ -65,6 +66,19 @@ export default function InstitutionScreen() {
   const [insiderLoading, setInsiderLoading] = useState(false);
   const [insiderTypeFilter, setInsiderTypeFilter] = useState<string>('all');
   const [error, setError] = useState('');
+
+  // Political data
+  const [lobbyingFilings, setLobbyingFilings] = useState<any[] | null>(null);
+  const [lobbySummary, setLobbySummary] = useState<any>(null);
+  const [lobbyingLoading, setLobbyingLoading] = useState(false);
+  const [contractsList, setContractsList] = useState<any[] | null>(null);
+  const [contractSummary, setContractSummary] = useState<any>(null);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  const [enforcementActions, setEnforcementActions] = useState<any[] | null>(null);
+  const [enfTotalPenalties, setEnfTotalPenalties] = useState(0);
+  const [enforcementLoading, setEnforcementLoading] = useState(false);
+  const [donations, setDonations] = useState<any[] | null>(null);
+  const [donationsLoading, setDonationsLoading] = useState(false);
 
   const loadData = async () => {
     try {
@@ -123,6 +137,65 @@ export default function InstitutionScreen() {
     }
   }, [activeTab, detail]);
 
+  // Lazy-load lobbying
+  useEffect(() => {
+    if (activeTab === 'lobbying' && lobbyingFilings === null && !lobbyingLoading) {
+      setLobbyingLoading(true);
+      Promise.all([
+        apiClient.getInstitutionLobbying(institution_id, { limit: 25 }),
+        apiClient.getInstitutionLobbySummary(institution_id),
+      ])
+        .then(([filRes, sumRes]) => {
+          setLobbyingFilings(filRes.filings || []);
+          setLobbySummary(sumRes);
+        })
+        .catch(() => setLobbyingFilings([]))
+        .finally(() => setLobbyingLoading(false));
+    }
+  }, [activeTab]);
+
+  // Lazy-load contracts
+  useEffect(() => {
+    if (activeTab === 'contracts' && contractsList === null && !contractsLoading) {
+      setContractsLoading(true);
+      Promise.all([
+        apiClient.getInstitutionContracts(institution_id, { limit: 25 }),
+        apiClient.getInstitutionContractSummary(institution_id),
+      ])
+        .then(([ctRes, sumRes]) => {
+          setContractsList(ctRes.contracts || []);
+          setContractSummary(sumRes);
+        })
+        .catch(() => setContractsList([]))
+        .finally(() => setContractsLoading(false));
+    }
+  }, [activeTab]);
+
+  // Lazy-load enforcement
+  useEffect(() => {
+    if (activeTab === 'enforcement' && enforcementActions === null && !enforcementLoading) {
+      setEnforcementLoading(true);
+      apiClient.getInstitutionEnforcement(institution_id, { limit: 50 })
+        .then((res) => {
+          setEnforcementActions(res.actions || []);
+          setEnfTotalPenalties(res.total_penalties || 0);
+        })
+        .catch(() => setEnforcementActions([]))
+        .finally(() => setEnforcementLoading(false));
+    }
+  }, [activeTab]);
+
+  // Lazy-load donations
+  useEffect(() => {
+    if (activeTab === 'donations' && donations === null && !donationsLoading) {
+      setDonationsLoading(true);
+      apiClient.getInstitutionDonations(institution_id, { limit: 50 })
+        .then((res) => setDonations(res.donations || res || []))
+        .catch(() => setDonations([]))
+        .finally(() => setDonationsLoading(false));
+    }
+  }, [activeTab]);
+
   if (loading) return <LoadingSpinner message="Loading institution..." />;
   if (error || !detail) return <EmptyState title="Error" message={error || 'Institution data unavailable.'} onRetry={loadData} />;
 
@@ -131,6 +204,10 @@ export default function InstitutionScreen() {
 
   const TABS: { key: TabKey; label: string; icon: any }[] = [
     { key: 'overview', label: 'Overview', icon: 'grid-outline' },
+    { key: 'lobbying', label: 'Lobbying', icon: 'megaphone-outline' },
+    { key: 'contracts', label: 'Contracts', icon: 'briefcase-outline' },
+    { key: 'enforcement', label: 'Enforcement', icon: 'shield-checkmark-outline' },
+    { key: 'donations', label: 'Donations', icon: 'heart-outline' },
     { key: 'filings', label: 'Filings', icon: 'document-text-outline' },
     { key: 'complaints', label: 'Complaints', icon: 'chatbubble-ellipses-outline' },
     { key: 'insider', label: 'Insider', icon: 'swap-horizontal-outline' },
@@ -169,7 +246,7 @@ export default function InstitutionScreen() {
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabRow} contentContainerStyle={styles.tabRowContent}>
         {TABS.map((tab) => (
           <TouchableOpacity
             key={tab.key}
@@ -185,7 +262,7 @@ export default function InstitutionScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {/* === Overview Tab === */}
       {activeTab === 'overview' && (
@@ -535,6 +612,26 @@ export default function InstitutionScreen() {
         </View>
       )}
 
+      {/* === Lobbying Tab === */}
+      {activeTab === 'lobbying' && (
+        <LobbyingTab filings={lobbyingFilings} summary={lobbySummary} loading={lobbyingLoading} />
+      )}
+
+      {/* === Contracts Tab === */}
+      {activeTab === 'contracts' && (
+        <ContractsTab contracts={contractsList} summary={contractSummary} loading={contractsLoading} />
+      )}
+
+      {/* === Enforcement Tab === */}
+      {activeTab === 'enforcement' && (
+        <EnforcementTab actions={enforcementActions} totalPenalties={enfTotalPenalties} loading={enforcementLoading} />
+      )}
+
+      {/* === Donations Tab === */}
+      {activeTab === 'donations' && (
+        <DonationsTab donations={donations} loading={donationsLoading} />
+      )}
+
       {/* === News Tab === */}
       {activeTab === 'news' && (
         <View style={styles.tabContent}>
@@ -600,12 +697,14 @@ const styles = StyleSheet.create({
 
   // Tabs
   tabRow: {
-    flexDirection: 'row', paddingHorizontal: 8,
     borderBottomWidth: 1, borderBottomColor: UI_COLORS.BORDER, marginBottom: 12,
   },
+  tabRowContent: {
+    flexDirection: 'row', paddingHorizontal: 8,
+  },
   tab: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 10, gap: 4,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 10, paddingHorizontal: 10, gap: 4,
   },
   tabActive: { borderBottomWidth: 2, borderBottomColor: UI_COLORS.ACCENT },
   tabText: { color: UI_COLORS.TEXT_MUTED, fontSize: 12, fontWeight: '600' },

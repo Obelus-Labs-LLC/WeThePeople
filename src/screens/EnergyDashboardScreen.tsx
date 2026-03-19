@@ -4,11 +4,14 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
-import type { EnergyDashboardStats, EnergyCompany } from '../api/types';
+import type { EnergyDashboardStats, EnergyCompany, RecentActivityItem } from '../api/types';
 import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
+import HeroBanner from '../components/HeroBanner';
+import NavCard from '../components/NavCard';
+import SectionHeader from '../components/SectionHeader';
+import DataFreshness from '../components/DataFreshness';
 
 const SECTOR_COLORS: Record<string, string> = {
   oil_gas: '#475569',
@@ -24,6 +27,7 @@ export default function EnergyDashboardScreen() {
   const navigation = useNavigation<any>();
   const [stats, setStats] = useState<EnergyDashboardStats | null>(null);
   const [companies, setCompanies] = useState<EnergyCompany[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -36,6 +40,11 @@ export default function EnergyDashboardScreen() {
       ]);
       setStats(statsRes);
       setCompanies(compRes.companies || []);
+      // Fetch recent activity separately (may not exist yet)
+      try {
+        const activityRes = await apiClient.getEnergyRecentActivity();
+        setRecentActivity(activityRes.items || []);
+      } catch { setRecentActivity([]); }
       setError('');
     } catch (e: any) {
       setError(e.message || 'Failed to load');
@@ -60,39 +69,45 @@ export default function EnergyDashboardScreen() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
     >
-      {/* Hero */}
-      <LinearGradient
-        colors={['#475569', '#334155', '#1E293B']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.hero}
-      >
-        <View style={styles.heroOrb} />
-        <View style={styles.heroInner}>
-          <View style={styles.heroIconRow}>
-            <Ionicons name="flame" size={24} color="#FFFFFF" />
-            <Text style={styles.heroTitle}>Oil, Gas & Energy</Text>
-          </View>
-          <Text style={styles.heroSubtitle}>
-            Emissions, SEC filings, contracts, lobbying, enforcement
-          </Text>
-        </View>
-      </LinearGradient>
+      {/* Hero Banner */}
+      <HeroBanner
+        colors={['#475569', '#1E293B']}
+        icon="flame"
+        title="Follow the Money in Energy"
+        subtitle="Tracking lobbying, contracts, enforcement, and emissions across oil, gas, and utilities."
+      />
 
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
-        <View style={styles.statHalf}>
-          <StatCard label="Companies" value={stats.total_companies} accent="slate" />
+        <View style={styles.statsRow}>
+          <View style={styles.statsHalf}>
+            <StatCard label="Companies" value={stats.total_companies} accent="slate" />
+          </View>
+          <View style={styles.statsHalf}>
+            <StatCard label="Emissions Records" value={stats.total_emissions_records} accent="amber" />
+          </View>
         </View>
-        <View style={styles.statHalf}>
-          <StatCard label="Emissions Records" value={stats.total_emissions_records} accent="amber" />
+        <View style={styles.statsRow}>
+          <View style={styles.statsHalf}>
+            <StatCard label="Enforcement" value={stats.total_enforcement} accent="red" />
+          </View>
+          <View style={styles.statsHalf}>
+            <StatCard label="Gov Contracts" value={stats.total_contracts} accent="emerald" />
+          </View>
         </View>
-        <View style={styles.statHalf}>
-          <StatCard label="SEC Filings" value={stats.total_filings} accent="purple" />
-        </View>
-        <View style={styles.statHalf}>
-          <StatCard label="Gov Contracts" value={stats.total_contracts} accent="emerald" />
-        </View>
+      </View>
+
+      {/* Data Freshness */}
+      <DataFreshness />
+
+      {/* Nav Cards */}
+      <SectionHeader title="Explore" accent={ACCENT} />
+      <View style={styles.navGrid}>
+        <NavCard icon="business" title="Companies" subtitle="Oil, gas, utilities, renewables" onPress={() => navigation.navigate('EnergyCompaniesDirectory')} accent={ACCENT} />
+        <NavCard icon="document-text" title="Lobbying" subtitle="Senate LDA filings" onPress={() => navigation.navigate('EnergyLobbying')} accent="#C5960C" />
+        <NavCard icon="briefcase" title="Contracts" subtitle="USASpending.gov" onPress={() => navigation.navigate('EnergyContracts')} accent="#10B981" />
+        <NavCard icon="shield" title="Enforcement" subtitle="EPA, FERC, DOJ" onPress={() => navigation.navigate('EnergyEnforcement')} accent="#DC2626" />
+        <NavCard icon="git-compare" title="Compare" subtitle="Side-by-side analysis" onPress={() => navigation.navigate('EnergyCompare')} accent="#8B5CF6" />
       </View>
 
       {/* Sector Distribution */}
@@ -116,16 +131,12 @@ export default function EnergyDashboardScreen() {
       )}
 
       {/* Featured Companies */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <View style={[styles.accentBar, { backgroundColor: ACCENT }]} />
-            <Text style={styles.sectionTitle}>Featured Companies</Text>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate('EnergyCompaniesDirectory')}>
-            <Text style={styles.seeAll}>See All →</Text>
-          </TouchableOpacity>
-        </View>
+      <SectionHeader
+        title="Featured Companies"
+        accent={ACCENT}
+        onViewAll={() => navigation.navigate('EnergyCompaniesDirectory')}
+      />
+      <View style={styles.featuredList}>
         {companies.map((c) => (
           <TouchableOpacity
             key={c.company_id}
@@ -154,26 +165,32 @@ export default function EnergyDashboardScreen() {
         ))}
       </View>
 
-      {/* Compare CTA */}
-      <View style={styles.section}>
-        <TouchableOpacity
-          style={styles.compareCta}
-          onPress={() => navigation.navigate('EnergyCompare')}
-          accessibilityRole="button"
-          accessibilityLabel="Compare energy companies"
-        >
-          <Ionicons name="git-compare-outline" size={20} color="#fff" />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.compareCtaTitle}>Compare Companies</Text>
-            <Text style={styles.compareCtaSub}>Side-by-side emissions, contracts, lobbying, penalties</Text>
+      {/* Recent Activity */}
+      {recentActivity.length > 0 && (
+        <>
+          <SectionHeader title="Recent Activity" accent={UI_COLORS.GOLD} />
+          <View style={styles.activityCard}>
+            {recentActivity.slice(0, 5).map((item, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[styles.activityRow, i < Math.min(recentActivity.length, 5) - 1 && styles.activityBorder]}
+                onPress={() => item.company_id ? navigation.navigate('EnergyCompanyDetail', { company_id: item.company_id }) : null}
+              >
+                <View style={styles.activityDot} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityTitle} numberOfLines={1}>{item.title}</Text>
+                  {item.company_name && <Text style={styles.activityMeta}>{item.company_name}</Text>}
+                </View>
+                <Text style={styles.activityDate}>{new Date(item.date).toLocaleDateString()}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-          <Ionicons name="chevron-forward" size={16} color="#fff" />
-        </TouchableOpacity>
-      </View>
+        </>
+      )}
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Data: EIA · EPA GHGRP · SEC EDGAR · USASpending.gov · Senate LDA</Text>
+        <Text style={styles.footerText}>Data from EIA, EPA GHGRP, SEC EDGAR, USASpending.gov, Senate LDA</Text>
       </View>
     </ScrollView>
   );
@@ -182,35 +199,35 @@ export default function EnergyDashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: UI_COLORS.SECONDARY_BG },
   scrollContent: { paddingBottom: 24 },
-  hero: {
-    borderRadius: 16, padding: 20, marginHorizontal: 16, marginTop: 12,
-    overflow: 'hidden', position: 'relative',
-  },
-  heroOrb: {
-    position: 'absolute', top: -60, right: -40,
-    width: 180, height: 180, borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  heroInner: { position: 'relative' },
-  heroIconRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  heroTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' },
-  heroSubtitle: { color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 19 },
   statsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10, marginTop: 12, marginBottom: 16,
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 12,
   },
-  statHalf: { width: '48%' as any, flexGrow: 1 },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statsHalf: {
+    flex: 1,
+  },
+  navGrid: {
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 16,
+  },
   section: { paddingHorizontal: 16, marginBottom: 16 },
-  sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
-  },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   accentBar: { width: 4, height: 20, borderRadius: 2 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY },
-  seeAll: { fontSize: 13, fontWeight: '600', color: ACCENT },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, gap: 6 },
   chipDot: { width: 8, height: 8, borderRadius: 4 },
   chipText: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  featuredList: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
   companyCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: UI_COLORS.CARD_BG, borderRadius: 12, padding: 14,
@@ -225,12 +242,47 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, borderWidth: 1 },
   badgeText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
   companyStats: { fontSize: 11, color: UI_COLORS.TEXT_MUTED, marginTop: 3 },
-  compareCta: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: ACCENT, borderRadius: 12, padding: 16,
+  // Recent Activity
+  activityCard: {
+    marginHorizontal: 16,
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: UI_COLORS.BORDER,
+    marginBottom: 16,
   },
-  compareCtaTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  compareCtaSub: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 10,
+  },
+  activityBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: UI_COLORS.BORDER,
+  },
+  activityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: ACCENT,
+  },
+  activityTitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: UI_COLORS.TEXT_PRIMARY,
+  },
+  activityMeta: {
+    fontSize: 11,
+    color: UI_COLORS.TEXT_MUTED,
+    marginTop: 2,
+  },
+  activityDate: {
+    fontSize: 11,
+    color: UI_COLORS.TEXT_MUTED,
+    fontVariant: ['tabular-nums'],
+  },
   footer: { alignItems: 'center', paddingVertical: 20 },
-  footerText: { fontSize: 11, color: UI_COLORS.TEXT_MUTED },
+  footerText: { fontSize: 11, color: UI_COLORS.TEXT_MUTED, textAlign: 'center', paddingHorizontal: 24 },
 });

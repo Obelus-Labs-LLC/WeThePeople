@@ -7,15 +7,16 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS, SECTOR_GRADIENTS } from '../constants/colors';
 import { apiClient } from '../api/client';
-import type { TechCompany, TechComparisonItem } from '../api/types';
+import type { Company, HealthComparisonItem } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-const ACCENT = SECTOR_GRADIENTS.technology[0];
+const ACCENT = SECTOR_GRADIENTS.health[0];
+const MAX_ENTITIES = 5;
 
-type MetricFormat = 'number' | 'money' | 'pct';
+type MetricFormat = 'number' | 'money';
 
 type Metric = {
-  key: keyof TechComparisonItem;
+  key: keyof HealthComparisonItem;
   label: string;
   format: MetricFormat;
   icon: string;
@@ -36,73 +37,88 @@ const SECTIONS: MetricSection[] = [
     color: '#DC2626',
     metrics: [
       { key: 'lobbying_total', label: 'Lobbying Spend', format: 'money', icon: 'megaphone-outline', color: '#F59E0B' },
-      { key: 'total_contract_value', label: 'Gov Contracts', format: 'money', icon: 'cash-outline', color: '#10B981' },
       { key: 'enforcement_count', label: 'Enforcement Actions', format: 'number', icon: 'alert-circle-outline', color: '#DC2626' },
       { key: 'total_penalties', label: 'Total Penalties', format: 'money', icon: 'shield-outline', color: '#DC2626' },
     ],
   },
   {
-    title: 'Innovation & Filings',
-    icon: 'bulb-outline',
-    color: '#F59E0B',
+    title: 'Safety & Compliance',
+    icon: 'medkit-outline',
+    color: '#F43F5E',
     metrics: [
-      { key: 'patent_count', label: 'Patents', format: 'number', icon: 'bulb-outline', color: '#F59E0B' },
-      { key: 'filing_count', label: 'SEC Filings', format: 'number', icon: 'document-outline', color: '#8B5CF6' },
+      { key: 'adverse_event_count', label: 'Adverse Events', format: 'number', icon: 'warning-outline', color: '#F43F5E' },
+      { key: 'recall_count', label: 'Recalls', format: 'number', icon: 'alert-outline', color: '#EA580C' },
     ],
   },
   {
-    title: 'Valuation',
-    icon: 'trending-up',
-    color: '#2563EB',
+    title: 'Research & Payments',
+    icon: 'flask-outline',
+    color: '#8B5CF6',
     metrics: [
-      { key: 'market_cap', label: 'Market Cap', format: 'money', icon: 'trending-up', color: '#2563EB' },
-      { key: 'profit_margin', label: 'Profit Margin', format: 'pct', icon: 'analytics-outline', color: '#10B981' },
+      { key: 'trial_count', label: 'Clinical Trials', format: 'number', icon: 'flask-outline', color: '#8B5CF6' },
+      { key: 'payment_count', label: 'CMS Payments', format: 'number', icon: 'cash-outline', color: '#10B981' },
     ],
   },
 ];
 
-function DropdownPicker({
+function MultiDropdownPicker({
   label,
-  selectedValue,
+  selectedValues,
   options,
-  onSelect,
+  onToggle,
+  maxSelections,
 }: {
   label: string;
-  selectedValue: string;
+  selectedValues: string[];
   options: { value: string; label: string }[];
-  onSelect: (value: string) => void;
+  onToggle: (value: string) => void;
+  maxSelections: number;
 }) {
   const [visible, setVisible] = useState(false);
-  const selectedLabel = options.find((o) => o.value === selectedValue)?.label || label;
+  const selectedCount = selectedValues.length;
+  const summaryText = selectedCount === 0
+    ? label
+    : `${selectedCount} selected`;
 
   return (
     <View style={dropdownStyles.container}>
       <TouchableOpacity style={dropdownStyles.button} onPress={() => setVisible(true)}>
-        <Text style={[dropdownStyles.buttonText, !selectedValue && dropdownStyles.placeholder]} numberOfLines={1}>
-          {selectedValue ? selectedLabel : label}
+        <Text style={[dropdownStyles.buttonText, selectedCount === 0 && dropdownStyles.placeholder]} numberOfLines={1}>
+          {summaryText}
         </Text>
         <Ionicons name="chevron-down" size={16} color={UI_COLORS.TEXT_MUTED} />
       </TouchableOpacity>
       <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
         <TouchableOpacity style={dropdownStyles.overlay} activeOpacity={1} onPress={() => setVisible(false)}>
           <View style={dropdownStyles.modal}>
-            <Text style={dropdownStyles.modalTitle}>{label}</Text>
+            <View style={dropdownStyles.modalHeader}>
+              <Text style={dropdownStyles.modalTitle}>{label}</Text>
+              <Text style={dropdownStyles.modalSubtitle}>{selectedCount}/{maxSelections} selected</Text>
+            </View>
             <FlatList
               data={options}
               keyExtractor={(item) => item.value}
               style={{ maxHeight: 400 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[dropdownStyles.option, item.value === selectedValue && dropdownStyles.optionSelected]}
-                  onPress={() => { onSelect(item.value); setVisible(false); }}
-                >
-                  <Text style={[dropdownStyles.optionText, item.value === selectedValue && dropdownStyles.optionTextSelected]}>
-                    {item.label}
-                  </Text>
-                  {item.value === selectedValue && <Ionicons name="checkmark" size={16} color={ACCENT} />}
-                </TouchableOpacity>
-              )}
+              renderItem={({ item }) => {
+                const isSelected = selectedValues.includes(item.value);
+                const isDisabled = !isSelected && selectedCount >= maxSelections;
+                return (
+                  <TouchableOpacity
+                    style={[dropdownStyles.option, isSelected && dropdownStyles.optionSelected, isDisabled && dropdownStyles.optionDisabled]}
+                    onPress={() => { if (!isDisabled) onToggle(item.value); }}
+                    disabled={isDisabled}
+                  >
+                    <Text style={[dropdownStyles.optionText, isSelected && dropdownStyles.optionTextSelected, isDisabled && dropdownStyles.optionTextDisabled]}>
+                      {item.label}
+                    </Text>
+                    {isSelected && <Ionicons name="checkmark-circle" size={18} color={ACCENT} />}
+                  </TouchableOpacity>
+                );
+              }}
             />
+            <TouchableOpacity style={dropdownStyles.doneButton} onPress={() => setVisible(false)}>
+              <Text style={dropdownStyles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -110,58 +126,64 @@ function DropdownPicker({
   );
 }
 
-export default function TechCompareScreen() {
+export default function HealthCompareScreen() {
   const navigation = useNavigation<any>();
-  const [allCompanies, setAllCompanies] = useState<TechCompany[]>([]);
-  const [selectedA, setSelectedA] = useState<string>('');
-  const [selectedB, setSelectedB] = useState<string>('');
-  const [comparison, setComparison] = useState<TechComparisonItem[]>([]);
+  const [allCompanies, setAllCompanies] = useState<Company[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [comparison, setComparison] = useState<HealthComparisonItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [comparing, setComparing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    apiClient.getTechCompanies({ limit: 200 })
+    apiClient.getCompanies({ limit: 200 })
       .then((res) => {
         const list = res.companies || [];
         setAllCompanies(list);
-        if (list.length >= 2) {
-          setSelectedA(list[0].company_id);
-          setSelectedB(list[1].company_id);
-        }
+        // Default: select first 3
+        const initial = list.slice(0, Math.min(3, list.length)).map((c) => c.company_id);
+        setSelectedIds(initial);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (selectedA && selectedB) {
+    if (selectedIds.length >= 2) {
       setComparing(true);
-      apiClient.getTechComparison([selectedA, selectedB])
+      apiClient.getHealthComparison(selectedIds)
         .then((res) => setComparison(res.companies || []))
         .catch(() => {})
         .finally(() => setComparing(false));
     } else {
       setComparison([]);
     }
-  }, [selectedA, selectedB]);
+  }, [selectedIds]);
+
+  const toggleCompany = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : prev.length < MAX_ENTITIES
+        ? [...prev, id]
+        : prev
+    );
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
-    apiClient.getTechCompanies({ limit: 200 })
+    apiClient.getCompanies({ limit: 200 })
       .then((res) => setAllCompanies(res.companies || []))
       .catch(() => {})
       .finally(() => setRefreshing(false));
   };
 
-  const optionsA = allCompanies
-    .filter((c) => c.company_id !== selectedB)
-    .map((c) => ({ value: c.company_id, label: c.ticker ? `${c.ticker} - ${c.display_name}` : c.display_name }));
-  const optionsB = allCompanies
-    .filter((c) => c.company_id !== selectedA)
-    .map((c) => ({ value: c.company_id, label: c.ticker ? `${c.ticker} - ${c.display_name}` : c.display_name }));
+  const options = allCompanies.map((c) => ({
+    value: c.company_id,
+    label: c.ticker ? `${c.ticker} - ${c.display_name}` : c.display_name,
+  }));
 
-  if (loading) return <LoadingSpinner message="Loading companies..." />;
+  if (loading) return <LoadingSpinner message="Loading health companies..." />;
 
   return (
     <ScrollView
@@ -172,32 +194,38 @@ export default function TechCompareScreen() {
       <View style={styles.selectorCard}>
         <View style={styles.cardHeader}>
           <Ionicons name="git-compare-outline" size={16} color={ACCENT} />
-          <Text style={styles.cardTitle}>Compare Tech Companies</Text>
+          <Text style={styles.cardTitle}>Compare Health Companies</Text>
         </View>
-        <View style={styles.selectorRow}>
-          <DropdownPicker label="Select Company A" selectedValue={selectedA} options={optionsA} onSelect={setSelectedA} />
-          <Text style={styles.vsText}>VS</Text>
-          <DropdownPicker label="Select Company B" selectedValue={selectedB} options={optionsB} onSelect={setSelectedB} />
-        </View>
+        <MultiDropdownPicker
+          label="Select companies to compare"
+          selectedValues={selectedIds}
+          options={options}
+          onToggle={toggleCompany}
+          maxSelections={MAX_ENTITIES}
+        />
+        {/* Selected chips */}
+        {selectedIds.length > 0 && (
+          <View style={styles.chipRow}>
+            {selectedIds.map((id) => {
+              const co = allCompanies.find((c) => c.company_id === id);
+              return (
+                <TouchableOpacity key={id} style={styles.chip} onPress={() => toggleCompany(id)}>
+                  <Text style={styles.chipText} numberOfLines={1}>{co?.ticker || co?.display_name || id}</Text>
+                  <Ionicons name="close-circle" size={14} color={ACCENT} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+        <Text style={styles.selectorHint}>
+          {selectedIds.length} selected (min 2, max {MAX_ENTITIES})
+        </Text>
       </View>
 
       {comparing && <LoadingSpinner message="Comparing..." />}
 
       {!comparing && comparison.length >= 2 && (
         <View style={styles.resultsSection}>
-          {/* Entity headers */}
-          <View style={styles.entityHeaderRow}>
-            <TouchableOpacity style={styles.entityHeader} onPress={() => navigation.navigate('TechCompanyDetail', { company_id: comparison[0].company_id })}>
-              <Text style={styles.entityName} numberOfLines={1}>{comparison[0].ticker || comparison[0].display_name}</Text>
-              <Text style={styles.entitySub}>{comparison[0].sector_type}</Text>
-            </TouchableOpacity>
-            <View style={styles.vsCircle}><Text style={styles.vsCircleText}>VS</Text></View>
-            <TouchableOpacity style={styles.entityHeader} onPress={() => navigation.navigate('TechCompanyDetail', { company_id: comparison[1].company_id })}>
-              <Text style={styles.entityName} numberOfLines={1}>{comparison[1].ticker || comparison[1].display_name}</Text>
-              <Text style={styles.entitySub}>{comparison[1].sector_type}</Text>
-            </TouchableOpacity>
-          </View>
-
           {SECTIONS.map((section) => (
             <View key={section.title}>
               <View style={styles.sectionHeader}>
@@ -209,6 +237,7 @@ export default function TechCompareScreen() {
                   key={metric.key}
                   metric={metric}
                   companies={comparison}
+                  onCompanyPress={(id) => navigation.navigate('HealthCompanyDetail', { company_id: id })}
                 />
               ))}
             </View>
@@ -216,8 +245,8 @@ export default function TechCompareScreen() {
         </View>
       )}
 
-      {!comparing && (!selectedA || !selectedB) && (
-        <EmptyState title="Select two companies" message="Use the dropdowns above to pick companies to compare" />
+      {!comparing && selectedIds.length < 2 && (
+        <EmptyState title="Select at least 2 companies" message="Use the dropdown above to pick up to 5 health companies to compare" />
       )}
     </ScrollView>
   );
@@ -226,9 +255,11 @@ export default function TechCompareScreen() {
 function ComparisonRow({
   metric,
   companies,
+  onCompanyPress,
 }: {
   metric: Metric;
-  companies: TechComparisonItem[];
+  companies: HealthComparisonItem[];
+  onCompanyPress: (id: string) => void;
 }) {
   const values = companies.map((c) => {
     const val = c[metric.key];
@@ -246,7 +277,11 @@ function ComparisonRow({
         const val = values[idx];
         const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
         return (
-          <View key={co.company_id} style={styles.barRow}>
+          <TouchableOpacity
+            key={co.company_id}
+            style={styles.barRow}
+            onPress={() => onCompanyPress(co.company_id)}
+          >
             <Text style={styles.barLabel} numberOfLines={1}>
               {co.ticker || co.display_name}
             </Text>
@@ -256,7 +291,7 @@ function ComparisonRow({
             <Text style={styles.barValue}>
               {formatMetricValue(val, metric.format)}
             </Text>
-          </View>
+          </TouchableOpacity>
         );
       })}
     </View>
@@ -264,9 +299,6 @@ function ComparisonRow({
 }
 
 function formatMetricValue(n: number, format: MetricFormat): string {
-  if (format === 'pct') {
-    return n != null && n !== 0 ? (n * 100).toFixed(1) + '%' : '-';
-  }
   const prefix = format === 'money' ? '$' : '';
   if (n >= 1e12) return prefix + (n / 1e12).toFixed(1) + 'T';
   if (n >= 1e9) return prefix + (n / 1e9).toFixed(1) + 'B';
@@ -277,7 +309,7 @@ function formatMetricValue(n: number, format: MetricFormat): string {
 }
 
 const dropdownStyles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { marginBottom: 8 },
   button: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: UI_COLORS.SECONDARY_BG, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
@@ -292,14 +324,22 @@ const dropdownStyles = StyleSheet.create({
     backgroundColor: UI_COLORS.CARD_BG, borderRadius: 14, padding: 16, width: '100%', maxWidth: 400,
     maxHeight: '70%', borderWidth: 1, borderColor: UI_COLORS.BORDER_LIGHT,
   },
-  modalTitle: { fontSize: 14, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY, marginBottom: 12 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 14, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY },
+  modalSubtitle: { fontSize: 12, color: UI_COLORS.TEXT_MUTED },
   option: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 10, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: UI_COLORS.BORDER_LIGHT,
   },
-  optionSelected: { backgroundColor: '#8B5CF6' + '12' },
-  optionText: { fontSize: 13, color: UI_COLORS.TEXT_PRIMARY },
+  optionSelected: { backgroundColor: ACCENT + '12' },
+  optionDisabled: { opacity: 0.4 },
+  optionText: { fontSize: 13, color: UI_COLORS.TEXT_PRIMARY, flex: 1 },
   optionTextSelected: { fontWeight: '700', color: ACCENT },
+  optionTextDisabled: { color: UI_COLORS.TEXT_MUTED },
+  doneButton: {
+    marginTop: 12, backgroundColor: ACCENT, borderRadius: 8, paddingVertical: 10, alignItems: 'center',
+  },
+  doneButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });
 
 const styles = StyleSheet.create({
@@ -310,18 +350,15 @@ const styles = StyleSheet.create({
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   cardTitle: { fontSize: 14, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY },
-  selectorRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  vsText: { fontSize: 12, fontWeight: '800', color: UI_COLORS.TEXT_MUTED },
-  resultsSection: { paddingHorizontal: 16, paddingBottom: 16 },
-  entityHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  entityHeader: { flex: 1, alignItems: 'center' },
-  entityName: { fontSize: 14, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY },
-  entitySub: { fontSize: 11, color: UI_COLORS.TEXT_MUTED, textTransform: 'capitalize', marginTop: 2 },
-  vsCircle: {
-    width: 28, height: 28, borderRadius: 14, backgroundColor: UI_COLORS.SECONDARY_BG,
-    alignItems: 'center', justifyContent: 'center', marginHorizontal: 8,
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: ACCENT + '12', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: ACCENT + '25',
   },
-  vsCircleText: { fontSize: 10, fontWeight: '800', color: UI_COLORS.TEXT_MUTED },
+  chipText: { fontSize: 11, fontWeight: '600', color: ACCENT, maxWidth: 100 },
+  selectorHint: { fontSize: 11, color: UI_COLORS.TEXT_MUTED, marginTop: 8, textAlign: 'center' },
+  resultsSection: { paddingHorizontal: 16, paddingBottom: 16 },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, marginTop: 4,
   },

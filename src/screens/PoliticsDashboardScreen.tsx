@@ -7,17 +7,17 @@ import {
   Image,
   StyleSheet,
   RefreshControl,
-  Modal,
-  FlatList,
-  Animated,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { DashboardStats, Person, RecentAction } from '../api/types';
-import { LinearGradient } from 'expo-linear-gradient';
-import { LoadingSpinner, StatCard, TierProgressBar, PartyBadge, ChamberBadge, EmptyState, TierBadge } from '../components/ui';
+import { LoadingSpinner, StatCard, EmptyState, PartyBadge, ChamberBadge } from '../components/ui';
+import HeroBanner from '../components/HeroBanner';
+import NavCard from '../components/NavCard';
+import SectionHeader from '../components/SectionHeader';
+import DataFreshness from '../components/DataFreshness';
 
 // ── Activity type color coding ──
 const ACTIVITY_TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -133,9 +133,6 @@ export default function PoliticsDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Modal state for tappable stats
-  const [statModal, setStatModal] = useState<'claims' | 'match' | null>(null);
-
   const loadData = async () => {
     try {
       const [statsRes, peopleRes, actionsRes] = await Promise.all([
@@ -176,234 +173,121 @@ export default function PoliticsDashboardScreen() {
     );
   }
 
-  const tierSegments = stats ? [
-    { label: 'Strong', value: stats.by_tier.strong || 0, color: '#10B981' },
-    { label: 'Moderate', value: stats.by_tier.moderate || 0, color: '#D4A017' },
-    { label: 'Weak', value: stats.by_tier.weak || 0, color: '#E67E22' },
-    { label: 'None', value: stats.by_tier.none || 0, color: '#9CA3AF' },
-  ] : [];
-
   return (
-    <>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
-      >
-        {/* Gradient Hero Banner */}
-        <LinearGradient
-          colors={['#1B7A3D', '#15693A', '#0F5831']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.hero}
-        >
-          <View style={styles.heroOrb} />
-          <View style={styles.heroInner}>
-            <View style={styles.heroIconRow}>
-              <Ionicons name="stats-chart" size={22} color="#C5960C" />
-              <Text style={styles.heroTitle}>Congressional Tracker</Text>
-            </View>
-            <Text style={styles.heroSubtitle}>
-              Every bill introduced, cosponsored, and voted on — tracked across all 535+ members of the 119th Congress.
-            </Text>
-          </View>
-        </LinearGradient>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
+    >
+      {/* Hero Banner */}
+      <HeroBanner
+        colors={['#1B7A3D', '#0F5831']}
+        icon="people"
+        title="Follow the Money in Politics"
+        subtitle="Track every bill, vote, trade, and donation across all 535+ members of Congress."
+      />
 
-        {/* Stats grid — tappable */}
-        {stats && (
-          <View style={styles.statsGrid}>
-            <View style={styles.statsRow}>
-              <View style={styles.statsHalf}>
-                <StatCard label="People Tracked" value={stats.total_people} accent="green" />
-              </View>
-              <TouchableOpacity style={styles.statsHalf} onPress={() => setStatModal('claims')}>
-                <StatCard label="Activity Entries" value={stats.total_claims} accent="gold" subtitle="Tap to view" />
-              </TouchableOpacity>
+      {/* Stats Grid */}
+      {stats && (
+        <View style={styles.statsGrid}>
+          <View style={styles.statsRow}>
+            <View style={styles.statsHalf}>
+              <StatCard label="Members Tracked" value={stats.total_people} accent="green" />
             </View>
-            <View style={styles.statsRow}>
-              <View style={styles.statsHalf}>
-                <StatCard label="Actions Monitored" value={stats.total_actions.toLocaleString()} accent="emerald" />
-              </View>
-              <TouchableOpacity style={styles.statsHalf} onPress={() => setStatModal('match')}>
-                <StatCard label="Match Rate" value={`${stats.match_rate}%`} accent="amber" subtitle="Tap for breakdown" />
-              </TouchableOpacity>
+            <View style={styles.statsHalf}>
+              <StatCard label="Bills Tracked" value={stats.total_bills} accent="blue" />
             </View>
           </View>
-        )}
-
-        {/* Featured members */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <View style={[styles.accentBar, { backgroundColor: UI_COLORS.ACCENT }]} />
-            <Text style={styles.sectionTitle}>Featured Members</Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statsHalf}>
+              <StatCard label="Votes Monitored" value={stats.total_actions.toLocaleString()} accent="gold" />
+            </View>
+            <View style={styles.statsHalf}>
+              <StatCard label="Match Rate" value={`${stats.match_rate}%`} accent="emerald" />
+            </View>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('PeopleDirectory')}>
-            <Text style={styles.viewAll}>View all</Text>
-          </TouchableOpacity>
         </View>
+      )}
 
-        {people.length === 0 ? (
-          <EmptyState title="No members with ledger data" message="Members will appear once activity is processed." />
-        ) : (
-          people.map((person) => (
+      {/* Data Freshness */}
+      <DataFreshness />
+
+      {/* Nav Cards */}
+      <SectionHeader title="Explore" accent={UI_COLORS.ACCENT} />
+      <View style={styles.navGrid}>
+        <NavCard icon="people" title="People Directory" subtitle="All tracked members" onPress={() => navigation.navigate('PeopleDirectory')} accent={UI_COLORS.ACCENT} />
+        <NavCard icon="document-text" title="Legislation Tracker" subtitle="Bills & resolutions" onPress={() => navigation.navigate('LegislationTracker')} accent="#2563EB" />
+        <NavCard icon="trending-up" title="Congressional Trades" subtitle="Stock trades by members" onPress={() => navigation.navigate('CongressionalTrades')} accent="#C5960C" />
+        <NavCard icon="search" title="Find Your Rep" subtitle="Look up by state" onPress={() => navigation.navigate('FindYourRep')} accent="#10B981" />
+        <NavCard icon="map" title="State Explorer" subtitle="State-level data" onPress={() => navigation.navigate('StateExplorer')} accent="#8B5CF6" />
+        <NavCard icon="git-compare" title="Compare Members" subtitle="Side-by-side analysis" onPress={() => navigation.navigate('PoliticsCompare')} accent="#DC2626" />
+        <NavCard icon="list" title="Activity Feed" subtitle="Latest legislative actions" onPress={() => navigation.navigate('ActivityFeed')} accent="#475569" />
+      </View>
+
+      {/* Featured Members */}
+      <SectionHeader
+        title="Featured Members"
+        accent={UI_COLORS.ACCENT}
+        onViewAll={() => navigation.navigate('PeopleDirectory')}
+      />
+
+      {people.length === 0 ? (
+        <EmptyState title="No members with data" message="Members will appear once activity is processed." />
+      ) : (
+        <View style={styles.featuredList}>
+          {people.map((person) => (
             <TouchableOpacity
               key={person.person_id}
               style={styles.memberCard}
               activeOpacity={0.85}
               onPress={() => navigation.navigate('PersonDetail', { person_id: person.person_id })}
             >
-              {/* Photo + gradient overlay */}
               {person.photo_url ? (
-                <View style={styles.memberPhotoContainer}>
-                  <Image source={{ uri: person.photo_url }} style={styles.memberPhoto} />
-                  <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.6)']}
-                    style={styles.memberPhotoOverlay}
-                  >
-                    <Text style={styles.memberNameOverlay}>{person.display_name}</Text>
-                    <View style={styles.badgeRow}>
-                      <PartyBadge party={person.party} />
-                      <ChamberBadge chamber={person.chamber} />
-                      <Text style={styles.memberStateOverlay}>{person.state}</Text>
-                    </View>
-                  </LinearGradient>
-                </View>
+                <Image source={{ uri: person.photo_url }} style={styles.memberAvatar} />
               ) : (
-                <View style={styles.memberRow}>
-                  <View style={styles.avatarPlaceholder}>
-                    <Text style={styles.avatarText}>{person.display_name.charAt(0)}</Text>
-                  </View>
-                  <View style={styles.memberInfo}>
-                    <Text style={styles.memberName}>{person.display_name}</Text>
-                    <Text style={styles.memberState}>{person.state}</Text>
-                    <View style={styles.badgeRow}>
-                      <PartyBadge party={person.party} />
-                      <ChamberBadge chamber={person.chamber} />
-                    </View>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={UI_COLORS.TEXT_MUTED} />
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarText}>{person.display_name.charAt(0)}</Text>
                 </View>
               )}
+              <View style={styles.memberInfo}>
+                <Text style={styles.memberName}>{person.display_name}</Text>
+                <View style={styles.badgeRow}>
+                  <PartyBadge party={person.party} />
+                  <ChamberBadge chamber={person.chamber} />
+                  <Text style={styles.memberState}>{person.state}</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={UI_COLORS.TEXT_MUTED} />
             </TouchableOpacity>
-          ))
-        )}
-
-        {/* Recent activity — expandable */}
-        {actions.length > 0 && (
-          <>
-            <View style={[styles.sectionHeader, { marginTop: 12 }]}>
-              <View style={styles.sectionTitleRow}>
-                <View style={[styles.accentBar, { backgroundColor: UI_COLORS.GOLD }]} />
-                <Text style={styles.sectionTitle}>Recent Activity</Text>
-              </View>
-              <Text style={styles.tapHint}>Tap to expand</Text>
-            </View>
-            <View style={styles.card}>
-              {actions.map((action, i) => (
-                <ExpandableActivity
-                  key={action.id}
-                  action={action}
-                  isLast={i === actions.length - 1}
-                  onBillPress={(billId) => navigation.navigate('BillDetail', { bill_id: billId })}
-                  onPersonPress={(personId) => navigation.navigate('PersonDetail', { person_id: personId })}
-                />
-              ))}
-            </View>
-          </>
-        )}
-
-        {/* Compare CTA */}
-        <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 12 }}>
-          <TouchableOpacity
-            style={styles.compareCta}
-            onPress={() => navigation.navigate('PoliticsCompare')}
-          >
-            <Ionicons name="git-compare-outline" size={20} color="#fff" />
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.compareCtaTitle}>Compare Members</Text>
-              <Text style={styles.compareCtaSub}>Side-by-side legislative actions, claims, accountability</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#fff" />
-          </TouchableOpacity>
+          ))}
         </View>
-      </ScrollView>
+      )}
 
-      {/* Activity Modal */}
-      <Modal visible={statModal === 'claims'} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Activity Entries</Text>
-            <TouchableOpacity onPress={() => setStatModal(null)}>
-              <Ionicons name="close" size={24} color={UI_COLORS.TEXT_PRIMARY} />
-            </TouchableOpacity>
+      {/* Recent Activity */}
+      {actions.length > 0 && (
+        <>
+          <SectionHeader title="Recent Activity" accent={UI_COLORS.GOLD} />
+          <View style={styles.card}>
+            {actions.map((action, i) => (
+              <ExpandableActivity
+                key={action.id}
+                action={action}
+                isLast={i === actions.length - 1}
+                onBillPress={(billId) => navigation.navigate('BillDetail', { bill_id: billId })}
+                onPersonPress={(personId) => navigation.navigate('PersonDetail', { person_id: personId })}
+              />
+            ))}
           </View>
-          <Text style={styles.modalSubtitle}>
-            {stats?.total_claims || 0} total entries tracked across {stats?.total_people || 0} members
-          </Text>
-          <View style={styles.modalStats}>
-            <View style={styles.modalStatRow}>
-              <Text style={styles.modalStatLabel}>Total Entries</Text>
-              <Text style={styles.modalStatValue}>{stats?.total_claims || 0}</Text>
-            </View>
-            <View style={styles.modalStatRow}>
-              <Text style={styles.modalStatLabel}>With Evidence Match</Text>
-              <Text style={[styles.modalStatValue, { color: '#10B981' }]}>
-                {Math.round((stats?.total_claims || 0) * (stats?.match_rate || 0) / 100)}
-              </Text>
-            </View>
-            <View style={styles.modalStatRow}>
-              <Text style={styles.modalStatLabel}>Unmatched</Text>
-              <Text style={[styles.modalStatValue, { color: '#E67E22' }]}>
-                {(stats?.total_claims || 0) - Math.round((stats?.total_claims || 0) * (stats?.match_rate || 0) / 100)}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.modalHint}>
-            Tap a member from Featured Members to see their individual activity.
-          </Text>
-        </View>
-      </Modal>
+        </>
+      )}
 
-      {/* Match Rate Modal */}
-      <Modal visible={statModal === 'match'} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>How We Track Bills</Text>
-            <TouchableOpacity onPress={() => setStatModal(null)}>
-              <Ionicons name="close" size={24} color={UI_COLORS.TEXT_PRIMARY} />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.modalSubtitle}>
-            Our data comes directly from the Congress.gov API — the official public record of all legislative activity.
-          </Text>
-          {stats && (
-            <View style={styles.modalStats}>
-              <View style={styles.modalStatRow}>
-                <Text style={styles.modalStatLabel}>Match Rate</Text>
-                <Text style={[styles.modalStatValue, { color: UI_COLORS.ACCENT }]}>{stats.match_rate}%</Text>
-              </View>
-              <View style={styles.modalStatRow}>
-                <Text style={styles.modalStatLabel}>Bills in Database</Text>
-                <Text style={styles.modalStatValue}>{stats.total_bills.toLocaleString()}</Text>
-              </View>
-              <View style={styles.modalStatRow}>
-                <Text style={styles.modalStatLabel}>Actions Monitored</Text>
-                <Text style={styles.modalStatValue}>{stats.total_actions.toLocaleString()}</Text>
-              </View>
-            </View>
-          )}
-          <View style={styles.modalTierSection}>
-            <Text style={styles.modalSectionTitle}>Methodology</Text>
-            <Text style={styles.modalMethodText}>
-              {'1. We pull every bill a member sponsors or cosponsors from Congress.gov.\n\n'}
-              {'2. Each bill is enriched with CRS summaries, full text URLs, and policy area classification.\n\n'}
-              {'3. Match Rate = the percentage of tracked legislative actions that are linked to a specific bill in our database.\n\n'}
-              {'4. All data is public record — no editorials, no spin.'}
-            </Text>
-          </View>
-        </View>
-      </Modal>
-    </>
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          Data from Congress.gov, OpenStates, Quiver Quantitative, and FEC
+        </Text>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -413,46 +297,12 @@ const styles = StyleSheet.create({
     backgroundColor: UI_COLORS.SECONDARY_BG,
   },
   content: {
-    padding: 16,
-    gap: 12,
     paddingBottom: 32,
   },
-  hero: {
-    borderRadius: 16,
-    padding: 20,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  heroOrb: {
-    position: 'absolute',
-    top: -60,
-    right: -40,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  heroInner: {
-    position: 'relative',
-  },
-  heroIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  heroTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  heroSubtitle: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 13,
-    lineHeight: 19,
-  },
   statsGrid: {
+    paddingHorizontal: 16,
     gap: 8,
+    marginTop: 12,
   },
   statsRow: {
     flexDirection: 'row',
@@ -461,7 +311,71 @@ const styles = StyleSheet.create({
   statsHalf: {
     flex: 1,
   },
+  navGrid: {
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 16,
+  },
+  featuredList: {
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 16,
+  },
+  memberCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: UI_COLORS.BORDER,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  memberAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+  },
+  avatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: UI_COLORS.ACCENT_LIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: UI_COLORS.ACCENT,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  memberInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  memberName: {
+    color: UI_COLORS.TEXT_PRIMARY,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  memberState: {
+    color: UI_COLORS.TEXT_MUTED,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+  },
   card: {
+    marginHorizontal: 16,
     backgroundColor: UI_COLORS.CARD_BG,
     borderRadius: 14,
     padding: 16,
@@ -472,133 +386,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 2,
+    marginBottom: 16,
   },
-  cardTitle: {
-    color: UI_COLORS.TEXT_PRIMARY,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-    marginBottom: -4,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  accentBar: {
-    width: 4,
-    height: 20,
-    borderRadius: 2,
-  },
-  sectionTitle: {
-    color: UI_COLORS.TEXT_PRIMARY,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  viewAll: {
-    color: UI_COLORS.ACCENT,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  tapHint: {
-    color: UI_COLORS.TEXT_MUTED,
-    fontSize: 11,
-    fontStyle: 'italic',
-  },
-  memberCard: {
-    backgroundColor: UI_COLORS.CARD_BG,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: UI_COLORS.BORDER,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  memberPhotoContainer: {
-    height: 160,
-    position: 'relative',
-  },
-  memberPhoto: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  memberPhotoOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 14,
-    paddingBottom: 12,
-    paddingTop: 40,
-    justifyContent: 'flex-end',
-  },
-  memberNameOverlay: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    marginBottom: 6,
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  memberStateOverlay: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-  },
-  avatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: UI_COLORS.ACCENT_LIGHT,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: UI_COLORS.ACCENT,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  memberInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  memberName: {
-    color: UI_COLORS.TEXT_PRIMARY,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  memberState: {
-    color: UI_COLORS.TEXT_MUTED,
-    fontSize: 12,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 4,
-  },
-  // Activity rows — expandable
+  // Activity rows
   activityRow: {
     paddingVertical: 10,
   },
@@ -674,79 +464,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textTransform: 'capitalize',
   },
-  // Modals
-  modalContainer: {
-    flex: 1,
-    backgroundColor: UI_COLORS.PRIMARY_BG,
-    padding: 20,
-    paddingTop: 16,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  modalTitle: {
-    color: UI_COLORS.TEXT_PRIMARY,
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  modalSubtitle: {
-    color: UI_COLORS.TEXT_SECONDARY,
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  modalStats: {
-    gap: 1,
-    marginBottom: 24,
-  },
-  modalStatRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: UI_COLORS.CARD_BG,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: UI_COLORS.BORDER,
-    borderRadius: 0,
-  },
-  modalStatLabel: {
-    color: UI_COLORS.TEXT_SECONDARY,
-    fontSize: 14,
-  },
-  modalStatValue: {
-    color: UI_COLORS.TEXT_PRIMARY,
-    fontSize: 18,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  modalHint: {
-    color: UI_COLORS.TEXT_MUTED,
-    fontSize: 13,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    paddingTop: 12,
-  },
-  modalTierSection: {
-    backgroundColor: UI_COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: UI_COLORS.BORDER,
-  },
-  modalSectionTitle: {
-    color: UI_COLORS.TEXT_PRIMARY,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  modalMethodText: {
-    color: UI_COLORS.TEXT_SECONDARY,
-    fontSize: 13,
-    lineHeight: 20,
-  },
   // Error
   errorContainer: {
     flex: 1,
@@ -772,10 +489,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  compareCta: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: UI_COLORS.ACCENT, borderRadius: 12, padding: 16,
+  footer: {
+    marginTop: 16,
+    alignItems: 'center',
+    paddingHorizontal: 24,
   },
-  compareCtaTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  compareCtaSub: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  footerText: {
+    color: UI_COLORS.TEXT_MUTED,
+    fontSize: 11,
+    textAlign: 'center',
+  },
 });
