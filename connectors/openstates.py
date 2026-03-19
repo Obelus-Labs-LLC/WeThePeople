@@ -86,8 +86,12 @@ def fetch_state_legislators(
             ocd_id = person.get("id", "")
             name = person.get("name", "")
             current_role = person.get("current_role") or {}
-            party_list = person.get("party") or []
-            party_name = party_list[0].get("name", "") if party_list else ""
+            raw_party = person.get("party") or ""
+            # API returns either a string or a list of dicts
+            if isinstance(raw_party, list):
+                party_name = raw_party[0].get("name", "") if raw_party else ""
+            else:
+                party_name = str(raw_party)
 
             # Normalize party to single letter
             party = party_name
