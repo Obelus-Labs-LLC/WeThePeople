@@ -19,7 +19,8 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 OPENSTATES_BASE = "https://v3.openstates.org"
-POLITE_DELAY = 0.5
+POLITE_DELAY = 2.0  # OpenStates rate-limits aggressively
+MAX_RETRIES = 3
 
 
 def _compute_hash(*parts: str) -> str:
@@ -64,18 +65,28 @@ def fetch_state_legislators(
 
     while True:
         params["page"] = page
-        try:
-            time.sleep(POLITE_DELAY)
-            resp = requests.get(
-                f"{OPENSTATES_BASE}/people",
-                params=params,
-                headers=_headers(),
-                timeout=30,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        except Exception as e:
-            logger.error("OpenStates legislators fetch failed for '%s': %s", state, e)
+        data = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                time.sleep(POLITE_DELAY)
+                resp = requests.get(
+                    f"{OPENSTATES_BASE}/people",
+                    params=params,
+                    headers=_headers(),
+                    timeout=30,
+                )
+                if resp.status_code == 429:
+                    wait = (attempt + 1) * 30
+                    logger.warning("Rate limited on '%s', waiting %ds...", state, wait)
+                    time.sleep(wait)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                break
+            except Exception as e:
+                logger.error("OpenStates legislators fetch failed for '%s': %s", state, e)
+                break
+        if data is None:
             break
 
         results = data.get("results") or []
@@ -152,18 +163,28 @@ def fetch_state_bills(
     if query:
         params["q"] = query
 
-    try:
-        time.sleep(POLITE_DELAY)
-        resp = requests.get(
-            f"{OPENSTATES_BASE}/bills",
-            params=params,
-            headers=_headers(),
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        logger.error("OpenStates bills fetch failed for '%s': %s", state, e)
+    data = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            time.sleep(POLITE_DELAY)
+            resp = requests.get(
+                f"{OPENSTATES_BASE}/bills",
+                params=params,
+                headers=_headers(),
+                timeout=30,
+            )
+            if resp.status_code == 429:
+                wait = (attempt + 1) * 30
+                logger.warning("Rate limited on bills '%s', waiting %ds...", state, wait)
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except Exception as e:
+            logger.error("OpenStates bills fetch failed for '%s': %s", state, e)
+            return []
+    if data is None:
         return []
 
     results = data.get("results") or []
