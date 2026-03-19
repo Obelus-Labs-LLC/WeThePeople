@@ -2,7 +2,7 @@
  * Shared logo utility — tries multiple sources in order:
  * 1. Local file in /public/logos/{id}.png
  * 2. logo_url from API
- * 3. Clearbit Logo API (free, no key required)
+ * 3. Google Favicon service (128px, high quality)
  * 4. Returns empty string (caller shows initials)
  */
 
@@ -490,9 +490,9 @@ export function getLogoUrl(
   if (localLogos?.has(id)) return `/logos/${id}.png`;
   // 2. API-provided URL
   if (logoUrl) return logoUrl;
-  // 3. DuckDuckGo Icons fallback via domain mapping (Clearbit shut down)
+  // 3. Google Favicon service fallback via domain mapping
   const domain = COMPANY_DOMAINS[id];
-  if (domain) return `https://icons.duckduckgo.com/ip3/${domain}.ico`;
+  if (domain) return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
   // 4. No logo available
   return '';
 }

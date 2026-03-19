@@ -26,12 +26,33 @@ async function searchEntities(q: string): Promise<SearchResult[]> {
     const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(q)}&limit=10`);
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.results || []).map((r: any) => ({
-      id: r.entity_id || r.id || r.person_id,
-      label: r.display_name || r.name || r.label,
-      type: r.entity_type || r.type || 'person',
-      subtitle: r.sector || r.party || r.chamber || '',
-    }));
+
+    // The /search endpoint returns { politicians: [...], companies: [...], query }
+    const results: SearchResult[] = [];
+
+    if (Array.isArray(data.politicians)) {
+      for (const p of data.politicians) {
+        results.push({
+          id: p.person_id,
+          label: p.name || p.display_name,
+          type: 'person',
+          subtitle: [p.party, p.state, p.chamber].filter(Boolean).join(' · '),
+        });
+      }
+    }
+
+    if (Array.isArray(data.companies)) {
+      for (const c of data.companies) {
+        results.push({
+          id: c.entity_id,
+          label: c.name || c.display_name,
+          type: c.sector || 'company',
+          subtitle: c.sector || '',
+        });
+      }
+    }
+
+    return results;
   } catch {
     return [];
   }
