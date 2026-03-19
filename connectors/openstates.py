@@ -54,7 +54,7 @@ def fetch_state_legislators(
     """
     params: Dict[str, Any] = {
         "jurisdiction": state.lower(),
-        "per_page": 100,
+        "per_page": 50,
     }
     if chamber:
         params["org_classification"] = chamber
