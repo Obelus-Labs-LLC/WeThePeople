@@ -259,6 +259,21 @@ WeThePeople is free and open source. If you find it useful:
 
 ---
 
+## Acknowledgments
+
+This project builds on data and tools from several open-source projects:
+
+| Project | License | What We Use |
+|---------|---------|-------------|
+| [unitedstates/congress-legislators](https://github.com/unitedstates/congress-legislators) | CC0 (public domain) | Congressional committee and membership data |
+| [unitedstates/congress](https://github.com/unitedstates/congress) | CC0 (public domain) | Senate roll call vote scraping approach |
+| [openstates/people](https://github.com/openstates/people) | CC0 (public domain) | State legislator data for all 50 states |
+| [FastScheduler](https://github.com/itsthejoker/fastscheduler) | MIT | Automated sync job scheduling |
+
+All integration code is original — we wrote our own importers, parsers, and sync jobs that consume these datasets and tools.
+
+---
+
 ## Built By
 
 **[Obelus Labs LLC](https://github.com/Obelus-Labs-LLC)**
