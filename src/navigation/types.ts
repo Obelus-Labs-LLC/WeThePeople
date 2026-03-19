@@ -11,6 +11,12 @@
 export type HomeStackParamList = {
   HomeMain: undefined;
   ComingSoon: { title?: string };
+  InfluenceExplorer: undefined;
+  InfluenceNetwork: { entityType?: string; entityId?: string };
+  SpendingMap: undefined;
+  Methodology: undefined;
+  About: undefined;
+  GlobalSearch: undefined;
 };
 
 // ── Politics Stack ──
@@ -20,6 +26,17 @@ export type PoliticsStackParamList = {
   PersonDetail: { person_id: string };
   BillDetail: { bill_id: string };
   PoliticsCompare: undefined;
+  LegislationTracker: undefined;
+  Committees: undefined;
+  ActivityFeed: undefined;
+  CongressionalTrades: undefined;
+  FindRep: undefined;
+  StateExplorer: undefined;
+  StateDashboard: { state_code: string };
+  PoliticsLobbying: undefined;
+  PoliticsContracts: undefined;
+  PoliticsEnforcement: undefined;
+  GlobalSearch: undefined;
 };
 
 // ── Finance Stack ──
@@ -28,6 +45,13 @@ export type FinanceStackParamList = {
   InstitutionsDirectory: undefined;
   InstitutionDetail: { institution_id: string };
   FinanceCompare: undefined;
+  InsiderTrades: undefined;
+  MacroIndicators: undefined;
+  ComplaintsDashboard: undefined;
+  FinanceLobbying: undefined;
+  FinanceContracts: undefined;
+  FinanceEnforcement: undefined;
+  GlobalSearch: undefined;
 };
 
 // ── Health Stack ──
@@ -35,6 +59,13 @@ export type HealthStackParamList = {
   HealthDashboard: undefined;
   CompaniesDirectory: undefined;
   CompanyDetail: { company_id: string };
+  HealthCompare: undefined;
+  DrugLookup: undefined;
+  ClinicalPipeline: undefined;
+  HealthLobbying: undefined;
+  HealthContracts: undefined;
+  HealthEnforcement: undefined;
+  GlobalSearch: undefined;
 };
 
 // ── Technology Stack ──
@@ -43,6 +74,10 @@ export type TechnologyStackParamList = {
   TechCompaniesDirectory: undefined;
   TechCompanyDetail: { company_id: string };
   TechCompare: { ids: string[] };
+  TechLobbying: undefined;
+  TechContracts: undefined;
+  TechEnforcement: undefined;
+  GlobalSearch: undefined;
 };
 
 // ── Energy Stack ──
@@ -51,6 +86,10 @@ export type EnergyStackParamList = {
   EnergyCompaniesDirectory: undefined;
   EnergyCompanyDetail: { company_id: string };
   EnergyCompare: undefined;
+  EnergyLobbying: undefined;
+  EnergyContracts: undefined;
+  EnergyEnforcement: undefined;
+  GlobalSearch: undefined;
 };
 
 // ── Bottom Tabs ──

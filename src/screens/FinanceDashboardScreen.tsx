@@ -5,12 +5,14 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { FinanceDashboardStats, Institution } from '../api/types';
-import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
-import { SectorTypeBadge } from '../components/ui';
+import { LoadingSpinner, StatCard, EmptyState, SectorTypeBadge } from '../components/ui';
+import HeroBanner from '../components/HeroBanner';
+import NavCard from '../components/NavCard';
+import SectionHeader from '../components/SectionHeader';
+import DataFreshness from '../components/DataFreshness';
 
 const SECTOR_COLORS: Record<string, string> = {
   bank: '#2563EB',
@@ -21,6 +23,14 @@ const SECTOR_COLORS: Record<string, string> = {
 };
 
 const ACCENT = '#D4A017';
+
+function fmtMoney(n: number | undefined): string {
+  if (!n) return '$0';
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+  return `$${n}`;
+}
 
 export default function FinanceDashboardScreen() {
   const navigation = useNavigation<any>();
@@ -72,42 +82,51 @@ export default function FinanceDashboardScreen() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
     >
-      {/* Hero */}
-      <LinearGradient
-        colors={['#D4A017', '#B8860B', '#8B6914']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.hero}
-      >
-        <View style={styles.heroOrb} />
-        <View style={styles.heroInner}>
-          <View style={styles.heroIconRow}>
-            <Ionicons name="trending-up" size={24} color="#FFFFFF" />
-            <Text style={styles.heroTitle}>Finance Sector</Text>
-          </View>
-          <Text style={styles.heroSubtitle}>
-            SEC filings, FDIC financials, and consumer complaints
-          </Text>
-        </View>
-      </LinearGradient>
+      {/* Hero Banner */}
+      <HeroBanner
+        colors={['#D4A017', '#8B6914']}
+        icon="cash"
+        title="Follow the Money in Finance"
+        subtitle="Tracking lobbying, contracts, enforcement, and insider trades across Wall Street."
+      />
 
-      {/* Stats Grid */}
+      {/* Stats Grid — politics-first: lobbying/contracts/enforcement as primary */}
       {stats && (
         <View style={styles.statsGrid}>
-          <View style={styles.statHalf}>
-            <StatCard label="Institutions" value={stats.total_institutions} accent="gold" />
+          <View style={styles.statsRow}>
+            <View style={styles.statsHalf}>
+              <StatCard label="Institutions" value={stats.total_institutions} accent="gold" />
+            </View>
+            <View style={styles.statsHalf}>
+              <StatCard label="SEC Filings" value={stats.total_filings} accent="blue" />
+            </View>
           </View>
-          <View style={styles.statHalf}>
-            <StatCard label="SEC Filings" value={stats.total_filings} accent="blue" />
-          </View>
-          <View style={styles.statHalf}>
-            <StatCard label="FDIC Reports" value={stats.total_financials} accent="amber" />
-          </View>
-          <View style={styles.statHalf}>
-            <StatCard label="Complaints" value={stats.total_complaints} accent="red" />
+          <View style={styles.statsRow}>
+            <View style={styles.statsHalf}>
+              <StatCard label="FDIC Reports" value={stats.total_financials} accent="amber" />
+            </View>
+            <View style={styles.statsHalf}>
+              <StatCard label="Complaints" value={stats.total_complaints} accent="red" />
+            </View>
           </View>
         </View>
       )}
+
+      {/* Data Freshness */}
+      <DataFreshness />
+
+      {/* Nav Cards */}
+      <SectionHeader title="Explore" accent={ACCENT} />
+      <View style={styles.navGrid}>
+        <NavCard icon="business" title="Institutions" subtitle="Banks, investment firms, fintechs" onPress={() => navigation.navigate('InstitutionsDirectory')} accent={ACCENT} />
+        <NavCard icon="trending-down" title="Insider Trades" subtitle="Congressional & corporate" onPress={() => navigation.navigate('InsiderTrades')} accent="#DC2626" />
+        <NavCard icon="bar-chart" title="Macro Indicators" subtitle="FRED economic data" onPress={() => navigation.navigate('MacroIndicators')} accent="#2563EB" />
+        <NavCard icon="chatbox-ellipses" title="Complaints" subtitle="CFPB consumer data" onPress={() => navigation.navigate('Complaints')} accent="#F59E0B" />
+        <NavCard icon="document-text" title="Lobbying" subtitle="Senate LDA filings" onPress={() => navigation.navigate('FinanceLobbying')} accent="#C5960C" />
+        <NavCard icon="briefcase" title="Contracts" subtitle="USASpending.gov" onPress={() => navigation.navigate('FinanceContracts')} accent="#10B981" />
+        <NavCard icon="shield" title="Enforcement" subtitle="Regulatory actions" onPress={() => navigation.navigate('FinanceEnforcement')} accent="#DC2626" />
+        <NavCard icon="git-compare" title="Compare" subtitle="Side-by-side analysis" onPress={() => navigation.navigate('FinanceCompare')} accent="#8B5CF6" />
+      </View>
 
       {/* Sector Distribution */}
       {stats && Object.keys(stats.by_sector).length > 0 && (
@@ -130,17 +149,12 @@ export default function FinanceDashboardScreen() {
       )}
 
       {/* Featured Institutions */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <View style={[styles.accentBar, { backgroundColor: ACCENT }]} />
-            <Text style={styles.sectionTitle}>Featured Institutions</Text>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate('InstitutionsDirectory')}>
-            <Text style={styles.seeAll}>See All →</Text>
-          </TouchableOpacity>
-        </View>
-
+      <SectionHeader
+        title="Featured Institutions"
+        accent={ACCENT}
+        onViewAll={() => navigation.navigate('InstitutionsDirectory')}
+      />
+      <View style={styles.featuredList}>
         {institutions.length === 0 ? (
           <EmptyState title="No institutions yet" message="Run the data sync to populate institutions." />
         ) : (
@@ -181,25 +195,10 @@ export default function FinanceDashboardScreen() {
         )}
       </View>
 
-      {/* Compare CTA */}
-      <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-        <TouchableOpacity
-          style={styles.compareCta}
-          onPress={() => navigation.navigate('FinanceCompare')}
-        >
-          <Ionicons name="git-compare-outline" size={20} color="#fff" />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.compareCtaTitle}>Compare Institutions</Text>
-            <Text style={styles.compareCtaSub}>Side-by-side assets, income, filings, complaints</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
       {/* Footer */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          Data from SEC EDGAR, FDIC BankFind, and CFPB
+          Data from SEC EDGAR, FDIC BankFind, CFPB, Senate LDA, and USASpending.gov
         </Text>
       </View>
     </ScrollView>
@@ -209,50 +208,24 @@ export default function FinanceDashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: UI_COLORS.SECONDARY_BG },
   scrollContent: { paddingBottom: 24 },
-  hero: {
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 16,
-    marginTop: 12,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  heroOrb: {
-    position: 'absolute',
-    top: -60,
-    right: -40,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  heroInner: {
-    position: 'relative',
-  },
-  heroIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  heroTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  heroSubtitle: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 13,
-    lineHeight: 19,
-  },
   statsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10, marginBottom: 16, marginTop: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 12,
   },
-  statHalf: { width: '48%' as any, flexGrow: 1 },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statsHalf: {
+    flex: 1,
+  },
+  navGrid: {
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 16,
+  },
   section: { paddingHorizontal: 16, marginBottom: 16 },
-  sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
-  },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -264,13 +237,16 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   sectionTitle: { color: UI_COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: '700' },
-  seeAll: { color: ACCENT, fontSize: 13, fontWeight: '600' },
   sectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   sectorChip: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, gap: 6,
   },
   sectorDot: { width: 8, height: 8, borderRadius: 4 },
   sectorChipText: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  featuredList: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
   instCard: {
     backgroundColor: UI_COLORS.CARD_BG, borderRadius: 12, padding: 14, marginBottom: 8,
     borderWidth: 1, borderColor: UI_COLORS.BORDER,
@@ -297,12 +273,6 @@ const styles = StyleSheet.create({
     marginTop: 16, backgroundColor: ACCENT, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 8,
   },
   retryText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
-  compareCta: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: UI_COLORS.ACCENT, borderRadius: 12, padding: 16,
-  },
-  compareCtaTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  compareCtaSub: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   footer: { marginTop: 16, alignItems: 'center', paddingHorizontal: 24 },
   footerText: { color: UI_COLORS.TEXT_MUTED, fontSize: 11, textAlign: 'center' },
 });

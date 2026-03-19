@@ -147,11 +147,15 @@ export default function PoliticsCompareScreen() {
                     {p.display_name.split(' ').pop()} ({p.party?.charAt(0)})
                   </Text>
                   <View style={styles.tierBars}>
-                    {Object.entries(tiers).sort(([a], [b]) => a.localeCompare(b)).map(([tier, count]) => (
-                      <View key={tier} style={styles.tierChip}>
-                        <Text style={styles.tierChipText}>{tier}: {count}</Text>
-                      </View>
-                    ))}
+                    {Object.keys(tiers).length > 0 ? (
+                      Object.entries(tiers).sort(([a], [b]) => a.localeCompare(b)).map(([tier, count]) => (
+                        <View key={tier} style={styles.tierChip}>
+                          <Text style={styles.tierChipText}>{tier}: {count ?? 0}</Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.noDataText}>No tier data</Text>
+                    )}
                   </View>
                 </TouchableOpacity>
               );
@@ -250,4 +254,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#8B5CF6' + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
   },
   tierChipText: { fontSize: 10, fontWeight: '600', color: '#8B5CF6' },
+  noDataText: { fontSize: 10, color: UI_COLORS.TEXT_MUTED, fontStyle: 'italic' },
 });

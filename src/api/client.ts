@@ -51,22 +51,44 @@ import type {
   FinanceComparisonResponse,
   PoliticsComparisonResponse,
   InsiderTradesResponse,
+  // Influence
+  InfluenceStats,
+  InfluenceNetworkResponse,
+  SpendingByStateResponse,
+  TradeTimelineResponse,
+  DataFreshnessResponse,
+  TopLobbyingItem,
+  TopContractsItem,
+  CongressionalTradesResponse,
+  // Search
+  GlobalSearchResponse,
+  // State
+  StatesListResponse,
+  StateDashboardData,
+  StateLegislatorsResponse,
+  StateBillsResponse,
+  // Representatives
+  RepresentativesResponse,
+  // Recent Activity
+  RecentActivityResponse,
+  // Health Comparison
+  HealthComparisonResponse,
 } from './types';
 
 // Hardcoded production API URL.
 // Overridable via app.config.ts extra.apiUrl (set WTP_API_URL env var at build time).
-const PRODUCTION_API = 'http://localhost:8006';
+const PRODUCTION_API = 'https://api.wethepeopleforus.com';
 
 function getApiUrl(): string {
   try {
     // Prefer env-driven value from app.config.ts if available
     const fromConfig = Constants.expoConfig?.extra?.apiUrl;
-    if (fromConfig && fromConfig !== 'http://localhost:8006') return fromConfig;
+    if (fromConfig && fromConfig !== 'https://api.wethepeopleforus.com') return fromConfig;
 
     const manifest = Constants.manifest ?? Constants.manifest2;
     const fromManifest = (manifest as any)?.extra?.apiUrl
       ?? (manifest as any)?.extra?.expoClient?.extra?.apiUrl;
-    if (fromManifest && fromManifest !== 'http://localhost:8006') return fromManifest;
+    if (fromManifest && fromManifest !== 'https://api.wethepeopleforus.com') return fromManifest;
   } catch (_) {
     // Constants may not be available in all contexts
   }
@@ -621,6 +643,345 @@ class WTPClient {
     return this.fetchJSON<BillDetail>(
       `${this.baseUrl}/bills/${encodeURIComponent(billId)}`
     );
+  }
+
+  // ── Influence ──
+
+  async getInfluenceStats(): Promise<InfluenceStats> {
+    return this.fetchJSON<InfluenceStats>(`${this.baseUrl}/influence/stats`);
+  }
+
+  async getInfluenceNetwork(
+    entityType: string,
+    entityId: string,
+    depth?: number,
+    limit?: number
+  ): Promise<InfluenceNetworkResponse> {
+    const sp = new URLSearchParams();
+    sp.set('entity_type', entityType);
+    sp.set('entity_id', entityId);
+    if (depth !== undefined) sp.set('depth', depth.toString());
+    if (limit !== undefined) sp.set('limit', limit.toString());
+    return this.fetchJSON<InfluenceNetworkResponse>(`${this.baseUrl}/influence/network?${sp}`);
+  }
+
+  async getSpendingByState(metric: string, sector?: string): Promise<SpendingByStateResponse> {
+    const sp = new URLSearchParams();
+    sp.set('metric', metric);
+    if (sector) sp.set('sector', sector);
+    return this.fetchJSON<SpendingByStateResponse>(`${this.baseUrl}/influence/spending-by-state?${sp}`);
+  }
+
+  async getTopLobbying(limit?: number): Promise<TopLobbyingItem[]> {
+    const sp = new URLSearchParams();
+    if (limit !== undefined) sp.set('limit', limit.toString());
+    return this.fetchJSON<TopLobbyingItem[]>(`${this.baseUrl}/influence/top-lobbying?${sp}`);
+  }
+
+  async getTopContracts(limit?: number): Promise<TopContractsItem[]> {
+    const sp = new URLSearchParams();
+    if (limit !== undefined) sp.set('limit', limit.toString());
+    return this.fetchJSON<TopContractsItem[]>(`${this.baseUrl}/influence/top-contracts?${sp}`);
+  }
+
+  async getTradeTimeline(
+    ticker: string,
+    personId?: string,
+    range?: string
+  ): Promise<TradeTimelineResponse> {
+    const sp = new URLSearchParams();
+    sp.set('ticker', ticker);
+    if (personId) sp.set('person_id', personId);
+    if (range) sp.set('range', range);
+    return this.fetchJSON<TradeTimelineResponse>(`${this.baseUrl}/influence/trade-timeline?${sp}`);
+  }
+
+  async getDataFreshness(): Promise<DataFreshnessResponse> {
+    return this.fetchJSON<DataFreshnessResponse>(`${this.baseUrl}/influence/data-freshness`);
+  }
+
+  async getCongressionalTrades(params?: {
+    ticker?: string;
+    party?: string;
+    person_id?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<CongressionalTradesResponse> {
+    const sp = new URLSearchParams();
+    if (params?.ticker) sp.set('ticker', params.ticker);
+    if (params?.party) sp.set('party', params.party);
+    if (params?.person_id) sp.set('person_id', params.person_id);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<CongressionalTradesResponse>(`${this.baseUrl}/congressional-trades?${sp}`);
+  }
+
+  // ── Search ──
+
+  async globalSearch(q: string): Promise<GlobalSearchResponse> {
+    const sp = new URLSearchParams();
+    sp.set('q', q);
+    return this.fetchJSON<GlobalSearchResponse>(`${this.baseUrl}/search?${sp}`);
+  }
+
+  // ── State ──
+
+  async getStates(): Promise<StatesListResponse> {
+    return this.fetchJSON<StatesListResponse>(`${this.baseUrl}/states`);
+  }
+
+  async getStateDashboard(code: string): Promise<StateDashboardData> {
+    return this.fetchJSON<StateDashboardData>(
+      `${this.baseUrl}/states/${encodeURIComponent(code)}`
+    );
+  }
+
+  async getStateLegislators(
+    code: string,
+    params?: { party?: string; chamber?: string; limit?: number; offset?: number }
+  ): Promise<StateLegislatorsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.party) sp.set('party', params.party);
+    if (params?.chamber) sp.set('chamber', params.chamber);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<StateLegislatorsResponse>(
+      `${this.baseUrl}/states/${encodeURIComponent(code)}/legislators?${sp}`
+    );
+  }
+
+  async getStateBills(
+    code: string,
+    params?: { q?: string; limit?: number; offset?: number }
+  ): Promise<StateBillsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.q) sp.set('q', params.q);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<StateBillsResponse>(
+      `${this.baseUrl}/states/${encodeURIComponent(code)}/bills?${sp}`
+    );
+  }
+
+  // ── Politics (additional) ──
+
+  async getRepresentatives(zip: string): Promise<RepresentativesResponse> {
+    const sp = new URLSearchParams();
+    sp.set('zip', zip);
+    return this.fetchJSON<RepresentativesResponse>(`${this.baseUrl}/representatives?${sp}`);
+  }
+
+  async getPersonTrades(personId: string): Promise<CongressionalTradesResponse> {
+    return this.fetchJSON<CongressionalTradesResponse>(
+      `${this.baseUrl}/people/${encodeURIComponent(personId)}/trades`
+    );
+  }
+
+  async getPersonIndustryDonors(personId: string): Promise<any> {
+    return this.fetchJSON<any>(
+      `${this.baseUrl}/people/${encodeURIComponent(personId)}/industry-donors`
+    );
+  }
+
+  // ── Finance (additional political data) ──
+
+  async getInstitutionLobbying(
+    id: string,
+    params?: { filing_year?: number; limit?: number; offset?: number }
+  ): Promise<LobbyingResponse> {
+    const sp = new URLSearchParams();
+    if (params?.filing_year !== undefined) sp.set('filing_year', params.filing_year.toString());
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<LobbyingResponse>(
+      `${this.baseUrl}/finance/institutions/${encodeURIComponent(id)}/lobbying?${sp}`
+    );
+  }
+
+  async getInstitutionLobbySummary(id: string): Promise<LobbyingSummary> {
+    return this.fetchJSON<LobbyingSummary>(
+      `${this.baseUrl}/finance/institutions/${encodeURIComponent(id)}/lobbying/summary`
+    );
+  }
+
+  async getInstitutionContracts(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<ContractsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<ContractsResponse>(
+      `${this.baseUrl}/finance/institutions/${encodeURIComponent(id)}/contracts?${sp}`
+    );
+  }
+
+  async getInstitutionContractSummary(id: string): Promise<ContractSummary> {
+    return this.fetchJSON<ContractSummary>(
+      `${this.baseUrl}/finance/institutions/${encodeURIComponent(id)}/contracts/summary`
+    );
+  }
+
+  async getInstitutionEnforcement(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<EnforcementResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<EnforcementResponse>(
+      `${this.baseUrl}/finance/institutions/${encodeURIComponent(id)}/enforcement?${sp}`
+    );
+  }
+
+  async getInstitutionDonations(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(
+      `${this.baseUrl}/finance/institutions/${encodeURIComponent(id)}/donations?${sp}`
+    );
+  }
+
+  async getAllInsiderTrades(params?: {
+    ticker?: string; transaction_type?: string; limit?: number; offset?: number;
+  }): Promise<InsiderTradesResponse> {
+    const sp = new URLSearchParams();
+    if (params?.ticker) sp.set('ticker', params.ticker);
+    if (params?.transaction_type) sp.set('transaction_type', params.transaction_type);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<InsiderTradesResponse>(`${this.baseUrl}/finance/insider-trades?${sp}`);
+  }
+
+  async getMacroIndicators(): Promise<any> {
+    return this.fetchJSON<any>(`${this.baseUrl}/finance/macro-indicators`);
+  }
+
+  async getAllComplaints(params?: {
+    product?: string; limit?: number; offset?: number;
+  }): Promise<ComplaintsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.product) sp.set('product', params.product);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<ComplaintsResponse>(`${this.baseUrl}/finance/complaints?${sp}`);
+  }
+
+  async getGlobalComplaintSummary(): Promise<ComplaintSummary> {
+    return this.fetchJSON<ComplaintSummary>(`${this.baseUrl}/finance/complaints/summary`);
+  }
+
+  async getSectorNews(): Promise<NewsResponse> {
+    return this.fetchJSON<NewsResponse>(`${this.baseUrl}/finance/sector-news`);
+  }
+
+  // ── Health (additional political data) ──
+
+  async getHealthCompanyLobbying(
+    id: string,
+    params?: { filing_year?: number; limit?: number; offset?: number }
+  ): Promise<LobbyingResponse> {
+    const sp = new URLSearchParams();
+    if (params?.filing_year !== undefined) sp.set('filing_year', params.filing_year.toString());
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<LobbyingResponse>(
+      `${this.baseUrl}/health/companies/${encodeURIComponent(id)}/lobbying?${sp}`
+    );
+  }
+
+  async getHealthCompanyLobbySummary(id: string): Promise<LobbyingSummary> {
+    return this.fetchJSON<LobbyingSummary>(
+      `${this.baseUrl}/health/companies/${encodeURIComponent(id)}/lobbying/summary`
+    );
+  }
+
+  async getHealthCompanyContracts(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<ContractsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<ContractsResponse>(
+      `${this.baseUrl}/health/companies/${encodeURIComponent(id)}/contracts?${sp}`
+    );
+  }
+
+  async getHealthCompanyContractSummary(id: string): Promise<ContractSummary> {
+    return this.fetchJSON<ContractSummary>(
+      `${this.baseUrl}/health/companies/${encodeURIComponent(id)}/contracts/summary`
+    );
+  }
+
+  async getHealthCompanyEnforcement(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<EnforcementResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<EnforcementResponse>(
+      `${this.baseUrl}/health/companies/${encodeURIComponent(id)}/enforcement?${sp}`
+    );
+  }
+
+  async getHealthCompanyDonations(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(
+      `${this.baseUrl}/health/companies/${encodeURIComponent(id)}/donations?${sp}`
+    );
+  }
+
+  async getHealthComparison(ids: string[]): Promise<HealthComparisonResponse> {
+    return this.fetchJSON<HealthComparisonResponse>(
+      `${this.baseUrl}/health/compare?ids=${ids.join(',')}`
+    );
+  }
+
+  // ── Tech (additional) ──
+
+  async getTechCompanyDonations(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(
+      `${this.baseUrl}/tech/companies/${encodeURIComponent(id)}/donations?${sp}`
+    );
+  }
+
+  async getTechRecentActivity(): Promise<RecentActivityResponse> {
+    return this.fetchJSON<RecentActivityResponse>(`${this.baseUrl}/tech/dashboard/recent-activity`);
+  }
+
+  // ── Energy (additional) ──
+
+  async getEnergyCompanyDonations(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(
+      `${this.baseUrl}/energy/companies/${encodeURIComponent(id)}/donations?${sp}`
+    );
+  }
+
+  async getEnergyRecentActivity(): Promise<RecentActivityResponse> {
+    return this.fetchJSON<RecentActivityResponse>(`${this.baseUrl}/energy/dashboard/recent-activity`);
   }
 }
 

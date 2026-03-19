@@ -12,31 +12,98 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
-import { SECTORS } from '../data/sectors';
 
 const { width } = Dimensions.get('window');
 const CARD_GAP = 12;
 const CARD_WIDTH = (width - 48 - CARD_GAP) / 2;
 
+// Politics-first sector definitions with updated taglines
+const SECTOR_CARDS = [
+  {
+    slug: 'politics',
+    name: 'Politics',
+    tagline: 'Follow the money from industry to Congress',
+    icon: '\u{1F3DB}\uFE0F',
+    gradientStart: '#2563EB',
+    gradientEnd: '#4338CA',
+    tab: 'PoliticsTab',
+    available: true,
+  },
+  {
+    slug: 'finance',
+    name: 'Finance',
+    tagline: 'Lobbying, contracts & enforcement on Wall Street',
+    icon: '\u{1F4B0}',
+    gradientStart: '#10B981',
+    gradientEnd: '#0F766E',
+    tab: 'FinanceTab',
+    available: true,
+  },
+  {
+    slug: 'health',
+    name: 'Health',
+    tagline: 'How pharma lobbies, wins contracts & faces regulators',
+    icon: '\u{1F3E5}',
+    gradientStart: '#F43F5E',
+    gradientEnd: '#BE185D',
+    tab: 'HealthTab',
+    available: true,
+  },
+  {
+    slug: 'energy',
+    name: 'Oil, Gas & Energy',
+    tagline: 'Tracking energy industry influence on policy',
+    icon: '\u{1F6E2}\uFE0F',
+    gradientStart: '#475569',
+    gradientEnd: '#3F3F46',
+    tab: 'EnergyTab',
+    available: true,
+  },
+  {
+    slug: 'technology',
+    name: 'Technology',
+    tagline: 'Big Tech lobbying, patents & government contracts',
+    icon: '\u{1F4BB}',
+    gradientStart: '#8B5CF6',
+    gradientEnd: '#7C3AED',
+    tab: 'TechnologyTab',
+    available: true,
+  },
+];
+
+const COMING_SOON = [
+  {
+    slug: 'chemicals',
+    name: 'Chemicals',
+    tagline: 'Chemical industry safety & lobbying',
+    icon: '\u2697\uFE0F',
+    gradientStart: '#F59E0B',
+    gradientEnd: '#C2410C',
+  },
+  {
+    slug: 'defense',
+    name: 'Defense',
+    tagline: 'Military contractor accountability',
+    icon: '\u{1F6E1}\uFE0F',
+    gradientStart: '#DC2626',
+    gradientEnd: '#9F1239',
+  },
+  {
+    slug: 'agriculture',
+    name: 'Agriculture',
+    tagline: 'Food safety & farming lobbying',
+    icon: '\u{1F33E}',
+    gradientStart: '#84CC16',
+    gradientEnd: '#15803D',
+  },
+];
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
 
-  const SECTOR_TAB_MAP: Record<string, string> = {
-    politics: 'PoliticsTab',
-    finance: 'FinanceTab',
-    health: 'HealthTab',
-    energy: 'EnergyTab',
-    technology: 'TechnologyTab',
-  };
-
-  const handleSectorPress = (sector: typeof SECTORS[0]) => {
-    if (sector.available) {
-      const tabName = SECTOR_TAB_MAP[sector.slug] || 'PoliticsTab';
-      navigation.getParent()?.navigate(tabName);
-    } else {
-      navigation.navigate('ComingSoon', { sector });
-    }
+  const handleSectorPress = (sector: typeof SECTOR_CARDS[0]) => {
+    navigation.getParent()?.navigate(sector.tab);
   };
 
   return (
@@ -64,23 +131,44 @@ export default function HomeScreen() {
               <Text style={styles.brandTitle}>WeThePeople</Text>
             </View>
             <Text style={styles.heroSubtitle}>
-              Track what powerful people and institutions actually do
+              Follow the money from industry to politics
             </Text>
             <View style={styles.pillRow}>
               <View style={styles.pillOutline}>
                 <Text style={styles.pillText}>24+ Federal Sources</Text>
               </View>
               <View style={styles.pillGold}>
-                <Text style={styles.pillGoldText}>4 Sectors Live</Text>
+                <Text style={styles.pillGoldText}>5 Sectors Live</Text>
               </View>
             </View>
           </View>
         </LinearGradient>
 
-        {/* Sector grid — overlaps the hero */}
+        {/* Influence Explorer Card */}
         <View style={styles.gridContainer}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('InfluenceExplorer')}
+            style={styles.influenceCard}
+          >
+            <LinearGradient
+              colors={['#C5960C', '#8B6914']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.influenceGradient}
+            >
+              <Ionicons name="git-network" size={24} color="#FFFFFF" />
+              <View style={styles.influenceTextContainer}>
+                <Text style={styles.influenceTitle}>Influence Explorer</Text>
+                <Text style={styles.influenceSubtitle}>See how money connects corporations to politicians</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {/* Sector grid */}
           <View style={styles.grid}>
-            {SECTORS.filter(s => s.available).map((sector) => (
+            {SECTOR_CARDS.map((sector) => (
               <TouchableOpacity
                 key={sector.slug}
                 activeOpacity={0.85}
@@ -102,18 +190,18 @@ export default function HomeScreen() {
           </View>
 
           {/* Coming soon row */}
-          {SECTORS.filter(s => !s.available).length > 0 && (
+          {COMING_SOON.length > 0 && (
             <>
               <View style={styles.sectionRow}>
                 <View style={styles.accentBar} />
                 <Text style={styles.sectionTitle}>Coming Soon</Text>
               </View>
               <View style={styles.grid}>
-                {SECTORS.filter(s => !s.available).map((sector) => (
+                {COMING_SOON.map((sector) => (
                   <TouchableOpacity
                     key={sector.slug}
                     activeOpacity={0.85}
-                    onPress={() => handleSectorPress(sector)}
+                    onPress={() => navigation.navigate('ComingSoon', { sector })}
                     style={styles.cardWrapper}
                   >
                     <LinearGradient
@@ -139,7 +227,7 @@ export default function HomeScreen() {
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            WeThePeople — Holding power accountable across every sector
+            WeThePeople — Follow the money from industry to politics
           </Text>
         </View>
       </ScrollView>
@@ -155,7 +243,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 24,
   },
-  // ── Gradient Hero ──
+  // -- Gradient Hero --
   heroBanner: {
     paddingHorizontal: 24,
     paddingBottom: 48,
@@ -245,7 +333,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  // ── Grid ──
+  // -- Influence Explorer --
+  influenceCard: {
+    marginBottom: CARD_GAP,
+  },
+  influenceGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    padding: 18,
+    gap: 14,
+  },
+  influenceTextContainer: {
+    flex: 1,
+  },
+  influenceTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  influenceSubtitle: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  // -- Grid --
   gridContainer: {
     marginTop: -24,
     paddingHorizontal: 18,
@@ -298,7 +410,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-  // ── Section Headers ──
+  // -- Section Headers --
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -318,7 +430,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  // ── Footer ──
+  // -- Footer --
   footer: {
     marginTop: 32,
     alignItems: 'center',

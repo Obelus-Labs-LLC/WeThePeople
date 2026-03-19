@@ -14,10 +14,11 @@ import type {
 } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
+import { LobbyingTab, ContractsTab, EnforcementTab, DonationsTab } from '../components/company';
 
 const { width } = Dimensions.get('window');
 
-type Tab = 'overview' | 'safety' | 'trials' | 'filings';
+type Tab = 'overview' | 'safety' | 'trials' | 'filings' | 'lobbying' | 'contracts' | 'enforcement' | 'donations';
 
 export default function CompanyScreen() {
   const route = useRoute<any>();
@@ -47,6 +48,19 @@ export default function CompanyScreen() {
   // Safety filters
   const [recallFilter, setRecallFilter] = useState<string>('all');
   const [eventFilter, setEventFilter] = useState<string>('all');
+
+  // Political tabs data
+  const [lobbyingFilings, setLobbyingFilings] = useState<any[] | null>(null);
+  const [lobbySummary, setLobbySummary] = useState<any>(null);
+  const [lobbyingLoading, setLobbyingLoading] = useState(false);
+  const [contractsList, setContractsList] = useState<any[] | null>(null);
+  const [contractSummary, setContractSummary] = useState<any>(null);
+  const [contractsListLoading, setContractsListLoading] = useState(false);
+  const [enforcementActions, setEnforcementActions] = useState<any[] | null>(null);
+  const [enfTotalPenalties, setEnfTotalPenalties] = useState(0);
+  const [enforcementLoading, setEnforcementLoading] = useState(false);
+  const [donations, setDonations] = useState<any[] | null>(null);
+  const [donationsLoading, setDonationsLoading] = useState(false);
 
   // Overview extras
   const [payments, setPayments] = useState<CMSPaymentItem[]>([]);
@@ -127,6 +141,65 @@ export default function CompanyScreen() {
       .catch(() => {});
   }, [companyId]);
 
+  // Lazy-load lobbying
+  useEffect(() => {
+    if (tab === 'lobbying' && lobbyingFilings === null && !lobbyingLoading) {
+      setLobbyingLoading(true);
+      Promise.all([
+        apiClient.getHealthCompanyLobbying(companyId, { limit: 25 }),
+        apiClient.getHealthCompanyLobbySummary(companyId),
+      ])
+        .then(([filRes, sumRes]) => {
+          setLobbyingFilings(filRes.filings || []);
+          setLobbySummary(sumRes);
+        })
+        .catch(() => setLobbyingFilings([]))
+        .finally(() => setLobbyingLoading(false));
+    }
+  }, [tab, companyId]);
+
+  // Lazy-load contracts
+  useEffect(() => {
+    if (tab === 'contracts' && contractsList === null && !contractsListLoading) {
+      setContractsListLoading(true);
+      Promise.all([
+        apiClient.getHealthCompanyContracts(companyId, { limit: 25 }),
+        apiClient.getHealthCompanyContractSummary(companyId),
+      ])
+        .then(([ctRes, sumRes]) => {
+          setContractsList(ctRes.contracts || []);
+          setContractSummary(sumRes);
+        })
+        .catch(() => setContractsList([]))
+        .finally(() => setContractsListLoading(false));
+    }
+  }, [tab, companyId]);
+
+  // Lazy-load enforcement
+  useEffect(() => {
+    if (tab === 'enforcement' && enforcementActions === null && !enforcementLoading) {
+      setEnforcementLoading(true);
+      apiClient.getHealthCompanyEnforcement(companyId, { limit: 50 })
+        .then((res) => {
+          setEnforcementActions(res.actions || []);
+          setEnfTotalPenalties(res.total_penalties || 0);
+        })
+        .catch(() => setEnforcementActions([]))
+        .finally(() => setEnforcementLoading(false));
+    }
+  }, [tab, companyId]);
+
+  // Lazy-load donations
+  useEffect(() => {
+    if (tab === 'donations' && donations === null && !donationsLoading) {
+      setDonationsLoading(true);
+      apiClient.getHealthCompanyDonations(companyId, { limit: 50 })
+        .then((res) => setDonations(res.donations || res || []))
+        .catch(() => setDonations([]))
+        .finally(() => setDonationsLoading(false));
+    }
+  }, [tab, companyId]);
+
   const onRefresh = () => { setRefreshing(true); loadCompany(); };
 
   if (loading) return <LoadingSpinner message="Loading company..." />;
@@ -137,9 +210,13 @@ export default function CompanyScreen() {
   return (
     <View style={styles.container}>
       {/* Tab bar */}
-      <View style={styles.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar} contentContainerStyle={styles.tabBarContent}>
         {([
           { key: 'overview' as Tab, label: 'Overview', icon: 'grid-outline' },
+          { key: 'lobbying' as Tab, label: 'Lobbying', icon: 'megaphone-outline' },
+          { key: 'contracts' as Tab, label: 'Contracts', icon: 'briefcase-outline' },
+          { key: 'enforcement' as Tab, label: 'Enforcement', icon: 'shield-checkmark-outline' },
+          { key: 'donations' as Tab, label: 'Donations', icon: 'heart-outline' },
           { key: 'safety' as Tab, label: 'Safety', icon: 'shield-outline' },
           { key: 'trials' as Tab, label: 'Trials', icon: 'flask-outline' },
           { key: 'filings' as Tab, label: 'Filings', icon: 'document-text-outline' },
@@ -162,7 +239,7 @@ export default function CompanyScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
@@ -187,6 +264,10 @@ export default function CompanyScreen() {
 
         {/* Tab Content */}
         {tab === 'overview' && renderOverview(company, paymentSummary, stockData, sectorColor, setTab)}
+        {tab === 'lobbying' && <LobbyingTab filings={lobbyingFilings} summary={lobbySummary} loading={lobbyingLoading} />}
+        {tab === 'contracts' && <ContractsTab contracts={contractsList} summary={contractSummary} loading={contractsListLoading} />}
+        {tab === 'enforcement' && <EnforcementTab actions={enforcementActions} totalPenalties={enfTotalPenalties} loading={enforcementLoading} />}
+        {tab === 'donations' && <DonationsTab donations={donations} loading={donationsLoading} />}
         {tab === 'safety' && renderSafety(events, recalls, safetyLoading, recallFilter, setRecallFilter, eventFilter, setEventFilter)}
         {tab === 'trials' && renderTrials(trials, trialsLoading)}
         {tab === 'filings' && renderFilings(filings, filingsLoading)}
@@ -670,15 +751,17 @@ const styles = StyleSheet.create({
 
   // Tab bar
   tabBar: {
-    flexDirection: 'row',
     backgroundColor: UI_COLORS.CARD_BG,
     borderBottomWidth: 1,
     borderBottomColor: UI_COLORS.BORDER_LIGHT,
+  },
+  tabBarContent: {
+    flexDirection: 'row',
     paddingHorizontal: 8,
   },
   tabBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 12, gap: 6,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 12, paddingHorizontal: 10, gap: 6,
     borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
   tabBtnActive: { borderBottomColor: UI_COLORS.ACCENT },

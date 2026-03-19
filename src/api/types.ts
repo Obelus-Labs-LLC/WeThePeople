@@ -811,3 +811,287 @@ export interface BillDetail {
   is_enriched: boolean;
   source_urls: string[];
 }
+
+// ── Influence Types ──
+
+export interface InfluenceStats {
+  total_lobbying_spend: number;
+  total_contract_value: number;
+  total_enforcement_actions: number;
+  politicians_connected: number;
+  by_sector: Record<string, number>;
+}
+
+export interface InfluenceNetworkNode {
+  id: string;
+  type: string;
+  label: string;
+  sector?: string;
+  party?: string;
+  photo_url?: string;
+  logo_url?: string;
+}
+
+export interface InfluenceNetworkEdge {
+  source: string;
+  target: string;
+  type: string;
+  label: string;
+  amount?: number;
+  count?: number;
+}
+
+export interface InfluenceNetworkResponse {
+  nodes: InfluenceNetworkNode[];
+  edges: InfluenceNetworkEdge[];
+  stats: Record<string, any>;
+}
+
+export interface SpendingByStateItem {
+  value: number;
+  count: number;
+}
+
+export interface SpendingByStateResponse {
+  metric: string;
+  sector: string;
+  states: Record<string, SpendingByStateItem>;
+}
+
+export interface TradeTimelineItem {
+  date: string;
+  person_id: string;
+  display_name: string;
+  party: string;
+  transaction_type: string;
+  amount_range: string;
+  reporting_gap: number;
+}
+
+export interface TradeTimelineResponse {
+  ticker: string;
+  trades: TradeTimelineItem[];
+}
+
+export interface DataFreshnessItem {
+  last_updated: string;
+  record_count: number;
+}
+
+export type DataFreshnessResponse = Record<string, DataFreshnessItem>;
+
+export interface TopLobbyingItem {
+  entity_id: string;
+  entity_type: string;
+  display_name: string;
+  total_income: number;
+  filing_count: number;
+}
+
+export interface TopContractsItem {
+  entity_id: string;
+  entity_type: string;
+  display_name: string;
+  total_value: number;
+  contract_count: number;
+}
+
+// ── State Types ──
+
+export interface StateListEntry {
+  code: string;
+  name: string;
+  legislator_count: number;
+  bill_count: number;
+}
+
+export interface StatesListResponse {
+  states: StateListEntry[];
+}
+
+export interface StateLegislator {
+  ocd_id: string;
+  name: string;
+  state: string;
+  chamber: string;
+  party: string;
+  district: string;
+  photo_url: string | null;
+  is_active: boolean;
+}
+
+export interface StateBill {
+  bill_id: string;
+  state: string;
+  session: string;
+  identifier: string;
+  title: string;
+  subjects: string[];
+  latest_action: string | null;
+  latest_action_date: string | null;
+  sponsor_name: string | null;
+  source_url: string | null;
+}
+
+export interface StateDashboardData {
+  state_code: string;
+  state_name: string;
+  total_legislators: number;
+  total_bills: number;
+  by_party: Record<string, number>;
+  party_by_chamber: Record<string, Record<string, number>>;
+  recent_bills: StateBill[];
+}
+
+export interface StateLegislatorsResponse {
+  legislators: StateLegislator[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface StateBillsResponse {
+  bills: StateBill[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// ── Search Types ──
+
+export interface PoliticianSearchResult {
+  person_id: string;
+  display_name: string;
+  party: string;
+  state: string;
+  chamber: string;
+  photo_url: string | null;
+}
+
+export interface CompanySearchResult {
+  id: string;
+  display_name: string;
+  ticker: string | null;
+  sector: string;
+  entity_type: string;
+}
+
+export interface GlobalSearchResponse {
+  politicians: PoliticianSearchResult[];
+  companies: CompanySearchResult[];
+  query: string;
+}
+
+// ── Congressional Trades ──
+
+export interface CongressionalTrade {
+  id: number;
+  member_name: string;
+  party: string;
+  state: string;
+  ticker: string;
+  transaction_type: string;
+  amount_range: string;
+  transaction_date: string;
+  disclosure_date: string;
+  reporting_gap_days: number;
+  source_url: string | null;
+}
+
+export interface CongressionalTradesResponse {
+  trades: CongressionalTrade[];
+  total: number;
+}
+
+// ── Representatives ──
+
+export interface RepresentativeResult {
+  person_id: string;
+  display_name: string;
+  party: string;
+  state: string;
+  chamber: string;
+  district: string | null;
+  photo_url: string | null;
+  is_senator: boolean;
+}
+
+export interface RepresentativesResponse {
+  representatives: RepresentativeResult[];
+  state: string;
+}
+
+// ── Generic Sector Lobbying/Contracts/Enforcement/Donations ──
+
+export interface LobbyingRecord {
+  id: number;
+  entity_name: string;
+  entity_id: string;
+  filing_period: string;
+  income: number | null;
+  issue: string | null;
+  registrant_name: string | null;
+  source_url: string | null;
+}
+
+export interface GovernmentContract {
+  id: number;
+  entity_name: string;
+  entity_id: string;
+  award_amount: number | null;
+  awarding_agency: string | null;
+  description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  source_url: string | null;
+}
+
+export interface DonationRecord {
+  id: number;
+  entity_type: string;
+  entity_id: string;
+  person_id: string;
+  committee_name: string | null;
+  candidate_name: string | null;
+  amount: number | null;
+  cycle: string | null;
+  donation_date: string | null;
+  source_url: string | null;
+}
+
+// ── Sector Recent Activity ──
+
+export interface RecentActivityItem {
+  type: string;
+  title: string;
+  description: string | null;
+  date: string;
+  company_id?: string;
+  company_name?: string;
+  url?: string;
+  meta?: Record<string, any>;
+}
+
+export interface RecentActivityResponse {
+  items: RecentActivityItem[];
+}
+
+// ── Health Comparison ──
+
+export interface HealthComparisonItem {
+  company_id: string;
+  display_name: string;
+  ticker: string | null;
+  sector_type: string;
+  adverse_event_count: number;
+  recall_count: number;
+  trial_count: number;
+  payment_count: number;
+  lobbying_total: number;
+  enforcement_count: number;
+  total_penalties: number;
+}
+
+export interface HealthComparisonResponse {
+  companies: HealthComparisonItem[];
+}

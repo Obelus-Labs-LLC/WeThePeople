@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Constants from 'expo-constants';
 import {
   View,
@@ -9,10 +9,13 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
+import { apiClient } from '../api/client';
+import type { DataFreshnessResponse } from '../api/types';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -135,8 +138,21 @@ const DATA_SOURCES: { sector: SectorKey; title: string; color: string; icon: str
 
 const TOTAL_SOURCES = DATA_SOURCES.reduce((sum, s) => sum + s.sources.length, 0);
 
-export default function SettingsScreen() {
+interface SettingsScreenProps {
+  navigation?: any;
+}
+
+export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [expanded, setExpanded] = useState<Set<SectorKey>>(new Set(['politics']));
+  const [freshness, setFreshness] = useState<DataFreshnessResponse | null>(null);
+  const [freshnessLoading, setFreshnessLoading] = useState(true);
+
+  useEffect(() => {
+    apiClient.getDataFreshness()
+      .then(setFreshness)
+      .catch(() => {})
+      .finally(() => setFreshnessLoading(false));
+  }, []);
 
   const toggle = (key: SectorKey) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -174,7 +190,7 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>App Info</Text>
         </View>
         <View style={styles.card}>
-          <InfoRow icon="code-slash" label="Version" value="1.0.0" />
+          <InfoRow icon="code-slash" label="Version" value={Constants.expoConfig?.version || (Constants as any).manifest?.version || '1.0.0'} />
           <InfoRow icon="server" label="API Server" value={(Constants.expoConfig?.extra?.apiUrl || 'localhost').replace(/^https?:\/\//, '').replace(/:\d+$/, '')} />
           <InfoRow icon="business" label="Developer" value="Obelus Labs LLC" last />
         </View>
@@ -197,6 +213,72 @@ export default function SettingsScreen() {
             Built for transparency across politics, finance, health, and technology sectors.
             Every claim is verified against real data sources.
           </Text>
+        </View>
+      </View>
+
+      {/* Quick Links */}
+      <View style={styles.section}>
+        <View style={styles.sectionTitleRow}>
+          <View style={[styles.accentBar, { backgroundColor: UI_COLORS.ACCENT }]} />
+          <Text style={styles.sectionTitle}>Quick Links</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.linkRow}
+          onPress={() => navigation?.navigate?.('Methodology')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.linkIcon, { backgroundColor: UI_COLORS.GOLD + '12' }]}>
+            <Ionicons name="flask-outline" size={18} color={UI_COLORS.GOLD} />
+          </View>
+          <View style={styles.linkInfo}>
+            <Text style={styles.linkTitle}>Methodology</Text>
+            <Text style={styles.linkSubtitle}>Data sources and known limitations</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={UI_COLORS.TEXT_MUTED} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.linkRow, { marginTop: 6 }]}
+          onPress={() => navigation?.navigate?.('About')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.linkIcon, { backgroundColor: UI_COLORS.ACCENT + '12' }]}>
+            <Ionicons name="information-circle-outline" size={18} color={UI_COLORS.ACCENT} />
+          </View>
+          <View style={styles.linkInfo}>
+            <Text style={styles.linkTitle}>About</Text>
+            <Text style={styles.linkSubtitle}>Mission, team, and links</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={UI_COLORS.TEXT_MUTED} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Data Freshness */}
+      <View style={styles.section}>
+        <View style={styles.sectionTitleRow}>
+          <View style={[styles.accentBar, { backgroundColor: UI_COLORS.SUCCESS }]} />
+          <Text style={styles.sectionTitle}>Data Freshness</Text>
+        </View>
+        <View style={styles.card}>
+          {freshnessLoading ? (
+            <ActivityIndicator size="small" color={UI_COLORS.ACCENT} />
+          ) : freshness ? (
+            Object.entries(freshness).map(([key, item], i, arr) => (
+              <View key={key} style={[settingsStyles.infoRow, i < arr.length - 1 && settingsStyles.infoRowBorder]}>
+                <View style={settingsStyles.infoRowLeft}>
+                  <Ionicons name="sync-outline" size={14} color={UI_COLORS.TEXT_MUTED} />
+                  <Text style={settingsStyles.infoLabel}>{key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={settingsStyles.infoValue}>
+                    {item.last_updated ? new Date(item.last_updated).toLocaleDateString() : 'N/A'}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: UI_COLORS.TEXT_MUTED }}>{item.record_count.toLocaleString()} records</Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <Text style={{ color: UI_COLORS.TEXT_MUTED, fontSize: 13 }}>Unable to load freshness data</Text>
+          )}
         </View>
       </View>
 
@@ -498,5 +580,38 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderTopWidth: 1,
     borderTopColor: UI_COLORS.BORDER,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: UI_COLORS.BORDER,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  linkIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  linkInfo: { flex: 1 },
+  linkTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: UI_COLORS.TEXT_PRIMARY,
+  },
+  linkSubtitle: {
+    fontSize: 12,
+    color: UI_COLORS.TEXT_SECONDARY,
+    marginTop: 1,
   },
 });
