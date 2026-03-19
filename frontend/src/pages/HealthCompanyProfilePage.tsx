@@ -35,11 +35,11 @@ import {
 } from '../api/health';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import { LOCAL_LOGOS } from '../data/healthLogos';
+import { getLogoUrl } from '../utils/logos';
+import CompanyLogo from '../components/CompanyLogo';
 
 function companyLogoUrl(c: { company_id: string; logo_url?: string | null; display_name: string }): string {
-  if (LOCAL_LOGOS.has(c.company_id)) return `/logos/${c.company_id}.png`;
-  if (c.logo_url) return c.logo_url;
-  return '';
+  return getLogoUrl(c.company_id, c.logo_url, LOCAL_LOGOS);
 }
 
 // -- Helpers --
@@ -997,15 +997,16 @@ export default function HealthCompanyProfilePage() {
           style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}
         >
           {/* Logo */}
-          <div
-            className="w-32 h-32 rounded-2xl border p-4 shadow-sm mb-6 flex items-center justify-center mx-auto"
-            style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)' }}
-          >
-            {companyLogoUrl(company) ? (
-              <img src={companyLogoUrl(company)} alt="" className="w-full h-full object-contain" />
-            ) : (
-              <Pill size={48} style={{ color: 'rgba(255,255,255,0.2)' }} />
-            )}
+          <div className="mb-6 flex justify-center">
+            <CompanyLogo
+              id={company.company_id}
+              name={company.display_name}
+              logoUrl={company.logo_url}
+              localLogos={LOCAL_LOGOS}
+              size={128}
+              iconFallback
+              className="rounded-2xl"
+            />
           </div>
 
           {/* Name */}

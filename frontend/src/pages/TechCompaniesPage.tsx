@@ -6,7 +6,10 @@ import { useInView } from 'framer-motion';
 import DomeGallery from '../components/DomeGallery';
 import ViewToggle, { type ViewMode } from '../components/ViewToggle';
 import SpotlightCard from '../components/SpotlightCard';
+import CompanyLogo from '../components/CompanyLogo';
 import { TechSectorHeader } from '../components/SectorHeader';
+import { getLogoUrl } from '../utils/logos';
+import { LOCAL_LOGOS } from '../data/techLogos';
 import {
   getTechCompanies,
   type TechCompanyListItem,
@@ -38,23 +41,10 @@ function getSectorLabel(sector: string): string {
   return SECTOR_LABELS[sector.toLowerCase()] || sector.toUpperCase();
 }
 
-import { LOCAL_LOGOS } from '../data/techLogos';
-
-// ── Company logo URL ──
+// ── Company logo URL (unified via getLogoUrl) ──
 
 function companyLogoUrl(company: TechCompanyListItem): string {
-  if (LOCAL_LOGOS.has(company.company_id)) {
-    return `/logos/${company.company_id}.png`;
-  }
-  if (company.logo_url) return company.logo_url;
-  const initials = company.display_name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=18181B&color=a1a1aa&size=256&font-size=0.4&bold=true`;
+  return getLogoUrl(company.company_id, company.logo_url, LOCAL_LOGOS);
 }
 
 // ── Filter Pill (matching finance style) ──
@@ -118,13 +108,14 @@ function DirectoryCompanyCard({ company, index }: { company: TechCompanyListItem
           <div className="relative flex h-full flex-col p-6 overflow-hidden">
             {/* Top row: logo + sector tag */}
             <div className="flex items-start justify-between mb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#111111] border border-white/5 p-1.5">
-                <img
-                  src={companyLogoUrl(company)}
-                  alt={company.display_name}
-                  className="h-full w-full object-contain"
-                />
-              </div>
+              <CompanyLogo
+                id={company.company_id}
+                name={company.display_name}
+                logoUrl={company.logo_url}
+                localLogos={LOCAL_LOGOS}
+                size={48}
+                iconFallback
+              />
               <span
                 className="rounded border px-2 py-1 font-mono text-xs"
                 style={{
@@ -244,11 +235,13 @@ export default function TechCompaniesPage() {
 
   const galleryImages = useMemo(
     () =>
-      filtered.map((co) => ({
-        src: companyLogoUrl(co),
-        alt: `${co.display_name}${co.ticker ? ` (${co.ticker})` : ''}`,
-        id: co.company_id,
-      })),
+      filtered
+        .map((co) => ({
+          src: companyLogoUrl(co),
+          alt: `${co.display_name}${co.ticker ? ` (${co.ticker})` : ''}`,
+          id: co.company_id,
+        }))
+        .filter((img) => img.src),
     [filtered],
   );
 

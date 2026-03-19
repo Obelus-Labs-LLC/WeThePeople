@@ -14,8 +14,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import SpotlightCard from '../components/SpotlightCard';
+import CompanyLogo from '../components/CompanyLogo';
 import { FinanceSectorHeader } from '../components/SectorHeader';
 import { LOCAL_LOGOS } from '../data/financeLogos';
+import { getLogoUrl } from '../utils/logos';
 import {
   getInstitutions,
   getFinanceComparison,
@@ -42,9 +44,7 @@ function fmtRatio(n: number | null | undefined): string {
 }
 
 function instLogoUrl(inst: { institution_id: string; logo_url?: string | null; display_name: string }): string {
-  if (LOCAL_LOGOS.has(inst.institution_id)) return `/logos/${inst.institution_id}.png`;
-  if (inst.logo_url) return inst.logo_url;
-  return '';
+  return getLogoUrl(inst.institution_id, inst.logo_url, LOCAL_LOGOS);
 }
 
 const SECTOR_LABELS: Record<string, string> = {

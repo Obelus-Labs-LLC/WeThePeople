@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { Search, Building2, MapPin, SearchX, ArrowLeft } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
+import CompanyLogo from '../components/CompanyLogo';
 import { FinanceSectorHeader } from '../components/SectorHeader';
 import { LOCAL_LOGOS } from '../data/financeLogos';
+import { getLogoUrl } from '../utils/logos';
 import {
   getInstitutions,
   type InstitutionListItem,
@@ -33,9 +35,7 @@ function sectorColor(type: string): string {
 }
 
 function instLogoUrl(inst: { institution_id: string; logo_url?: string | null; display_name: string }): string {
-  if (LOCAL_LOGOS.has(inst.institution_id)) return `/logos/${inst.institution_id}.png`;
-  if (inst.logo_url) return inst.logo_url;
-  return '';
+  return getLogoUrl(inst.institution_id, inst.logo_url, LOCAL_LOGOS);
 }
 
 // ── Filter Pill ──
@@ -105,17 +105,14 @@ function InstitutionCard({
           <div className="relative flex h-full flex-col p-6 overflow-hidden">
             {/* Top row: logo + sector tag */}
             <div className="flex items-start justify-between mb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#111111] border border-white/5">
-                {instLogoUrl(inst) ? (
-                  <img
-                    src={instLogoUrl(inst)}
-                    alt={inst.display_name}
-                    className="h-8 w-8 rounded object-contain"
-                  />
-                ) : (
-                  <Building2 size={20} className="text-white/20" />
-                )}
-              </div>
+              <CompanyLogo
+                id={inst.institution_id}
+                name={inst.display_name}
+                logoUrl={inst.logo_url}
+                localLogos={LOCAL_LOGOS}
+                size={48}
+                iconFallback
+              />
               <span
                 className="rounded border px-2 py-1 font-mono text-xs"
                 style={{

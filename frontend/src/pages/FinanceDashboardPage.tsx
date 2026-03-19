@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Building2, DollarSign, FileText, Shield, TrendingUp, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
+import CompanyLogo from '../components/CompanyLogo';
 import DataFreshness from '../components/DataFreshness';
 import { FinanceSectorHeader } from '../components/SectorHeader';
 import { LOCAL_LOGOS } from '../data/financeLogos';
@@ -14,14 +15,6 @@ import {
   type InstitutionListItem,
   type InsiderTradeItem,
 } from '../api/finance';
-
-// ── Helpers ──
-
-function instLogoUrl(inst: { institution_id: string; logo_url?: string | null; display_name: string }): string {
-  if (LOCAL_LOGOS.has(inst.institution_id)) return `/logos/${inst.institution_id}.png`;
-  if (inst.logo_url) return inst.logo_url;
-  return '';
-}
 
 function formatMoney(n: number): string {
   if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
@@ -376,7 +369,6 @@ export default function FinanceDashboardPage() {
             <div className="space-y-3">
               {institutions.map((inst, idx) => {
                 const color = SECTOR_COLORS[inst.sector_type] || '#34D399';
-                const logo = instLogoUrl(inst);
                 return (
                   <motion.div
                     key={inst.institution_id}
@@ -393,22 +385,14 @@ export default function FinanceDashboardPage() {
                         spotlightColor="rgba(52, 211, 153, 0.10)"
                       >
                         <div className="flex items-center gap-4 p-4">
-                          {logo ? (
-                            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#111111] ring-2 ring-white/10">
-                              <img
-                                src={logo}
-                                alt={inst.display_name}
-                                className="h-7 w-7 rounded object-contain"
-                              />
-                            </div>
-                          ) : (
-                            <div
-                              className="flex h-11 w-11 items-center justify-center rounded-full font-heading text-sm font-bold text-white ring-2 ring-white/10"
-                              style={{ backgroundColor: color + '33' }}
-                            >
-                              {inst.display_name.charAt(0)}
-                            </div>
-                          )}
+                          <CompanyLogo
+                            id={inst.institution_id}
+                            name={inst.display_name}
+                            logoUrl={inst.logo_url}
+                            localLogos={LOCAL_LOGOS}
+                            size={44}
+                            fallbackBg={color + '33'}
+                          />
                           <div className="min-w-0 flex-1">
                             <p className="font-body text-sm font-semibold text-white truncate">
                               {inst.display_name}

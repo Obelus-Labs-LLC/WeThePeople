@@ -4,6 +4,7 @@ import {
   GitCompare, Plus, Building2, ArrowLeft, Search, X,
 } from 'lucide-react';
 import { HealthSectorHeader } from '../components/SectorHeader';
+import CompanyLogo from '../components/CompanyLogo';
 import {
   getHealthCompanies,
   getHealthCompanyDetail,
@@ -12,11 +13,10 @@ import {
 } from '../api/health';
 import { fmtDollar, fmtNum } from '../utils/format';
 import { LOCAL_LOGOS } from '../data/healthLogos';
+import { getLogoUrl } from '../utils/logos';
 
 function companyLogoUrl(c: { company_id: string; logo_url?: string | null; display_name: string }): string {
-  if (LOCAL_LOGOS.has(c.company_id)) return `/logos/${c.company_id}.png`;
-  if (c.logo_url) return c.logo_url;
-  return '';
+  return getLogoUrl(c.company_id, c.logo_url, LOCAL_LOGOS);
 }
 
 // -- Helpers --
