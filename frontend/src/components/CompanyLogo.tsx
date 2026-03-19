@@ -24,8 +24,8 @@ interface CompanyLogoProps {
 }
 
 /**
- * Reusable company logo component with automatic Clearbit fallback.
- * Falls through: local file -> API logo_url -> Clearbit -> initials/icon.
+ * Reusable company logo component with automatic Google favicon fallback.
+ * Falls through: local file -> API logo_url -> Google Favicons (128px) -> initials/icon.
  */
 export default function CompanyLogo({
   id,

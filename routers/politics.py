@@ -1466,6 +1466,105 @@ def get_person_votes(
 
 # ── Bills ──
 
+@router.get("/bills")
+def list_bills(
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    status: Optional[str] = Query(None, description="Filter by status bucket"),
+    chamber: Optional[str] = Query(None, description="Filter by chamber: 'house' or 'senate'"),
+    q: Optional[str] = Query(None, description="Search bill title"),
+):
+    """List bills with optional filters for status, chamber, and keyword search."""
+    db = SessionLocal()
+    try:
+        base = db.query(Bill)
+
+        # Status filter — match status_bucket
+        if status:
+            # Map friendly names to possible status_bucket values
+            STATUS_MAP = {
+                "introduced": ["introduced"],
+                "in_committee": ["in_committee"],
+                "passed_one": ["passed_one", "passed_house", "passed_senate"],
+                "passed_both": ["passed_both"],
+                "became_law": ["enacted", "became_law", "signed"],
+                "vetoed": ["vetoed"],
+            }
+            allowed = STATUS_MAP.get(status.lower())
+            if allowed:
+                base = base.filter(Bill.status_bucket.in_(allowed))
+            else:
+                base = base.filter(func.lower(Bill.status_bucket) == status.lower())
+
+        # Chamber filter — bill_type prefix
+        if chamber:
+            ch = chamber.lower()
+            if ch == "house":
+                base = base.filter(Bill.bill_type.in_(["hr", "hres", "hjres", "hconres"]))
+            elif ch == "senate":
+                base = base.filter(Bill.bill_type.in_(["s", "sres", "sjres", "sconres"]))
+
+        # Keyword search on title
+        if q:
+            base = base.filter(Bill.title.ilike(f"%{q}%"))
+
+        total = base.with_entities(func.count(Bill.bill_id)).scalar() or 0
+
+        rows = (
+            base.order_by(desc(Bill.latest_action_date))
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+        # Collect bill_ids for sponsor lookup
+        bill_ids = [b.bill_id for b in rows]
+        sponsors_raw = (
+            db.query(MemberBillGroundTruth, TrackedMember)
+            .outerjoin(TrackedMember, TrackedMember.bioguide_id == MemberBillGroundTruth.bioguide_id)
+            .filter(MemberBillGroundTruth.bill_id.in_(bill_ids))
+            .all()
+        ) if bill_ids else []
+
+        # Group sponsors by bill_id
+        sponsors_by_bill: Dict[str, list] = {}
+        for gt, m in sponsors_raw:
+            sponsors_by_bill.setdefault(gt.bill_id, []).append({
+                "bioguide_id": gt.bioguide_id,
+                "role": gt.role,
+                "person_id": m.person_id if m else None,
+                "display_name": m.display_name if m else gt.bioguide_id,
+                "party": m.party if m else None,
+                "state": m.state if m else None,
+                "photo_url": m.photo_url if m else None,
+            })
+
+        bills_out = []
+        for b in rows:
+            bills_out.append({
+                "bill_id": b.bill_id,
+                "congress": b.congress,
+                "bill_type": b.bill_type,
+                "bill_number": b.bill_number,
+                "title": b.title,
+                "policy_area": b.policy_area,
+                "status_bucket": b.status_bucket,
+                "latest_action_text": b.latest_action_text,
+                "latest_action_date": b.latest_action_date.isoformat() if b.latest_action_date else None,
+                "introduced_date": b.introduced_date.isoformat() if b.introduced_date else None,
+                "sponsors": sponsors_by_bill.get(b.bill_id, []),
+            })
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "bills": bills_out,
+        }
+    finally:
+        db.close()
+
+
 @router.get("/bills/enrichment/stats")
 def get_bill_enrichment_stats():
     """Bill enrichment coverage stats."""
