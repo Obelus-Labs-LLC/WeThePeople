@@ -121,14 +121,15 @@ export default function InsiderTradesDashboardPage() {
                 </div>
                 <Filter size={16} className="text-white/50" />
                 <select
-                  className="rounded bg-slate-900 border border-white/10 px-2 py-1 font-mono text-xs text-white outline-none [&>option]:bg-slate-900 [&>option]:text-white"
+                  className="rounded bg-slate-800 border border-white/10 px-2 py-1 font-mono text-xs text-white outline-none"
+                  style={{ colorScheme: 'dark' }}
                   value={filter || ''}
                   onChange={(e) => setFilter(e.target.value || null)}
                 >
-                  <option value="">ALL TYPES</option>
-                  <option value="P">PURCHASE</option>
-                  <option value="S">SALE</option>
-                  <option value="A">AWARD</option>
+                  <option value="" style={{ background: '#1e293b', color: '#fff' }}>ALL TYPES</option>
+                  <option value="P" style={{ background: '#1e293b', color: '#fff' }}>PURCHASE</option>
+                  <option value="S" style={{ background: '#1e293b', color: '#fff' }}>SALE</option>
+                  <option value="A" style={{ background: '#1e293b', color: '#fff' }}>AWARD</option>
                 </select>
               </div>
             </div>

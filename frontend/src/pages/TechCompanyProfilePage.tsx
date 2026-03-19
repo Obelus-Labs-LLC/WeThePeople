@@ -34,11 +34,11 @@ import {
 } from '../api/tech';
 
 import { LOCAL_LOGOS } from '../data/techLogos';
+import { getLogoUrl } from '../utils/logos';
+import CompanyLogo from '../components/CompanyLogo';
 
 function logoUrl(companyId: string, apiLogoUrl: string | null): string {
-  if (LOCAL_LOGOS.has(companyId)) return `/logos/${companyId}.png`;
-  if (apiLogoUrl) return apiLogoUrl;
-  return '';
+  return getLogoUrl(companyId, apiLogoUrl, LOCAL_LOGOS);
 }
 
 function fmtPct(n: number | null | undefined): string {
@@ -236,13 +236,14 @@ export default function TechCompanyProfilePage() {
           transition={{ duration: 0.5 }}
           className="mb-6 flex items-center gap-6 rounded-xl border border-white/10 bg-white/[0.03] p-6 shrink-0"
         >
-          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/[0.05] border border-white/5">
-            {logo ? (
-              <img src={logo} alt={detail.display_name} className="h-12 w-12 object-contain" />
-            ) : (
-              <Building2 size={24} className="text-white/20" />
-            )}
-          </div>
+          <CompanyLogo
+            id={detail.company_id}
+            name={detail.display_name}
+            logoUrl={detail.logo_url}
+            localLogos={LOCAL_LOGOS}
+            size={64}
+            iconFallback
+          />
           <div className="min-w-0 flex-1">
             <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">
               {detail.display_name}

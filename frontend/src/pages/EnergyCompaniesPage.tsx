@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Search, MapPin, SearchX, Building2 } from 'lucide-react';
 import { useInView } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
+import CompanyLogo from '../components/CompanyLogo';
 import { EnergySectorHeader } from '../components/SectorHeader';
 import {
   getEnergyCompanies,
@@ -36,19 +37,7 @@ function getSectorLabel(sector: string): string {
   return SECTOR_LABELS[sector.toLowerCase()] || sector.toUpperCase();
 }
 
-// ── Company logo URL ──
-
-function companyLogoUrl(company: EnergyCompanyListItem): string {
-  if (company.logo_url) return company.logo_url;
-  const initials = company.display_name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=18181B&color=a1a1aa&size=256&font-size=0.4&bold=true`;
-}
+// (Company logos handled by CompanyLogo component)
 
 // ── Filter Pill ──
 
@@ -111,13 +100,13 @@ function DirectoryCompanyCard({ company, index }: { company: EnergyCompanyListIt
           <div className="relative flex h-full flex-col p-6 overflow-hidden">
             {/* Top row: logo + sector tag */}
             <div className="flex items-start justify-between mb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#111111] border border-white/5 p-1.5">
-                <img
-                  src={companyLogoUrl(company)}
-                  alt={company.display_name}
-                  className="h-full w-full object-contain"
-                />
-              </div>
+              <CompanyLogo
+                id={company.company_id}
+                name={company.display_name}
+                logoUrl={company.logo_url}
+                size={48}
+                iconFallback
+              />
               <span
                 className="rounded border px-2 py-1 font-mono text-xs"
                 style={{

@@ -4,6 +4,8 @@ import {
   ArrowLeft, Building2, Search, AlertTriangle, FlaskConical,
 } from 'lucide-react';
 import { HealthSectorHeader } from '../components/SectorHeader';
+import CompanyLogo from '../components/CompanyLogo';
+import { getLogoUrl } from '../utils/logos';
 import {
   getHealthCompanies,
   type CompanyListItem,
@@ -11,9 +13,7 @@ import {
 import { LOCAL_LOGOS } from '../data/healthLogos';
 
 function companyLogoUrl(c: { company_id: string; logo_url?: string | null; display_name: string }): string {
-  if (LOCAL_LOGOS.has(c.company_id)) return `/logos/${c.company_id}.png`;
-  if (c.logo_url) return c.logo_url;
-  return '';
+  return getLogoUrl(c.company_id, c.logo_url, LOCAL_LOGOS);
 }
 
 const SECTOR_COLORS: Record<string, string> = {
@@ -142,16 +142,14 @@ export default function HealthCompaniesPage() {
                 >
                   {/* Top: Logo + Sector */}
                   <div className="flex items-start justify-between mb-3">
-                    <div
-                      className="w-10 h-10 rounded-lg border flex items-center justify-center shrink-0"
-                      style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.15)', padding: '4px' }}
-                    >
-                      {companyLogoUrl(c) ? (
-                        <img src={companyLogoUrl(c)} alt="" className="w-full h-full object-contain" />
-                      ) : (
-                        <Building2 size={18} style={{ color: '#94A3B8' }} />
-                      )}
-                    </div>
+                    <CompanyLogo
+                      id={c.company_id}
+                      name={c.display_name}
+                      logoUrl={c.logo_url}
+                      localLogos={LOCAL_LOGOS}
+                      size={40}
+                      iconFallback
+                    />
                     <span
                       className="rounded border px-2 py-0.5 text-xs font-bold uppercase"
                       style={{

@@ -7,6 +7,7 @@ import {
 import { motion, useInView } from 'framer-motion';
 import { HealthSectorHeader } from '../components/SectorHeader';
 import SpotlightCard from '../components/SpotlightCard';
+import CompanyLogo from '../components/CompanyLogo';
 import DataFreshness from '../components/DataFreshness';
 import {
   getHealthDashboardStats,
@@ -16,14 +17,6 @@ import {
 } from '../api/health';
 import { fmtNum } from '../utils/format';
 import { LOCAL_LOGOS } from '../data/healthLogos';
-
-// ── Helpers ──
-
-function companyLogoUrl(c: { company_id: string; logo_url?: string | null }): string {
-  if (LOCAL_LOGOS.has(c.company_id)) return `/logos/${c.company_id}.png`;
-  if (c.logo_url) return c.logo_url;
-  return '';
-}
 
 function formatMoney(n: number): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
@@ -382,13 +375,14 @@ export default function HealthDashboardPage() {
                       spotlightColor="rgba(220, 38, 38, 0.10)"
                     >
                       <div className="flex items-center gap-4 p-4">
-                        <div className="w-11 h-11 rounded-lg border border-white/10 bg-white/[0.05] flex items-center justify-center shrink-0 p-1.5">
-                          {companyLogoUrl(company) ? (
-                            <img src={companyLogoUrl(company)} alt="" className="w-full h-full object-contain" />
-                          ) : (
-                            <Building2 size={18} className="text-white/30" />
-                          )}
-                        </div>
+                        <CompanyLogo
+                          id={company.company_id}
+                          name={company.display_name}
+                          logoUrl={company.logo_url}
+                          localLogos={LOCAL_LOGOS}
+                          size={44}
+                          iconFallback
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="font-body text-sm font-semibold text-white truncate">
                             {company.display_name}
