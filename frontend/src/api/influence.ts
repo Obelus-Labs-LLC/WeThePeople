@@ -2,7 +2,9 @@
  * Cross-sector influence API types and client methods.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+import { getApiBaseUrl } from './client';
+
+const API_BASE = getApiBaseUrl();
 
 // ── Types ──
 

@@ -4,12 +4,28 @@ import { UI_COLORS } from '../../constants/colors';
 import { StatCard } from '../ui';
 import type { ActivityResponse, PersonProfile } from '../../api/types';
 
+interface CommitteeEntry {
+  thomas_id: string;
+  name: string;
+  chamber: string;
+  role: string;
+  parent_thomas_id: string | null;
+}
+
 interface OverviewTabProps {
   activity: ActivityResponse | null;
   profile: PersonProfile | null;
+  committees?: CommitteeEntry[];
 }
 
-export function OverviewTab({ activity, profile }: OverviewTabProps) {
+function chamberColor(chamber: string): string {
+  const c = chamber.toLowerCase();
+  if (c.includes('senate') || c === 'upper') return '#8B5CF6';
+  if (c.includes('joint')) return '#F59E0B';
+  return '#2563EB';
+}
+
+export function OverviewTab({ activity, profile, committees = [] }: OverviewTabProps) {
   const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   const total = activity?.total || 0;
@@ -77,6 +93,42 @@ export function OverviewTab({ activity, profile }: OverviewTabProps) {
         </View>
       )}
 
+      {/* Committees */}
+      {committees.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Committees</Text>
+          {committees
+            .filter((c) => !c.parent_thomas_id)
+            .map((c) => {
+              const roleLabel = c.role?.replace(/_/g, ' ');
+              const isLeadership = c.role && c.role !== 'member';
+              const cc = chamberColor(c.chamber);
+              return (
+                <View key={c.thomas_id} style={styles.committeeRow}>
+                  <View style={[styles.committeeIcon, { backgroundColor: cc + '20' }]}>
+                    <Text style={[styles.committeeIconText, { color: cc }]}>
+                      {c.chamber === 'senate' ? 'S' : c.chamber === 'joint' ? 'J' : 'H'}
+                    </Text>
+                  </View>
+                  <View style={styles.committeeInfo}>
+                    <Text style={styles.committeeName} numberOfLines={2}>{c.name}</Text>
+                    {isLeadership && (
+                      <View style={styles.committeeRoleBadge}>
+                        <Text style={styles.committeeRoleText}>{roleLabel}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          {committees.filter((c) => c.parent_thomas_id).length > 0 && (
+            <Text style={styles.subcommitteeNote}>
+              + {committees.filter((c) => c.parent_thomas_id).length} subcommittee{committees.filter((c) => c.parent_thomas_id).length !== 1 ? 's' : ''}
+            </Text>
+          )}
+        </View>
+      )}
+
       {profile?.infobox && Object.keys(profile.infobox).length > 0 && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Quick Facts</Text>
@@ -117,4 +169,15 @@ const styles = StyleSheet.create({
   factRow: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
   factLabel: { color: UI_COLORS.TEXT_MUTED, fontSize: 12, textTransform: 'capitalize' },
   factValue: { flex: 1, color: UI_COLORS.TEXT_PRIMARY, fontSize: 12 },
+  committeeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  committeeIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  committeeIconText: { fontSize: 13, fontWeight: '800' },
+  committeeInfo: { flex: 1, gap: 2 },
+  committeeName: { fontSize: 13, fontWeight: '600', color: UI_COLORS.TEXT_PRIMARY },
+  committeeRoleBadge: {
+    alignSelf: 'flex-start', backgroundColor: UI_COLORS.ACCENT_LIGHT,
+    borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, marginTop: 2,
+  },
+  committeeRoleText: { fontSize: 10, fontWeight: '700', color: UI_COLORS.ACCENT, textTransform: 'capitalize' },
+  subcommitteeNote: { fontSize: 11, color: UI_COLORS.TEXT_MUTED, marginTop: 8, fontStyle: 'italic' },
 });

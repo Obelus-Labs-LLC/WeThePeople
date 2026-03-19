@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Linking,
   LayoutAnimation, Platform, UIManager,
@@ -37,8 +37,13 @@ function isSponsored(role: string): boolean {
 function BillCard({ entry, onBillPress }: { entry: ActivityEntry; onBillPress?: (billId: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const sponsored = isSponsored(entry.role);
+  const handledRef = useRef(false);
 
   const toggle = () => {
+    if (handledRef.current) {
+      handledRef.current = false;
+      return;
+    }
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded(!expanded);
   };
@@ -59,7 +64,7 @@ function BillCard({ entry, onBillPress }: { entry: ActivityEntry; onBillPress?: 
       <View style={styles.billMeta}>
         {entry.bill_id && (
           <TouchableOpacity
-            onPress={(e) => { e.stopPropagation?.(); onBillPress?.(entry.bill_id); }}
+            onPress={() => { handledRef.current = true; onBillPress?.(entry.bill_id); }}
             hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
           >
             <Text style={styles.billIdLink}>{entry.bill_id}</Text>

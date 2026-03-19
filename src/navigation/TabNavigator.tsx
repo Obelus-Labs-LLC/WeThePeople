@@ -26,8 +26,33 @@ import TechCompareScreen from '../screens/TechCompareScreen';
 import FinanceCompareScreen from '../screens/FinanceCompareScreen';
 import PoliticsCompareScreen from '../screens/PoliticsCompareScreen';
 import BillScreen from '../screens/BillScreen';
+import CommitteesScreen from '../screens/CommitteesScreen';
 import ComingSoonScreen from '../screens/ComingSoonScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+
+// Real screens replacing ComingSoonPlaceholder
+import LegislationTrackerScreen from '../screens/LegislationTrackerScreen';
+import ActivityFeedScreen from '../screens/ActivityFeedScreen';
+import CongressionalTradesScreen from '../screens/CongressionalTradesScreen';
+import FindRepScreen from '../screens/FindRepScreen';
+import StateExplorerScreen from '../screens/StateExplorerScreen';
+import StateDashboardScreen from '../screens/StateDashboardScreen';
+import InsiderTradesScreen from '../screens/InsiderTradesScreen';
+import MacroIndicatorsScreen from '../screens/MacroIndicatorsScreen';
+import ComplaintsDashboardScreen from '../screens/ComplaintsDashboardScreen';
+import HealthCompareScreen from '../screens/HealthCompareScreen';
+import DrugLookupScreen from '../screens/DrugLookupScreen';
+import ClinicalPipelineScreen from '../screens/ClinicalPipelineScreen';
+import EnergyCompareScreen from '../screens/EnergyCompareScreen';
+import InfluenceExplorerScreen from '../screens/InfluenceExplorerScreen';
+import InfluenceNetworkScreen from '../screens/InfluenceNetworkScreen';
+import SpendingMapScreen from '../screens/SpendingMapScreen';
+import MethodologyScreen from '../screens/MethodologyScreen';
+import AboutScreen from '../screens/AboutScreen';
+import GlobalSearchScreen from '../screens/GlobalSearchScreen';
+import SectorLobbyingScreen from '../screens/SectorLobbyingScreen';
+import SectorContractsScreen from '../screens/SectorContractsScreen';
+import SectorEnforcementScreen from '../screens/SectorEnforcementScreen';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -155,32 +180,32 @@ function HomeStackScreen() {
       />
       <HomeStack.Screen
         name="InfluenceExplorer"
-        component={ComingSoonPlaceholder}
+        component={InfluenceExplorerScreen}
         options={{ title: 'Influence Explorer' }}
       />
       <HomeStack.Screen
         name="InfluenceNetwork"
-        component={ComingSoonPlaceholder}
+        component={InfluenceNetworkScreen}
         options={{ title: 'Influence Network' }}
       />
       <HomeStack.Screen
         name="SpendingMap"
-        component={ComingSoonPlaceholder}
+        component={SpendingMapScreen}
         options={{ title: 'Spending Map' }}
       />
       <HomeStack.Screen
         name="Methodology"
-        component={ComingSoonPlaceholder}
+        component={MethodologyScreen}
         options={{ title: 'Methodology' }}
       />
       <HomeStack.Screen
         name="About"
-        component={ComingSoonPlaceholder}
+        component={AboutScreen}
         options={{ title: 'About' }}
       />
       <HomeStack.Screen
         name="GlobalSearch"
-        component={GlobalSearchPlaceholder}
+        component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
     </HomeStack.Navigator>
@@ -218,57 +243,60 @@ function PoliticsStackScreen() {
       />
       <PoliticsStack.Screen
         name="LegislationTracker"
-        component={ComingSoonPlaceholder}
+        component={LegislationTrackerScreen}
         options={{ title: 'Legislation Tracker' }}
       />
       <PoliticsStack.Screen
         name="Committees"
-        component={ComingSoonPlaceholder}
+        component={CommitteesScreen}
         options={{ title: 'Committees' }}
       />
       <PoliticsStack.Screen
         name="ActivityFeed"
-        component={ComingSoonPlaceholder}
+        component={ActivityFeedScreen}
         options={{ title: 'Activity Feed' }}
       />
       <PoliticsStack.Screen
         name="CongressionalTrades"
-        component={ComingSoonPlaceholder}
+        component={CongressionalTradesScreen}
         options={{ title: 'Congressional Trades' }}
       />
       <PoliticsStack.Screen
         name="FindRep"
-        component={ComingSoonPlaceholder}
+        component={FindRepScreen}
         options={{ title: 'Find Your Representative' }}
       />
       <PoliticsStack.Screen
         name="StateExplorer"
-        component={ComingSoonPlaceholder}
+        component={StateExplorerScreen}
         options={{ title: 'State Explorer' }}
       />
       <PoliticsStack.Screen
         name="StateDashboard"
-        component={ComingSoonPlaceholder}
+        component={StateDashboardScreen}
         options={{ title: 'State Dashboard' }}
       />
       <PoliticsStack.Screen
         name="PoliticsLobbying"
-        component={ComingSoonPlaceholder}
+        component={SectorLobbyingScreen}
         options={{ title: 'Political Lobbying' }}
+        initialParams={{ sector: 'politics' }}
       />
       <PoliticsStack.Screen
         name="PoliticsContracts"
-        component={ComingSoonPlaceholder}
+        component={SectorContractsScreen}
         options={{ title: 'Government Contracts' }}
+        initialParams={{ sector: 'politics' }}
       />
       <PoliticsStack.Screen
         name="PoliticsEnforcement"
-        component={ComingSoonPlaceholder}
+        component={SectorEnforcementScreen}
         options={{ title: 'Enforcement Actions' }}
+        initialParams={{ sector: 'politics' }}
       />
       <PoliticsStack.Screen
         name="GlobalSearch"
-        component={GlobalSearchPlaceholder}
+        component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
     </PoliticsStack.Navigator>
@@ -301,37 +329,40 @@ function FinanceStackScreen() {
       />
       <FinanceStack.Screen
         name="InsiderTrades"
-        component={ComingSoonPlaceholder}
+        component={InsiderTradesScreen}
         options={{ title: 'Insider Trades' }}
       />
       <FinanceStack.Screen
         name="MacroIndicators"
-        component={ComingSoonPlaceholder}
+        component={MacroIndicatorsScreen}
         options={{ title: 'Macro Indicators' }}
       />
       <FinanceStack.Screen
         name="ComplaintsDashboard"
-        component={ComingSoonPlaceholder}
+        component={ComplaintsDashboardScreen}
         options={{ title: 'CFPB Complaints' }}
       />
       <FinanceStack.Screen
         name="FinanceLobbying"
-        component={ComingSoonPlaceholder}
+        component={SectorLobbyingScreen}
         options={{ title: 'Finance Lobbying' }}
+        initialParams={{ sector: 'finance' }}
       />
       <FinanceStack.Screen
         name="FinanceContracts"
-        component={ComingSoonPlaceholder}
+        component={SectorContractsScreen}
         options={{ title: 'Finance Contracts' }}
+        initialParams={{ sector: 'finance' }}
       />
       <FinanceStack.Screen
         name="FinanceEnforcement"
-        component={ComingSoonPlaceholder}
+        component={SectorEnforcementScreen}
         options={{ title: 'Finance Enforcement' }}
+        initialParams={{ sector: 'finance' }}
       />
       <FinanceStack.Screen
         name="GlobalSearch"
-        component={GlobalSearchPlaceholder}
+        component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
     </FinanceStack.Navigator>
@@ -359,37 +390,40 @@ function HealthStackScreen() {
       />
       <HealthStack.Screen
         name="HealthCompare"
-        component={ComingSoonPlaceholder}
+        component={HealthCompareScreen}
         options={{ title: 'Compare Companies' }}
       />
       <HealthStack.Screen
         name="DrugLookup"
-        component={ComingSoonPlaceholder}
+        component={DrugLookupScreen}
         options={{ title: 'Drug Lookup' }}
       />
       <HealthStack.Screen
         name="ClinicalPipeline"
-        component={ComingSoonPlaceholder}
+        component={ClinicalPipelineScreen}
         options={{ title: 'Clinical Pipeline' }}
       />
       <HealthStack.Screen
         name="HealthLobbying"
-        component={ComingSoonPlaceholder}
+        component={SectorLobbyingScreen}
         options={{ title: 'Health Lobbying' }}
+        initialParams={{ sector: 'health' }}
       />
       <HealthStack.Screen
         name="HealthContracts"
-        component={ComingSoonPlaceholder}
+        component={SectorContractsScreen}
         options={{ title: 'Health Contracts' }}
+        initialParams={{ sector: 'health' }}
       />
       <HealthStack.Screen
         name="HealthEnforcement"
-        component={ComingSoonPlaceholder}
+        component={SectorEnforcementScreen}
         options={{ title: 'Health Enforcement' }}
+        initialParams={{ sector: 'health' }}
       />
       <HealthStack.Screen
         name="GlobalSearch"
-        component={GlobalSearchPlaceholder}
+        component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
     </HealthStack.Navigator>
@@ -417,27 +451,30 @@ function EnergyStackScreen() {
       />
       <EnergyStack.Screen
         name="EnergyCompare"
-        component={ComingSoonPlaceholder}
+        component={EnergyCompareScreen}
         options={{ title: 'Compare Companies' }}
       />
       <EnergyStack.Screen
         name="EnergyLobbying"
-        component={ComingSoonPlaceholder}
+        component={SectorLobbyingScreen}
         options={{ title: 'Energy Lobbying' }}
+        initialParams={{ sector: 'energy' }}
       />
       <EnergyStack.Screen
         name="EnergyContracts"
-        component={ComingSoonPlaceholder}
+        component={SectorContractsScreen}
         options={{ title: 'Energy Contracts' }}
+        initialParams={{ sector: 'energy' }}
       />
       <EnergyStack.Screen
         name="EnergyEnforcement"
-        component={ComingSoonPlaceholder}
+        component={SectorEnforcementScreen}
         options={{ title: 'Energy Enforcement' }}
+        initialParams={{ sector: 'energy' }}
       />
       <EnergyStack.Screen
         name="GlobalSearch"
-        component={GlobalSearchPlaceholder}
+        component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
     </EnergyStack.Navigator>
@@ -470,22 +507,25 @@ function TechnologyStackScreen() {
       />
       <TechnologyStack.Screen
         name="TechLobbying"
-        component={ComingSoonPlaceholder}
+        component={SectorLobbyingScreen}
         options={{ title: 'Tech Lobbying' }}
+        initialParams={{ sector: 'tech' }}
       />
       <TechnologyStack.Screen
         name="TechContracts"
-        component={ComingSoonPlaceholder}
+        component={SectorContractsScreen}
         options={{ title: 'Tech Contracts' }}
+        initialParams={{ sector: 'tech' }}
       />
       <TechnologyStack.Screen
         name="TechEnforcement"
-        component={ComingSoonPlaceholder}
+        component={SectorEnforcementScreen}
         options={{ title: 'Tech Enforcement' }}
+        initialParams={{ sector: 'tech' }}
       />
       <TechnologyStack.Screen
         name="GlobalSearch"
-        component={GlobalSearchPlaceholder}
+        component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
     </TechnologyStack.Navigator>

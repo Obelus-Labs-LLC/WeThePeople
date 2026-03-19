@@ -6,13 +6,14 @@ import os
 import subprocess
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from models.database import SessionLocal, DATABASE_URL
+from services.auth import require_press_key
 
 router = APIRouter(tags=["common"])
 
 
-@router.get("/ops/runtime")
+@router.get("/ops/runtime", dependencies=[Depends(require_press_key)])
 def get_runtime_info():
     """Debug endpoint: expose runtime configuration."""
     db_display = DATABASE_URL
@@ -22,10 +23,6 @@ def get_runtime_info():
         if ":" in user_pass:
             user = user_pass.split(":")[0]
             db_display = db_display.replace(user_pass, f"{user}:***")
-
-    db_file = None
-    if db_display.startswith("sqlite:///"):
-        db_file = db_display.replace("sqlite:///", "").replace("./", "")
 
     git_sha = None
     try:
@@ -39,7 +36,7 @@ def get_runtime_info():
         pass
 
     return {
-        "db_url": db_display, "db_file": db_file, "git_sha": git_sha,
+        "db_url": db_display, "git_sha": git_sha,
         "disable_startup_fetch": os.getenv("DISABLE_STARTUP_FETCH") == "1",
         "no_network": os.getenv("NO_NETWORK") == "1",
     }
@@ -57,24 +54,12 @@ def health_check():
 
     status = "ok"
     db_ok = False
-    counts = {}
-    db_engine = ""
 
     try:
         db = SessionLocal()
         # Quick connectivity check
         db.execute(text("SELECT 1"))
         db_ok = True
-
-        counts = {
-            "members": db.query(func.count(TrackedMember.id)).filter(TrackedMember.is_active == 1).scalar() or 0,
-            "bills": db.query(func.count(Bill.bill_id)).scalar() or 0,
-            "groundtruth": db.query(func.count(MemberBillGroundTruth.id)).scalar() or 0,
-        }
-
-        # Detect engine type
-        db_engine = "sqlite" if "sqlite" in DATABASE_URL else "postgresql"
-
         db.close()
     except Exception as e:
         status = "degraded"
@@ -82,15 +67,18 @@ def health_check():
 
     return {
         "status": status,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "database": {"connected": db_ok, "engine": db_engine, "counts": counts},
-        "version": "1.0.0",
+        "database": {"connected": db_ok},
     }
 
 
 @router.get("/news/{query}")
 def get_news(query: str, limit: int = 10):
     """Fetch recent news headlines from Google News RSS for any query."""
+    import re as _re
+    if len(query) > 200:
+        raise HTTPException(status_code=400, detail="Query too long (max 200 characters)")
+    # Strip non-printable characters
+    query = _re.sub(r'[^\x20-\x7E]', '', query)
     from connectors.news_feed import fetch_news
     articles = fetch_news(query, limit=min(limit, 20))
     return {"query": query, "articles": articles}

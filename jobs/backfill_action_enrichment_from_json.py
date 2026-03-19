@@ -1,8 +1,12 @@
 import json
+import os
 import sqlite3
 from typing import Any, Dict, Optional
 
-DB_PATH = "wethepeople.db"
+DB_PATH = os.getenv("DATABASE_URL", "sqlite:///wethepeople.db")
+# Strip SQLAlchemy prefix for raw sqlite3 usage
+if DB_PATH.startswith("sqlite:///"):
+    DB_PATH = DB_PATH[len("sqlite:///"):]
 
 
 def extract_enriched(meta: Any) -> Dict[str, Optional[str]]:
@@ -62,6 +66,8 @@ def extract_enriched(meta: Any) -> Dict[str, Optional[str]]:
 
 def main():
     conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=60000")
     cur = conn.cursor()
 
     rows = cur.execute("SELECT id, metadata_json FROM actions").fetchall()

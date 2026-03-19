@@ -11,7 +11,9 @@ import {
 
 // ── Search ──
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+import { getApiBaseUrl } from '../api/client';
+
+const API_BASE = getApiBaseUrl();
 
 interface SearchResult {
   id: string;

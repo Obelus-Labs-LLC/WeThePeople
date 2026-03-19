@@ -11,6 +11,7 @@ import {
 } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum } from '../utils/format';
+import { batchRequests } from '../utils/batch';
 
 const API_BASE = getApiBaseUrl();
 
@@ -159,8 +160,9 @@ export default function SectorLobbyingPage() {
         const entities: any[] = compRes[config.entityKey] || [];
         if (cancelled) return;
 
-        const results = await Promise.allSettled(
-          entities.map((e) => {
+        const results = await batchRequests(
+          entities,
+          (e) => {
             const entityId = e[config.entityIdField];
             const entityName = e[config.entityNameField];
             return fetchJSON<any>(config.lobbyingPath(entityId)).then((r) =>
@@ -170,7 +172,8 @@ export default function SectorLobbyingPage() {
                 entity_name: entityName,
               })),
             );
-          }),
+          },
+          10,
         );
 
         if (cancelled) return;

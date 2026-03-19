@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,6 +28,7 @@ type AppPhase = 'splash' | 'onboarding' | 'app';
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>('splash');
   const [onboardingSeen, setOnboardingSeen] = useState<boolean | null>(null);
+  const [splashDone, setSplashDone] = useState(false);
 
   // Check if onboarding was already completed
   useEffect(() => {
@@ -36,13 +37,19 @@ export default function App() {
       .catch(() => setOnboardingSeen(false));
   }, []);
 
-  const handleSplashFinish = () => {
+  const handleSplashFinish = useCallback(() => {
+    setSplashDone(true);
+  }, []);
+
+  // Transition out of splash once both splash animation is done and AsyncStorage has resolved
+  useEffect(() => {
+    if (!splashDone || onboardingSeen === null) return;
     if (onboardingSeen === false) {
       setPhase('onboarding');
     } else {
       setPhase('app');
     }
-  };
+  }, [splashDone, onboardingSeen]);
 
   const handleOnboardingFinish = async () => {
     try {

@@ -11,6 +11,7 @@ import {
 } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
+import { batchRequests } from '../utils/batch';
 
 const API_BASE = getApiBaseUrl();
 
@@ -162,8 +163,9 @@ export default function SectorContractsPage() {
         const entities: any[] = compRes[config.entityKey] || [];
         if (cancelled) return;
 
-        const results = await Promise.allSettled(
-          entities.map((e) => {
+        const results = await batchRequests(
+          entities,
+          (e) => {
             const entityId = e[config.entityIdField];
             const entityName = e[config.entityNameField];
             return fetchJSON<any>(config.contractsPath(entityId)).then((r) =>
@@ -173,7 +175,8 @@ export default function SectorContractsPage() {
                 entity_name: entityName,
               })),
             );
-          }),
+          },
+          10,
         );
 
         if (cancelled) return;

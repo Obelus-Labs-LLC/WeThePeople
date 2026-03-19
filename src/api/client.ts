@@ -152,6 +152,24 @@ class WTPClient {
     );
   }
 
+  async getPersonCommittees(personId: string): Promise<any> {
+    return this.fetchJSON<any>(
+      `${this.baseUrl}/people/${encodeURIComponent(personId)}/committees`
+    );
+  }
+
+  async getCommittees(chamber?: string): Promise<any> {
+    const sp = new URLSearchParams();
+    if (chamber) sp.set('chamber', chamber);
+    return this.fetchJSON<any>(`${this.baseUrl}/committees?${sp}`);
+  }
+
+  async getCommitteeMembers(committeeId: string): Promise<any> {
+    return this.fetchJSON<any>(
+      `${this.baseUrl}/committees/${encodeURIComponent(committeeId)}/members`
+    );
+  }
+
   async getPersonFinance(personId: string): Promise<PersonFinance> {
     return this.fetchJSON<PersonFinance>(
       `${this.baseUrl}/people/${encodeURIComponent(personId)}/finance`

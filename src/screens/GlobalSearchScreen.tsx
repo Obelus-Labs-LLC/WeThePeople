@@ -63,7 +63,7 @@ export default function GlobalSearchScreen({ navigation }: GlobalSearchScreenPro
     // Navigate to PersonDetail in Politics stack
     navigation?.navigate?.('PoliticsTab', {
       screen: 'PersonDetail',
-      params: { personId: p.person_id },
+      params: { person_id: p.person_id },
     });
   };
 
@@ -72,7 +72,7 @@ export default function GlobalSearchScreen({ navigation }: GlobalSearchScreenPro
     const sectorTabMap: Record<string, string> = {
       finance: 'FinanceTab',
       health: 'HealthTab',
-      tech: 'TechTab',
+      tech: 'TechnologyTab',
       energy: 'EnergyTab',
     };
     const sectorScreenMap: Record<string, string> = {
@@ -83,9 +83,10 @@ export default function GlobalSearchScreen({ navigation }: GlobalSearchScreenPro
     };
     const tab = sectorTabMap[c.sector] || 'FinanceTab';
     const screen = sectorScreenMap[c.sector] || 'CompanyDetail';
+    const paramKey = c.sector === 'finance' ? 'institution_id' : 'company_id';
     navigation?.navigate?.(tab, {
       screen,
-      params: { id: c.id },
+      params: { [paramKey]: c.id },
     });
   };
 

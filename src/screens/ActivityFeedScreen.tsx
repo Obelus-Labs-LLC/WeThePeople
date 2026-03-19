@@ -33,8 +33,14 @@ export default function ActivityFeedScreen() {
       const limit = append ? (actions.length + PAGE_SIZE) : PAGE_SIZE;
       const data = await apiClient.getRecentActions(limit);
       if (append) {
-        setActions(data);
-        if (data.length <= actions.length) setHasMore(false);
+        // Deduplicate by id to avoid showing duplicates
+        const existingIds = new Set(actions.map(a => a.id));
+        const newItems = data.filter((a: RecentAction) => !existingIds.has(a.id));
+        if (newItems.length === 0) {
+          setHasMore(false);
+        } else {
+          setActions(prev => [...prev, ...newItems.filter((a: RecentAction) => !prev.some(p => p.id === a.id))]);
+        }
       } else {
         setActions(data);
         setHasMore(data.length >= PAGE_SIZE);

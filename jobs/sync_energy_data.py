@@ -23,7 +23,7 @@ from typing import Optional, List, Dict, Any
 
 import requests
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event as sa_event
 from sqlalchemy.orm import sessionmaker
 
 # Add project root to path
@@ -49,6 +49,14 @@ CONGRESS_API_KEY = os.getenv("CONGRESS_API_KEY", "")
 SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "WeThePeople/1.0 (civic-transparency-project)")
 
 engine = create_engine(DB_PATH, echo=False)
+
+@sa_event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=60000")
+    cursor.close()
+
 Session = sessionmaker(bind=engine)
 
 
