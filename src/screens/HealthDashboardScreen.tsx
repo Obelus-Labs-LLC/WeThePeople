@@ -4,11 +4,14 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { HealthDashboardStats, Company } from '../api/types';
 import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
+import HeroBanner from '../components/HeroBanner';
+import NavCard from '../components/NavCard';
+import SectionHeader from '../components/SectionHeader';
+import DataFreshness from '../components/DataFreshness';
 
 const SECTOR_COLORS: Record<string, string> = {
   pharma: '#2563EB',
@@ -60,39 +63,47 @@ export default function HealthDashboardScreen() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
     >
-      {/* Hero */}
-      <LinearGradient
-        colors={['#DC2626', '#B91C1C', '#991B1B']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.hero}
-      >
-        <View style={styles.heroOrb} />
-        <View style={styles.heroInner}>
-          <View style={styles.heroIconRow}>
-            <Ionicons name="heart" size={24} color="#FFFFFF" />
-            <Text style={styles.heroTitle}>Health Sector</Text>
-          </View>
-          <Text style={styles.heroSubtitle}>
-            FDA recalls, adverse events, and clinical trials
-          </Text>
-        </View>
-      </LinearGradient>
+      {/* Hero Banner */}
+      <HeroBanner
+        colors={['#DC2626', '#991B1B']}
+        icon="medkit"
+        title="Follow the Money in Health"
+        subtitle="Tracking lobbying, contracts, enforcement, and FDA activity across pharma and healthcare."
+      />
 
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
-        <View style={styles.statHalf}>
-          <StatCard label="Companies" value={stats.total_companies} accent="red" />
+        <View style={styles.statsRow}>
+          <View style={styles.statsHalf}>
+            <StatCard label="Companies" value={stats.total_companies} accent="red" />
+          </View>
+          <View style={styles.statsHalf}>
+            <StatCard label="Adverse Events" value={stats.total_adverse_events} accent="rose" />
+          </View>
         </View>
-        <View style={styles.statHalf}>
-          <StatCard label="Adverse Events" value={stats.total_adverse_events} accent="rose" />
+        <View style={styles.statsRow}>
+          <View style={styles.statsHalf}>
+            <StatCard label="Recalls" value={stats.total_recalls} accent="amber" />
+          </View>
+          <View style={styles.statsHalf}>
+            <StatCard label="Clinical Trials" value={stats.total_trials} accent="emerald" />
+          </View>
         </View>
-        <View style={styles.statHalf}>
-          <StatCard label="Recalls" value={stats.total_recalls} accent="amber" />
-        </View>
-        <View style={styles.statHalf}>
-          <StatCard label="Clinical Trials" value={stats.total_trials} accent="emerald" />
-        </View>
+      </View>
+
+      {/* Data Freshness */}
+      <DataFreshness />
+
+      {/* Nav Cards */}
+      <SectionHeader title="Explore" accent={ACCENT} />
+      <View style={styles.navGrid}>
+        <NavCard icon="business" title="Companies" subtitle="Pharma, biotech, insurers" onPress={() => navigation.navigate('CompaniesDirectory')} accent={ACCENT} />
+        <NavCard icon="search" title="Drug Lookup" subtitle="FDA drug database" onPress={() => navigation.navigate('DrugLookup')} accent="#2563EB" />
+        <NavCard icon="flask" title="Clinical Pipeline" subtitle="Active clinical trials" onPress={() => navigation.navigate('ClinicalPipeline')} accent="#8B5CF6" />
+        <NavCard icon="document-text" title="Lobbying" subtitle="Senate LDA filings" onPress={() => navigation.navigate('HealthLobbying')} accent="#C5960C" />
+        <NavCard icon="briefcase" title="Contracts" subtitle="USASpending.gov" onPress={() => navigation.navigate('HealthContracts')} accent="#10B981" />
+        <NavCard icon="shield" title="Enforcement" subtitle="Regulatory actions" onPress={() => navigation.navigate('HealthEnforcement')} accent="#DC2626" />
+        <NavCard icon="git-compare" title="Compare" subtitle="Side-by-side analysis" onPress={() => navigation.navigate('HealthCompare')} accent="#475569" />
       </View>
 
       {/* Sector Distribution */}
@@ -116,16 +127,12 @@ export default function HealthDashboardScreen() {
       )}
 
       {/* Featured Companies */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <View style={[styles.accentBar, { backgroundColor: ACCENT }]} />
-            <Text style={styles.sectionTitle}>Featured Companies</Text>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate('CompaniesDirectory')}>
-            <Text style={styles.seeAll}>See All →</Text>
-          </TouchableOpacity>
-        </View>
+      <SectionHeader
+        title="Featured Companies"
+        accent={ACCENT}
+        onViewAll={() => navigation.navigate('CompaniesDirectory')}
+      />
+      <View style={styles.featuredList}>
         {companies.map((c) => (
           <TouchableOpacity
             key={c.company_id}
@@ -154,7 +161,7 @@ export default function HealthDashboardScreen() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Data: FDA openFDA · ClinicalTrials.gov · CMS Open Payments</Text>
+        <Text style={styles.footerText}>Data from FDA openFDA, ClinicalTrials.gov, CMS Open Payments, Senate LDA</Text>
       </View>
     </ScrollView>
   );
@@ -163,50 +170,24 @@ export default function HealthDashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: UI_COLORS.SECONDARY_BG },
   scrollContent: { paddingBottom: 24 },
-  hero: {
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 16,
-    marginTop: 12,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  heroOrb: {
-    position: 'absolute',
-    top: -60,
-    right: -40,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  heroInner: {
-    position: 'relative',
-  },
-  heroIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  heroTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  heroSubtitle: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 13,
-    lineHeight: 19,
-  },
   statsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10, marginTop: 12, marginBottom: 16,
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 12,
   },
-  statHalf: { width: '48%' as any, flexGrow: 1 },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statsHalf: {
+    flex: 1,
+  },
+  navGrid: {
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 16,
+  },
   section: { paddingHorizontal: 16, marginBottom: 16 },
-  sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
-  },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -218,11 +199,14 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY },
-  seeAll: { fontSize: 13, fontWeight: '600', color: ACCENT },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, gap: 6 },
   chipDot: { width: 8, height: 8, borderRadius: 4 },
   chipText: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  featuredList: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
   companyCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: UI_COLORS.CARD_BG, borderRadius: 12, padding: 14,
@@ -238,5 +222,5 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
   companyStats: { fontSize: 11, color: UI_COLORS.TEXT_MUTED, marginTop: 3 },
   footer: { alignItems: 'center', paddingVertical: 20 },
-  footerText: { fontSize: 11, color: UI_COLORS.TEXT_MUTED },
+  footerText: { fontSize: 11, color: UI_COLORS.TEXT_MUTED, textAlign: 'center', paddingHorizontal: 24 },
 });

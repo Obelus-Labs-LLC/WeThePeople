@@ -15,8 +15,9 @@ import type {
 } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
+import { DonationsTab } from '../components/company';
 
-type Tab = 'overview' | 'patents' | 'contracts' | 'lobbying' | 'enforcement';
+type Tab = 'overview' | 'patents' | 'contracts' | 'lobbying' | 'enforcement' | 'donations';
 
 export default function TechCompanyScreen() {
   const route = useRoute<any>();
@@ -48,6 +49,10 @@ export default function TechCompanyScreen() {
   const [enforcementActions, setEnforcementActions] = useState<EnforcementAction[]>([]);
   const [totalPenalties, setTotalPenalties] = useState(0);
   const [enforcementLoading, setEnforcementLoading] = useState(false);
+
+  // Donations tab data
+  const [donations, setDonations] = useState<any[] | null>(null);
+  const [donationsLoading, setDonationsLoading] = useState(false);
 
   // Filters
   const [patentYearFilter, setPatentYearFilter] = useState<string>('all');
@@ -150,6 +155,17 @@ export default function TechCompanyScreen() {
     }
   }, [tab, companyId]);
 
+  // Load donations when tab switches
+  useEffect(() => {
+    if (tab === 'donations' && donations === null && !donationsLoading) {
+      setDonationsLoading(true);
+      apiClient.getTechCompanyDonations(companyId, { limit: 50 })
+        .then((res) => setDonations(res.donations || res || []))
+        .catch(() => setDonations([]))
+        .finally(() => setDonationsLoading(false));
+    }
+  }, [tab, companyId]);
+
   const onRefresh = () => { setRefreshing(true); loadCompany(); };
 
   if (loading) return <LoadingSpinner message="Loading company..." />;
@@ -163,6 +179,7 @@ export default function TechCompanyScreen() {
     { key: 'contracts', label: 'Contracts', icon: 'document-text-outline' },
     { key: 'lobbying', label: 'Lobbying', icon: 'megaphone-outline' },
     { key: 'enforcement', label: 'Legal', icon: 'shield-outline' },
+    { key: 'donations', label: 'Donations', icon: 'heart-outline' },
   ];
 
   return (
@@ -222,6 +239,7 @@ export default function TechCompanyScreen() {
         {tab === 'contracts' && renderContracts(contracts, contractSummary, contractTrends, contractsLoading, contractAgencyFilter, setContractAgencyFilter)}
         {tab === 'lobbying' && renderLobbying(lobbyingFilings, lobbySummary, lobbyingLoading)}
         {tab === 'enforcement' && renderEnforcement(enforcementActions, totalPenalties, enforcementLoading, enforcementSourceFilter, setEnforcementSourceFilter)}
+        {tab === 'donations' && <DonationsTab donations={donations} loading={donationsLoading} />}
       </ScrollView>
     </View>
   );

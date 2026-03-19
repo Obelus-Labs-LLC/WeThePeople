@@ -8,11 +8,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
-import type { ActivityResponse, PersonProfile, PersonFinance, PersonVotesResponse } from '../api/types';
+import type { ActivityResponse, PersonProfile, PersonFinance, PersonVotesResponse, CongressionalTradesResponse } from '../api/types';
 import { LoadingSpinner, PartyBadge, ChamberBadge } from '../components/ui';
-import { OverviewTab, ActivityTab, VotesTab, FinanceTab } from '../components/person';
+import { OverviewTab, ActivityTab, VotesTab, FinanceTab, TradesTab, DonorsTab } from '../components/person';
 
-type Tab = 'overview' | 'activity' | 'votes' | 'finance';
+type Tab = 'overview' | 'activity' | 'votes' | 'finance' | 'trades' | 'donors';
 
 export default function PersonScreen() {
   const route = useRoute<any>();
@@ -29,6 +29,10 @@ export default function PersonScreen() {
   const [financeLoading, setFinanceLoading] = useState(false);
   const [votes, setVotes] = useState<PersonVotesResponse | null>(null);
   const [votesLoading, setVotesLoading] = useState(false);
+  const [trades, setTrades] = useState<any[] | null>(null);
+  const [tradesLoading, setTradesLoading] = useState(false);
+  const [donors, setDonors] = useState<any[] | null>(null);
+  const [donorsLoading, setDonorsLoading] = useState(false);
 
   const loadCoreData = async () => {
     const [activityRes, profileRes] = await Promise.all([
@@ -53,6 +57,8 @@ export default function PersonScreen() {
       await loadCoreData();
       setFinance(null);
       setVotes(null);
+      setTrades(null);
+      setDonors(null);
     } catch {}
     setRefreshing(false);
   };
@@ -77,6 +83,26 @@ export default function PersonScreen() {
       .finally(() => setVotesLoading(false));
   }, [tab, person_id, votes]);
 
+  // Lazy-load trades
+  useEffect(() => {
+    if (tab !== 'trades' || !person_id || trades) return;
+    setTradesLoading(true);
+    apiClient.getPersonTrades(person_id)
+      .then((res) => setTrades(res.trades || []))
+      .catch(() => setTrades([]))
+      .finally(() => setTradesLoading(false));
+  }, [tab, person_id, trades]);
+
+  // Lazy-load donors
+  useEffect(() => {
+    if (tab !== 'donors' || !person_id || donors) return;
+    setDonorsLoading(true);
+    apiClient.getPersonIndustryDonors(person_id)
+      .then((res) => setDonors(res.donors || res || []))
+      .catch(() => setDonors([]))
+      .finally(() => setDonorsLoading(false));
+  }, [tab, person_id, donors]);
+
   const displayName = activity?.display_name || profile?.display_name || person_id?.replace(/_/g, ' ') || '';
 
   if (loading) return <LoadingSpinner message="Loading profile..." />;
@@ -93,6 +119,8 @@ export default function PersonScreen() {
     { key: 'activity', label: 'Activity' },
     { key: 'votes', label: 'Votes' },
     { key: 'finance', label: 'Finance' },
+    { key: 'trades', label: 'Trades' },
+    { key: 'donors', label: 'Donors' },
   ];
 
   const handleBillPress = (billId: string) =>
@@ -145,7 +173,7 @@ export default function PersonScreen() {
       </View>
 
       {/* Pill Tabs */}
-      <View style={styles.pillTabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillTabBarScroll} contentContainerStyle={styles.pillTabBar}>
         {tabs.map((t) => (
           <TouchableOpacity
             key={t.key}
@@ -157,13 +185,39 @@ export default function PersonScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {/* Tab content — delegated to extracted components */}
       {tab === 'overview' && <OverviewTab activity={activity} profile={profile} />}
       {tab === 'activity' && <ActivityTab activity={activity} onBillPress={handleBillPress} />}
       {tab === 'votes' && <VotesTab votes={votes} loading={votesLoading} onBillPress={handleBillPress} />}
       {tab === 'finance' && <FinanceTab finance={finance} loading={financeLoading} />}
+      {tab === 'trades' && <TradesTab trades={trades} loading={tradesLoading} />}
+      {tab === 'donors' && <DonorsTab donors={donors} loading={donorsLoading} />}
+
+      {/* Campaign contribution + Capitol Trades links */}
+      {profile?.infobox?.party && (
+        <View style={{ paddingHorizontal: 16, marginTop: 12, gap: 8 }}>
+          <TouchableOpacity
+            style={styles.externalLinkBtn}
+            onPress={() => {
+              const party = profile?.infobox?.party?.charAt(0).toUpperCase();
+              const url = party === 'D' ? 'https://www.actblue.com/' : party === 'R' ? 'https://www.winred.com/' : null;
+              if (url) Linking.openURL(url);
+            }}
+          >
+            <Text style={styles.externalLinkText}>
+              Contribute via {profile?.infobox?.party?.charAt(0).toUpperCase() === 'D' ? 'ActBlue' : 'WinRed'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.externalLinkBtn}
+            onPress={() => Linking.openURL('https://www.capitoltrades.com/')}
+          >
+            <Text style={styles.externalLinkText}>View on Capitol Trades</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -200,11 +254,12 @@ const styles = StyleSheet.create({
   profileSummary: { color: UI_COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 17 },
   wikiLink: { color: UI_COLORS.ACCENT, fontSize: 12, fontWeight: '600', marginTop: 4 },
   // ── Pill Tabs ──
+  pillTabBarScroll: { marginHorizontal: 16, marginBottom: 14 },
   pillTabBar: {
-    flexDirection: 'row', marginHorizontal: 16, marginBottom: 14,
+    flexDirection: 'row',
     backgroundColor: UI_COLORS.CARD_BG_ELEVATED, borderRadius: 12, padding: 4, gap: 4,
   },
-  pillTab: { flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center' },
+  pillTab: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, alignItems: 'center' },
   pillTabActive: {
     backgroundColor: UI_COLORS.ACCENT,
     shadowColor: UI_COLORS.ACCENT, shadowOffset: { width: 0, height: 2 },
@@ -212,6 +267,12 @@ const styles = StyleSheet.create({
   },
   pillTabText: { color: UI_COLORS.TEXT_MUTED, fontSize: 13, fontWeight: '600' },
   pillTabTextActive: { color: '#FFFFFF' },
+  // ── External Links ──
+  externalLinkBtn: {
+    backgroundColor: UI_COLORS.CARD_BG, borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: UI_COLORS.BORDER, alignItems: 'center',
+  },
+  externalLinkText: { fontSize: 13, fontWeight: '600', color: UI_COLORS.ACCENT },
   // ── Error ──
   errorContainer: {
     flex: 1, backgroundColor: UI_COLORS.PRIMARY_BG,
