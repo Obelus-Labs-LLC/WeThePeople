@@ -1,6 +1,6 @@
 import os
 
-from sqlalchemy import create_engine, Column, String, Integer, DateTime, ForeignKey, Text, Table, JSON, Date, Float, UniqueConstraint
+from sqlalchemy import create_engine, event, Column, String, Integer, DateTime, ForeignKey, Text, Table, JSON, Date, Float, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import func
@@ -12,7 +12,7 @@ print(f"Database: {DATABASE_URL}")
 # SQLite needs check_same_thread=False; PostgreSQL doesn't accept that arg
 _engine_kwargs = {}
 if DATABASE_URL.startswith("sqlite"):
-    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+    _engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60}
 else:
     # PostgreSQL: use connection pooling
     _engine_kwargs["pool_size"] = 10
@@ -20,6 +20,16 @@ else:
     _engine_kwargs["pool_pre_ping"] = True
 
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
+
+# Ensure WAL mode and busy timeout on every SQLite connection
+if DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=60000")
+        cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
