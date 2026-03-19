@@ -490,9 +490,9 @@ export function getLogoUrl(
   if (localLogos?.has(id)) return `/logos/${id}.png`;
   // 2. API-provided URL
   if (logoUrl) return logoUrl;
-  // 3. Clearbit fallback via domain mapping
+  // 3. DuckDuckGo Icons fallback via domain mapping (Clearbit shut down)
   const domain = COMPANY_DOMAINS[id];
-  if (domain) return `https://logo.clearbit.com/${domain}`;
+  if (domain) return `https://icons.duckduckgo.com/ip3/${domain}.ico`;
   // 4. No logo available
   return '';
 }
