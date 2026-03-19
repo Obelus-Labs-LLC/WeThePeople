@@ -73,6 +73,8 @@ backups/
 
 # Session context (local only)
 CLAUDE.md
+SESSION_SUMMARY.md
+.serena/
 
 # Internal docs & archive (local only)
 docs/
