@@ -251,8 +251,7 @@ def get_spending_by_state(
 
         elif metric == "lobbying":
             # Total lobbying spend from companies that donate to politicians in each state.
-            # We join lobbying tables → company donations → members to attribute lobbying by state.
-            # For simplicity in V1, sum lobbying income per sector grouped by donation-recipient state.
+            # First aggregate lobbying income per company (subquery), then join to donations/members.
             lobby_configs = []
             if sector is None or sector == "finance":
                 lobby_configs.append((FinanceLobbyingRecord, FinanceLobbyingRecord.institution_id, "finance"))
@@ -264,20 +263,39 @@ def get_spending_by_state(
                 lobby_configs.append((EnergyLobbyingRecord, EnergyLobbyingRecord.company_id, "energy"))
 
             for lobby_model, entity_col, sec in lobby_configs:
-                q = db.query(
-                    TrackedMember.state,
-                    func.sum(lobby_model.income),
-                    func.count(lobby_model.id),
-                ).select_from(lobby_model).join(
-                    CompanyDonation,
-                    (CompanyDonation.entity_id == entity_col) & (CompanyDonation.entity_type == sec),
-                ).join(
-                    TrackedMember,
-                    TrackedMember.person_id == CompanyDonation.person_id,
-                ).filter(
-                    TrackedMember.state.isnot(None),
+                # Subquery: aggregate lobbying income per company first
+                lobby_agg = (
+                    db.query(
+                        entity_col.label("entity_id"),
+                        func.sum(lobby_model.income).label("total_income"),
+                    )
+                    .group_by(entity_col)
+                    .subquery()
                 )
-                rows = q.group_by(TrackedMember.state).all()
+
+                # Subquery: distinct (entity_id, state) pairs to avoid
+                # cartesian product when a company donates to multiple
+                # politicians in the same state
+                donation_states = (
+                    db.query(
+                        CompanyDonation.entity_id.label("entity_id"),
+                        TrackedMember.state.label("state"),
+                    )
+                    .join(TrackedMember, TrackedMember.person_id == CompanyDonation.person_id)
+                    .filter(CompanyDonation.entity_type == sec, TrackedMember.state.isnot(None))
+                    .group_by(CompanyDonation.entity_id, TrackedMember.state)
+                    .subquery()
+                )
+
+                q = db.query(
+                    donation_states.c.state,
+                    func.sum(lobby_agg.c.total_income),
+                    func.count(func.distinct(lobby_agg.c.entity_id)),
+                ).select_from(lobby_agg).join(
+                    donation_states,
+                    donation_states.c.entity_id == lobby_agg.c.entity_id,
+                )
+                rows = q.group_by(donation_states.c.state).all()
                 for st, total, cnt in rows:
                     if st:
                         prev = states.get(st, {"value": 0, "count": 0})

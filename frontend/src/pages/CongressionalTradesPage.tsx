@@ -230,15 +230,19 @@ export default function CongressionalTradesPage() {
                     </td>
                     <td className="px-4 py-3">
                       {t.reporting_gap ? (
-                        <span className={`font-mono text-xs font-semibold px-2 py-0.5 rounded ${
-                          parseInt(t.reporting_gap) > 45
+                        (() => {
+                          const gap = Number(t.reporting_gap);
+                          const gapClass = !isNaN(gap) && gap > 45
                             ? 'bg-red-500/15 text-red-400'
-                            : parseInt(t.reporting_gap) > 30
+                            : !isNaN(gap) && gap > 30
                             ? 'bg-yellow-500/15 text-yellow-400'
-                            : 'bg-emerald-500/15 text-emerald-400'
-                        }`}>
-                          {t.reporting_gap}
-                        </span>
+                            : 'bg-emerald-500/15 text-emerald-400';
+                          return (
+                            <span className={`font-mono text-xs font-semibold px-2 py-0.5 rounded ${gapClass}`}>
+                              {t.reporting_gap}
+                            </span>
+                          );
+                        })()
                       ) : (
                         <span className="text-sm text-white/20">—</span>
                       )}

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { View, TextInput, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
@@ -13,6 +13,8 @@ interface SearchBarProps {
 export default function SearchBar({ value, onChangeText, placeholder = 'Search...', debounceMs = 300 }: SearchBarProps) {
   const [local, setLocal] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => { setLocal(value); }, [value]);
 
   const handleChange = useCallback((text: string) => {
     setLocal(text);

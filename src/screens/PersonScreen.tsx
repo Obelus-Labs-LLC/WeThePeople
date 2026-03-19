@@ -34,13 +34,17 @@ export default function PersonScreen() {
   const [donors, setDonors] = useState<any[] | null>(null);
   const [donorsLoading, setDonorsLoading] = useState(false);
 
+  const [committees, setCommittees] = useState<any[]>([]);
+
   const loadCoreData = async () => {
-    const [activityRes, profileRes] = await Promise.all([
-      apiClient.getPersonActivity(person_id, { limit: 200 }),
+    const [activityRes, profileRes, committeesRes] = await Promise.all([
+      apiClient.getPersonActivity(person_id, { limit: 200 }).catch(() => null),
       apiClient.getPersonProfile(person_id).catch(() => null),
+      apiClient.getPersonCommittees(person_id).catch(() => null),
     ]);
     setActivity(activityRes);
     if (profileRes) setProfile(profileRes);
+    setCommittees(committeesRes?.committees || []);
   };
 
   useEffect(() => {
@@ -65,42 +69,50 @@ export default function PersonScreen() {
 
   // Lazy-load finance
   useEffect(() => {
+    let cancelled = false;
     if (tab !== 'finance' || !person_id || finance) return;
     setFinanceLoading(true);
     apiClient.getPersonFinance(person_id)
-      .then(setFinance)
+      .then((res) => { if (!cancelled) setFinance(res); })
       .catch(() => {})
-      .finally(() => setFinanceLoading(false));
+      .finally(() => { if (!cancelled) setFinanceLoading(false); });
+    return () => { cancelled = true; };
   }, [tab, person_id, finance]);
 
   // Lazy-load votes
   useEffect(() => {
+    let cancelled = false;
     if (tab !== 'votes' || !person_id || votes) return;
     setVotesLoading(true);
     apiClient.getPersonVotes(person_id, { limit: 100 })
-      .then(setVotes)
+      .then((res) => { if (!cancelled) setVotes(res); })
       .catch(() => {})
-      .finally(() => setVotesLoading(false));
+      .finally(() => { if (!cancelled) setVotesLoading(false); });
+    return () => { cancelled = true; };
   }, [tab, person_id, votes]);
 
   // Lazy-load trades
   useEffect(() => {
+    let cancelled = false;
     if (tab !== 'trades' || !person_id || trades) return;
     setTradesLoading(true);
     apiClient.getPersonTrades(person_id)
-      .then((res) => setTrades(res.trades || []))
-      .catch(() => setTrades([]))
-      .finally(() => setTradesLoading(false));
+      .then((res) => { if (!cancelled) setTrades(res.trades || []); })
+      .catch(() => { if (!cancelled) setTrades([]); })
+      .finally(() => { if (!cancelled) setTradesLoading(false); });
+    return () => { cancelled = true; };
   }, [tab, person_id, trades]);
 
   // Lazy-load donors
   useEffect(() => {
+    let cancelled = false;
     if (tab !== 'donors' || !person_id || donors) return;
     setDonorsLoading(true);
     apiClient.getPersonIndustryDonors(person_id)
-      .then((res) => setDonors(res.donors || res || []))
-      .catch(() => setDonors([]))
-      .finally(() => setDonorsLoading(false));
+      .then((res) => { if (!cancelled) setDonors(res.donors || res || []); })
+      .catch(() => { if (!cancelled) setDonors([]); })
+      .finally(() => { if (!cancelled) setDonorsLoading(false); });
+    return () => { cancelled = true; };
   }, [tab, person_id, donors]);
 
   const displayName = activity?.display_name || profile?.display_name || person_id?.replace(/_/g, ' ') || '';
@@ -188,7 +200,7 @@ export default function PersonScreen() {
       </ScrollView>
 
       {/* Tab content — delegated to extracted components */}
-      {tab === 'overview' && <OverviewTab activity={activity} profile={profile} />}
+      {tab === 'overview' && <OverviewTab activity={activity} profile={profile} committees={committees} />}
       {tab === 'activity' && <ActivityTab activity={activity} onBillPress={handleBillPress} />}
       {tab === 'votes' && <VotesTab votes={votes} loading={votesLoading} onBillPress={handleBillPress} />}
       {tab === 'finance' && <FinanceTab finance={finance} loading={financeLoading} />}

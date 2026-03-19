@@ -8,21 +8,35 @@ import { PoliticsSectorHeader } from '../components/SectorHeader';
 // ── Types ──
 
 interface CommitteeMember {
+  bioguide_id: string;
   person_id: string | null;
-  display_name: string;
+  member_name: string | null;
+  display_name?: string;
+  member_party?: string;
   party: string | null;
   state: string | null;
-  role: string | null;
-  photo_url: string | null;
+  role: string;
+  rank: number | null;
+  photo_url?: string | null;
+  chamber?: string;
+}
+
+interface SubCommittee {
+  thomas_id: string;
+  name: string;
+  chamber: string;
+  member_count: number;
 }
 
 interface Committee {
-  committee_id: string;
+  thomas_id: string;
   name: string;
   chamber: string;
-  chair: string | null;
+  committee_type: string | null;
   member_count: number;
   url: string | null;
+  jurisdiction: string | null;
+  subcommittees?: SubCommittee[];
   members?: CommitteeMember[];
 }
 
@@ -93,22 +107,22 @@ export default function CommitteesPage() {
   }, []);
 
   const toggleExpand = async (committee: Committee) => {
-    if (expandedId === committee.committee_id) {
+    if (expandedId === committee.thomas_id) {
       setExpandedId(null);
       return;
     }
-    setExpandedId(committee.committee_id);
+    setExpandedId(committee.thomas_id);
 
     // Fetch members if not already loaded
     if (!committee.members) {
-      setLoadingMembers(committee.committee_id);
+      setLoadingMembers(committee.thomas_id);
       try {
-        const res = await fetch(`${getApiBaseUrl()}/committees/${committee.committee_id}/members`);
+        const res = await fetch(`${getApiBaseUrl()}/committees/${committee.thomas_id}/members`);
         if (res.ok) {
           const data = await res.json();
           setCommittees((prev) =>
             prev.map((c) =>
-              c.committee_id === committee.committee_id
+              c.thomas_id === committee.thomas_id
                 ? { ...c, members: data.members || [] }
                 : c
             )
@@ -131,7 +145,7 @@ export default function CommitteesPage() {
     }
     if (search) {
       const q = search.toLowerCase();
-      if (!c.name.toLowerCase().includes(q) && !c.chair?.toLowerCase().includes(q)) return false;
+      if (!c.name.toLowerCase().includes(q)) return false;
     }
     return true;
   });
@@ -184,11 +198,10 @@ export default function CommitteesPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.02] py-16 text-center mb-8">
               <Building2 size={48} className="mx-auto mb-5 text-blue-500/30" />
               <h2 className="font-heading text-2xl font-bold text-white mb-3">
-                Committee Data Coming Soon
+                Unable to load committee data
               </h2>
               <p className="max-w-md mx-auto font-body text-sm text-white/40 leading-relaxed">
-                We're building out committee data including membership rosters, hearing schedules,
-                and jurisdiction details. This feature will be available in an upcoming release.
+                Committee data couldn't be loaded. Please try again later.
               </p>
               <div className="mt-8 flex justify-center gap-3">
                 <Link
@@ -303,7 +316,7 @@ export default function CommitteesPage() {
             <div className="flex flex-col gap-3">
               {filtered.map((committee, idx) => (
                 <motion.div
-                  key={committee.committee_id}
+                  key={committee.thomas_id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: Math.min(idx * 0.03, 0.5) }}
@@ -339,8 +352,8 @@ export default function CommitteesPage() {
                             {committee.chamber}
                           </span>
                           <span className="font-mono">{committee.member_count} members</span>
-                          {committee.chair && (
-                            <span>Chair: {committee.chair}</span>
+                          {committee.subcommittees && committee.subcommittees.length > 0 && (
+                            <span className="font-mono">{committee.subcommittees.length} subcommittees</span>
                           )}
                         </div>
                       </div>
@@ -348,14 +361,14 @@ export default function CommitteesPage() {
                       <ChevronRight
                         size={18}
                         className={`flex-shrink-0 text-white/20 transition-transform ${
-                          expandedId === committee.committee_id ? 'rotate-90' : ''
+                          expandedId === committee.thomas_id ? 'rotate-90' : ''
                         }`}
                       />
                     </button>
 
                     {/* Expanded: members */}
                     <AnimatePresence>
-                      {expandedId === committee.committee_id && (
+                      {expandedId === committee.thomas_id && (
                         <motion.div
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
@@ -364,7 +377,7 @@ export default function CommitteesPage() {
                           className="overflow-hidden"
                         >
                           <div className="border-t border-white/5 px-5 py-4">
-                            {loadingMembers === committee.committee_id ? (
+                            {loadingMembers === committee.thomas_id ? (
                               <div className="flex items-center justify-center py-6">
                                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
                               </div>
@@ -416,14 +429,18 @@ export default function CommitteesPage() {
 // ── Member Card ──
 
 function MemberCard({ member }: { member: CommitteeMember }) {
-  const color = partyColor(member.party);
+  const displayName = member.display_name || member.member_name || 'Unknown';
+  const displayParty = member.member_party || member.party;
+  const color = partyColor(displayParty);
+
+  const roleLabel = member.role?.replace(/_/g, ' ');
 
   const content = (
     <div className="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] p-3 transition-colors hover:border-white/10">
       {member.photo_url ? (
         <img
           src={member.photo_url}
-          alt={member.display_name}
+          alt={displayName}
           className="h-8 w-8 rounded-full object-cover ring-1 ring-white/10"
         />
       ) : (
@@ -431,26 +448,26 @@ function MemberCard({ member }: { member: CommitteeMember }) {
           className="flex h-8 w-8 items-center justify-center rounded-full font-heading text-xs font-bold text-white ring-1 ring-white/10"
           style={{ backgroundColor: `${color}33` }}
         >
-          {member.display_name.charAt(0)}
+          {displayName.charAt(0)}
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <p className="font-body text-sm text-white truncate">{member.display_name}</p>
+        <p className="font-body text-sm text-white truncate">{displayName}</p>
         <div className="flex items-center gap-1.5">
-          {member.party && (
+          {displayParty && (
             <span
               className="font-mono text-[10px] font-bold"
               style={{ color }}
             >
-              {member.party}
+              {displayParty}
             </span>
           )}
           {member.state && (
             <span className="font-mono text-[10px] text-white/25">{member.state}</span>
           )}
-          {member.role && member.role.toLowerCase() !== 'member' && (
-            <span className="rounded bg-blue-500/10 px-1 py-0.5 font-mono text-[9px] text-blue-400">
-              {member.role}
+          {roleLabel && roleLabel.toLowerCase() !== 'member' && (
+            <span className="rounded bg-blue-500/10 px-1 py-0.5 font-mono text-[9px] text-blue-400 capitalize">
+              {roleLabel}
             </span>
           )}
         </div>

@@ -86,16 +86,20 @@ def get_health_companies(
         total = query.count()
         rows = query.order_by(TrackedCompany.display_name).offset(offset).limit(limit).all()
 
+        company_ids = [c.company_id for c in rows]
+        event_counts = dict(db.query(FDAAdverseEvent.company_id, func.count(FDAAdverseEvent.id)).filter(FDAAdverseEvent.company_id.in_(company_ids)).group_by(FDAAdverseEvent.company_id).all()) if company_ids else {}
+        recall_counts = dict(db.query(FDARecall.company_id, func.count(FDARecall.id)).filter(FDARecall.company_id.in_(company_ids)).group_by(FDARecall.company_id).all()) if company_ids else {}
+        trial_counts = dict(db.query(ClinicalTrial.company_id, func.count(ClinicalTrial.id)).filter(ClinicalTrial.company_id.in_(company_ids)).group_by(ClinicalTrial.company_id).all()) if company_ids else {}
+
         companies = []
         for c in rows:
-            event_count = db.query(func.count(FDAAdverseEvent.id)).filter_by(company_id=c.company_id).scalar() or 0
-            recall_count = db.query(func.count(FDARecall.id)).filter_by(company_id=c.company_id).scalar() or 0
-            trial_count = db.query(func.count(ClinicalTrial.id)).filter_by(company_id=c.company_id).scalar() or 0
             companies.append({
                 "company_id": c.company_id, "display_name": c.display_name,
                 "ticker": c.ticker, "sector_type": c.sector_type,
                 "headquarters": c.headquarters, "logo_url": c.logo_url,
-                "adverse_event_count": event_count, "recall_count": recall_count, "trial_count": trial_count,
+                "adverse_event_count": event_counts.get(c.company_id, 0),
+                "recall_count": recall_counts.get(c.company_id, 0),
+                "trial_count": trial_counts.get(c.company_id, 0),
             })
 
         return {"total": total, "limit": limit, "offset": offset, "companies": companies}

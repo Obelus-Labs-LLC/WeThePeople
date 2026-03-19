@@ -664,6 +664,39 @@ export default function InstitutionPage() {
                 </div>
               )}
 
+              {/* Individual Complaints */}
+              {complaints.length > 0 && (
+                <div>
+                  <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">Recent Complaints</h3>
+                  <div className="space-y-2">
+                    {complaints.slice(0, 20).map((c) => (
+                      <div key={c.complaint_id} className="rounded border border-white/5 bg-white/[0.02] p-3">
+                        <div className="flex items-start justify-between gap-3 mb-1">
+                          <div className="min-w-0 flex-1">
+                            {c.product && <p className="text-sm text-white/70 font-medium">{c.product}</p>}
+                            {c.issue && <p className="text-xs text-white/40 mt-0.5">{c.issue}</p>}
+                          </div>
+                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            {c.date_received && <span className="font-mono text-[10px] text-white/30">{c.date_received}</span>}
+                            {c.company_response && (
+                              <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${
+                                c.company_response.toLowerCase().includes('closed') ? 'bg-green-500/10 text-green-400' : 'bg-white/10 text-white/50'
+                              }`}>
+                                {c.company_response}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {c.sub_product && <p className="text-xs text-white/25 mt-1">{c.sub_product}</p>}
+                      </div>
+                    ))}
+                  </div>
+                  {complaints.length > 20 && (
+                    <p className="font-mono text-xs text-white/30 mt-2">Showing 20 of {complaintsTotal} complaints</p>
+                  )}
+                </div>
+              )}
+
               {/* Stock data */}
               {stock && (
                 <div>

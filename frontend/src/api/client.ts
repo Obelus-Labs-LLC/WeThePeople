@@ -46,7 +46,13 @@ export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const url = new URL(window.location.href);
     const apiOverride = url.searchParams.get('api');
-    if (apiOverride) return apiOverride.replace(/\/$/, '');
+    if (apiOverride) {
+      try {
+        const parsed = new URL(apiOverride);
+        const allowed = ['localhost', '127.0.0.1', 'api.wethepeopleforus.com'];
+        if (allowed.includes(parsed.hostname)) return apiOverride.replace(/\/$/, '');
+      } catch { /* ignore invalid URLs */ }
+    }
   }
   return import.meta.env.VITE_API_BASE_URL || '/api';
 }
@@ -256,6 +262,12 @@ export class WTPClient {
   async getVoteDetail(voteId: number): Promise<VoteDetailResponse> {
     const url = `${this.baseUrl}/votes/${voteId}`;
     return this.fetchJSON<VoteDetailResponse>(url);
+  }
+
+  /** GET /people/{id}/committees — Committees a politician sits on */
+  async getPersonCommittees(personId: string): Promise<any> {
+    const url = `${this.baseUrl}/people/${encodeURIComponent(personId)}/committees`;
+    return this.fetchJSON<any>(url);
   }
 
   /** GET /actions/search — Search actions with filters */

@@ -69,7 +69,7 @@ class SourceDocument(Base):
 class Action(Base):
     __tablename__ = "actions"
     id = Column(Integer, primary_key=True, index=True)
-    person_id = Column(String, ForeignKey("people.id"))
+    person_id = Column(String, nullable=True, index=True)
     source_id = Column(Integer, ForeignKey("source_documents.id"))  # Normalized source reference
     title = Column(String)
     summary = Column(Text)
@@ -326,6 +326,10 @@ class MemberVote(Base):
     The critical evidence for vote claims.
     """
     __tablename__ = "member_votes"
+
+    __table_args__ = (
+        UniqueConstraint("vote_id", "bioguide_id", name="uq_member_votes_vote_bioguide"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     

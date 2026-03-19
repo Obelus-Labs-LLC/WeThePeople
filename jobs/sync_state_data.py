@@ -19,7 +19,7 @@ import logging
 from datetime import datetime
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event as sa_event
 from sqlalchemy.orm import sessionmaker
 
 # Add project root to path
@@ -37,6 +37,14 @@ log = logging.getLogger("sync_state_data")
 DB_PATH = os.getenv("DATABASE_URL", "sqlite:///wethepeople.db")
 
 engine = create_engine(DB_PATH, echo=False)
+
+@sa_event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=60000")
+    cursor.close()
+
 Session = sessionmaker(bind=engine)
 
 

@@ -142,10 +142,9 @@ export default function CongressionalTradesScreen() {
       <TouchableOpacity
         style={styles.card}
         onPress={() => {
-          // Try to navigate to person detail if we can match
-          navigation.navigate('PersonDetail', {
-            person_id: item.member_name?.toLowerCase().replace(/\s+/g, '_'),
-          });
+          if (item.person_id) {
+            navigation.navigate('PersonDetail', { person_id: item.person_id });
+          }
         }}
       >
         {/* Member + party */}

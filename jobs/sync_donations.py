@@ -52,6 +52,16 @@ FEC_API_KEY = os.getenv("FEC_API_KEY", "DEMO_KEY")
 FEC_BASE_URL = "https://api.open.fec.gov/v1"
 
 engine = create_engine(DB_PATH, connect_args={"check_same_thread": False} if "sqlite" in DB_PATH else {})
+
+import sqlalchemy.event as sa_event
+
+@sa_event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=60000")
+    cursor.close()
+
 Session = sessionmaker(bind=engine)
 
 
@@ -214,38 +224,68 @@ def fetch_committee_disbursements(committee_id: str, cycle: str = "2024") -> lis
     return all_results
 
 
-def match_candidate_to_member(candidate_name: str, candidate_id: str, member_lookup: dict) -> Optional[str]:
+def match_candidate_to_member(candidate_name: str, candidate_id: str,
+                              member_lookup: dict,
+                              candidate_state: Optional[str] = None) -> Optional[str]:
     """
     Try to match an FEC candidate to a tracked member.
-    member_lookup: {last_name_lower: person_id, fec_candidate_id: person_id}
+
+    member_lookup contains:
+      - (last_name_lower, state_upper) -> person_id
+      - fec_candidate_id -> person_id
+      - "__name_only__" -> {last_name_lower -> person_id}  (fallback)
     """
     # Try FEC candidate ID match first
     if candidate_id and candidate_id in member_lookup:
         return member_lookup[candidate_id]
 
-    # Try last name match
+    # Try (last_name, state) match
     if candidate_name:
         # FEC names are "LASTNAME, FIRSTNAME"
         parts = candidate_name.split(",")
         if parts:
             last = parts[0].strip().lower()
-            if last in member_lookup:
-                return member_lookup[last]
+            state = (candidate_state or "").upper().strip()
+
+            if state:
+                key = (last, state)
+                if key in member_lookup:
+                    return member_lookup[key]
+
+            # Fall back to name-only if state is unavailable
+            name_only = member_lookup.get("__name_only__", {})
+            if last in name_only:
+                if not state:
+                    log.warning(f"  Name-only fallback match for '{candidate_name}' "
+                                f"(no state available) — may be inaccurate for common surnames")
+                return name_only[last]
 
     return None
 
 
 def build_member_lookup(session) -> dict:
-    """Build lookup dict for matching FEC candidates to tracked members."""
-    lookup = {}
+    """Build lookup dict for matching FEC candidates to tracked members.
+
+    Uses (last_name, state) tuples as keys to avoid collisions for common
+    surnames (Brown, Smith, Johnson, etc.).  Also keeps FEC candidate ID
+    entries and a name-only fallback dict for cases where state is unavailable.
+    """
+    lookup = {}          # (last_name_lower, state_upper) -> person_id  AND  fec_id -> person_id
+    name_only = {}       # last_name_lower -> person_id  (fallback, may collide)
     members = session.query(TrackedMember).filter_by(is_active=1).all()
     for m in members:
-        # By last name
         last = m.display_name.split()[-1].lower()
-        lookup[last] = m.person_id
+        state = (m.state or "").upper().strip()
+        if state:
+            lookup[(last, state)] = m.person_id
+        # Keep a name-only fallback (last writer wins, but that's OK — it's
+        # only used when state is unavailable from the FEC record)
+        name_only[last] = m.person_id
         # By FEC candidate ID if we have it
         if hasattr(m, "fec_candidate_id") and m.fec_candidate_id:
             lookup[m.fec_candidate_id] = m.person_id
+    # Stash the name-only dict inside the main lookup under a sentinel key
+    lookup["__name_only__"] = name_only
     return lookup
 
 
@@ -316,12 +356,16 @@ def main():
                 disb_date = disb.get("disbursement_date")
                 candidate_name = disb.get("candidate_name", "")
                 candidate_id = disb.get("candidate_id", "")
+                candidate_state = disb.get("candidate_office_state", "")
 
                 if not amount or amount <= 0:
                     continue
 
                 # Try to match to tracked member
-                person_id = match_candidate_to_member(candidate_name, candidate_id, member_lookup)
+                person_id = match_candidate_to_member(
+                    candidate_name, candidate_id, member_lookup,
+                    candidate_state=candidate_state,
+                )
 
                 # Build dedupe hash: entity + committee + candidate + amount + date
                 dedupe = md5(f"{entity['entity_id']}:{cmte_id}:{candidate_id or recipient_name}:{amount}:{disb_date}")
