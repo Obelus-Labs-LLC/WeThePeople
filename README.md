@@ -19,7 +19,7 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 ## Five Sectors, One Platform
 
 ### Politics
-537 members of the 119th Congress. Voting records, sponsored legislation, bill progress tracking, co-sponsorship networks, committee assignments, and congressional stock trades. Find your representative by ZIP code.
+537 members of the 119th Congress. Voting records (House + Senate), sponsored legislation, bill progress tracking, co-sponsorship networks, 49 committees with 3,900+ memberships, 4,600+ congressional stock trades parsed from official disclosure PDFs, and 7,300+ state legislators across all 50 states. Find your representative by ZIP code.
 
 ### Finance
 144 financial institutions — banks, insurers, asset managers, fintech. SEC filings, FDIC financials, CFPB consumer complaints, insider trades, lobbying disclosures, government contracts, and enforcement actions.
@@ -43,20 +43,20 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 | **Spending Map** | Choropleth map of the US showing lobbying spend, donations, and political activity by state. Click a state to drill into detail. |
 | **Global Search** | Cmd+K overlay searching across all politicians, companies, and bills in one place. |
 | **Compare Pages** | Side-by-side comparison of politicians or companies within any sector — lobbying spend, contracts, enforcement, financial metrics. |
-| **Congressional Trades** | Track what stocks members of Congress buy and sell, with filing delay indicators and trade timelines. Links to Capitol Trades for deep dives. |
+| **Congressional Trades** | 4,600+ trades parsed from official House financial disclosure PDFs + Quiver API data. Filing delay indicators, trade timelines, and links to Capitol Trades for deep dives. |
 | **Campaign Contributions** | Direct links to ActBlue (D) or WinRed (R) for any politician — contribute to your representative's campaign directly from their profile. |
-| **State-Level Data** | State legislators and bills via OpenStates API. Explore by state from the spending map or Find Rep page. |
+| **State-Level Data** | 7,300+ state legislators across all 50 states (bulk imported from OpenStates). Explore by state from the spending map or Find Rep page. |
 | **Bill Pipeline** | Visual 6-stage funnel showing legislation progress from introduction through enactment, with sponsor filtering. |
 | **Data Freshness** | Every dashboard shows when data was last synced and record counts, so you know how current the information is. |
 | **Methodology Page** | Full documentation of every data source, update frequency, and known limitations. |
 
 ---
 
-## Data Sources (24+)
+## Data Sources (30+)
 
 | Source | Data | Sectors |
 |--------|------|---------|
-| Congress.gov API | Votes, bills, sponsors, actions | Politics |
+| Congress.gov API | House votes, bills, sponsors, actions | Politics |
 | Senate LDA | Lobbying filings (2020-present) | All sectors |
 | USASpending.gov | Federal government contracts | All sectors |
 | Federal Register | Enforcement actions, rules, notices | All sectors |
@@ -76,6 +76,11 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 | Alpha Vantage | Stock fundamentals and quotes | All sectors |
 | Wikipedia | Politician profiles and photos | Politics |
 | Google News | Sector news feeds | All sectors |
+| Senate.gov XML | Senate roll call votes (scraped directly) | Politics |
+| House Clerk Disclosures | Congressional financial disclosure PDFs | Politics |
+| AInvest | Congressional trade enrichment (filing delays) | Politics |
+| unitedstates/congress-legislators | Committee and membership data (CC0) | Politics |
+| openstates/people | State legislator data for all 50 states (CC0) | Politics |
 
 ---
 
@@ -86,9 +91,9 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 | Web frontend | React 19, Vite, TypeScript, Tailwind CSS 4, Framer Motion |
 | Visualizations | react-force-graph-2d, React-Leaflet, TradingView Lightweight Charts |
 | Backend | Python 3.11, FastAPI, SQLAlchemy, SQLite (WAL mode) |
-| Mobile app | React Native, Expo SDK 54 (not yet updated for redesign) |
+| Mobile app | React Native, Expo SDK 54 (full parity with web — 37 screens) |
 | Hosting | GCP Compute Engine (API), Vercel (frontend) |
-| Data pipeline | 24 Python connectors with rate limiting, pagination, and deduplication |
+| Data pipeline | 25 Python connectors + 33 sync jobs with rate limiting, pagination, and deduplication |
 | Search | Cross-sector entity search via `/search` endpoint |
 | Performance | React.lazy() code splitting, 75% bundle reduction |
 
@@ -115,6 +120,7 @@ WeThePeople/
 │   ├── health_models.py         # Health-specific models
 │   ├── tech_models.py           # Tech-specific models
 │   ├── energy_models.py         # Energy-specific models
+│   ├── committee_models.py      # Committee and membership models
 │   └── state_models.py          # State legislator and bill models
 ├── services/                   # Business logic
 │   ├── influence_network.py     # Cross-sector relationship graph builder
@@ -141,16 +147,22 @@ WeThePeople/
 │   ├── sync_state_data.py       # OpenStates legislators + bills
 │   ├── sync_{sector}_data.py    # Per-sector data syncs
 │   ├── sync_{sector}_enforcement.py  # Per-sector enforcement
-│   └── sync_{sector}_political_data.py  # Lobbying + contracts
+│   ├── sync_{sector}_political_data.py  # Lobbying + contracts
+│   ├── sync_senate_votes.py        # Senate roll call votes from senate.gov XML
+│   ├── sync_trades_from_disclosures.py  # House financial disclosure PDF parser
+│   ├── import_congress_legislators.py   # Committee/membership import (CC0 data)
+│   ├── import_openstates_people.py      # Bulk state legislator import (CC0 data)
+│   └── scheduler.py                # Automated sync scheduling (14 jobs)
 ├── frontend/                   # React web app (Vite)
 │   └── src/
-│       ├── pages/               # 40+ page components
+│       ├── pages/               # 57+ page components
 │       ├── components/          # Shared UI (InfluenceGraph, ChoroplethMap, etc.)
 │       ├── api/                 # TypeScript API clients per sector
 │       ├── layouts/             # Per-sector layout wrappers
 │       └── utils/               # Logo utility, formatters
-├── mobile/                     # React Native / Expo (not yet updated)
-└── deploy/                     # systemd service template
+├── mobile/                     # React Native / Expo (full parity with web)
+├── src/                        # Expo app source (screens, components, navigation)
+└── deploy/                     # systemd service templates (API + scheduler)
 ```
 
 ---
@@ -166,7 +178,9 @@ WeThePeople/
 | `GET /people/{id}/industry-donors` | Cross-sector corporate donations |
 | `GET /people/{id}/trades` | Congressional stock trades |
 | `GET /bills/{id}` | Bill detail with sponsors, timeline, full text links |
-| `GET /votes` | All House roll call votes |
+| `GET /votes` | All roll call votes (House + Senate) |
+| `GET /committees` | All congressional committees and subcommittees |
+| `GET /bills` | Legislation tracker with status/chamber filters |
 | `GET /congressional-trades` | All congressional stock trades |
 | `GET /representatives?zip=` | Find reps by ZIP code |
 | `GET /compare?ids=` | Side-by-side member comparison |
@@ -215,10 +229,13 @@ npm run dev    # http://localhost:5173
 
 ### Seed Data
 ```bash
-python jobs/seed_tracked_companies.py          # 500+ entities across all sectors
-python jobs/sync_votes.py                       # All House votes
-python jobs/sync_congressional_trades.py        # Congressional stock trades
-python jobs/sync_state_data.py --state mi       # State legislators + bills
+python jobs/seed_tracked_companies.py                              # 500+ entities across all sectors
+python jobs/sync_votes.py                                           # House roll call votes
+python jobs/sync_senate_votes.py                                    # Senate roll call votes (from senate.gov XML)
+python jobs/sync_congressional_trades.py                            # Congressional stock trades (Quiver API)
+python jobs/sync_trades_from_disclosures.py                         # Congressional trades (House disclosure PDFs)
+python jobs/import_congress_legislators.py --data-dir /tmp/congress-legislators  # Committees + memberships
+python jobs/import_openstates_people.py --data-dir /tmp/openstates-people        # All 50 states legislators
 ```
 
 ### Mobile App (Expo)
@@ -239,7 +256,7 @@ npx expo start
 - **Full pagination:** All connectors paginate through complete API results — no artificial caps.
 - **Deduplication:** Every sync job uses `dedupe_hash` with unique constraints to prevent duplicate records.
 - **SQLite WAL mode:** Single-writer, many-reader concurrency. Run sync jobs sequentially to avoid lock contention.
-- **Code-split frontend:** React.lazy() on all 40+ pages — users only load the sector they visit.
+- **Code-split frontend:** React.lazy() on all 57+ pages — users only load the sector they visit.
 
 ---
 
