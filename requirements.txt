@@ -27,6 +27,12 @@ psycopg2-binary>=2.9.0  # PostgreSQL driver (needed when WTP_DB_URL uses postgre
 # Rate Limiting
 slowapi>=0.1.9
 
+# Scheduling
+fastscheduler>=0.1.0
+
+# PDF parsing
+pdfplumber>=0.10.0
+
 # Optional: API clients
 beautifulsoup4>=4.12.0
 lxml>=4.9.0

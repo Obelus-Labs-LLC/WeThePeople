@@ -1,0 +1,24 @@
+[Unit]
+Description=WeThePeople Sync Scheduler
+After=network.target wethepeople.service
+Wants=wethepeople.service
+
+[Service]
+Type=simple
+User=%USER%
+Group=%USER%
+WorkingDirectory=%HOME%/wethepeople-backend
+EnvironmentFile=%HOME%/wethepeople-backend/.env
+ExecStart=%HOME%/wethepeople-backend/.venv/bin/python jobs/scheduler.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=%HOME%/wethepeople-backend
+
+[Install]
+WantedBy=multi-user.target
