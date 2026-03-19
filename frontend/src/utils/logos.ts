@@ -321,7 +321,8 @@ const COMPANY_DOMAINS: Record<string, string> = {
 
   // ── AI / Cloud ──
   'c3ai': 'c3.ai',
-  'upstart-tech': 'uipath.com',
+  'upstart-tech': 'uipath.com',  // UiPath Inc. (ticker: PATH)
+  'uipath': 'uipath.com',
   'samsara': 'samsara.com',
 
   // ── Telecom / Media ──
