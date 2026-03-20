@@ -182,6 +182,10 @@ export default function PersonProfilePage() {
   const [finance, setFinance] = useState<PersonFinance | null>(null);
   const [financeLoading, setFinanceLoading] = useState(false);
 
+  // ── State: donors tab ──
+  const [donors, setDonors] = useState<any>(null);
+  const [donorsLoading, setDonorsLoading] = useState(false);
+
   // ── State: trades tab ──
   const [trades, setTrades] = useState<any[]>([]);
   const [tradesLoading, setTradesLoading] = useState(false);
@@ -315,6 +319,20 @@ export default function PersonProfilePage() {
       })
       .catch(() => setTrades([]))
       .finally(() => setTradesLoading(false));
+  }, [tab, person_id, loadedTabs, markLoaded]);
+
+  // ── Lazy load: donors ──
+  useEffect(() => {
+    if (tab !== 'donors' || !person_id || loadedTabs.has('donors')) return;
+    setDonorsLoading(true);
+    fetch(`${getApiBaseUrl()}/politics/people/${person_id}/industry-donors?limit=100`)
+      .then((r) => r.json())
+      .then((data) => {
+        setDonors(data);
+        markLoaded('donors');
+      })
+      .catch(() => setDonors(null))
+      .finally(() => setDonorsLoading(false));
   }, [tab, person_id, loadedTabs, markLoaded]);
 
   // ── Load more: legislation ──
@@ -582,9 +600,7 @@ export default function PersonProfilePage() {
           <FinanceTab loading={financeLoading} finance={finance} />
         )}
         {tab === 'donors' && (
-          <div className="py-12 text-center">
-            <p className="text-white/40 text-sm">Industry donor data coming soon.</p>
-          </div>
+          <IndustryDonorsTab loading={donorsLoading} donors={donors} />
         )}
         {tab === 'trades' && (
           <StockTradesTab
@@ -1269,6 +1285,108 @@ function VoteCard({ vote }: { vote: PersonVoteEntry }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+// ══════════════════════════════════════════════
+//  INDUSTRY DONORS TAB
+// ══════════════════════════════════════════════
+
+function IndustryDonorsTab({
+  loading,
+  donors,
+}: {
+  loading: boolean;
+  donors: any;
+}) {
+  if (loading) return <Spinner />;
+  if (!donors || !donors.donations || donors.donations.length === 0) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-white/40 text-sm">No industry donor data available for this member.</p>
+      </div>
+    );
+  }
+
+  const totalAmount = donors.total_amount || 0;
+  const bySector = donors.by_sector || {};
+  const donations = donors.donations || [];
+
+  return (
+    <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card>
+          <div className="text-center">
+            <p className="font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase mb-1">Total Received</p>
+            <p className="font-mono text-2xl font-bold text-white">{formatCurrency(totalAmount)}</p>
+          </div>
+        </Card>
+        <Card>
+          <div className="text-center">
+            <p className="font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase mb-1">Donors</p>
+            <p className="font-mono text-2xl font-bold text-white">{donors.total || 0}</p>
+          </div>
+        </Card>
+        {Object.entries(bySector).map(([sector, data]: [string, any]) => (
+          <Card key={sector}>
+            <div className="text-center">
+              <p className="font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase mb-1">
+                {sector.charAt(0).toUpperCase() + sector.slice(1)} Sector
+              </p>
+              <p className="font-mono text-lg font-bold text-white">{formatCurrency(data.total_amount || 0)}</p>
+              <p className="font-mono text-xs text-white/30">{data.donor_count || 0} donors</p>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Donations table */}
+      <Card>
+        <CardTitle>Industry Donations</CardTitle>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-white/10">
+                <th className="py-2 text-left font-body text-xs uppercase text-white/30">Sector</th>
+                <th className="py-2 text-left font-body text-xs uppercase text-white/30">Committee / PAC</th>
+                <th className="py-2 text-left font-body text-xs uppercase text-white/30">Cycle</th>
+                <th className="py-2 text-right font-body text-xs uppercase text-white/30">Amount</th>
+                <th className="py-2 text-left font-body text-xs uppercase text-white/30">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {donations.map((d: any, i: number) => (
+                <tr key={d.id || i} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                  <td className="py-2.5">
+                    <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                      d.entity_type === 'finance' ? 'bg-emerald-500/10 text-emerald-400' :
+                      d.entity_type === 'health' ? 'bg-rose-500/10 text-rose-400' :
+                      d.entity_type === 'tech' ? 'bg-violet-500/10 text-violet-400' :
+                      d.entity_type === 'energy' ? 'bg-orange-500/10 text-orange-400' :
+                      'bg-white/10 text-white/50'
+                    }`}>
+                      {d.entity_type || '—'}
+                    </span>
+                  </td>
+                  <td className="py-2.5 font-body text-sm text-white">{d.committee_name || '—'}</td>
+                  <td className="py-2.5 font-mono text-xs text-white/50">{d.cycle || '—'}</td>
+                  <td className="py-2.5 font-mono text-sm font-semibold text-emerald-400 text-right">
+                    {d.amount != null ? formatCurrency(d.amount) : '—'}
+                  </td>
+                  <td className="py-2.5 font-mono text-xs text-white/40">
+                    {d.donation_date ? formatDate(d.donation_date) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 font-mono text-[10px] text-white/20">
+          Source: FEC via sync_donations.py
+        </p>
+      </Card>
+    </div>
   );
 }
 

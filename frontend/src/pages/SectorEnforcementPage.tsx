@@ -373,18 +373,24 @@ export default function SectorEnforcementPage() {
                   const pct = maxCompanyPenalty > 0 ? (comp.totalPenalties / maxCompanyPenalty) * 100 : 0;
                   const severity = getSeverity(comp.totalPenalties);
                   const color = getSeverityColor(severity);
+                  const isCompanyExpanded = expandedId === `company-${comp.entity_id}`;
+                  const companyActions = isCompanyExpanded
+                    ? allActions.filter((a) => a.entity_id === comp.entity_id).sort((a, b) => (b.penalty_amount || 0) - (a.penalty_amount || 0))
+                    : [];
 
                   return (
                     <motion.div
                       key={comp.entity_id}
                       variants={itemVariants}
-                      className="group rounded-xl border border-transparent bg-white/[0.03] p-4 transition-all hover:bg-white/[0.06] hover:border-white/10"
+                      onClick={() => setExpandedId(isCompanyExpanded ? null : `company-${comp.entity_id}`)}
+                      className="group rounded-xl border border-transparent bg-white/[0.03] p-4 transition-all hover:bg-white/[0.06] hover:border-white/10 cursor-pointer"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <span className="font-mono text-xs text-white/30 w-6 text-right flex-shrink-0">{idx + 1}</span>
                           <Link
                             to={config.profilePath(comp.entity_id)}
+                            onClick={(e) => e.stopPropagation()}
                             className="font-body text-sm font-medium text-white no-underline truncate"
                             onMouseEnter={(e) => (e.currentTarget.style.color = config.accent)}
                             onMouseLeave={(e) => (e.currentTarget.style.color = 'white')}
@@ -395,6 +401,11 @@ export default function SectorEnforcementPage() {
                         <div className="flex items-center gap-4 flex-shrink-0">
                           <span className="font-mono text-xs text-white/40">{comp.actionCount} actions</span>
                           <span className="font-mono text-sm font-bold" style={{ color }}>{fmtDollar(comp.totalPenalties)}</span>
+                          {isCompanyExpanded ? (
+                            <ChevronUp size={16} className="text-white/30" />
+                          ) : (
+                            <ChevronDown size={16} className="text-white/30" />
+                          )}
                         </div>
                       </div>
                       <div className="h-3 bg-zinc-900 rounded-lg overflow-hidden ml-9">
@@ -406,6 +417,83 @@ export default function SectorEnforcementPage() {
                           transition={{ duration: 0.8, delay: idx * 0.03, ease: [0.16, 1, 0.3, 1] }}
                         />
                       </div>
+
+                      {/* Expanded enforcement actions for this company */}
+                      <AnimatePresence>
+                        {isCompanyExpanded && companyActions.length > 0 && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="flex flex-col gap-2 mt-3 ml-9 pt-3 border-t border-white/10">
+                              <span className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-white/30">
+                                Enforcement Actions ({companyActions.length})
+                              </span>
+                              {companyActions.map((action) => {
+                                const actionSeverity = getSeverity(action.penalty_amount);
+                                const actionColor = getSeverityColor(actionSeverity);
+                                return (
+                                  <div key={action.id} className={`rounded-lg border p-3 ${getSeverityBg(actionSeverity)}`}>
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span
+                                            className="rounded px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase"
+                                            style={{ backgroundColor: `${actionColor}20`, color: actionColor }}
+                                          >
+                                            {getSeverityLabel(actionSeverity)}
+                                          </span>
+                                          {action.enforcement_type && (
+                                            <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/50">
+                                              {action.enforcement_type}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="font-body text-sm text-white/80 mb-1">
+                                          {action.case_title || 'Enforcement Action'}
+                                        </p>
+                                        {action.description && (
+                                          <p className="font-body text-xs text-white/50 mb-1 line-clamp-2">{action.description}</p>
+                                        )}
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                          {action.penalty_amount != null && action.penalty_amount > 0 && (
+                                            <span className="font-mono text-xs font-bold" style={{ color: actionColor }}>
+                                              {fmtDollar(action.penalty_amount)}
+                                            </span>
+                                          )}
+                                          {action.case_date && (
+                                            <span className="flex items-center gap-1 font-mono text-[11px] text-white/40">
+                                              <Calendar size={11} />{fmtDate(action.case_date)}
+                                            </span>
+                                          )}
+                                          {action.source && (
+                                            <span className="font-mono text-[11px] text-white/30">{action.source}</span>
+                                          )}
+                                          {action.case_url && (
+                                            <a
+                                              href={action.case_url}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="flex items-center gap-1 font-mono text-[11px] no-underline"
+                                              style={{ color: config.accent }}
+                                            >
+                                              <ExternalLink size={11} />Source
+                                            </a>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </motion.div>
                   );
                 })}

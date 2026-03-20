@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Users, Scale, Activity, FileText } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
@@ -155,6 +155,7 @@ export default function BalanceOfPowerPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const navigate = useNavigate();
   const headerRef = React.useRef<HTMLDivElement>(null);
   const headerInView = useInView(headerRef, { once: true, amount: 0.1 });
 
@@ -211,19 +212,21 @@ export default function BalanceOfPowerPage() {
         {/* Overall stats */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-10">
           {[
-            { label: 'Total Members', value: total.total.toString(), icon: Users, color: '#3B82F6' },
-            { label: 'Democrats', value: total.democrat.toString(), icon: Scale, color: '#3B82F6' },
-            { label: 'Republicans', value: total.republican.toString(), icon: Scale, color: '#EF4444' },
-            { label: 'Independent', value: total.independent.toString(), icon: Scale, color: '#A855F7' },
+            { label: 'Total Members', value: total.total.toString(), icon: Users, color: '#3B82F6', party: null },
+            { label: 'Democrats', value: total.democrat.toString(), icon: Scale, color: '#3B82F6', party: 'Democratic' },
+            { label: 'Republicans', value: total.republican.toString(), icon: Scale, color: '#EF4444', party: 'Republican' },
+            { label: 'Independent', value: total.independent.toString(), icon: Scale, color: '#A855F7', party: 'Independent' },
           ].map((stat, idx) => (
             <motion.div
               key={stat.label}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.4, delay: 0.1 + idx * 0.08 }}
+              onClick={() => navigate(stat.party ? `/politics/people?party=${stat.party}` : '/politics/people')}
+              className="cursor-pointer"
             >
               <SpotlightCard
-                className="rounded-xl border border-white/10 bg-white/[0.03]"
+                className="rounded-xl border border-white/10 bg-white/[0.03] transition-all hover:border-white/20"
                 spotlightColor="rgba(255, 255, 255, 0.10)"
               >
                 <div className="p-5">
