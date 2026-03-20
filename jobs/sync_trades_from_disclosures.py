@@ -110,6 +110,16 @@ AMOUNT_BRACKETS = [
 ]
 
 engine = create_engine(DB_PATH, connect_args={"check_same_thread": False} if "sqlite" in DB_PATH else {})
+
+import sqlalchemy.event as sa_event
+
+@sa_event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=60000")
+    cursor.close()
+
 Session = sessionmaker(bind=engine)
 
 

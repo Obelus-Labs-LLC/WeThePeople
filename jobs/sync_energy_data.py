@@ -276,14 +276,14 @@ def fetch_contracts(session, company: TrackedEnergyCompany):
 
 # ─── Senate LDA Lobbying ─────────────────────────────────────
 
-def _safe_float(val) -> float:
-    """Convert value to float, returning 0.0 on failure."""
+def _safe_float(val):
+    """Convert value to float, preserving None for nullable fields."""
     if val is None:
-        return 0.0
+        return None
     try:
         return float(val)
     except (ValueError, TypeError):
-        return 0.0
+        return None
 
 
 def fetch_lobbying(session, company: TrackedEnergyCompany):

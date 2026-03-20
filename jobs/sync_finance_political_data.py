@@ -44,6 +44,16 @@ log = logging.getLogger("sync_finance_political")
 DB_PATH = os.getenv("DATABASE_URL", "sqlite:///wethepeople.db")
 
 engine = create_engine(DB_PATH, connect_args={"check_same_thread": False} if "sqlite" in DB_PATH else {})
+
+import sqlalchemy.event as sa_event
+
+@sa_event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=60000")
+    cursor.close()
+
 Session = sessionmaker(bind=engine)
 
 
@@ -66,14 +76,14 @@ def parse_date(val):
 
 # ─── Senate LDA Lobbying ─────────────────────────────────────
 
-def _safe_float(val) -> float:
-    """Convert to float, treating None as 0."""
+def _safe_float(val):
+    """Convert to float, preserving None for nullable fields."""
     if val is None:
-        return 0.0
+        return None
     try:
         return float(val)
     except (ValueError, TypeError):
-        return 0.0
+        return None
 
 
 def fetch_lobbying(session, inst: TrackedInstitution):
@@ -237,13 +247,18 @@ def main():
         totals = {"lobbying": 0, "contracts": 0}
 
         for inst in institutions:
-            log.info(f"── {inst.display_name} ({inst.institution_id}) ──")
+            inst_id = inst.institution_id
+            log.info(f"── {inst.display_name} ({inst_id}) ──")
 
-            if not args.skip_lobbying:
-                totals["lobbying"] += fetch_lobbying(session, inst)
+            try:
+                if not args.skip_lobbying:
+                    totals["lobbying"] += fetch_lobbying(session, inst)
 
-            if not args.skip_contracts:
-                totals["contracts"] += fetch_contracts(session, inst)
+                if not args.skip_contracts:
+                    totals["contracts"] += fetch_contracts(session, inst)
+            except Exception as e:
+                log.error(f"FAILED {inst_id}: {e}")
+                session.rollback()
 
         log.info(f"Done. Lobbying: {totals['lobbying']} new, Contracts: {totals['contracts']} new")
     finally:
