@@ -332,75 +332,75 @@ def main():
             total_committees += len(committees)
 
             for committee in committees:
-            cmte_id = committee.get("committee_id", "")
-            cmte_name = committee.get("name", "")
+                cmte_id = committee.get("committee_id", "")
+                cmte_name = committee.get("name", "")
 
-            if not cmte_id:
-                continue
-
-            log.info(f"  Committee: {cmte_name} ({cmte_id})")
-
-            # Fetch disbursements to candidates
-            disbursements = fetch_committee_disbursements(cmte_id, cycle=args.cycle)
-            time.sleep(0.5)  # Rate limit
-
-            if not disbursements:
-                log.info(f"    No disbursements found for cycle {args.cycle}")
-                continue
-
-            entity_inserted = 0
-
-            for disb in disbursements:
-                recipient_name = disb.get("recipient_name", "")
-                recipient_cmte_id = disb.get("recipient_committee_id", "")
-                amount = disb.get("disbursement_amount")
-                disb_date = disb.get("disbursement_date")
-                candidate_name = disb.get("candidate_name", "")
-                candidate_id = disb.get("candidate_id", "")
-                candidate_state = disb.get("candidate_office_state", "")
-
-                if not amount or amount <= 0:
+                if not cmte_id:
                     continue
 
-                # Try to match to tracked member
-                person_id = match_candidate_to_member(
-                    candidate_name, candidate_id, member_lookup,
-                    candidate_state=candidate_state,
-                )
+                log.info(f"  Committee: {cmte_name} ({cmte_id})")
 
-                # Build dedupe hash: entity + committee + candidate + amount + date
-                dedupe = md5(f"{entity['entity_id']}:{cmte_id}:{candidate_id or recipient_name}:{amount}:{disb_date}")
+                # Fetch disbursements to candidates
+                disbursements = fetch_committee_disbursements(cmte_id, cycle=args.cycle)
+                time.sleep(0.5)  # Rate limit
 
-                if not args.dry_run:
-                    if session.query(CompanyDonation).filter_by(dedupe_hash=dedupe).first():
-                        total_dupes += 1
+                if not disbursements:
+                    log.info(f"    No disbursements found for cycle {args.cycle}")
+                    continue
+
+                entity_inserted = 0
+
+                for disb in disbursements:
+                    recipient_name = disb.get("recipient_name", "")
+                    recipient_cmte_id = disb.get("recipient_committee_id", "")
+                    amount = disb.get("disbursement_amount")
+                    disb_date = disb.get("disbursement_date")
+                    candidate_name = disb.get("candidate_name", "")
+                    candidate_id = disb.get("candidate_id", "")
+                    candidate_state = disb.get("candidate_office_state", "")
+
+                    if not amount or amount <= 0:
                         continue
 
-                    donation_date = parse_date_str(disb_date)
+                    # Try to match to tracked member
+                    person_id = match_candidate_to_member(
+                        candidate_name, candidate_id, member_lookup,
+                        candidate_state=candidate_state,
+                    )
 
-                    session.add(CompanyDonation(
-                        entity_type=entity["entity_type"],
-                        entity_id=entity["entity_id"],
-                        person_id=person_id,
-                        committee_name=cmte_name,
-                        committee_id=cmte_id,
-                        candidate_name=candidate_name or recipient_name,
-                        candidate_id=candidate_id if candidate_id else None,
-                        amount=float(amount),
-                        cycle=args.cycle,
-                        donation_date=donation_date,
-                        source_url=f"https://www.fec.gov/data/disbursements/?committee_id={cmte_id}&two_year_transaction_period={args.cycle}",
-                        dedupe_hash=dedupe,
-                    ))
-                    entity_inserted += 1
-                else:
-                    log.info(f"    [DRY RUN] ${amount:,.0f} -> {candidate_name or recipient_name}")
-                    entity_inserted += 1
+                    # Build dedupe hash: entity + committee + candidate + amount + date
+                    dedupe = md5(f"{entity['entity_id']}:{cmte_id}:{candidate_id or recipient_name}:{amount}:{disb_date}")
 
-            if entity_inserted > 0 and not args.dry_run:
-                session.commit()
-                total_inserted += entity_inserted
-                log.info(f"    Inserted {entity_inserted} disbursements")
+                    if not args.dry_run:
+                        if session.query(CompanyDonation).filter_by(dedupe_hash=dedupe).first():
+                            total_dupes += 1
+                            continue
+
+                        donation_date = parse_date_str(disb_date)
+
+                        session.add(CompanyDonation(
+                            entity_type=entity["entity_type"],
+                            entity_id=entity["entity_id"],
+                            person_id=person_id,
+                            committee_name=cmte_name,
+                            committee_id=cmte_id,
+                            candidate_name=candidate_name or recipient_name,
+                            candidate_id=candidate_id if candidate_id else None,
+                            amount=float(amount),
+                            cycle=args.cycle,
+                            donation_date=donation_date,
+                            source_url=f"https://www.fec.gov/data/disbursements/?committee_id={cmte_id}&two_year_transaction_period={args.cycle}",
+                            dedupe_hash=dedupe,
+                        ))
+                        entity_inserted += 1
+                    else:
+                        log.info(f"    [DRY RUN] ${amount:,.0f} -> {candidate_name or recipient_name}")
+                        entity_inserted += 1
+
+                if entity_inserted > 0 and not args.dry_run:
+                    session.commit()
+                    total_inserted += entity_inserted
+                    log.info(f"    Inserted {entity_inserted} disbursements")
         except Exception as e:
             log.error(f"FAILED {entity['entity_id']}: {e}")
             session.rollback()
