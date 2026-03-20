@@ -37,7 +37,7 @@ const SLIDES: Slide[] = [
     title: 'Welcome to\nWe The People',
     subtitle: 'Public Accountability Platform',
     description:
-      'Track what the powerful actually do across politics, finance, health, and technology — all from public record data. No spin. No editorials.',
+      'Track what the powerful actually do across politics, finance, health, technology, and energy — all from public record data. No spin. No editorials.',
     gradientStart: '#1B7A3D',
     gradientEnd: '#10B981',
   },
@@ -45,10 +45,10 @@ const SLIDES: Slide[] = [
     id: '2',
     icon: '📊',
     ionicon: 'grid-outline',
-    title: 'Four Sectors\nOne Platform',
+    title: 'Five Sectors\nOne Platform',
     subtitle: 'All Live Now',
     description:
-      'Politics tracks all 535+ members of Congress. Finance monitors banks via SEC and FDIC. Health covers FDA safety data. Tech tracks patents, contracts, and lobbying.',
+      'Politics tracks all 535+ members of Congress. Finance monitors banks via SEC and FDIC. Health covers FDA safety data. Tech tracks patents and lobbying. Energy follows oil, gas, and utilities.',
     gradientStart: '#2563EB',
     gradientEnd: '#6366F1',
   },

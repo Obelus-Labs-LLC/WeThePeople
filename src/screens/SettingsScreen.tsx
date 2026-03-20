@@ -210,7 +210,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             and technology oversight — all in one place.
           </Text>
           <Text style={[styles.aboutText, { marginTop: 8 }]}>
-            Built for transparency across politics, finance, health, and technology sectors.
+            Built for transparency across politics, finance, health, technology, and energy sectors.
             Every claim is verified against real data sources.
           </Text>
         </View>
