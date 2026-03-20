@@ -186,7 +186,7 @@ def fetch_sec_filings(session, company: TrackedEnergyCompany, limit: int = 10000
 
         acc = accessions[i]
         dedupe = md5(f"{company.company_id}:{acc}")
-        if session.query(SECEnergyFiling).filter_by(dedupe_hash=dedupe).first():
+        if session.query(SECEnergyFiling).filter_by(accession_number=acc).first():
             continue
 
         acc_no_dash = acc.replace("-", "")

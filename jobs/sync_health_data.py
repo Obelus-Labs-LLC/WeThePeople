@@ -218,7 +218,7 @@ def sync_sec_filings(company: TrackedCompany, db) -> int:
     inserted = 0
     for f in filings:
         dedupe = f["dedupe_hash"]
-        exists = db.query(SECHealthFiling).filter_by(dedupe_hash=dedupe).first()
+        exists = db.query(SECHealthFiling).filter_by(accession_number=f["accession_number"]).first()
         if exists:
             continue
 

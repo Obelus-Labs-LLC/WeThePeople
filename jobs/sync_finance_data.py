@@ -87,7 +87,7 @@ def sync_sec_filings(institution: TrackedInstitution, db) -> int:
         dedupe = f["dedupe_hash"]
 
         # Check for existing
-        exists = db.query(SECFiling).filter_by(dedupe_hash=dedupe).first()
+        exists = db.query(SECFiling).filter_by(accession_number=f["accession_number"]).first()
         if exists:
             continue
 
