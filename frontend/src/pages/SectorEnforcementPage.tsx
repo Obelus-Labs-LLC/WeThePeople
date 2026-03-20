@@ -23,6 +23,7 @@ interface SectorConfig {
   accentRGB: string;
   Header: React.FC;
   aggregateEndpoint: string;
+  entityKey: string;
   profilePath: (id: string) => string;
 }
 
@@ -31,30 +32,35 @@ const SECTOR_MAP: Record<string, SectorConfig> = {
     key: 'finance', label: 'Finance', accent: '#10B981', accentRGB: '16,185,129',
     Header: FinanceSectorHeader,
     aggregateEndpoint: `${API_BASE}/aggregate/finance/enforcement?limit=1000`,
+    entityKey: 'institutions',
     profilePath: (id) => `/finance/${id}`,
   },
   health: {
     key: 'health', label: 'Health', accent: '#F43F5E', accentRGB: '244,63,94',
     Header: HealthSectorHeader,
     aggregateEndpoint: `${API_BASE}/aggregate/health/enforcement?limit=1000`,
+    entityKey: 'companies',
     profilePath: (id) => `/health/${id}`,
   },
   technology: {
     key: 'technology', label: 'Technology', accent: '#8B5CF6', accentRGB: '139,92,246',
     Header: TechSectorHeader,
     aggregateEndpoint: `${API_BASE}/aggregate/tech/enforcement?limit=1000`,
+    entityKey: 'companies',
     profilePath: (id) => `/technology/${id}`,
   },
   energy: {
     key: 'energy', label: 'Energy', accent: '#F97316', accentRGB: '249,115,22',
     Header: EnergySectorHeader,
     aggregateEndpoint: `${API_BASE}/aggregate/energy/enforcement?limit=1000`,
+    entityKey: 'companies',
     profilePath: (id) => `/energy/${id}`,
   },
   politics: {
     key: 'politics', label: 'Politics', accent: '#3B82F6', accentRGB: '59,130,246',
     Header: PoliticsSectorHeader,
     aggregateEndpoint: '',
+    entityKey: 'companies',
     profilePath: () => '/politics',
   },
 };
