@@ -107,10 +107,14 @@ def fetch_lobbying_filings(
                 # Extract lobbying issues and government entities
                 issues = []
                 gov_entities = set()
+                descriptions = []
                 for activity in (f.get("lobbying_activities") or []):
                     issue_code = activity.get("general_issue_code_display")
                     if issue_code:
                         issues.append(issue_code)
+                    desc = activity.get("description") or ""
+                    if desc.strip():
+                        descriptions.append(desc.strip())
                     for entity in (activity.get("government_entities") or []):
                         name = entity.get("name") if isinstance(entity, dict) else str(entity)
                         if name:
@@ -126,6 +130,7 @@ def fetch_lobbying_filings(
                     "client_name": client.get("name", ""),
                     "lobbying_issues": ", ".join(sorted(set(issues))) if issues else None,
                     "government_entities": ", ".join(sorted(gov_entities)) if gov_entities else None,
+                    "specific_issues": " || ".join(descriptions) if descriptions else None,
                     "dedupe_hash": _compute_hash(filing_uuid),
                 })
 

@@ -303,7 +303,8 @@ def download_pdf(doc_id: str, year: int) -> Optional[bytes]:
 
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extract text from PDF using pdfplumber with layout preservation."""
+    """Extract text from PDF using pdfplumber with layout preservation.
+    Falls back to OCR (pytesseract) for scanned image PDFs."""
     text_parts = []
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -317,9 +318,33 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
                     text_parts.append(page_text)
     except Exception as e:
         log.warning(f"pdfplumber extraction error: {e}")
-        return ""
 
-    return "\n".join(text_parts)
+    combined = "\n".join(text_parts)
+
+    # OCR fallback for scanned image PDFs
+    if not combined.strip():
+        try:
+            from pdf2image import convert_from_bytes
+            import pytesseract
+
+            log.info("pdfplumber returned empty text, attempting OCR fallback...")
+            images = convert_from_bytes(pdf_bytes, dpi=300)
+            ocr_parts = []
+            for img in images:
+                page_text = pytesseract.image_to_string(img, config="--psm 6")
+                if page_text:
+                    ocr_parts.append(page_text)
+            combined = "\n".join(ocr_parts)
+            if combined.strip():
+                log.info(f"OCR extracted {len(combined)} chars from {len(images)} pages")
+            else:
+                log.warning("OCR also returned empty text")
+        except ImportError:
+            log.warning("OCR dependencies not installed (pip install pytesseract pdf2image; apt install tesseract-ocr poppler-utils)")
+        except Exception as e:
+            log.warning(f"OCR extraction error: {e}")
+
+    return combined
 
 
 # ---------------------------------------------------------------------------
