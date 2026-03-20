@@ -61,6 +61,7 @@ const InfluenceNetworkPage = React.lazy(() => import("./pages/InfluenceNetworkPa
 const SectorLobbyingPage = React.lazy(() => import("./pages/SectorLobbyingPage"));
 const SectorContractsPage = React.lazy(() => import("./pages/SectorContractsPage"));
 const SectorEnforcementPage = React.lazy(() => import("./pages/SectorEnforcementPage"));
+const ClosedLoopPage = React.lazy(() => import("./pages/ClosedLoopPage"));
 const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage"));
 const PrivacyPolicyPage = React.lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfUsePage = React.lazy(() => import("./pages/TermsOfUsePage"));
@@ -107,6 +108,7 @@ const App: React.FC = () => (
           <Route path="/influence/map" element={<InfluenceMapPage />} />
           <Route path="/influence/network" element={<InfluenceNetworkPage />} />
           <Route path="/influence/network/:entityType/:entityId" element={<InfluenceNetworkPage />} />
+          <Route path="/influence/closed-loops" element={<PoliticsLayout><ClosedLoopPage /></PoliticsLayout>} />
 
           {/* Finance section — all wrapped in FinanceLayout (Waves bg) */}
           <Route path="/finance" element={<FinanceLayout><FinanceDashboardPage /></FinanceLayout>} />

@@ -75,6 +75,7 @@ const POLITICS_LINKS: NavLink[] = [
   { label: 'Power', to: '/politics/power' },
   { label: 'Compare', to: '/politics/compare' },
   { label: 'Find Rep', to: '/politics/find-rep' },
+  { label: 'Influence Loops', to: '/influence/closed-loops' },
 ];
 
 const FINANCE_LINKS: NavLink[] = [
