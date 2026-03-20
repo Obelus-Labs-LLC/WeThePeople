@@ -361,7 +361,8 @@ def sync_all(
         totals = {"sec": 0, "fdic": 0, "cfpb": 0, "fred": 0, "press": 0, "stocks": 0}
 
         for inst in institutions:
-            logger.info("--- %s (%s) ---", inst.display_name, inst.institution_id)
+            iid = inst.institution_id
+            logger.info("--- %s (%s) ---", inst.display_name, iid)
             try:
                 if not skip_sec:
                     totals["sec"] += sync_sec_filings(inst, db)
@@ -386,7 +387,7 @@ def sync_all(
                 inst.last_full_refresh_at = datetime.utcnow()
                 db.commit()
             except Exception as e:
-                logger.error("FAILED %s: %s", inst.institution_id, e)
+                logger.error("FAILED %s: %s", iid, e)
                 db.rollback()
 
         logger.info("=== SYNC COMPLETE ===")

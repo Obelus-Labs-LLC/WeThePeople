@@ -343,7 +343,8 @@ def sync_all(
         totals = {"sec_filings": 0, "patents": 0, "contracts": 0, "stocks": 0, "lobbying": 0, "ftc": 0}
 
         for company in companies:
-            logger.info("--- %s (%s) ---", company.display_name, company.company_id)
+            cid = company.company_id
+            logger.info("--- %s (%s) ---", company.display_name, cid)
             try:
                 if not skip_sec:
                     totals["sec_filings"] += sync_sec_filings(company, db)
@@ -368,7 +369,7 @@ def sync_all(
                 company.last_full_refresh_at = datetime.utcnow()
                 db.commit()
             except Exception as e:
-                logger.error("FAILED %s: %s", company.company_id, e)
+                logger.error("FAILED %s: %s", cid, e)
                 db.rollback()
 
         logger.info("=== TECH SYNC COMPLETE ===")
