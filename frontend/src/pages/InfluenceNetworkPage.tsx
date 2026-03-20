@@ -257,8 +257,26 @@ export default function InfluenceNetworkPage() {
             <h2 className="text-2xl font-bold text-white/80">Influence Network Graph</h2>
             <p className="text-white/40 text-center max-w-lg">
               Explore the web of connections between politicians, companies, lobbying groups, and legislation.
-              Search for a person or company above to generate their influence network.
+              Search for a person or company above, or try one of the examples below.
             </p>
+            <div className="flex flex-wrap justify-center gap-3 mt-2">
+              {[
+                { label: 'Nancy Pelosi', type: 'person', id: 'nancy_pelosi' },
+                { label: 'Ted Cruz', type: 'person', id: 'ted_cruz' },
+                { label: 'JPMorgan Chase', type: 'finance', id: 'jpmorgan' },
+                { label: 'Pfizer', type: 'health', id: 'pfizer' },
+                { label: 'Alphabet (Google)', type: 'tech', id: 'alphabet' },
+                { label: 'ExxonMobil', type: 'energy', id: 'exxonmobil' },
+              ].map((ex) => (
+                <button
+                  key={ex.id}
+                  onClick={() => navigate(`/influence/network/${ex.type}/${ex.id}`)}
+                  className="px-4 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-sm text-white/60 hover:text-white hover:border-blue-500/40 hover:bg-blue-500/10 transition-all"
+                >
+                  {ex.label}
+                </button>
+              ))}
+            </div>
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center h-full min-h-[60vh]">

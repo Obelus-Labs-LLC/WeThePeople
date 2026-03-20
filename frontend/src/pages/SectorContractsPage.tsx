@@ -342,8 +342,8 @@ export default function SectorContractsPage() {
                 Contract award values by fiscal year
               </p>
 
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-6">
-                <div className="flex items-end gap-3 h-64">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-6 overflow-hidden">
+                <div className="flex items-end gap-3 h-64 overflow-hidden">
                   {yearBuckets.map((bucket, i) => {
                     const pct = maxBarAmount > 0 ? (bucket.totalAmount / maxBarAmount) * 100 : 0;
                     const color = BAR_COLORS[i % BAR_COLORS.length];

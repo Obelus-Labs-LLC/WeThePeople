@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Map, DollarSign, Users, Briefcase } from 'lucide-react';
 import ChoroplethMap from '../components/ChoroplethMap';
@@ -60,6 +60,7 @@ const STATE_NAMES: Record<string, string> = {
 // ── Page Component ──
 
 export default function InfluenceMapPage() {
+  const navigate = useNavigate();
   const [metric, setMetric] = useState<SpendingMetric>('donations');
   const [sector, setSector] = useState<SectorFilter | 'all'>('all');
   const [stateData, setStateData] = useState<Record<string, StateSpendingData>>({});
@@ -87,9 +88,9 @@ export default function InfluenceMapPage() {
     .sort(([, a], [, b]) => b.value - a.value)
     .slice(0, 10);
 
-  const handleStateClick = useCallback((_abbr: string, _name: string) => {
-    // Future: navigate to state-specific page
-  }, []);
+  const handleStateClick = useCallback((abbr: string, _name: string) => {
+    navigate(`/politics/states/${abbr}`);
+  }, [navigate]);
 
   const currentMetric = METRICS.find((m) => m.key === metric)!;
 

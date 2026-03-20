@@ -70,7 +70,7 @@ export default function HomeScreen() {
                 <Text style={styles.pillText}>24+ Federal Sources</Text>
               </View>
               <View style={styles.pillGold}>
-                <Text style={styles.pillGoldText}>4 Sectors Live</Text>
+                <Text style={styles.pillGoldText}>5 Sectors Live</Text>
               </View>
             </View>
           </View>

@@ -68,19 +68,33 @@ export default function ClosedLoopPage() {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams();
-    if (sector !== 'All') params.set('sector', sector.toLowerCase());
+    if (sector !== 'All') params.set('entity_type', sector.toLowerCase());
     if (minDonation > 0) params.set('min_donation', minDonation.toString());
-    params.set('year_start', yearStart.toString());
-    params.set('year_end', yearEnd.toString());
+    params.set('year_from', yearStart.toString());
+    params.set('year_to', yearEnd.toString());
 
-    fetch(`${API_BASE}/influence/closed-loops?${params}`)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120_000);
+
+    fetch(`${API_BASE}/influence/closed-loops?${params}`, { signal: controller.signal })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((d: ClosedLoopResponse) => setData(d))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (e.name === 'AbortError') setError('Request timed out — the server may be under heavy load. Try narrowing filters.');
+        else setError(e.message);
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
+        setLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
   }, [sector, minDonation, yearStart, yearEnd]);
 
   const stats = data?.stats;
@@ -210,8 +224,10 @@ export default function ClosedLoopPage() {
 
         {/* Loading */}
         {loading && (
-          <div className="flex justify-center py-20">
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+            <p className="text-sm text-white/30">Analyzing influence chains across lobbying, bills, committees, and donations...</p>
+            <p className="text-xs text-white/20">This may take up to 30 seconds.</p>
           </div>
         )}
 
