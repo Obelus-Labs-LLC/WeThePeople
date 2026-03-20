@@ -18,29 +18,22 @@ import { getApiBaseUrl } from '../api/client';
 const API_BASE = getApiBaseUrl();
 
 interface ClosedLoop {
-  company_name: string;
-  sector: string;
-  lobbying_total: number;
-  lobbying_issues: string[];
-  bill_id: string;
-  bill_title: string;
-  bill_status: string;
-  committee_name: string;
-  politician_name: string;
-  politician_party: string;
-  politician_role: string;
-  person_id: string;
-  donation_total: number;
+  company: { entity_type: string; entity_id: string; display_name: string };
+  lobbying: { total_income: number; issue_codes: string; filing_count: number };
+  bill: { bill_id: string; title: string; policy_area: string; status: string; referral_date: string | null };
+  committee: { thomas_id: string; name: string; chamber: string | null; referral_date: string | null };
+  politician: { person_id: string; committee_role: string; display_name: string; party: string; state: string };
+  donation: { total_amount: number; donation_count: number; latest_date: string | null };
 }
 
 interface ClosedLoopResponse {
-  loops: ClosedLoop[];
-  total: number;
+  closed_loops: ClosedLoop[];
   stats: {
-    total_loops: number;
+    total_loops_found: number;
     unique_companies: number;
     unique_politicians: number;
-    total_lobbying: number;
+    unique_bills: number;
+    total_lobbying_spend: number;
     total_donations: number;
   };
 }
@@ -91,7 +84,7 @@ export default function ClosedLoopPage() {
   }, [sector, minDonation, yearStart, yearEnd]);
 
   const stats = data?.stats;
-  const loops = data?.loops || [];
+  const loops = data?.closed_loops || [];
 
   return (
     <div className="min-h-screen">
@@ -197,10 +190,10 @@ export default function ClosedLoopPage() {
             transition={{ duration: 0.4, delay: 0.1 }}
           >
             {[
-              { label: 'Total Loops', value: stats.total_loops.toLocaleString(), icon: AlertCircle },
+              { label: 'Total Loops', value: stats.total_loops_found.toLocaleString(), icon: AlertCircle },
               { label: 'Companies', value: stats.unique_companies.toLocaleString(), icon: Building2 },
               { label: 'Politicians', value: stats.unique_politicians.toLocaleString(), icon: User },
-              { label: 'Lobbying $', value: formatCurrency(stats.total_lobbying), icon: DollarSign },
+              { label: 'Lobbying $', value: formatCurrency(stats.total_lobbying_spend), icon: DollarSign },
               { label: 'Donations $', value: formatCurrency(stats.total_donations), icon: DollarSign },
             ].map((stat) => (
               <div
@@ -247,7 +240,7 @@ export default function ClosedLoopPage() {
           <div className="space-y-4">
             {loops.map((loop, i) => (
               <motion.div
-                key={`${loop.company_name}-${loop.bill_id}-${loop.person_id}-${i}`}
+                key={`${loop.company.entity_id}-${loop.bill.bill_id}-${loop.politician.person_id}-${i}`}
                 className="rounded-xl bg-white/[0.03] border border-white/10 p-5 hover:bg-white/[0.05] transition-colors"
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -256,7 +249,7 @@ export default function ClosedLoopPage() {
                 {/* Sector badge */}
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    {loop.sector}
+                    {loop.company.entity_type}
                   </span>
                 </div>
 
@@ -268,7 +261,7 @@ export default function ClosedLoopPage() {
                       <Building2 className="w-4 h-4 text-emerald-400" />
                     </div>
                     <div>
-                      <span className="text-sm font-semibold text-white">{loop.company_name}</span>
+                      <span className="text-sm font-semibold text-white">{loop.company.display_name}</span>
                     </div>
                   </div>
 
@@ -282,11 +275,11 @@ export default function ClosedLoopPage() {
                     </div>
                     <div className="flex flex-col">
                       <span className="text-sm text-white/70">
-                        Lobbied <span className="font-mono text-yellow-400">{formatCurrency(loop.lobbying_total)}</span>
+                        Lobbied <span className="font-mono text-yellow-400">{formatCurrency(loop.lobbying.total_income)}</span>
                       </span>
-                      {loop.lobbying_issues.length > 0 && (
+                      {loop.lobbying.issue_codes && (
                         <span className="text-xs text-white/30 truncate max-w-[200px]">
-                          {loop.lobbying_issues.slice(0, 3).join(', ')}
+                          {loop.lobbying.issue_codes.split(', ').slice(0, 3).join(', ')}
                         </span>
                       )}
                     </div>
@@ -301,10 +294,10 @@ export default function ClosedLoopPage() {
                       <FileText className="w-4 h-4 text-violet-400" />
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="text-sm text-white/70 truncate max-w-[180px]" title={loop.bill_title}>
-                        {loop.bill_title}
+                      <span className="text-sm text-white/70 truncate max-w-[180px]" title={loop.bill.title}>
+                        {loop.bill.title}
                       </span>
-                      <span className="text-xs text-white/30">{loop.bill_status}</span>
+                      <span className="text-xs text-white/30">{loop.bill.status}</span>
                     </div>
                   </div>
 
@@ -316,8 +309,8 @@ export default function ClosedLoopPage() {
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20">
                       <Users className="w-4 h-4 text-orange-400" />
                     </div>
-                    <span className="text-sm text-white/70 truncate max-w-[160px]" title={loop.committee_name}>
-                      {loop.committee_name}
+                    <span className="text-sm text-white/70 truncate max-w-[160px]" title={loop.committee.name}>
+                      {loop.committee.name}
                     </span>
                   </div>
 
@@ -331,16 +324,16 @@ export default function ClosedLoopPage() {
                     </div>
                     <div className="flex flex-col">
                       <Link
-                        to={`/politics/people/${loop.person_id}`}
+                        to={`/politics/people/${loop.politician.person_id}`}
                         className="text-sm font-medium text-blue-400 hover:text-blue-300 no-underline"
                       >
-                        {loop.politician_name}
+                        {loop.politician.display_name}
                       </Link>
                       <span className="text-xs text-white/30">
-                        <span className={loop.politician_party === 'D' ? 'text-blue-400' : loop.politician_party === 'R' ? 'text-red-400' : 'text-white/40'}>
-                          ({loop.politician_party})
+                        <span className={loop.politician.party === 'D' ? 'text-blue-400' : loop.politician.party === 'R' ? 'text-red-400' : 'text-white/40'}>
+                          ({loop.politician.party})
                         </span>
-                        {' '}{loop.politician_role}
+                        {' '}{loop.politician.committee_role}
                       </span>
                     </div>
                   </div>
@@ -354,7 +347,7 @@ export default function ClosedLoopPage() {
                       <DollarSign className="w-4 h-4 text-red-400" />
                     </div>
                     <span className="text-sm font-mono font-semibold text-red-400">
-                      {formatCurrency(loop.donation_total)}
+                      {formatCurrency(loop.donation.total_amount)}
                     </span>
                   </div>
                 </div>
