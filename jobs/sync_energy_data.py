@@ -392,7 +392,8 @@ def main():
 
         for co in companies:
             log.info(f"\n{'='*60}")
-            log.info(f"Processing: {co.display_name} ({co.company_id})")
+            cid = co.company_id
+            log.info(f"Processing: {co.display_name} ({cid})")
             try:
                 if not args.skip_sec:
                     fetch_sec_filings(session, co)
@@ -411,7 +412,7 @@ def main():
                 co.last_full_refresh_at = datetime.utcnow()
                 session.commit()
             except Exception as e:
-                log.error(f"FAILED {co.company_id}: {e}")
+                log.error(f"FAILED {cid}: {e}")
                 session.rollback()
 
         log.info(f"\nDone! Synced {len(companies)} companies.")

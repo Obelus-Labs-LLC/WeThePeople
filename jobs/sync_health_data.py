@@ -309,7 +309,8 @@ def sync_all(
         totals = {"fda_events": 0, "fda_recalls": 0, "trials": 0, "cms_payments": 0, "sec_filings": 0, "stocks": 0}
 
         for company in companies:
-            logger.info("--- %s (%s) ---", company.display_name, company.company_id)
+            cid = company.company_id
+            logger.info("--- %s (%s) ---", company.display_name, cid)
             try:
                 if not skip_fda:
                     totals["fda_events"] += sync_fda_adverse_events(company, db)
@@ -332,7 +333,7 @@ def sync_all(
                 company.last_full_refresh_at = datetime.utcnow()
                 db.commit()
             except Exception as e:
-                logger.error("FAILED %s: %s", company.company_id, e)
+                logger.error("FAILED %s: %s", cid, e)
                 db.rollback()
 
         logger.info("=== SYNC COMPLETE ===")
