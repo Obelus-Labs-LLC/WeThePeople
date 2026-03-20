@@ -228,6 +228,7 @@ class HealthLobbyingRecord(Base):
     client_name = Column(String, nullable=True)
     lobbying_issues = Column(Text, nullable=True)
     government_entities = Column(Text, nullable=True)
+    specific_issues = Column(Text, nullable=True)
 
     dedupe_hash = Column(String, nullable=False, index=True)
 

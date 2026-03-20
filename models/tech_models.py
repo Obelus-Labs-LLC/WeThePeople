@@ -161,6 +161,7 @@ class LobbyingRecord(Base):
     client_name = Column(String, nullable=True)  # Client organization as filed
     lobbying_issues = Column(Text, nullable=True)  # Comma-separated issue codes
     government_entities = Column(Text, nullable=True)  # Comma-separated entities lobbied
+    specific_issues = Column(Text, nullable=True)
 
     dedupe_hash = Column(String, nullable=False, index=True)
 
