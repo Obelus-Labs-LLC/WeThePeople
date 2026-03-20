@@ -124,6 +124,10 @@ def sync_fdic_financials(institution: TrackedInstitution, db) -> int:
 
     inserted = 0
     for q in quarters:
+        report_date = _parse_date(q.get("report_date"))
+        if not report_date:
+            continue
+
         dedupe = q["dedupe_hash"]
 
         exists = db.query(FDICFinancial).filter_by(dedupe_hash=dedupe).first()
@@ -132,7 +136,7 @@ def sync_fdic_financials(institution: TrackedInstitution, db) -> int:
 
         record = FDICFinancial(
             institution_id=institution.institution_id,
-            report_date=_parse_date(q["report_date"]),
+            report_date=report_date,
             total_assets=q.get("total_assets"),
             total_deposits=q.get("total_deposits"),
             net_income=q.get("net_income"),
