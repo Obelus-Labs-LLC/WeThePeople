@@ -320,17 +320,18 @@ def main():
     for i, entity in enumerate(entities):
         log.info(f"[{i + 1}/{len(entities)}] {entity['display_name']} ({entity['entity_type']})")
 
-        # Search for PACs associated with this company
-        committees = search_committees(entity["pac_search_name"])
-        time.sleep(0.5)  # Rate limit between companies
+        try:
+            # Search for PACs associated with this company
+            committees = search_committees(entity["pac_search_name"])
+            time.sleep(0.5)  # Rate limit between companies
 
-        if not committees:
-            log.info(f"  No committees found for '{entity['pac_search_name']}'")
-            continue
+            if not committees:
+                log.info(f"  No committees found for '{entity['pac_search_name']}'")
+                continue
 
-        total_committees += len(committees)
+            total_committees += len(committees)
 
-        for committee in committees:
+            for committee in committees:
             cmte_id = committee.get("committee_id", "")
             cmte_name = committee.get("name", "")
 
@@ -400,6 +401,9 @@ def main():
                 session.commit()
                 total_inserted += entity_inserted
                 log.info(f"    Inserted {entity_inserted} disbursements")
+        except Exception as e:
+            log.error(f"FAILED {entity['entity_id']}: {e}")
+            session.rollback()
 
     log.info(f"\nDone! {total_inserted} new donations inserted, {total_dupes} dupes skipped, "
              f"{total_committees} total committees searched")
