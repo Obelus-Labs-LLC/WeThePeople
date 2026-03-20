@@ -362,29 +362,32 @@ def sync_all(
 
         for inst in institutions:
             logger.info("--- %s (%s) ---", inst.display_name, inst.institution_id)
+            try:
+                if not skip_sec:
+                    totals["sec"] += sync_sec_filings(inst, db)
 
-            if not skip_sec:
-                totals["sec"] += sync_sec_filings(inst, db)
+                if not skip_fdic:
+                    totals["fdic"] += sync_fdic_financials(inst, db)
 
-            if not skip_fdic:
-                totals["fdic"] += sync_fdic_financials(inst, db)
+                if not skip_cfpb:
+                    totals["cfpb"] += sync_cfpb_complaints(inst, db)
 
-            if not skip_cfpb:
-                totals["cfpb"] += sync_cfpb_complaints(inst, db)
+                if not skip_fred:
+                    totals["fred"] += sync_fred_observations(inst, db)
 
-            if not skip_fred:
-                totals["fred"] += sync_fred_observations(inst, db)
+                if not skip_press:
+                    totals["press"] += sync_fed_press(inst, db)
 
-            if not skip_press:
-                totals["press"] += sync_fed_press(inst, db)
+                if not skip_stocks:
+                    totals["stocks"] += sync_stock_fundamentals(inst, db)
 
-            if not skip_stocks:
-                totals["stocks"] += sync_stock_fundamentals(inst, db)
-
-            # Update scheduling state
-            inst.needs_ingest = 0
-            inst.last_full_refresh_at = datetime.utcnow()
-            db.commit()
+                # Update scheduling state
+                inst.needs_ingest = 0
+                inst.last_full_refresh_at = datetime.utcnow()
+                db.commit()
+            except Exception as e:
+                logger.error("FAILED %s: %s", inst.institution_id, e)
+                db.rollback()
 
         logger.info("=== SYNC COMPLETE ===")
         logger.info("New SEC filings: %d", totals["sec"])
