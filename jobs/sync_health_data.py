@@ -310,27 +310,30 @@ def sync_all(
 
         for company in companies:
             logger.info("--- %s (%s) ---", company.display_name, company.company_id)
+            try:
+                if not skip_fda:
+                    totals["fda_events"] += sync_fda_adverse_events(company, db)
+                    totals["fda_recalls"] += sync_fda_recalls(company, db)
 
-            if not skip_fda:
-                totals["fda_events"] += sync_fda_adverse_events(company, db)
-                totals["fda_recalls"] += sync_fda_recalls(company, db)
+                if not skip_trials:
+                    totals["trials"] += sync_clinical_trials(company, db)
 
-            if not skip_trials:
-                totals["trials"] += sync_clinical_trials(company, db)
+                if not skip_cms:
+                    totals["cms_payments"] += sync_cms_payments(company, db)
 
-            if not skip_cms:
-                totals["cms_payments"] += sync_cms_payments(company, db)
+                if not skip_sec:
+                    totals["sec_filings"] += sync_sec_filings(company, db)
 
-            if not skip_sec:
-                totals["sec_filings"] += sync_sec_filings(company, db)
+                if not skip_stocks:
+                    totals["stocks"] += sync_stock_fundamentals(company, db)
 
-            if not skip_stocks:
-                totals["stocks"] += sync_stock_fundamentals(company, db)
-
-            # Update scheduling state
-            company.needs_ingest = 0
-            company.last_full_refresh_at = datetime.utcnow()
-            db.commit()
+                # Update scheduling state
+                company.needs_ingest = 0
+                company.last_full_refresh_at = datetime.utcnow()
+                db.commit()
+            except Exception as e:
+                logger.error("FAILED %s: %s", company.company_id, e)
+                db.rollback()
 
         logger.info("=== SYNC COMPLETE ===")
         logger.info("New FDA adverse events: %d", totals["fda_events"])

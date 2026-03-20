@@ -344,29 +344,32 @@ def sync_all(
 
         for company in companies:
             logger.info("--- %s (%s) ---", company.display_name, company.company_id)
+            try:
+                if not skip_sec:
+                    totals["sec_filings"] += sync_sec_filings(company, db)
 
-            if not skip_sec:
-                totals["sec_filings"] += sync_sec_filings(company, db)
+                if not skip_patents:
+                    totals["patents"] += sync_patents(company, db)
 
-            if not skip_patents:
-                totals["patents"] += sync_patents(company, db)
+                if not skip_contracts:
+                    totals["contracts"] += sync_government_contracts(company, db)
 
-            if not skip_contracts:
-                totals["contracts"] += sync_government_contracts(company, db)
+                if not skip_stocks:
+                    totals["stocks"] += sync_stock_fundamentals(company, db)
 
-            if not skip_stocks:
-                totals["stocks"] += sync_stock_fundamentals(company, db)
+                if not skip_lobbying:
+                    totals["lobbying"] += sync_lobbying(company, db)
 
-            if not skip_lobbying:
-                totals["lobbying"] += sync_lobbying(company, db)
+                if not skip_ftc:
+                    totals["ftc"] += sync_ftc_enforcement(company, db)
 
-            if not skip_ftc:
-                totals["ftc"] += sync_ftc_enforcement(company, db)
-
-            # Update scheduling state
-            company.needs_ingest = 0
-            company.last_full_refresh_at = datetime.utcnow()
-            db.commit()
+                # Update scheduling state
+                company.needs_ingest = 0
+                company.last_full_refresh_at = datetime.utcnow()
+                db.commit()
+            except Exception as e:
+                logger.error("FAILED %s: %s", company.company_id, e)
+                db.rollback()
 
         logger.info("=== TECH SYNC COMPLETE ===")
         for k, v in totals.items():

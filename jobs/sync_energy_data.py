@@ -393,23 +393,26 @@ def main():
         for co in companies:
             log.info(f"\n{'='*60}")
             log.info(f"Processing: {co.display_name} ({co.company_id})")
+            try:
+                if not args.skip_sec:
+                    fetch_sec_filings(session, co)
+                    time.sleep(0.5)  # SEC rate limit
 
-            if not args.skip_sec:
-                fetch_sec_filings(session, co)
-                time.sleep(0.5)  # SEC rate limit
+                if not args.skip_contracts:
+                    fetch_contracts(session, co)
+                    time.sleep(0.5)
 
-            if not args.skip_contracts:
-                fetch_contracts(session, co)
-                time.sleep(0.5)
+                if not args.skip_lobbying:
+                    fetch_lobbying(session, co)
+                    time.sleep(0.5)
 
-            if not args.skip_lobbying:
-                fetch_lobbying(session, co)
-                time.sleep(0.5)
-
-            # Mark as synced
-            co.needs_ingest = 0
-            co.last_full_refresh_at = datetime.utcnow()
-            session.commit()
+                # Mark as synced
+                co.needs_ingest = 0
+                co.last_full_refresh_at = datetime.utcnow()
+                session.commit()
+            except Exception as e:
+                log.error(f"FAILED {co.company_id}: {e}")
+                session.rollback()
 
         log.info(f"\nDone! Synced {len(companies)} companies.")
 
