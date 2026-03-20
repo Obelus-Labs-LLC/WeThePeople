@@ -77,6 +77,7 @@ from routers.energy import router as energy_router
 from routers.defense import router as defense_router
 from routers.infrastructure import router as infrastructure_router
 from routers.state import router as state_router
+from routers.aggregate import router as aggregate_router
 
 app.include_router(common_router)
 app.include_router(politics_router)
@@ -92,3 +93,4 @@ app.include_router(energy_router)
 app.include_router(defense_router)
 app.include_router(infrastructure_router)
 app.include_router(state_router)
+app.include_router(aggregate_router)

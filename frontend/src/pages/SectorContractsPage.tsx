@@ -11,7 +11,6 @@ import {
 } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
-import { batchRequests } from '../utils/batch';
 
 const API_BASE = getApiBaseUrl();
 
@@ -23,11 +22,7 @@ interface SectorConfig {
   accent: string;
   accentRGB: string;
   Header: React.FC;
-  companiesEndpoint: string;
-  entityKey: string;
-  entityIdField: string;
-  entityNameField: string;
-  contractsPath: (id: string) => string;
+  aggregateEndpoint: string;
   profilePath: (id: string) => string;
 }
 
@@ -35,41 +30,31 @@ const SECTOR_MAP: Record<string, SectorConfig> = {
   finance: {
     key: 'finance', label: 'Finance', accent: '#10B981', accentRGB: '16,185,129',
     Header: FinanceSectorHeader,
-    companiesEndpoint: `${API_BASE}/finance/institutions?limit=200`,
-    entityKey: 'institutions', entityIdField: 'institution_id', entityNameField: 'display_name',
-    contractsPath: (id) => `${API_BASE}/finance/institutions/${id}/contracts?limit=100`,
+    aggregateEndpoint: `${API_BASE}/aggregate/finance/contracts?limit=1000`,
     profilePath: (id) => `/finance/${id}`,
   },
   health: {
     key: 'health', label: 'Health', accent: '#F43F5E', accentRGB: '244,63,94',
     Header: HealthSectorHeader,
-    companiesEndpoint: `${API_BASE}/health/companies?limit=200`,
-    entityKey: 'companies', entityIdField: 'company_id', entityNameField: 'display_name',
-    contractsPath: (id) => `${API_BASE}/health/companies/${id}/contracts?limit=100`,
+    aggregateEndpoint: `${API_BASE}/aggregate/health/contracts?limit=1000`,
     profilePath: (id) => `/health/${id}`,
   },
   technology: {
     key: 'technology', label: 'Technology', accent: '#8B5CF6', accentRGB: '139,92,246',
     Header: TechSectorHeader,
-    companiesEndpoint: `${API_BASE}/tech/companies?limit=200`,
-    entityKey: 'companies', entityIdField: 'company_id', entityNameField: 'display_name',
-    contractsPath: (id) => `${API_BASE}/tech/companies/${id}/contracts?limit=100`,
+    aggregateEndpoint: `${API_BASE}/aggregate/tech/contracts?limit=1000`,
     profilePath: (id) => `/technology/${id}`,
   },
   energy: {
     key: 'energy', label: 'Energy', accent: '#F97316', accentRGB: '249,115,22',
     Header: EnergySectorHeader,
-    companiesEndpoint: `${API_BASE}/energy/companies?limit=200`,
-    entityKey: 'companies', entityIdField: 'company_id', entityNameField: 'display_name',
-    contractsPath: (id) => `${API_BASE}/energy/companies/${id}/contracts?limit=100`,
+    aggregateEndpoint: `${API_BASE}/aggregate/energy/contracts?limit=1000`,
     profilePath: (id) => `/energy/${id}`,
   },
   politics: {
     key: 'politics', label: 'Politics', accent: '#3B82F6', accentRGB: '59,130,246',
     Header: PoliticsSectorHeader,
-    companiesEndpoint: '',
-    entityKey: 'companies', entityIdField: 'company_id', entityNameField: 'display_name',
-    contractsPath: () => '',
+    aggregateEndpoint: '',
     profilePath: () => '/politics',
   },
 };
@@ -153,50 +138,19 @@ export default function SectorContractsPage() {
     let cancelled = false;
 
     async function loadData() {
-      if (!config.companiesEndpoint) {
+      if (!config.aggregateEndpoint) {
         setLoading(false);
         return;
       }
 
       try {
-        const compRes = await fetchJSON<any>(config.companiesEndpoint);
-        const entities: any[] = compRes[config.entityKey] || [];
+        const data = await fetchJSON<any>(config.aggregateEndpoint);
         if (cancelled) return;
 
-        const results = await batchRequests(
-          entities,
-          (e) => {
-            const entityId = e[config.entityIdField];
-            const entityName = e[config.entityNameField];
-            return fetchJSON<any>(config.contractsPath(entityId)).then((r) =>
-              (r.contracts || []).map((ct: any) => ({
-                ...ct,
-                entity_id: entityId,
-                entity_name: entityName,
-              })),
-            );
-          },
-          10,
-        );
-
-        if (cancelled) return;
-
-        const combined: ContractItem[] = [];
-        for (const result of results) {
-          if (result.status === 'fulfilled') {
-            combined.push(...result.value);
-          }
-        }
-
-        // Sort by start_date descending
-        combined.sort((a, b) => {
-          if (!a.start_date && !b.start_date) return 0;
-          if (!a.start_date) return 1;
-          if (!b.start_date) return -1;
-          return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
-        });
-
-        setAllContracts(combined);
+        const contracts: ContractItem[] = (data.contracts || []);
+        // Sort by award_amount descending (already sorted by backend, but ensure)
+        contracts.sort((a, b) => (b.award_amount || 0) - (a.award_amount || 0));
+        setAllContracts(contracts);
       } catch (e: any) {
         if (!cancelled) setError(e.message || 'Failed to load contracts');
       } finally {
