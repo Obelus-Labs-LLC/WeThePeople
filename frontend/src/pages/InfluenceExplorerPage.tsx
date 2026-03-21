@@ -103,21 +103,27 @@ export default function InfluenceExplorerPage() {
           </p>
         </div>
 
-        {/* Network Graph CTA */}
-        <Link
-          to="/influence/network"
-          className="mb-8 flex items-center gap-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 hover:border-blue-500/40 hover:bg-blue-500/10 transition-all no-underline group"
-        >
-          <Share2 className="w-10 h-10 text-blue-400 group-hover:scale-110 transition-transform flex-shrink-0" />
-          <div>
-            <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">
-              Influence Network Graph
-            </h3>
-            <p className="text-sm text-white/40 mt-0.5">
-              Explore the web of connections between politicians, companies, lobbying, and legislation in an interactive force-directed graph.
-            </p>
-          </div>
-        </Link>
+        {/* Tool CTAs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          {[
+            { to: '/influence/network', icon: Share2, title: 'Influence Network', desc: 'Interactive force-directed graph of connections between politicians, companies, and legislation.' },
+            { to: '/influence/money-flow', icon: DollarSign, title: 'Money Flow Sankey', desc: 'Follow the money from corporations through lobbying and PAC donations to politicians.' },
+            { to: '/influence/story', icon: TrendingUp, title: 'Data Story', desc: 'Animated walkthrough of corporate influence — lobbying spend, contracts, and enforcement gaps.' },
+            { to: '/influence/timeline', icon: Users, title: 'Influence Timeline', desc: 'Chronological view of lobbying, trades, donations, and legislation for any entity.' },
+          ].map((cta) => (
+            <Link
+              key={cta.to}
+              to={cta.to}
+              className="flex items-center gap-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 hover:border-blue-500/40 hover:bg-blue-500/10 transition-all no-underline group"
+            >
+              <cta.icon className="w-8 h-8 text-blue-400 group-hover:scale-110 transition-transform flex-shrink-0" />
+              <div>
+                <h3 className="text-base font-bold text-white group-hover:text-blue-400 transition-colors">{cta.title}</h3>
+                <p className="text-xs text-white/40 mt-0.5">{cta.desc}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
 
         {/* Aggregate Stats */}
         {stats && (
