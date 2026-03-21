@@ -446,3 +446,116 @@ def get_closed_loops(
         )
     finally:
         db.close()
+
+
+@router.get("/money-flow")
+def get_money_flow(
+    sector: Optional[str] = Query(None, description="Filter by sector: finance, health, tech, energy"),
+    limit: int = Query(15, ge=5, le=50),
+):
+    """
+    Build Sankey-style money flow data: Company → Lobbying/Donations → Politician.
+    Returns nodes and links for a Sankey diagram.
+    """
+    db = SessionLocal()
+    try:
+        nodes = []
+        links = []
+        node_map: dict[str, int] = {}
+
+        def get_node_id(name: str, group: str) -> int:
+            key = f"{group}:{name}"
+            if key not in node_map:
+                node_map[key] = len(nodes)
+                nodes.append({"name": name, "group": group})
+            return node_map[key]
+
+        sector_configs = []
+        if not sector or sector == "finance":
+            sector_configs.append({
+                "label": "Finance",
+                "entity_model": TrackedInstitution,
+                "id_field": "institution_id",
+                "lobby_model": FinanceLobbyingRecord,
+                "lobby_fk": "institution_id",
+            })
+        if not sector or sector == "health":
+            sector_configs.append({
+                "label": "Health",
+                "entity_model": TrackedCompany,
+                "id_field": "company_id",
+                "lobby_model": HealthLobbyingRecord,
+                "lobby_fk": "company_id",
+            })
+        if not sector or sector == "tech":
+            sector_configs.append({
+                "label": "Tech",
+                "entity_model": TrackedTechCompany,
+                "id_field": "company_id",
+                "lobby_model": LobbyingRecord,
+                "lobby_fk": "company_id",
+            })
+        if not sector or sector == "energy":
+            sector_configs.append({
+                "label": "Energy",
+                "entity_model": TrackedEnergyCompany,
+                "id_field": "company_id",
+                "lobby_model": EnergyLobbyingRecord,
+                "lobby_fk": "company_id",
+            })
+
+        # Company → Sector (lobbying spend)
+        for cfg in sector_configs:
+            entity_model = cfg["entity_model"]
+            lobby_model = cfg["lobby_model"]
+            fk = cfg["lobby_fk"]
+
+            rows = db.query(
+                entity_model.display_name,
+                func.sum(lobby_model.income),
+            ).join(
+                lobby_model, getattr(lobby_model, fk) == getattr(entity_model, cfg["id_field"])
+            ).group_by(entity_model.display_name).order_by(
+                desc(func.sum(lobby_model.income))
+            ).limit(limit).all()
+
+            sector_node = get_node_id(f"{cfg['label']} Lobbying", "sector")
+
+            for name, total in rows:
+                if not total or total <= 0:
+                    continue
+                company_node = get_node_id(name, "company")
+                links.append({
+                    "source": company_node,
+                    "target": sector_node,
+                    "value": float(total),
+                })
+
+        # Donations: Company → Politician
+        donation_rows = db.query(
+            CompanyDonation.company_name,
+            TrackedMember.display_name,
+            func.sum(CompanyDonation.amount),
+        ).join(
+            TrackedMember, CompanyDonation.person_id == TrackedMember.person_id
+        ).filter(
+            CompanyDonation.amount > 0
+        ).group_by(
+            CompanyDonation.company_name, TrackedMember.display_name
+        ).order_by(
+            desc(func.sum(CompanyDonation.amount))
+        ).limit(limit * 3).all()
+
+        donations_node = get_node_id("PAC Donations", "channel")
+
+        for company_name, politician_name, total in donation_rows:
+            if not total or total <= 0:
+                continue
+            company_node = get_node_id(company_name, "company")
+            politician_node = get_node_id(politician_name, "politician")
+            links.append({"source": company_node, "target": donations_node, "value": float(total)})
+            links.append({"source": donations_node, "target": politician_node, "value": float(total)})
+
+        return {"nodes": nodes, "links": links}
+    finally:
+        db.close()

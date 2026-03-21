@@ -62,6 +62,10 @@ const SectorLobbyingPage = React.lazy(() => import("./pages/SectorLobbyingPage")
 const SectorContractsPage = React.lazy(() => import("./pages/SectorContractsPage"));
 const SectorEnforcementPage = React.lazy(() => import("./pages/SectorEnforcementPage"));
 const ClosedLoopPage = React.lazy(() => import("./pages/ClosedLoopPage"));
+const MoneyFlowPage = React.lazy(() => import("./pages/MoneyFlowPage"));
+const DataExplorerPage = React.lazy(() => import("./pages/DataExplorerPage"));
+const DataStoryPage = React.lazy(() => import("./pages/DataStoryPage"));
+const InfluenceTimelinePage = React.lazy(() => import("./pages/InfluenceTimelinePage"));
 const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage"));
 const PrivacyPolicyPage = React.lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfUsePage = React.lazy(() => import("./pages/TermsOfUsePage"));
@@ -109,6 +113,10 @@ const App: React.FC = () => (
           <Route path="/influence/network" element={<InfluenceNetworkPage />} />
           <Route path="/influence/network/:entityType/:entityId" element={<InfluenceNetworkPage />} />
           <Route path="/influence/closed-loops" element={<PoliticsLayout><ClosedLoopPage /></PoliticsLayout>} />
+          <Route path="/influence/money-flow" element={<MoneyFlowPage />} />
+          <Route path="/influence/explorer" element={<DataExplorerPage />} />
+          <Route path="/influence/story" element={<DataStoryPage />} />
+          <Route path="/influence/timeline" element={<InfluenceTimelinePage />} />
 
           {/* Finance section — all wrapped in FinanceLayout (Waves bg) */}
           <Route path="/finance" element={<FinanceLayout><FinanceDashboardPage /></FinanceLayout>} />
