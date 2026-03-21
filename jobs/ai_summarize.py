@@ -561,7 +561,7 @@ def summarize_politician_profiles(conn, limit: int = 0, dry_run: bool = False) -
         # Committee memberships
         committee_rows = conn.execute("""
             SELECT c.name, cm.role FROM committee_memberships cm
-            JOIN committees c ON cm.committee_id = c.committee_id
+            JOIN committees c ON cm.committee_thomas_id = c.thomas_id
             WHERE cm.person_id = ?
         """, (pid,)).fetchall()
         stats["committees"] = [{"name": c["name"], "role": c["role"]} for c in committee_rows]
