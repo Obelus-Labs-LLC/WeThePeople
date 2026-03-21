@@ -287,7 +287,7 @@ Be factual and analytical. Use the data provided — do not speculate."""
 def summarize_votes(conn, limit: int = 0, dry_run: bool = False) -> int:
     """Summarize vote descriptions."""
     records = get_unsummarized(
-        conn, "votes", "vote_id",
+        conn, "votes", "id",
         ["question", "chamber", "vote_date", "result",
          "yea_count", "nay_count", "related_bill_type", "related_bill_number"],
         limit=limit
@@ -304,7 +304,7 @@ def summarize_votes(conn, limit: int = 0, dry_run: bool = False) -> int:
     for i in range(0, len(records), BATCH_SIZE):
         batch = records[i:i + BATCH_SIZE]
         prompt = json.dumps([{
-            "id": r["vote_id"],
+            "id": r["id"],
             "question": r["question"],
             "chamber": r["chamber"],
             "date": str(r["vote_date"]),
@@ -321,7 +321,7 @@ def summarize_votes(conn, limit: int = 0, dry_run: bool = False) -> int:
         try:
             summaries = json.loads(result)
             pairs = [(s["id"], s["summary"]) for s in summaries]
-            save_batch_summaries(conn, "votes", "vote_id", pairs)
+            save_batch_summaries(conn, "votes", "id", pairs)
             total += len(pairs)
             logger.info(f"  Saved {len(pairs)} vote summaries (batch {i // BATCH_SIZE + 1})")
         except (json.JSONDecodeError, KeyError) as e:
