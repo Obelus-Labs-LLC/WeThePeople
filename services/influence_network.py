@@ -46,6 +46,10 @@ from models.energy_models import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+# NOTE: This module uses SQLite-specific functions throughout:
+#   - func.group_concat(...) — SQLite aggregate; PostgreSQL equivalent is string_agg()
+#   - func.strftime("%Y", ...) — SQLite date function; PostgreSQL equivalent is extract(year from ...)
+# If migrating to PostgreSQL, these calls must be updated.
 
 def _node_id(kind: str, value: Any) -> str:
     return f"{kind}:{value}"

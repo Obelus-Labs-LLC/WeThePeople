@@ -18,7 +18,7 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-LDA_BASE = "https://lda.gov/api/v1/filings/"
+LDA_BASE = "https://lda.senate.gov/api/v1/filings/"
 
 POLITE_DELAY = 1.0
 

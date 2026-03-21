@@ -79,6 +79,9 @@ def get_news(query: str, limit: int = 10):
         raise HTTPException(status_code=400, detail="Query too long (max 200 characters)")
     # Strip non-printable characters
     query = _re.sub(r'[^\x20-\x7E]', '', query)
-    from connectors.news_feed import fetch_news
+    try:
+        from connectors.news_feed import fetch_news
+    except (ImportError, ModuleNotFoundError):
+        raise HTTPException(status_code=501, detail="News feed connector not implemented")
     articles = fetch_news(query, limit=min(limit, 20))
     return {"query": query, "articles": articles}

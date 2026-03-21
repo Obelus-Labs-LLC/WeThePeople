@@ -10,6 +10,7 @@ import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { ActivityResponse, PersonProfile, PersonFinance, PersonVotesResponse, CongressionalTradesResponse } from '../api/types';
 import { LoadingSpinner, PartyBadge, ChamberBadge } from '../components/ui';
+import SanctionsBadge from '../components/SanctionsBadge';
 import { OverviewTab, ActivityTab, VotesTab, FinanceTab, TradesTab, DonorsTab } from '../components/person';
 
 type Tab = 'overview' | 'activity' | 'votes' | 'finance' | 'trades' | 'donors';
@@ -183,6 +184,11 @@ export default function PersonScreen() {
           </View>
         </View>
       </View>
+
+      {/* Sanctions Badge */}
+      {profile?.sanctions_status && (
+        <SanctionsBadge status={profile.sanctions_status} />
+      )}
 
       {/* Pill Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillTabBarScroll} contentContainerStyle={styles.pillTabBar}>

@@ -54,6 +54,22 @@ import SectorLobbyingScreen from '../screens/SectorLobbyingScreen';
 import SectorContractsScreen from '../screens/SectorContractsScreen';
 import SectorEnforcementScreen from '../screens/SectorEnforcementScreen';
 
+// New screens — Session 13 parity
+import MoneyFlowScreen from '../screens/MoneyFlowScreen';
+import DataExplorerScreen from '../screens/DataExplorerScreen';
+import DataStoryScreen from '../screens/DataStoryScreen';
+import InfluenceTimelineScreen from '../screens/InfluenceTimelineScreen';
+import ClosedLoopScreen from '../screens/ClosedLoopScreen';
+import BalanceOfPowerScreen from '../screens/BalanceOfPowerScreen';
+import VoteDetailScreen from '../screens/VoteDetailScreen';
+import PressToolsScreen from '../screens/PressToolsScreen';
+import PatentSearchScreen from '../screens/PatentSearchScreen';
+import FDAApprovalsScreen from '../screens/FDAApprovalsScreen';
+import MarketMoversScreen from '../screens/MarketMoversScreen';
+import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
+import TermsOfUseScreen from '../screens/TermsOfUseScreen';
+import DisclaimerScreen from '../screens/DisclaimerScreen';
+
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 // ── Placeholder for screens that don't exist yet ──
@@ -204,6 +220,46 @@ function HomeStackScreen() {
         options={{ title: 'About' }}
       />
       <HomeStack.Screen
+        name="MoneyFlow"
+        component={MoneyFlowScreen}
+        options={{ title: 'Money Flow' }}
+      />
+      <HomeStack.Screen
+        name="DataExplorer"
+        component={DataExplorerScreen}
+        options={{ title: 'Data Explorer' }}
+      />
+      <HomeStack.Screen
+        name="DataStory"
+        component={DataStoryScreen}
+        options={{ title: 'Data Story' }}
+      />
+      <HomeStack.Screen
+        name="InfluenceTimeline"
+        component={InfluenceTimelineScreen}
+        options={{ title: 'Influence Timeline' }}
+      />
+      <HomeStack.Screen
+        name="ClosedLoop"
+        component={ClosedLoopScreen}
+        options={{ title: 'Closed Loops' }}
+      />
+      <HomeStack.Screen
+        name="PrivacyPolicy"
+        component={PrivacyPolicyScreen}
+        options={{ title: 'Privacy Policy' }}
+      />
+      <HomeStack.Screen
+        name="TermsOfUse"
+        component={TermsOfUseScreen}
+        options={{ title: 'Terms of Use' }}
+      />
+      <HomeStack.Screen
+        name="Disclaimer"
+        component={DisclaimerScreen}
+        options={{ title: 'Disclaimer' }}
+      />
+      <HomeStack.Screen
         name="GlobalSearch"
         component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
@@ -295,6 +351,21 @@ function PoliticsStackScreen() {
         initialParams={{ sector: 'politics' }}
       />
       <PoliticsStack.Screen
+        name="BalanceOfPower"
+        component={BalanceOfPowerScreen}
+        options={{ title: 'Balance of Power' }}
+      />
+      <PoliticsStack.Screen
+        name="VoteDetail"
+        component={VoteDetailScreen}
+        options={{ title: 'Vote Details' }}
+      />
+      <PoliticsStack.Screen
+        name="PressTools"
+        component={PressToolsScreen}
+        options={{ title: 'Press & News' }}
+      />
+      <PoliticsStack.Screen
         name="GlobalSearch"
         component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
@@ -361,6 +432,11 @@ function FinanceStackScreen() {
         initialParams={{ sector: 'finance' }}
       />
       <FinanceStack.Screen
+        name="MarketMovers"
+        component={MarketMoversScreen}
+        options={{ title: 'Market Movers' }}
+      />
+      <FinanceStack.Screen
         name="GlobalSearch"
         component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
@@ -420,6 +496,11 @@ function HealthStackScreen() {
         component={SectorEnforcementScreen}
         options={{ title: 'Health Enforcement' }}
         initialParams={{ sector: 'health' }}
+      />
+      <HealthStack.Screen
+        name="FDAApprovals"
+        component={FDAApprovalsScreen}
+        options={{ title: 'FDA Approvals' }}
       />
       <HealthStack.Screen
         name="GlobalSearch"
@@ -522,6 +603,11 @@ function TechnologyStackScreen() {
         component={SectorEnforcementScreen}
         options={{ title: 'Tech Enforcement' }}
         initialParams={{ sector: 'tech' }}
+      />
+      <TechnologyStack.Screen
+        name="PatentSearch"
+        component={PatentSearchScreen}
+        options={{ title: 'Patent Search' }}
       />
       <TechnologyStack.Screen
         name="GlobalSearch"

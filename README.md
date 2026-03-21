@@ -52,7 +52,7 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 
 ---
 
-## Data Sources (30+)
+## Data Sources (35+)
 
 | Source | Data | Sectors |
 |--------|------|---------|
@@ -75,12 +75,16 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 | OpenStates | State legislators and bills | Politics (state-level) |
 | Alpha Vantage | Stock fundamentals and quotes | All sectors |
 | Wikipedia | Politician profiles and photos | Politics |
-| Google News | Sector news feeds | All sectors |
+| Google Civic | Representative lookup by address | Politics |
 | Senate.gov XML | Senate roll call votes (scraped directly) | Politics |
 | House Clerk Disclosures | Congressional financial disclosure PDFs | Politics |
 | AInvest | Congressional trade enrichment (filing delays) | Politics |
 | unitedstates/congress-legislators | Committee and membership data (CC0) | Politics |
 | openstates/people | State legislator data for all 50 states (CC0) | Politics |
+| OpenSanctions | Sanctions, PEP, and watchlist checks (OFAC/EU/UN) | All sectors |
+| Federal Reserve (Fed Press) | Fed press releases and statements | Finance |
+| FTC Cases | FTC enforcement case data | Tech |
+| Data.gov / GovInfo | Government open data and publications | All sectors |
 
 ---
 
@@ -93,7 +97,7 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 | Backend | Python 3.11, FastAPI, SQLAlchemy, SQLite (WAL mode) |
 | Mobile app | React Native, Expo SDK 54 (full parity with web — 37 screens) |
 | Hosting | GCP Compute Engine (API), Vercel (frontend) |
-| Data pipeline | 25 Python connectors + 33 sync jobs with rate limiting, pagination, and deduplication |
+| Data pipeline | 26 Python connectors + 39 sync/migration jobs with rate limiting, pagination, and deduplication |
 | Search | Cross-sector entity search via `/search` endpoint |
 | Performance | React.lazy() code splitting, 75% bundle reduction |
 
@@ -104,7 +108,7 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 ```
 WeThePeople/
 ├── main.py                     # FastAPI entry point + middleware
-├── routers/                    # API route handlers
+├── routers/                    # 13 API route handlers
 │   ├── politics.py              # 30+ endpoints: members, votes, bills, claims
 │   ├── finance.py               # Institutions, filings, complaints, insider trades
 │   ├── health.py                # Companies, adverse events, recalls, trials
@@ -113,19 +117,33 @@ WeThePeople/
 │   ├── influence.py             # Cross-sector: network graph, spending map, trade timeline
 │   ├── search.py                # Global search across all entities
 │   ├── state.py                 # State-level legislators and bills
-│   └── common.py                # Health check, news proxy
-├── models/                     # SQLAlchemy models
+│   ├── aggregate.py             # Sector-level aggregate queries (N+1 elimination)
+│   ├── common.py                # Health check, ops, news proxy
+│   ├── defense.py               # Placeholder: future Defense sector
+│   ├── education.py             # Placeholder: future Education sector
+│   └── infrastructure.py        # Placeholder: future Infrastructure sector
+├── models/                     # 9 SQLAlchemy model files
 │   ├── database.py              # Core models (members, bills, votes, donations, trades)
 │   ├── finance_models.py        # Finance-specific models
 │   ├── health_models.py         # Health-specific models
 │   ├── tech_models.py           # Tech-specific models
 │   ├── energy_models.py         # Energy-specific models
 │   ├── committee_models.py      # Committee and membership models
-│   └── state_models.py          # State legislator and bill models
-├── services/                   # Business logic
+│   ├── state_models.py          # State legislator and bill models
+│   ├── market_models.py         # Market/stock data models
+│   └── schemas.py               # Pydantic response schemas
+├── services/                   # Business logic (25 files across 7 subdirectories)
 │   ├── influence_network.py     # Cross-sector relationship graph builder
-│   └── power_map/               # Claim-to-legislation power mapping
-├── connectors/                 # 24 data source API wrappers
+│   ├── closed_loop_detection.py # Lobbying → bill → committee → donations detection
+│   ├── bill_text.py, auth.py, rate_limit.py, change_detection.py, coverage.py
+│   ├── power_map/               # Claim-to-legislation power mapping
+│   ├── enrichment/              # Bill timeline enrichment
+│   ├── evidence/                # Evidence validation
+│   ├── extraction/              # Text extraction from web pages
+│   ├── llm/                     # Claude LLM client and prompts
+│   ├── matching/                # Entity matching and similarity
+│   └── ops/                     # Pilot cohort, run manifests, no-network mode
+├── connectors/                 # 26 data source API wrappers
 │   ├── congress.py, congress_votes.py  # Congress.gov
 │   ├── senate_lda.py            # Lobbying disclosures
 │   ├── sec_edgar.py             # SEC filings
@@ -155,7 +173,7 @@ WeThePeople/
 │   └── scheduler.py                # Automated sync scheduling (14 jobs)
 ├── frontend/                   # React web app (Vite)
 │   └── src/
-│       ├── pages/               # 57+ page components
+│       ├── pages/               # 62 page components
 │       ├── components/          # Shared UI (InfluenceGraph, ChoroplethMap, etc.)
 │       ├── api/                 # TypeScript API clients per sector
 │       ├── layouts/             # Per-sector layout wrappers
@@ -256,7 +274,7 @@ npx expo start
 - **Full pagination:** All connectors paginate through complete API results — no artificial caps.
 - **Deduplication:** Every sync job uses `dedupe_hash` with unique constraints to prevent duplicate records.
 - **SQLite WAL mode:** Single-writer, many-reader concurrency. Run sync jobs sequentially to avoid lock contention.
-- **Code-split frontend:** React.lazy() on all 57+ pages — users only load the sector they visit.
+- **Code-split frontend:** React.lazy() on all 62 pages — users only load the sector they visit.
 
 ---
 

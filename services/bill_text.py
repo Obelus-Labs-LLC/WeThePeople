@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
-API_KEY = os.getenv("API_KEY_CONGRESS")
+API_KEY = os.getenv("CONGRESS_API_KEY")
 BASE_URL = "https://api.congress.gov/v3"
 
 

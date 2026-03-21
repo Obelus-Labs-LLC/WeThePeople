@@ -80,7 +80,7 @@ const ClaimDetailPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-700 border-t-blue-500" />
-          <span className="font-dm-sans text-sm text-slate-400">Loading action detail...</span>
+          <span className="font-body text-sm text-slate-400">Loading action detail...</span>
         </div>
       </div>
     );
@@ -91,7 +91,7 @@ const ClaimDetailPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center px-6">
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-center max-w-lg">
-          <p className="font-dm-sans text-red-400 text-lg">{error}</p>
+          <p className="font-body text-red-400 text-lg">{error}</p>
         </div>
       </div>
     );
@@ -100,7 +100,7 @@ const ClaimDetailPage: React.FC = () => {
   if (!claim) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="font-dm-sans text-slate-500 text-lg">Action not found.</p>
+        <p className="font-body text-slate-500 text-lg">Action not found.</p>
       </div>
     );
   }
@@ -119,7 +119,7 @@ const ClaimDetailPage: React.FC = () => {
           <BackButton to={`/politics/people/${claim.person_id}`} label={claim.display_name} />
         </div>
         <div className="flex items-center justify-end mb-10">
-          <span className="font-fira-code text-sm text-slate-400 uppercase tracking-widest">
+          <span className="font-mono text-sm text-slate-400 uppercase tracking-widest">
             Action Detail
           </span>
         </div>
@@ -137,7 +137,7 @@ const ClaimDetailPage: React.FC = () => {
               }}
             >
               <span
-                className="font-oswald text-4xl font-bold uppercase tracking-wider"
+                className="font-heading text-4xl font-bold uppercase tracking-wider"
                 style={{ color: tc.text }}
               >
                 {claim.tier}
@@ -146,10 +146,10 @@ const ClaimDetailPage: React.FC = () => {
 
             {/* Score */}
             <div className="flex flex-col">
-              <span className="font-fira-code text-6xl font-bold text-white">
+              <span className="font-mono text-6xl font-bold text-white">
                 {Math.round(score * 100)}%
               </span>
-              <span className="font-fira-code text-sm text-slate-400 uppercase tracking-widest mt-1">
+              <span className="font-mono text-sm text-slate-400 uppercase tracking-widest mt-1">
                 Relevance Score
               </span>
               {/* Progress bar */}
@@ -166,7 +166,7 @@ const ClaimDetailPage: React.FC = () => {
           </div>
 
           {/* Claim text */}
-          <p className="text-2xl md:text-3xl font-dm-sans text-white leading-relaxed">
+          <p className="text-2xl md:text-3xl font-body text-white leading-relaxed">
             {claim.normalized_text}
           </p>
 
@@ -183,7 +183,7 @@ const ClaimDetailPage: React.FC = () => {
               </span>
             )}
             {claim.claim_date && (
-              <span className="font-fira-code text-sm text-slate-400 flex items-center">
+              <span className="font-mono text-sm text-slate-400 flex items-center">
                 {formatDate(claim.claim_date)}
               </span>
             )}
@@ -192,7 +192,7 @@ const ClaimDetailPage: React.FC = () => {
 
         {/* ── Evidence Signals ── */}
         <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl p-8 mb-8">
-          <h2 className="font-oswald text-2xl uppercase text-white mb-6">Key Signals</h2>
+          <h2 className="font-heading text-2xl uppercase text-white mb-6">Key Signals</h2>
           {claim.why && claim.why.length > 0 ? (
             <div className="flex flex-wrap gap-3">
               {claim.why.map((signal, i) => (
@@ -205,7 +205,7 @@ const ClaimDetailPage: React.FC = () => {
               ))}
             </div>
           ) : (
-            <p className="text-slate-500 font-dm-sans">No signals available</p>
+            <p className="text-slate-500 font-body">No signals available</p>
           )}
         </div>
 
@@ -213,54 +213,54 @@ const ClaimDetailPage: React.FC = () => {
         <div className="grid grid-cols-1 2xl:grid-cols-3 gap-8 mb-8">
           {/* Timing */}
           <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl p-8">
-            <span className="font-fira-code text-sm text-slate-500 uppercase tracking-widest">
+            <span className="font-mono text-sm text-slate-500 uppercase tracking-widest">
               Timing
             </span>
             {claim.timing ? (
               <>
-                <p className="font-oswald text-3xl text-white mt-2">
+                <p className="font-heading text-3xl text-white mt-2">
                   {humanize(claim.timing)}
                 </p>
-                <p className="font-dm-sans text-base text-slate-400 mt-2">
+                <p className="font-body text-base text-slate-400 mt-2">
                   {TIMING_DESC[claim.timing] ?? "Timing relationship between claim and action."}
                 </p>
               </>
             ) : (
-              <p className="font-oswald text-3xl text-slate-600 mt-2">Not assessed</p>
+              <p className="font-heading text-3xl text-slate-600 mt-2">Not assessed</p>
             )}
           </div>
 
           {/* Progress */}
           <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl p-8">
-            <span className="font-fira-code text-sm text-slate-500 uppercase tracking-widest">
+            <span className="font-mono text-sm text-slate-500 uppercase tracking-widest">
               Progress
             </span>
             {claim.progress ? (
               <p
-                className="font-oswald text-3xl mt-2"
+                className="font-heading text-3xl mt-2"
                 style={{ color: PROGRESS_COLORS[claim.progress] ?? "#6B7280" }}
               >
                 {humanize(claim.progress)}
               </p>
             ) : (
-              <p className="font-oswald text-3xl text-slate-600 mt-2">Not assessed</p>
+              <p className="font-heading text-3xl text-slate-600 mt-2">Not assessed</p>
             )}
           </div>
 
           {/* Relevance */}
           <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl p-8">
-            <span className="font-fira-code text-sm text-slate-500 uppercase tracking-widest">
+            <span className="font-mono text-sm text-slate-500 uppercase tracking-widest">
               Relevance
             </span>
             {claim.relevance ? (
               <p
-                className="font-oswald text-3xl mt-2"
+                className="font-heading text-3xl mt-2"
                 style={{ color: RELEVANCE_COLORS[claim.relevance] ?? "#6B7280" }}
               >
                 {claim.relevance.charAt(0).toUpperCase() + claim.relevance.slice(1)}
               </p>
             ) : (
-              <p className="font-oswald text-3xl text-slate-600 mt-2">Not assessed</p>
+              <p className="font-heading text-3xl text-slate-600 mt-2">Not assessed</p>
             )}
           </div>
         </div>
@@ -268,12 +268,12 @@ const ClaimDetailPage: React.FC = () => {
         {/* ── Matched Legislative Action ── */}
         {action && (
           <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl p-8 mb-8">
-            <h2 className="font-oswald text-2xl uppercase text-white mb-6">
+            <h2 className="font-heading text-2xl uppercase text-white mb-6">
               Matched Legislative Action
             </h2>
 
             {action.bill_type && action.bill_number && (
-              <span className="inline-block bg-[rgba(59,130,246,0.1)] border border-[rgba(59,130,246,0.3)] px-4 py-1.5 rounded-full text-blue-400 font-fira-code font-bold text-sm mb-4">
+              <span className="inline-block bg-[rgba(59,130,246,0.1)] border border-[rgba(59,130,246,0.3)] px-4 py-1.5 rounded-full text-blue-400 font-mono font-bold text-sm mb-4">
                 {action.bill_type.toUpperCase()} {action.bill_number}
               </span>
             )}
@@ -281,7 +281,7 @@ const ClaimDetailPage: React.FC = () => {
             <h3 className="text-xl text-white font-medium">{action.title}</h3>
 
             {action.date && (
-              <p className="font-fira-code text-sm text-slate-400 mt-1">
+              <p className="font-mono text-sm text-slate-400 mt-1">
                 {formatDate(action.date)}
               </p>
             )}
@@ -319,7 +319,7 @@ const ClaimDetailPage: React.FC = () => {
             href={claim.source_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-dm-sans text-slate-400 hover:text-white transition-colors text-sm"
+            className="font-body text-slate-400 hover:text-white transition-colors text-sm"
           >
             View Source &rarr;
           </a>

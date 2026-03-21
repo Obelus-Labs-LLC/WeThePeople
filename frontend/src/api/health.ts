@@ -84,6 +84,9 @@ export interface CompanyDetail {
     reason_for_recall: string | null;
     status: string | null;
   } | null;
+  sanctions_status?: string;
+  sanctions_data?: any;
+  sanctions_checked_at?: string;
 }
 
 export interface AdverseEventItem {

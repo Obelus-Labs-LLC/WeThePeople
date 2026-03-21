@@ -13,6 +13,7 @@ import type {
   SECFiling, StockSnapshot,
 } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
+import SanctionsBadge from '../components/SanctionsBadge';
 import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
 import { LobbyingTab, ContractsTab, EnforcementTab, DonationsTab } from '../components/company';
 
@@ -261,6 +262,11 @@ export default function CompanyScreen() {
             </View>
           </View>
         </View>
+
+        {/* Sanctions Badge */}
+        {company.sanctions_status && (
+          <SanctionsBadge status={company.sanctions_status} />
+        )}
 
         {/* Tab Content */}
         {tab === 'overview' && renderOverview(company, paymentSummary, stockData, sectorColor, setTab)}

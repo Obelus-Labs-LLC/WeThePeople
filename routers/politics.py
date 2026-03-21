@@ -51,7 +51,6 @@ from services.auth import require_press_key
 
 import os
 import json
-import re
 
 router = APIRouter(tags=["politics"])
 
@@ -154,7 +153,7 @@ def get_person_ledger(
 
         rows = (
             q.order_by(
-                desc(GoldLedgerEntry.claim_date).nullslast(),
+                desc(GoldLedgerEntry.claim_date),
                 desc(GoldLedgerEntry.claim_id),
                 desc(GoldLedgerEntry.id),
             )
@@ -445,7 +444,7 @@ def get_person_activity(
                     (MemberBillGroundTruth.role.in_(["sponsored", "sponsor"]), 0),
                     else_=1,
                 ),
-                desc(Bill.latest_action_date).nullslast(),
+                desc(Bill.latest_action_date),
                 desc(MemberBillGroundTruth.id),
             )
             .offset(offset).limit(limit).all()
@@ -568,7 +567,7 @@ def person_performance(person_id: str, top: int = Query(10, ge=1, le=50)):
               .outerjoin(Action, Action.id == ClaimEvaluation.best_action_id)
               .outerjoin(SourceDocument, SourceDocument.id == Action.source_id)
               .filter(ClaimEvaluation.person_id == person_id)
-              .order_by(ClaimEvaluation.score.desc().nullslast(), ClaimEvaluation.updated_at.desc())
+              .order_by(ClaimEvaluation.score.desc(), ClaimEvaluation.updated_at.desc())
               .limit(top).all()
         )
 
@@ -914,7 +913,7 @@ def get_action_detail(action_id: int):
         if a.bill_congress and a.bill_type and a.bill_number:
             bill_id = normalize_bill_id(a.bill_congress, a.bill_type, a.bill_number)
             try:
-                response["receipts"] = format_text_receipt(db, bill_id)
+                response["receipts"] = format_text_receipt(a.bill_congress, a.bill_type, a.bill_number)
             except Exception as e:
                 response["receipts"] = {"error": str(e)}
 

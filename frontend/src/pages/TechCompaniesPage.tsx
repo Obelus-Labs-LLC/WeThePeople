@@ -190,7 +190,7 @@ export default function TechCompaniesPage() {
   const [viewMode, setViewMode] = useState<ViewMode>(initialSector ? 'list' : 'dome');
 
   const headerRef = React.useRef<HTMLDivElement>(null);
-  const headerInView = useInView(headerRef, { once: true, amount: 0.1 });
+  useInView(headerRef, { once: true, amount: 0.1 });
 
   useEffect(() => {
     getTechCompanies({ limit: 200 })

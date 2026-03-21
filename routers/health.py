@@ -526,7 +526,7 @@ def get_health_comparison(ids: str = Query(..., description="Comma-separated com
             total_penalties = db.query(func.sum(HealthEnforcement.penalty_amount)).filter_by(company_id=cid).scalar() or 0
 
             latest = db.query(StockFundamentals).filter_by(
-                entity_type="health_company", entity_id=cid
+                entity_type="company", entity_id=cid
             ).order_by(desc(StockFundamentals.snapshot_date)).first()
 
             results.append({

@@ -22,6 +22,9 @@ export interface Person {
   party: string;
   is_active: boolean;
   photo_url: string | null;
+  sanctions_status?: string;
+  sanctions_data?: any;
+  sanctions_checked_at?: string;
 }
 
 // /ledger/person/{person_id} response

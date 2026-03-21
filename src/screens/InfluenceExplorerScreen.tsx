@@ -167,6 +167,38 @@ export default function InfluenceExplorerScreen({ navigation }: InfluenceExplore
             onPress={() => navigation?.navigate?.('SpendingMap')}
             accent={UI_COLORS.GOLD}
           />
+          <View style={{ height: 10 }} />
+          <NavCard
+            icon="analytics"
+            title="Money Flow"
+            subtitle="Track money from corporations to politicians"
+            onPress={() => navigation?.navigate?.('MoneyFlow')}
+            accent="#2563EB"
+          />
+          <View style={{ height: 10 }} />
+          <NavCard
+            icon="book"
+            title="Data Story"
+            subtitle="Animated narrative of corporate influence"
+            onPress={() => navigation?.navigate?.('DataStory')}
+            accent="#8B5CF6"
+          />
+          <View style={{ height: 10 }} />
+          <NavCard
+            icon="time"
+            title="Influence Timeline"
+            subtitle="Chronological view of entity connections"
+            onPress={() => navigation?.navigate?.('InfluenceTimeline')}
+            accent="#F59E0B"
+          />
+          <View style={{ height: 10 }} />
+          <NavCard
+            icon="sync"
+            title="Closed Loops"
+            subtitle="Detect lobbying → bill → committee → donation loops"
+            onPress={() => navigation?.navigate?.('ClosedLoop')}
+            accent="#DC2626"
+          />
         </View>
       </View>
     </ScrollView>

@@ -1001,6 +1001,80 @@ class WTPClient {
   async getEnergyRecentActivity(): Promise<RecentActivityResponse> {
     return this.fetchJSON<RecentActivityResponse>(`${this.baseUrl}/energy/dashboard/recent-activity`);
   }
+
+  // ── Money Flow ──
+
+  async getMoneyFlow(sector?: string): Promise<any> {
+    const sp = new URLSearchParams();
+    if (sector) sp.set('sector', sector);
+    return this.fetchJSON<any>(`${this.baseUrl}/influence/money-flow?${sp}`);
+  }
+
+  // ── Closed Loops ──
+
+  async getClosedLoops(params?: { limit?: number; offset?: number }): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(`${this.baseUrl}/influence/closed-loops?${sp}`);
+  }
+
+  // ── Votes ──
+
+  async getVotes(params?: { chamber?: string; limit?: number; offset?: number }): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.chamber) sp.set('chamber', params.chamber);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(`${this.baseUrl}/politics/votes?${sp}`);
+  }
+
+  async getVoteDetail(voteId: string): Promise<any> {
+    return this.fetchJSON<any>(
+      `${this.baseUrl}/politics/votes/${encodeURIComponent(voteId)}`
+    );
+  }
+
+  // ── Balance of Power ──
+
+  async getBalanceOfPower(): Promise<any> {
+    return this.fetchJSON<any>(`${this.baseUrl}/dashboard/stats`);
+  }
+
+  // ── Patents search (global) ──
+
+  async searchPatents(params?: { q?: string; limit?: number; offset?: number }): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.q) sp.set('q', params.q);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(`${this.baseUrl}/tech/patents?${sp}`);
+  }
+
+  // ── FDA Approvals ──
+
+  async getFDAApprovals(params?: { q?: string; limit?: number; offset?: number }): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.q) sp.set('q', params.q);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(`${this.baseUrl}/health/fda-approvals?${sp}`);
+  }
+
+  // ── Press / News ──
+
+  async getPressReleases(params?: { limit?: number; offset?: number }): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(`${this.baseUrl}/politics/press?${sp}`);
+  }
+
+  // ── Market Movers ──
+
+  async getMarketMovers(): Promise<any> {
+    return this.fetchJSON<any>(`${this.baseUrl}/finance/market-movers`);
+  }
 }
 
 export const apiClient = new WTPClient(BASE_URL);

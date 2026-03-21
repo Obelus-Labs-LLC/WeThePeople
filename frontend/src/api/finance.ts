@@ -60,6 +60,9 @@ export interface InstitutionDetail {
     week_52_low: number | null;
     profit_margin: number | null;
   } | null;
+  sanctions_status?: string;
+  sanctions_data?: any;
+  sanctions_checked_at?: string;
 }
 
 export interface SECFiling {

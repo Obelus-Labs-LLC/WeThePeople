@@ -14,6 +14,7 @@ import type {
   EnforcementAction, NewsArticle,
 } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
+import SanctionsBadge from '../components/SanctionsBadge';
 import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
 import { DonationsTab } from '../components/company';
 
@@ -232,6 +233,11 @@ export default function TechCompanyScreen() {
             </View>
           </View>
         </View>
+
+        {/* Sanctions Badge */}
+        {company.sanctions_status && (
+          <SanctionsBadge status={company.sanctions_status} />
+        )}
 
         {/* Tab Content */}
         {tab === 'overview' && renderOverview(company, filings, news, sectorColor, setTab)}

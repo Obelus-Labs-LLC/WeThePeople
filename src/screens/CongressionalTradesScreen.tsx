@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
@@ -23,6 +24,21 @@ const TYPE_FILTERS = [
   { key: 'sale', label: 'Sale' },
 ];
 
+const SORT_OPTIONS = [
+  { key: 'date_desc', label: 'Date (Newest)' },
+  { key: 'date_asc', label: 'Date (Oldest)' },
+  { key: 'amount_desc', label: 'Amount (High)' },
+  { key: 'amount_asc', label: 'Amount (Low)' },
+  { key: 'name_asc', label: 'Politician (A-Z)' },
+];
+
+function parseAmountRange(range: string | null | undefined): number {
+  if (!range) return 0;
+  // Extract first number from range like "$1,001 - $15,000"
+  const match = range.replace(/[\$,]/g, '').match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
 const PAGE_SIZE = 50;
 
 export default function CongressionalTradesScreen() {
@@ -36,6 +52,7 @@ export default function CongressionalTradesScreen() {
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('date_desc');
   const [offset, setOffset] = useState(0);
 
   useEffect(() => {
@@ -110,6 +127,24 @@ export default function CongressionalTradesScreen() {
     await loadData(newOffset, true);
     setLoadingMore(false);
   };
+
+  // Apply sorting
+  const sortedTrades = [...trades].sort((a, b) => {
+    switch (sortBy) {
+      case 'date_desc':
+        return new Date(b.transaction_date || 0).getTime() - new Date(a.transaction_date || 0).getTime();
+      case 'date_asc':
+        return new Date(a.transaction_date || 0).getTime() - new Date(b.transaction_date || 0).getTime();
+      case 'amount_desc':
+        return parseAmountRange(b.amount_range) - parseAmountRange(a.amount_range);
+      case 'amount_asc':
+        return parseAmountRange(a.amount_range) - parseAmountRange(b.amount_range);
+      case 'name_asc':
+        return (a.member_name || '').localeCompare(b.member_name || '');
+      default:
+        return 0;
+    }
+  });
 
   if (loading) return <LoadingSpinner message="Loading trades..." />;
 
@@ -214,9 +249,32 @@ export default function CongressionalTradesScreen() {
         onTabChange={setTypeFilter}
       />
 
+      {/* Sort chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sortScroll} contentContainerStyle={styles.sortRow}>
+        {SORT_OPTIONS.map(opt => (
+          <TouchableOpacity
+            key={opt.key}
+            style={[
+              styles.sortChip,
+              sortBy === opt.key
+                ? { backgroundColor: UI_COLORS.ACCENT + '18', borderColor: UI_COLORS.ACCENT + '40' }
+                : { backgroundColor: UI_COLORS.CARD_BG, borderColor: UI_COLORS.BORDER },
+            ]}
+            onPress={() => setSortBy(opt.key)}
+          >
+            <Text style={[
+              styles.sortChipText,
+              { color: sortBy === opt.key ? UI_COLORS.ACCENT : UI_COLORS.TEXT_MUTED },
+            ]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       <View style={styles.countRow}>
         <Text style={styles.countText}>
-          {trades.length === 0 ? 'No trades found' : `${trades.length} of ${total} trades`}
+          {sortedTrades.length === 0 ? 'No trades found' : `${sortedTrades.length} of ${total} trades`}
         </Text>
       </View>
 
@@ -224,11 +282,11 @@ export default function CongressionalTradesScreen() {
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
-      ) : trades.length === 0 ? (
+      ) : sortedTrades.length === 0 ? (
         <EmptyState title="No trades found" message="Try adjusting your search or filters." />
       ) : (
         <FlatList
-          data={trades}
+          data={sortedTrades}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderTrade}
           contentContainerStyle={styles.listContent}
@@ -260,6 +318,24 @@ const styles = StyleSheet.create({
   searchWrap: {
     paddingHorizontal: 16,
     paddingTop: 12,
+  },
+  sortScroll: {
+    marginBottom: 4,
+  },
+  sortRow: {
+    paddingHorizontal: 16,
+    gap: 6,
+    paddingVertical: 4,
+  },
+  sortChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  sortChipText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   countRow: {
     flexDirection: 'row',

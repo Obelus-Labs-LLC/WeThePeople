@@ -74,6 +74,9 @@ export interface EnergyCompanyDetail {
     sector: string | null;
     industry: string | null;
   } | null;
+  sanctions_status?: string;
+  sanctions_data?: any;
+  sanctions_checked_at?: string;
 }
 
 export interface EnergyFilingItem {

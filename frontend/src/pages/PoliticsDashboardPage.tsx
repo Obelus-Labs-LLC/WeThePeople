@@ -41,7 +41,7 @@ export default function PoliticsDashboardPage() {
   const [expandedAction, setExpandedAction] = useState<number | null>(null);
 
   const headerRef = React.useRef<HTMLDivElement>(null);
-  const headerInView = useInView(headerRef, { once: true, amount: 0.1 });
+  useInView(headerRef, { once: true, amount: 0.1 });
 
   useEffect(() => {
     Promise.all([
@@ -422,7 +422,7 @@ export default function PoliticsDashboardPage() {
         <div className="border-t border-white/10 pt-6 mt-8">
           <span className="font-mono text-xs font-bold tracking-[0.2em] uppercase text-white/30">Data Sources</span>
           <div className="flex flex-wrap gap-x-8 gap-y-3 mt-4">
-            {['Congress.gov API', 'ProPublica', 'OpenSecrets', 'Federal Election Commission', 'GovTrack'].map((source) => (
+            {['Congress.gov API', 'Senate LDA', 'FEC', 'USASpending.gov'].map((source) => (
               <div key={source} className="flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
                 <span className="w-1.5 h-1.5 rounded-sm bg-zinc-600" />
                 <span className="font-mono text-xs font-semibold tracking-wider uppercase text-zinc-300">{source}</span>

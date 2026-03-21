@@ -443,7 +443,7 @@ function PaymentsFilingsTab({ companyId, company }: { companyId: string; company
               <span className="text-sm uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
                 FINANCIAL PULSE
               </span>
-              <SanctionsBadge status={(company as any).sanctions_status} />
+              <SanctionsBadge status={company.sanctions_status} />
             </div>
           </div>
         </div>
