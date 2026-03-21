@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "wethepeople.db")
 SONNET_MODEL = "claude-sonnet-4-20250514"
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
-MAX_TOKENS = 1024  # Summaries are short
+MAX_TOKENS = 4096  # Enough room for batched summaries
 
 # ── Pricing ──────────────────────────────────────────────────
 PRICING = {
