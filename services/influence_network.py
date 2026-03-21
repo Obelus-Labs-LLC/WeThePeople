@@ -163,6 +163,7 @@ def _expand_person(
             CompanyDonation.entity_id,
             func.sum(CompanyDonation.amount).label("total"),
             func.max(CompanyDonation.cycle).label("latest_cycle"),
+            func.group_concat(CompanyDonation.cycle.distinct()).label("all_cycles"),
         )
         .filter(CompanyDonation.person_id == person_id)
         .group_by(CompanyDonation.entity_type, CompanyDonation.entity_id)
@@ -170,7 +171,7 @@ def _expand_person(
         .limit(limit_per_type)
         .all()
     )
-    for entity_type, entity_id, total, cycle in donations:
+    for entity_type, entity_id, total, cycle, all_cycles in donations:
         comp_nid = _node_id("company", f"{entity_type}:{entity_id}")
         if comp_nid not in nodes:
             label = _resolve_company_label(db, entity_type, entity_id) or entity_id
@@ -184,13 +185,28 @@ def _expand_person(
                 "entity_type": entity_type,
                 "entity_id": entity_id,
             }
-        edges.append({
+        # Parse year from cycle (e.g. "2024")
+        try:
+            year = int(cycle) if cycle else None
+        except (ValueError, TypeError):
+            year = None
+        # Parse all years from cycles
+        years = sorted(set(
+            int(c) for c in (all_cycles or "").split(",")
+            if c.strip().isdigit()
+        ))
+        edge_dict: Dict[str, Any] = {
             "source": comp_nid,
             "target": person_nid,
             "type": "donation",
             "amount": float(total or 0),
             "cycle": cycle,
-        })
+        }
+        if year is not None:
+            edge_dict["year"] = year
+        if years:
+            edge_dict["years"] = years
+        edges.append(edge_dict)
 
     # --- Congressional trades ---
     trades = (
@@ -201,12 +217,17 @@ def _expand_person(
         .all()
     )
     # Group trades by ticker for cleaner graph
-    ticker_agg: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"count": 0, "buys": 0, "sells": 0, "amount_sum": 0.0})
+    ticker_agg: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"count": 0, "buys": 0, "sells": 0, "amount_sum": 0.0, "years": set()})
     for t in trades:
         ticker = t.ticker or "UNKNOWN"
         agg = ticker_agg[ticker]
         agg["count"] += 1
         agg["amount_sum"] += _amount_range_to_float(t.amount_range)
+        if t.disclosure_date:
+            try:
+                agg["years"].add(t.disclosure_date.year)
+            except AttributeError:
+                pass
         if t.transaction_type and "purchase" in t.transaction_type.lower():
             agg["buys"] += 1
         elif t.transaction_type and "sale" in t.transaction_type.lower():
@@ -222,14 +243,19 @@ def _expand_person(
                 "ticker": ticker,
             }
         tx_type = "purchase" if agg["buys"] >= agg["sells"] else "sale"
-        edges.append({
+        trade_years = sorted(agg["years"])
+        edge_dict = {
             "source": person_nid,
             "target": ticker_nid,
             "type": "trade",
             "amount": agg["amount_sum"],
             "transaction_type": tx_type,
             "count": agg["count"],
-        })
+        }
+        if trade_years:
+            edge_dict["year"] = trade_years[-1]  # most recent
+            edge_dict["years"] = trade_years
+        edges.append(edge_dict)
 
     # --- Bills sponsored / cosponsored ---
     member = db.query(TrackedMember).filter(TrackedMember.person_id == person_id).first()
@@ -242,8 +268,8 @@ def _expand_person(
         )
         for bl in bill_links:
             bill_nid = _node_id("bill", bl.bill_id)
+            bill = db.query(Bill).filter(Bill.bill_id == bl.bill_id).first()
             if bill_nid not in nodes:
-                bill = db.query(Bill).filter(Bill.bill_id == bl.bill_id).first()
                 bill_title = bill.title if bill else bl.bill_id
                 nodes[bill_nid] = {
                     "id": bill_nid,
@@ -253,12 +279,23 @@ def _expand_person(
                     "status": bill.status_bucket if bill else None,
                     "policy_area": bill.policy_area if bill else None,
                 }
-            edges.append({
+            edge_dict = {
                 "source": person_nid,
                 "target": bill_nid,
                 "type": "legislation",
                 "role": bl.role,
-            })
+            }
+            # Extract year from bill introduced_date
+            bill_year = None
+            if bill and bill.introduced_date:
+                try:
+                    bill_year = bill.introduced_date.year
+                except AttributeError:
+                    pass
+            if bill_year is not None:
+                edge_dict["year"] = bill_year
+                edge_dict["years"] = [bill_year]
+            edges.append(edge_dict)
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +339,7 @@ def _expand_company(
             CompanyDonation.person_id,
             func.sum(CompanyDonation.amount).label("total"),
             func.max(CompanyDonation.cycle).label("latest_cycle"),
+            func.group_concat(CompanyDonation.cycle.distinct()).label("all_cycles"),
         )
         .filter(
             CompanyDonation.entity_type == entity_type,
@@ -313,7 +351,7 @@ def _expand_company(
         .limit(limit_per_type)
         .all()
     )
-    for pid, total, cycle in donations:
+    for pid, total, cycle, all_cycles in donations:
         person_nid = _node_id("person", pid)
         if person_nid not in nodes:
             member = db.query(TrackedMember).filter(TrackedMember.person_id == pid).first()
@@ -327,19 +365,38 @@ def _expand_company(
                 "chamber": member.chamber if member else None,
                 "person_id": pid,
             }
-        edges.append({
+        # Parse year from cycle
+        try:
+            year = int(cycle) if cycle else None
+        except (ValueError, TypeError):
+            year = None
+        years = sorted(set(
+            int(c) for c in (all_cycles or "").split(",")
+            if c.strip().isdigit()
+        ))
+        edge_dict: Dict[str, Any] = {
             "source": comp_nid,
             "target": person_nid,
             "type": "donation",
             "amount": float(total or 0),
             "cycle": cycle,
-        })
+        }
+        if year is not None:
+            edge_dict["year"] = year
+        if years:
+            edge_dict["years"] = years
+        edges.append(edge_dict)
 
     # --- Lobbying issues ---
     lobbying_rows: List[Any] = []
     if entity_type == "finance":
         lobbying_rows = (
-            db.query(FinanceLobbyingRecord.lobbying_issues, func.sum(FinanceLobbyingRecord.income))
+            db.query(
+                FinanceLobbyingRecord.lobbying_issues,
+                func.sum(FinanceLobbyingRecord.income),
+                func.max(FinanceLobbyingRecord.filing_year),
+                func.group_concat(FinanceLobbyingRecord.filing_year.distinct()),
+            )
             .filter(FinanceLobbyingRecord.institution_id == entity_id)
             .group_by(FinanceLobbyingRecord.lobbying_issues)
             .order_by(desc(func.sum(FinanceLobbyingRecord.income)))
@@ -348,7 +405,12 @@ def _expand_company(
         )
     elif entity_type == "health":
         lobbying_rows = (
-            db.query(HealthLobbyingRecord.lobbying_issues, func.sum(HealthLobbyingRecord.income))
+            db.query(
+                HealthLobbyingRecord.lobbying_issues,
+                func.sum(HealthLobbyingRecord.income),
+                func.max(HealthLobbyingRecord.filing_year),
+                func.group_concat(HealthLobbyingRecord.filing_year.distinct()),
+            )
             .filter(HealthLobbyingRecord.company_id == entity_id)
             .group_by(HealthLobbyingRecord.lobbying_issues)
             .order_by(desc(func.sum(HealthLobbyingRecord.income)))
@@ -357,7 +419,12 @@ def _expand_company(
         )
     elif entity_type == "tech":
         lobbying_rows = (
-            db.query(LobbyingRecord.lobbying_issues, func.sum(LobbyingRecord.income))
+            db.query(
+                LobbyingRecord.lobbying_issues,
+                func.sum(LobbyingRecord.income),
+                func.max(LobbyingRecord.filing_year),
+                func.group_concat(LobbyingRecord.filing_year.distinct()),
+            )
             .filter(LobbyingRecord.company_id == entity_id)
             .group_by(LobbyingRecord.lobbying_issues)
             .order_by(desc(func.sum(LobbyingRecord.income)))
@@ -366,7 +433,12 @@ def _expand_company(
         )
     elif entity_type == "energy":
         lobbying_rows = (
-            db.query(EnergyLobbyingRecord.lobbying_issues, func.sum(EnergyLobbyingRecord.income))
+            db.query(
+                EnergyLobbyingRecord.lobbying_issues,
+                func.sum(EnergyLobbyingRecord.income),
+                func.max(EnergyLobbyingRecord.filing_year),
+                func.group_concat(EnergyLobbyingRecord.filing_year.distinct()),
+            )
             .filter(EnergyLobbyingRecord.company_id == entity_id)
             .group_by(EnergyLobbyingRecord.lobbying_issues)
             .order_by(desc(func.sum(EnergyLobbyingRecord.income)))
@@ -374,7 +446,7 @@ def _expand_company(
             .all()
         )
 
-    for issues_str, total_income in lobbying_rows:
+    for issues_str, total_income, max_filing_year, all_filing_years in lobbying_rows:
         if not issues_str:
             continue
         # Issues are comma-separated; use first issue for label
@@ -387,12 +459,25 @@ def _expand_company(
                 "type": "lobbying_issue",
                 "label": issue_label,
             }
-        edges.append({
+        edge_dict = {
             "source": comp_nid,
             "target": issue_nid,
             "type": "lobbying",
             "amount": float(total_income or 0),
-        })
+        }
+        if max_filing_year is not None:
+            try:
+                edge_dict["year"] = int(max_filing_year)
+            except (ValueError, TypeError):
+                pass
+        if all_filing_years:
+            years = sorted(set(
+                int(y) for y in str(all_filing_years).split(",")
+                if y.strip().isdigit()
+            ))
+            if years:
+                edge_dict["years"] = years
+        edges.append(edge_dict)
 
     # --- Government contracts ---
     contract_rows: List[Any] = []
@@ -402,6 +487,8 @@ def _expand_company(
                 FinanceGovernmentContract.awarding_agency,
                 func.sum(FinanceGovernmentContract.award_amount),
                 func.count(FinanceGovernmentContract.id),
+                func.max(FinanceGovernmentContract.start_date),
+                func.group_concat(func.strftime("%Y", FinanceGovernmentContract.start_date).distinct()),
             )
             .filter(FinanceGovernmentContract.institution_id == entity_id)
             .group_by(FinanceGovernmentContract.awarding_agency)
@@ -415,6 +502,8 @@ def _expand_company(
                 HealthGovernmentContract.awarding_agency,
                 func.sum(HealthGovernmentContract.award_amount),
                 func.count(HealthGovernmentContract.id),
+                func.max(HealthGovernmentContract.start_date),
+                func.group_concat(func.strftime("%Y", HealthGovernmentContract.start_date).distinct()),
             )
             .filter(HealthGovernmentContract.company_id == entity_id)
             .group_by(HealthGovernmentContract.awarding_agency)
@@ -428,6 +517,8 @@ def _expand_company(
                 GovernmentContract.awarding_agency,
                 func.sum(GovernmentContract.award_amount),
                 func.count(GovernmentContract.id),
+                func.max(GovernmentContract.start_date),
+                func.group_concat(func.strftime("%Y", GovernmentContract.start_date).distinct()),
             )
             .filter(GovernmentContract.company_id == entity_id)
             .group_by(GovernmentContract.awarding_agency)
@@ -441,6 +532,8 @@ def _expand_company(
                 EnergyGovernmentContract.awarding_agency,
                 func.sum(EnergyGovernmentContract.award_amount),
                 func.count(EnergyGovernmentContract.id),
+                func.max(EnergyGovernmentContract.start_date),
+                func.group_concat(func.strftime("%Y", EnergyGovernmentContract.start_date).distinct()),
             )
             .filter(EnergyGovernmentContract.company_id == entity_id)
             .group_by(EnergyGovernmentContract.awarding_agency)
@@ -449,7 +542,7 @@ def _expand_company(
             .all()
         )
 
-    for agency_name, total_award, count in contract_rows:
+    for agency_name, total_award, count, max_start_date, all_start_years in contract_rows:
         if not agency_name:
             continue
         agency_key = agency_name.lower().replace(" ", "_")[:60]
@@ -460,13 +553,31 @@ def _expand_company(
                 "type": "agency",
                 "label": agency_name,
             }
-        edges.append({
+        edge_dict = {
             "source": agency_nid,
             "target": comp_nid,
             "type": "contract",
             "amount": float(total_award or 0),
             "count": count,
-        })
+        }
+        # Extract year from most recent start_date
+        if max_start_date is not None:
+            try:
+                edge_dict["year"] = max_start_date.year
+            except AttributeError:
+                # start_date might be a string
+                try:
+                    edge_dict["year"] = int(str(max_start_date)[:4])
+                except (ValueError, TypeError):
+                    pass
+        if all_start_years:
+            years = sorted(set(
+                int(y) for y in str(all_start_years).split(",")
+                if y.strip().isdigit()
+            ))
+            if years:
+                edge_dict["years"] = years
+        edges.append(edge_dict)
 
 
 # ---------------------------------------------------------------------------

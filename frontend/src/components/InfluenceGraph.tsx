@@ -107,6 +107,7 @@ interface InfluenceGraphProps {
   nodes: NetworkNode[];
   edges: NetworkEdge[];
   visibleEdgeTypes?: Set<string>;
+  timelineYear?: number | null;
   width?: number;
   height?: number;
 }
@@ -115,6 +116,7 @@ export default function InfluenceGraph({
   nodes,
   edges,
   visibleEdgeTypes,
+  timelineYear,
   width,
   height,
 }: InfluenceGraphProps) {
@@ -144,9 +146,22 @@ export default function InfluenceGraph({
 
   // Build graph data
   const graphData: GraphData = useMemo(() => {
-    const filteredEdges = visibleEdgeTypes
+    let filteredEdges = visibleEdgeTypes
       ? edges.filter((e) => visibleEdgeTypes.has(e.type))
-      : edges;
+      : [...edges];
+
+    // Filter by timeline year (cumulative — show edges up to selected year)
+    if (timelineYear != null) {
+      filteredEdges = filteredEdges.filter((e) => {
+        // Edges without year data are always visible
+        if (e.year == null && (!e.years || e.years.length === 0)) return true;
+        // Check single year field
+        if (e.year != null && e.year <= timelineYear) return true;
+        // Check years array — show if any year <= timelineYear
+        if (e.years && e.years.some((y) => y <= timelineYear)) return true;
+        return false;
+      });
+    }
 
     // Only include nodes that are connected by visible edges
     const connectedNodeIds = new Set<string>();
@@ -161,7 +176,7 @@ export default function InfluenceGraph({
       nodes: filteredNodes.map((n) => ({ ...n })),
       links: filteredEdges.map((e) => ({ ...e })),
     };
-  }, [nodes, edges, visibleEdgeTypes]);
+  }, [nodes, edges, visibleEdgeTypes, timelineYear]);
 
   // Zoom to fit on data change
   useEffect(() => {

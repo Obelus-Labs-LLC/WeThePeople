@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { Search, Share2, ArrowLeft } from 'lucide-react';
+import { Search, Share2, ArrowLeft, Play, Pause, RotateCcw } from 'lucide-react';
 import InfluenceGraph from '../components/InfluenceGraph';
 import {
   fetchInfluenceNetwork,
@@ -92,6 +92,12 @@ export default function InfluenceNetworkPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
 
+  // Timeline playback
+  const [timelineYear, setTimelineYear] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [yearRange, setYearRange] = useState<[number, number]>([2020, 2026]);
+  const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Load network
   useEffect(() => {
     if (!entityType || !entityId) return;
@@ -114,6 +120,67 @@ export default function InfluenceNetworkPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Compute year range from edge data
+  useEffect(() => {
+    if (!data?.edges?.length) return;
+    let min = Infinity;
+    let max = -Infinity;
+    for (const e of data.edges) {
+      if (e.year != null) {
+        if (e.year < min) min = e.year;
+        if (e.year > max) max = e.year;
+      }
+      if (e.years) {
+        for (const y of e.years) {
+          if (y < min) min = y;
+          if (y > max) max = y;
+        }
+      }
+    }
+    if (min !== Infinity && max !== -Infinity) {
+      setYearRange([min, max]);
+    }
+    // Reset timeline state when data changes
+    setTimelineYear(null);
+    setIsPlaying(false);
+  }, [data]);
+
+  // Playback interval
+  useEffect(() => {
+    if (isPlaying) {
+      playIntervalRef.current = setInterval(() => {
+        setTimelineYear((prev) => {
+          const current = prev ?? yearRange[0];
+          if (current >= yearRange[1]) {
+            setIsPlaying(false);
+            return current;
+          }
+          return current + 1;
+        });
+      }, 1500);
+    }
+    return () => {
+      if (playIntervalRef.current) clearInterval(playIntervalRef.current);
+    };
+  }, [isPlaying, yearRange]);
+
+  const handlePlayPause = useCallback(() => {
+    if (isPlaying) {
+      setIsPlaying(false);
+    } else {
+      // If at end or no year selected, start from beginning
+      if (timelineYear == null || timelineYear >= yearRange[1]) {
+        setTimelineYear(yearRange[0]);
+      }
+      setIsPlaying(true);
+    }
+  }, [isPlaying, timelineYear, yearRange]);
+
+  const handleShowAll = useCallback(() => {
+    setTimelineYear(null);
+    setIsPlaying(false);
+  }, []);
 
   const handleSelectEntity = useCallback(
     (result: SearchResult) => {
@@ -249,6 +316,72 @@ export default function InfluenceNetworkPage() {
         )}
       </div>
 
+      {/* Timeline playback bar */}
+      {!showLanding && nodes.length > 0 && (
+        <div className="border-b border-white/10 bg-zinc-900/90 backdrop-blur-sm px-6 py-3 lg:px-12">
+          <div className="flex items-center gap-4">
+            {/* Play/Pause button */}
+            <button
+              onClick={handlePlayPause}
+              className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
+                isPlaying
+                  ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                  : 'bg-zinc-700 text-white/70 hover:bg-zinc-600 hover:text-white'
+              }`}
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+            </button>
+
+            {/* Year display */}
+            <div className="min-w-[4rem] text-center">
+              <span
+                className={`text-2xl font-bold text-white tabular-nums ${
+                  isPlaying ? 'animate-pulse' : ''
+                }`}
+              >
+                {timelineYear ?? '—'}
+              </span>
+            </div>
+
+            {/* Range slider */}
+            <div className="flex-1 flex items-center gap-3">
+              <span className="text-xs text-white/40 font-mono">{yearRange[0]}</span>
+              <input
+                type="range"
+                min={yearRange[0]}
+                max={yearRange[1]}
+                value={timelineYear ?? yearRange[0]}
+                onChange={(e) => {
+                  setTimelineYear(Number(e.target.value));
+                  setIsPlaying(false);
+                }}
+                className="flex-1 h-1.5 appearance-none rounded-full bg-zinc-700 cursor-pointer
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-400
+                  [&::-webkit-slider-thumb]:shadow-[0_0_6px_rgba(16,185,129,0.5)] [&::-webkit-slider-thumb]:cursor-pointer
+                  [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full
+                  [&::-moz-range-thumb]:bg-emerald-400 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+              />
+              <span className="text-xs text-white/40 font-mono">{yearRange[1]}</span>
+            </div>
+
+            {/* Show All button */}
+            <button
+              onClick={handleShowAll}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                timelineYear == null
+                  ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                  : 'text-white/50 hover:text-white/80 border border-zinc-700 hover:border-zinc-500'
+              }`}
+            >
+              <RotateCcw className="w-3 h-3" />
+              Show All
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main content */}
       <div className="flex-1 relative">
         {showLanding ? (
@@ -318,6 +451,7 @@ export default function InfluenceNetworkPage() {
             nodes={nodes}
             edges={edges}
             visibleEdgeTypes={visibleTypes}
+            timelineYear={timelineYear}
           />
         )}
       </div>

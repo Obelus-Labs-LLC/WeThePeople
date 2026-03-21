@@ -137,6 +137,8 @@ export interface NetworkEdge {
   transaction_type?: string;
   role?: string;
   count?: number;
+  year?: number;
+  years?: number[];
 }
 
 export interface InfluenceNetworkResponse {
