@@ -202,6 +202,18 @@ def call_claude(system_prompt: str, user_prompt: str,
     return response.content[0].text
 
 
+def parse_json_response(text: str) -> Any:
+    """Parse JSON from Claude response, stripping markdown code fences if present."""
+    text = text.strip()
+    # Strip ```json ... ``` or ``` ... ```
+    if text.startswith("```"):
+        lines = text.split("\n")
+        # Remove first line (```json) and last line (```)
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+    return json.loads(text)
+
+
 # ═══════════════════════════════════════════════════════════
 # Database Helpers
 # ═══════════════════════════════════════════════════════════
@@ -328,7 +340,7 @@ def summarize_votes(conn, limit: int = 0, dry_run: bool = False) -> int:
             break  # Budget exceeded
 
         try:
-            summaries = json.loads(result)
+            summaries = parse_json_response(result)
             pairs = [(s["id"], s["summary"]) for s in summaries]
             save_batch_summaries(conn, "votes", "id", pairs)
             total += len(pairs)
@@ -381,7 +393,7 @@ def summarize_enforcement(conn, limit: int = 0, dry_run: bool = False) -> int:
                 return total
 
             try:
-                summaries = json.loads(result)
+                summaries = parse_json_response(result)
                 pairs = [(s["id"], s["summary"]) for s in summaries]
                 save_batch_summaries(conn, table, id_col, pairs)
                 total += len(pairs)
@@ -434,7 +446,7 @@ def summarize_contracts(conn, limit: int = 0, dry_run: bool = False) -> int:
                 return total
 
             try:
-                summaries = json.loads(result)
+                summaries = parse_json_response(result)
                 pairs = [(s["id"], s["summary"]) for s in summaries]
                 save_batch_summaries(conn, table, id_col, pairs)
                 total += len(pairs)
@@ -488,7 +500,7 @@ def summarize_lobbying(conn, limit: int = 0, dry_run: bool = False) -> int:
                 return total
 
             try:
-                summaries = json.loads(result)
+                summaries = parse_json_response(result)
                 pairs = [(s["id"], s["summary"]) for s in summaries]
                 save_batch_summaries(conn, table, id_col, pairs)
                 total += len(pairs)
