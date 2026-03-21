@@ -531,29 +531,30 @@ def get_money_flow(
                     "value": float(total),
                 })
 
-        # Donations: Company → Politician
+        # Donations: PAC → Politician
         donation_rows = db.query(
-            CompanyDonation.company_name,
+            CompanyDonation.committee_name,
             TrackedMember.display_name,
             func.sum(CompanyDonation.amount),
         ).join(
             TrackedMember, CompanyDonation.person_id == TrackedMember.person_id
         ).filter(
-            CompanyDonation.amount > 0
+            CompanyDonation.amount > 0,
+            CompanyDonation.committee_name.isnot(None),
         ).group_by(
-            CompanyDonation.company_name, TrackedMember.display_name
+            CompanyDonation.committee_name, TrackedMember.display_name
         ).order_by(
             desc(func.sum(CompanyDonation.amount))
         ).limit(limit * 3).all()
 
         donations_node = get_node_id("PAC Donations", "channel")
 
-        for company_name, politician_name, total in donation_rows:
-            if not total or total <= 0:
+        for pac_name, politician_name, total in donation_rows:
+            if not total or total <= 0 or not pac_name:
                 continue
-            company_node = get_node_id(company_name, "company")
+            pac_node = get_node_id(pac_name, "company")
             politician_node = get_node_id(politician_name, "politician")
-            links.append({"source": company_node, "target": donations_node, "value": float(total)})
+            links.append({"source": pac_node, "target": donations_node, "value": float(total)})
             links.append({"source": donations_node, "target": politician_node, "value": float(total)})
 
         return {"nodes": nodes, "links": links}
