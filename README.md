@@ -19,7 +19,7 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 ## Five Sectors, One Platform
 
 ### Politics
-537 members of the 119th Congress. Voting records (House + Senate), sponsored legislation, bill progress tracking, co-sponsorship networks, 49 committees with 3,900+ memberships, 4,600+ congressional stock trades parsed from official disclosure PDFs, and 7,300+ state legislators across all 50 states. Find your representative by ZIP code.
+547 tracked members of Congress. Voting records (House + Senate), sponsored legislation, bill progress tracking, co-sponsorship networks, 49 committees with 3,900+ memberships, 4,600+ congressional stock trades parsed from official disclosure PDFs, and 7,300+ state legislators across all 50 states. Find your representative by ZIP code.
 
 ### Finance
 144 financial institutions — banks, insurers, asset managers, fintech. SEC filings, FDIC financials, CFPB consumer complaints, insider trades, lobbying disclosures, government contracts, and enforcement actions.
@@ -40,7 +40,7 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 | Feature | Description |
 |---------|-------------|
 | **Influence Network Graph** | Interactive force-directed graph showing connections between politicians, companies, donations, lobbying, and legislation. Search any entity, explore 1-2 hops of relationships. |
-| **Spending Map** | Choropleth map of the US showing lobbying spend, donations, and political activity by state. Click a state to drill into detail. |
+| **Spending Map** | Choropleth map of the US showing lobbying spend, donations, and political activity by state with interactive hover and top-10 ranking. |
 | **Global Search** | Cmd+K overlay searching across all politicians, companies, and bills in one place. |
 | **Compare Pages** | Side-by-side comparison of politicians or companies within any sector — lobbying spend, contracts, enforcement, financial metrics. |
 | **Congressional Trades** | 4,600+ trades parsed from official House financial disclosure PDFs + Quiver API data. Filing delay indicators, trade timelines, and links to Capitol Trades for deep dives. |
@@ -48,6 +48,13 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 | **State-Level Data** | 7,300+ state legislators across all 50 states (bulk imported from OpenStates). Explore by state from the spending map or Find Rep page. |
 | **Bill Pipeline** | Visual 6-stage funnel showing legislation progress from introduction through enactment, with sponsor filtering. |
 | **Data Freshness** | Every dashboard shows when data was last synced and record counts, so you know how current the information is. |
+| **Money Flow Sankey** | Interactive Sankey diagrams showing how money flows from companies through lobbying and PAC donations to politicians, with sector filtering. |
+| **Data Explorer** | Coordinated cross-sector dashboard with sector toggle buttons filtering all charts simultaneously. |
+| **Data Story** | 5-step animated narrative walking through the landscape of political influence — lobbying, contracts, comparisons, and enforcement gaps. |
+| **Influence Timeline** | Chronological event timeline for any entity, built from influence network relationship data with category filters. |
+| **Closed-Loop Detection** | Automated detection of influence loops: company lobbies on bill → bill goes to committee → company donates to committee members. |
+| **Sanctions Badges** | Real-time sanctions/PEP/watchlist status badges on all entity profiles — checks against OFAC, EU, and UN databases via OpenSanctions. |
+| **AI Summaries** | Claude-powered plain-English summaries of votes, enforcement actions, and politician profiles — making dense government data readable. |
 | **Methodology Page** | Full documentation of every data source, update frequency, and known limitations. |
 
 ---
@@ -93,9 +100,9 @@ No spin. No editorials. Just the public record — structured, searchable, and l
 | Layer | Technology |
 |-------|-----------|
 | Web frontend | React 19, Vite, TypeScript, Tailwind CSS 4, Framer Motion |
-| Visualizations | react-force-graph-2d, React-Leaflet, TradingView Lightweight Charts |
+| Visualizations | react-force-graph-2d, React-Leaflet, Plotly.js (Sankey), TanStack Table/Virtual, TradingView Lightweight Charts |
 | Backend | Python 3.11, FastAPI, SQLAlchemy, SQLite (WAL mode) |
-| Mobile app | React Native, Expo SDK 54 (full parity with web — 37 screens) |
+| Mobile app | React Native, Expo SDK 54 (full parity with web — 52+ screens) |
 | Hosting | GCP Compute Engine (API), Vercel (frontend) |
 | Data pipeline | 26 Python connectors + 39 sync/migration jobs with rate limiting, pagination, and deduplication |
 | Search | Cross-sector entity search via `/search` endpoint |
@@ -222,6 +229,8 @@ WeThePeople/
 | `GET /influence/network` | Relationship graph (nodes + edges) for any entity |
 | `GET /influence/spending-by-state` | Lobbying/donations aggregated by state |
 | `GET /influence/trade-timeline` | Stock price + congressional trade markers |
+| `GET /influence/money-flow` | Sankey diagram data: company → lobbying/PAC → politician flows |
+| `GET /influence/closed-loops` | Detected influence loops: lobbying → bill → committee → donations |
 | `GET /influence/data-freshness` | Sync timestamps and record counts |
 | `GET /search?q=` | Global search across all entities |
 | `GET /states` | States with data counts |
