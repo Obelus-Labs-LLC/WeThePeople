@@ -1,15 +1,23 @@
 """
 Closed-loop influence detection service.
 
-Detects: Company lobbies on issue X → Bill in area X referred to Committee Z →
+Detects: Company lobbies on issue X -> Bill in area X referred to Committee Z ->
          Politician P on Committee Z received donations from Company.
 
 Uses a SQL-first approach: pre-compute donation pairs and committee-bill links,
 then join in Python to find closed loops efficiently.
+
+Performance safeguards:
+- Donation pairs capped at 500, sorted by amount desc
+- Bill refs filtered by year and capped at 5000
+- Lobbying IN clauses batched at 100
+- Assembly loop early-terminates at limit * 3
+- 25-second timeout returns partial results
 """
 
+import time
 from typing import Dict, Any, List, Optional
-from sqlalchemy import func, text
+from sqlalchemy import func, text, desc
 from sqlalchemy.orm import Session
 
 from models.database import (
@@ -47,11 +55,24 @@ ISSUE_TO_POLICY = {
     "Financial Institutions/Investments/Securities": ["Finance and Financial Sector"],
 }
 
-# Reverse map: policy area → set of issue codes
+# Reverse map: policy area -> set of issue codes
 POLICY_TO_ISSUES = {}
 for issue, policies in ISSUE_TO_POLICY.items():
     for p in policies:
         POLICY_TO_ISSUES.setdefault(p, set()).add(issue)
+
+# Timeout in seconds for the entire function
+_TIMEOUT_SECONDS = 25
+
+
+def _batched_in_query(db, query_fn, ids, batch_size=100):
+    """Execute a query function in batches over a list of IDs to avoid huge IN clauses."""
+    results = []
+    id_list = list(ids)
+    for i in range(0, len(id_list), batch_size):
+        batch = id_list[i:i + batch_size]
+        results.extend(query_fn(batch))
+    return results
 
 
 def find_closed_loops(
@@ -67,8 +88,18 @@ def find_closed_loops(
     """
     Find closed-loop influence chains using a SQL-first approach.
     """
+    start_time = time.monotonic()
+    is_partial = False
 
-    # Step 1: Get all donation pairs (entity_id, entity_type, person_id) with aggregates
+    def _check_timeout():
+        nonlocal is_partial
+        if time.monotonic() - start_time > _TIMEOUT_SECONDS:
+            is_partial = True
+            return True
+        return False
+
+    # Step 1: Get donation pairs (entity_id, entity_type, person_id) with aggregates
+    # Capped at 500, sorted by total_amount desc for most interesting results first
     donation_q = db.query(
         CompanyDonation.entity_id,
         CompanyDonation.entity_type,
@@ -92,11 +123,14 @@ def find_closed_loops(
     if person_id:
         donation_q = donation_q.filter(CompanyDonation.person_id == person_id)
 
-    donation_pairs = donation_q.all()
+    donation_pairs = donation_q.order_by(desc("total_amount")).limit(500).all()
     if not donation_pairs:
         return {"closed_loops": [], "stats": _empty_stats()}
 
-    # Build lookup: (entity_id, entity_type, person_id) → donation info
+    if _check_timeout():
+        return {"closed_loops": [], "stats": {**_empty_stats(), "partial": True}}
+
+    # Build lookup: (entity_id, entity_type, person_id) -> donation info
     donation_map = {}
     for row in donation_pairs:
         key = (row.entity_id, row.entity_type, row.person_id)
@@ -107,23 +141,30 @@ def find_closed_loops(
         }
 
     # Step 2: Get committee memberships for all politicians with donations
+    # Batch person_ids if > 500
     person_ids = list(set(r.person_id for r in donation_pairs))
-    memberships_q = db.query(
-        CommitteeMembership.committee_thomas_id,
-        CommitteeMembership.bioguide_id,
-        CommitteeMembership.role,
-        TrackedMember.person_id,
-        TrackedMember.display_name,
-        TrackedMember.party,
-        TrackedMember.state,
-    ).join(
-        TrackedMember, TrackedMember.bioguide_id == CommitteeMembership.bioguide_id
-    ).filter(
-        TrackedMember.person_id.in_(person_ids),
-    )
-    memberships = memberships_q.all()
 
-    # Build lookup: person_id → list of (committee_thomas_id, role)
+    def _query_memberships(pid_batch):
+        return db.query(
+            CommitteeMembership.committee_thomas_id,
+            CommitteeMembership.bioguide_id,
+            CommitteeMembership.role,
+            TrackedMember.person_id,
+            TrackedMember.display_name,
+            TrackedMember.party,
+            TrackedMember.state,
+        ).join(
+            TrackedMember, TrackedMember.bioguide_id == CommitteeMembership.bioguide_id
+        ).filter(
+            TrackedMember.person_id.in_(pid_batch),
+        ).all()
+
+    if len(person_ids) > 500:
+        memberships = _batched_in_query(db, _query_memberships, person_ids, batch_size=500)
+    else:
+        memberships = _query_memberships(person_ids)
+
+    # Build lookup: person_id -> list of (committee_thomas_id, role)
     person_committees = {}
     person_info = {}
     for m in memberships:
@@ -136,19 +177,23 @@ def find_closed_loops(
             "state": m.state,
         }
 
+    if _check_timeout():
+        return {"closed_loops": [], "stats": {**_empty_stats(), "partial": True}}
+
     # Step 3: Get all committees (cached lookup)
     all_committees = {c.thomas_id: c for c in db.query(Committee).filter(
         Committee.parent_thomas_id.is_(None)
     ).all()}
 
-    # Build committee name → thomas_id mapping for bill action matching
+    # Build committee name -> thomas_id mapping for bill action matching
     committee_name_map = {}
     for tid, c in all_committees.items():
         if c.name:
             committee_name_map[c.name.lower()] = tid
 
     # Step 4: Get bills referred to committees (with policy area)
-    bill_refs = db.query(
+    # FILTERED by year and congress number, CAPPED at 5000
+    bill_refs_q = db.query(
         Bill.bill_id,
         Bill.title,
         Bill.policy_area,
@@ -161,9 +206,20 @@ def find_closed_loops(
         BillAction.committee.isnot(None),
         BillAction.committee != "",
         Bill.policy_area.isnot(None),
-    ).all()
+        Bill.congress >= 117,  # 117th congress = 2021-2022, matches 2020+ data
+    )
+    # Add year filter on action_date if available
+    if year_from:
+        bill_refs_q = bill_refs_q.filter(
+            BillAction.action_date >= f"{year_from}-01-01"
+        )
 
-    # Build lookup: committee_thomas_id → list of (bill_info, policy_area)
+    bill_refs = bill_refs_q.limit(5000).all()
+
+    if _check_timeout():
+        return {"closed_loops": [], "stats": {**_empty_stats(), "partial": True}}
+
+    # Build lookup: committee_thomas_id -> list of (bill_info, policy_area)
     committee_bills = {}
     for br in bill_refs:
         # Match committee name to thomas_id
@@ -185,6 +241,7 @@ def find_closed_loops(
             })
 
     # Step 5: Get lobbying aggregates per (entity_id, sector)
+    # Batched IN clauses for entity IDs > 100
     entity_ids_by_sector = {}
     for eid, etype, _ in donation_map.keys():
         entity_ids_by_sector.setdefault(etype, set()).add(eid)
@@ -207,16 +264,26 @@ def find_closed_loops(
         if not eids:
             continue
 
-        # Get lobbying aggregates
-        records = db.query(
-            ecol,
-            model.lobbying_issues,
-            model.income,
-        ).filter(
-            ecol.in_(list(eids)),
-            model.filing_year >= year_from,
-            model.filing_year <= year_to,
-        ).all()
+        if _check_timeout():
+            is_partial = True
+            break
+
+        # Get lobbying aggregates - batched if > 100 entity IDs
+        def _query_lobbying(eid_batch, _model=model, _ecol=ecol):
+            return db.query(
+                _ecol,
+                _model.lobbying_issues,
+                _model.income,
+            ).filter(
+                _ecol.in_(eid_batch),
+                _model.filing_year >= year_from,
+                _model.filing_year <= year_to,
+            ).all()
+
+        if len(eids) > 100:
+            records = _batched_in_query(db, _query_lobbying, eids, batch_size=100)
+        else:
+            records = _query_lobbying(list(eids))
 
         for eid_val, issues_str, income in records:
             key = (sector, eid_val)
@@ -228,18 +295,34 @@ def find_closed_loops(
                 for issue in issues_str.split(", "):
                     lobby_data[key]["issues"].add(issue.strip())
 
-        # Get company display names
-        for co in db.query(tracked_model).filter(
-            ecol.in_(list(eids))
-        ).all():
+        # Get company display names - batched if > 100
+        def _query_names(eid_batch, _tracked_model=tracked_model, _ecol=ecol):
+            return db.query(_tracked_model).filter(
+                _ecol.in_(eid_batch)
+            ).all()
+
+        if len(eids) > 100:
+            name_rows = _batched_in_query(db, _query_names, eids, batch_size=100)
+        else:
+            name_rows = _query_names(list(eids))
+
+        for co in name_rows:
             eid_val = getattr(co, ecol.key)
             company_names[(sector, eid_val)] = co.display_name
 
-    # Step 6: Assemble closed loops
+    # Step 6: Assemble closed loops with early termination
     loops = []
     seen = set()
+    max_loops_before_sort = limit * 3  # Early termination threshold
 
     for (eid, etype, pid), donation_info in donation_map.items():
+        if is_partial or len(loops) >= max_loops_before_sort:
+            break
+
+        if _check_timeout():
+            is_partial = True
+            break
+
         lobby_key = (etype, eid)
         if lobby_key not in lobby_data:
             continue
@@ -261,9 +344,15 @@ def find_closed_loops(
             continue
 
         for comm_tid, comm_role in person_committees[pid]:
+            if len(loops) >= max_loops_before_sort:
+                break
+
             # Check if any bills in this committee match the policy areas
             bills_in_committee = committee_bills.get(comm_tid, [])
             for bill_info in bills_in_committee:
+                if len(loops) >= max_loops_before_sort:
+                    break
+
                 if bill_info["policy_area"] not in target_policies:
                     continue
 
@@ -309,16 +398,20 @@ def find_closed_loops(
     total_lobby = sum(l["lobbying"]["total_income"] for l in loops)
     total_donations = sum(l["donation"]["total_amount"] for l in loops)
 
+    stats = {
+        "total_loops_found": len(seen),
+        "unique_companies": unique_companies,
+        "unique_politicians": unique_politicians,
+        "unique_bills": unique_bills,
+        "total_lobbying_spend": total_lobby,
+        "total_donations": total_donations,
+    }
+    if is_partial:
+        stats["partial"] = True
+
     return {
         "closed_loops": loops,
-        "stats": {
-            "total_loops_found": len(seen),
-            "unique_companies": unique_companies,
-            "unique_politicians": unique_politicians,
-            "unique_bills": unique_bills,
-            "total_lobbying_spend": total_lobby,
-            "total_donations": total_donations,
-        },
+        "stats": stats,
     }
 
 
