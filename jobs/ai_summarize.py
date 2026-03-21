@@ -52,12 +52,12 @@ SONNET_OUTPUT_COST_PER_M = 15.0  # $15 per 1M output tokens
 
 # ── Budget ───────────────────────────────────────────────────
 BUDGET_LEDGER_PATH = Path(os.path.expanduser("~/.claude_api_budget.json"))
-WETHEPEOPLE_MONTHLY_CAP = 20.00  # $20/month for WeThePeople
-TOTAL_MONTHLY_CAP = 55.00        # $55 shared: HB $25 + Guardian $15 + WTP $20 - $5 buffer
+WETHEPEOPLE_MONTHLY_CAP = 130.00  # $130/month for WeThePeople (raised for one-time backfill)
+TOTAL_MONTHLY_CAP = 150.00        # $150 shared: HB $25 + Guardian $15 + WTP $130 (backfill month)
 
 # ── Batch Config ─────────────────────────────────────────────
-BATCH_SIZE = 10          # Records per Claude call (batched for efficiency)
-SLEEP_BETWEEN_CALLS = 0.5  # Seconds between API calls (rate limit safety)
+BATCH_SIZE = 25          # Records per Claude call (batched for efficiency)
+SLEEP_BETWEEN_CALLS = 0.3  # Seconds between API calls (rate limit safety)
 
 
 # ═══════════════════════════════════════════════════════════
