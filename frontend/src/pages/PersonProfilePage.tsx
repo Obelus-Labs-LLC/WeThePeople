@@ -516,6 +516,14 @@ export default function PersonProfilePage() {
           </div>
         </div>
 
+        {/* AI Profile Summary */}
+        {(profile as any)?.ai_profile_summary && (
+          <div className="mt-3">
+            <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+            <p className="text-zinc-400 text-sm mt-1">{(profile as any).ai_profile_summary}</p>
+          </div>
+        )}
+
         {/* Stat pills */}
         <div className="mt-4 flex flex-wrap gap-3">
           <StatPill
@@ -1225,6 +1233,9 @@ function VoteCard({ vote }: { vote: PersonVoteEntry }) {
         <h4 className="font-body text-base text-white line-clamp-2 group-hover:text-blue-400 transition-colors">
           {vote.question}
         </h4>
+        {(vote as any).ai_summary && (
+          <p className="text-zinc-400 text-sm mt-1">{(vote as any).ai_summary}</p>
+        )}
 
         {/* Badges */}
         <div className="mt-3 flex flex-wrap items-center gap-2">

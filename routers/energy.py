@@ -214,6 +214,7 @@ def get_energy_company(company_id: str):
             "lobbying_count": lobbying_count,
             "total_contract_value": total_contract_value, "total_penalties": total_penalties,
             "latest_stock": latest_stock,
+            "ai_profile_summary": co.ai_profile_summary,
         }
     finally:
         db.close()
@@ -327,6 +328,7 @@ def get_energy_company_contracts(
                 "awarding_agency": ct.awarding_agency, "description": ct.description,
                 "start_date": str(ct.start_date) if ct.start_date else None,
                 "end_date": str(ct.end_date) if ct.end_date else None, "contract_type": ct.contract_type,
+                "ai_summary": ct.ai_summary,
             } for ct in contracts],
         }
     finally:
@@ -379,6 +381,7 @@ def get_energy_company_lobbying(
                 "filing_period": r.filing_period, "income": r.income, "expenses": r.expenses,
                 "registrant_name": r.registrant_name, "client_name": r.client_name,
                 "lobbying_issues": r.lobbying_issues, "government_entities": r.government_entities,
+                "ai_summary": r.ai_summary,
             } for r in records],
         }
     finally:
@@ -436,6 +439,7 @@ def get_energy_company_enforcement(
                 "case_date": str(a.case_date) if a.case_date else None,
                 "case_url": a.case_url, "enforcement_type": a.enforcement_type,
                 "penalty_amount": a.penalty_amount, "description": a.description, "source": a.source,
+                "ai_summary": a.ai_summary,
             } for a in actions],
         }
     finally:

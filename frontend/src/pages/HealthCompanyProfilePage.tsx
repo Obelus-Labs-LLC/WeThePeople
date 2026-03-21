@@ -1022,6 +1022,13 @@ export default function HealthCompanyProfilePage() {
             </p>
           )}
 
+          {(company as any).ai_profile_summary && (
+            <div className="mb-6">
+              <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+              <p className="text-zinc-400 text-sm mt-1">{(company as any).ai_profile_summary}</p>
+            </div>
+          )}
+
           {/* Metadata */}
           <div className="space-y-6">
             {[

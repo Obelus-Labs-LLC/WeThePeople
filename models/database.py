@@ -315,6 +315,9 @@ class Vote(Base):
     source_url = Column(String, nullable=True)                    # Link to official vote page
     metadata_json = Column(JSON, nullable=True)                   # Full API response for debugging
     
+    # AI-generated summary of this vote
+    ai_summary = Column(Text, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -447,6 +450,9 @@ class TrackedMember(Base):
     # Claim ingestion sources (JSON list of source objects)
     # Example: [{"url":"https://...","type":"press"},{"url":"https://...","type":"statement"}]
     claim_sources_json = Column(Text, nullable=True)
+
+    # AI-generated profile summary
+    ai_profile_summary = Column(Text, nullable=True)
 
     # Policy 1 scheduling state
     # needs_ingest=1 indicates the member should receive a full refresh ASAP.

@@ -305,6 +305,12 @@ export default function InstitutionPage() {
             {detail.fdic_cert && (<div><p className="font-mono text-xs text-white/40">FDIC CERT</p><p className="font-mono text-lg text-white">{detail.fdic_cert}</p></div>)}
           </div>
         </div>
+        {(detail as any).ai_profile_summary && (
+          <div className="mb-6">
+            <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+            <p className="text-zinc-400 text-sm mt-1">{(detail as any).ai_profile_summary}</p>
+          </div>
+        )}
 
         {/* ── Tab Navigation ── */}
         <div className="mb-6 flex gap-1 border-b border-white/10 pb-0 overflow-x-auto shrink-0">
