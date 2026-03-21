@@ -545,7 +545,7 @@ def summarize_politician_profiles(conn, limit: int = 0, dry_run: bool = False) -
 
         # Sponsored bills
         bill_row = conn.execute(
-            "SELECT COUNT(*) as total FROM person_bills WHERE person_id = ? AND role = 'sponsor'",
+            "SELECT COUNT(*) as total FROM person_bills WHERE person_id = ? AND relationship_type = 'sponsor'",
             (pid,)
         ).fetchone()
         stats["bills_sponsored"] = bill_row["total"] if bill_row else 0
