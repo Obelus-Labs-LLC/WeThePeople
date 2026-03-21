@@ -12,6 +12,8 @@
     "@base-ui/react": "^1.3.0",
     "@fontsource-variable/geist": "^5.2.8",
     "@react-three/fiber": "^9.5.0",
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.23",
     "@types/leaflet": "^1.9.21",
     "@types/three": "^0.183.1",
     "@use-gesture/react": "^10.3.1",

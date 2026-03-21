@@ -454,6 +454,11 @@ class TrackedMember(Base):
     # AI-generated profile summary
     ai_profile_summary = Column(Text, nullable=True)
 
+    # OpenSanctions status
+    sanctions_status = Column(String, nullable=True)  # sanctioned, pep, listed, clear, or NULL
+    sanctions_data = Column(Text, nullable=True)  # JSON blob with match details
+    sanctions_checked_at = Column(DateTime(timezone=True), nullable=True)
+
     # Policy 1 scheduling state
     # needs_ingest=1 indicates the member should receive a full refresh ASAP.
     needs_ingest = Column(Integer, nullable=False, server_default="1", index=True)

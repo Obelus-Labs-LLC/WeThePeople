@@ -37,6 +37,7 @@ import {
   type DonationItem,
 } from '../api/finance';
 import { fmtDollar } from '../utils/format';
+import SanctionsBadge from '../components/SanctionsBadge';
 
 // ── Helpers ──
 
@@ -290,9 +291,10 @@ export default function InstitutionPage() {
           />
           <div className="min-w-0 flex-1">
             <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">{detail.display_name}</h1>
-            <div className="mt-2 flex items-center gap-3">
+            <div className="mt-2 flex items-center gap-3 flex-wrap">
               {detail.ticker && <span className="rounded bg-white/10 px-3 py-1 font-mono text-sm text-white">{detail.ticker}</span>}
               <span className="font-mono text-xs uppercase tracking-wider text-white/40">{detail.sector_type.replace(/_/g, ' ')}</span>
+              <SanctionsBadge status={(detail as any).sanctions_status} />
               {detail.headquarters && (
                 <span className="flex items-center gap-1 font-body text-sm text-white/50">
                   <span className="text-white/30">·</span> {detail.headquarters}

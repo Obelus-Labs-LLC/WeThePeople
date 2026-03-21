@@ -1,10 +1,21 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, TrendingDown, ArrowUpDown, Search, ExternalLink, User } from 'lucide-react';
+import { TrendingUp, TrendingDown, ArrowUpDown, Search, ExternalLink, User, ChevronUp, ChevronDown } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import TradeTimeline from '../components/TradeTimeline';
 import { fetchTradeTimeline, type TradeMarker, type TradeTimelineRange } from '../api/influence';
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  useReactTable,
+  type SortingState,
+  type ColumnFiltersState,
+} from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 const API_BASE = getApiBaseUrl();
 
@@ -23,6 +34,108 @@ interface CongressionalTrade {
   reporting_gap: string | null;
 }
 
+const columnHelper = createColumnHelper<CongressionalTrade>();
+
+const columns = [
+  columnHelper.accessor('member_name', {
+    header: 'Member',
+    cell: (info) => (
+      <Link to={`/politics/people/${info.row.original.person_id}`} className="text-blue-400 hover:text-blue-300 text-sm font-medium no-underline">
+        {info.getValue()}
+      </Link>
+    ),
+    size: 180,
+  }),
+  columnHelper.accessor('ticker', {
+    header: 'Ticker',
+    cell: (info) => (
+      <span className="font-mono text-sm text-white font-semibold">
+        {info.getValue() || '\u2014'}
+      </span>
+    ),
+    size: 90,
+  }),
+  columnHelper.accessor('transaction_type', {
+    header: 'Type',
+    cell: (info) => {
+      const v = info.getValue();
+      return (
+        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded ${
+          v === 'purchase' ? 'bg-emerald-500/15 text-emerald-400'
+          : v === 'sale' ? 'bg-red-500/15 text-red-400'
+          : 'bg-white/10 text-white/50'
+        }`}>
+          {v === 'purchase' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+          {v.toUpperCase()}
+        </span>
+      );
+    },
+    size: 110,
+  }),
+  columnHelper.accessor('amount_range', {
+    header: 'Amount',
+    cell: (info) => <span className="font-mono text-sm text-white/70">{info.getValue() || '\u2014'}</span>,
+    size: 150,
+  }),
+  columnHelper.accessor('transaction_date', {
+    header: 'Trade Date',
+    cell: (info) => <span className="text-sm text-white/50">{info.getValue() || '\u2014'}</span>,
+    size: 110,
+  }),
+  columnHelper.accessor('disclosure_date', {
+    header: 'Disclosed',
+    cell: (info) => <span className="text-sm text-white/50">{info.getValue() || '\u2014'}</span>,
+    size: 110,
+    meta: { hiddenOnMobile: true },
+  }),
+  columnHelper.accessor('reporting_gap', {
+    header: 'Filing Delay',
+    cell: (info) => {
+      const gap = info.getValue();
+      if (!gap) return <span className="text-sm text-white/20">{'\u2014'}</span>;
+      const n = Number(gap);
+      const cls = !isNaN(n) && n > 45 ? 'bg-red-500/15 text-red-400'
+        : !isNaN(n) && n > 30 ? 'bg-yellow-500/15 text-yellow-400'
+        : 'bg-emerald-500/15 text-emerald-400';
+      return <span className={`font-mono text-xs font-semibold px-2 py-0.5 rounded ${cls}`}>{gap}</span>;
+    },
+    size: 110,
+  }),
+  columnHelper.accessor('owner', {
+    header: 'Owner',
+    cell: (info) => <span className="text-sm text-white/40">{info.getValue() || '\u2014'}</span>,
+    size: 80,
+    meta: { hiddenOnMobile: true },
+  }),
+  columnHelper.display({
+    id: 'actions',
+    header: '',
+    cell: (info) => {
+      const t = info.row.original;
+      return (
+        <div className="flex items-center gap-2">
+          {t.source_url && (
+            <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-white/60" title="Source filing">
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+          <a
+            href="https://www.capitoltrades.com/trades"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400/40 hover:text-blue-300 transition-colors"
+            title="Capitol Trades"
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      );
+    },
+    size: 60,
+    meta: { hiddenOnMobile: true },
+  }),
+];
+
 export default function CongressionalTradesPage() {
   const [trades, setTrades] = useState<CongressionalTrade[]>([]);
   const [total, setTotal] = useState(0);
@@ -30,6 +143,7 @@ export default function CongressionalTradesPage() {
   const [filter, setFilter] = useState<'all' | 'purchase' | 'sale'>('all');
   const [search, setSearch] = useState('');
   const [memberSearch, setMemberSearch] = useState('');
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   // Trade timeline state
   const [timelineTrades, setTimelineTrades] = useState<TradeMarker[]>([]);
@@ -51,7 +165,7 @@ export default function CongressionalTradesPage() {
 
   useEffect(() => {
     setLoading(true);
-    const params = new URLSearchParams({ limit: '100' });
+    const params = new URLSearchParams({ limit: '10000' });
     if (filter !== 'all') params.set('transaction_type', filter);
     if (search) params.set('ticker', search.toUpperCase());
     fetch(`${API_BASE}/congressional-trades?${params}`)
@@ -63,6 +177,33 @@ export default function CongressionalTradesPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [filter, search]);
+
+  // Client-side member name filter
+  const filteredData = useMemo(() => {
+    if (!memberSearch) return trades;
+    const q = memberSearch.toLowerCase();
+    return trades.filter((t) => t.member_name.toLowerCase().includes(q));
+  }, [trades, memberSearch]);
+
+  const table = useReactTable({
+    data: filteredData,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const { rows } = table.getRowModel();
+
+  // Virtual scrolling
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    estimateSize: () => 48,
+    getScrollElement: () => tableContainerRef.current,
+    overscan: 20,
+  });
 
   return (
     <div className="min-h-screen">
@@ -130,7 +271,7 @@ export default function CongressionalTradesPage() {
           </div>
 
           <span className="text-white/30 text-sm ml-auto">
-            {total.toLocaleString()} trades
+            {filteredData.length.toLocaleString()} of {total.toLocaleString()} trades
           </span>
         </div>
 
@@ -161,121 +302,97 @@ export default function CongressionalTradesPage() {
           </div>
         )}
 
-        {/* Client-side member name filter */}
-        {(() => {
-          const filteredTrades = memberSearch
-            ? trades.filter((t) => t.member_name.toLowerCase().includes(memberSearch.toLowerCase()))
-            : trades;
-
-          return (<>
         {/* Table */}
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
           </div>
-        ) : filteredTrades.length === 0 ? (
+        ) : filteredData.length === 0 ? (
           <div className="text-center py-20 text-white/30">
             <ArrowUpDown className="w-12 h-12 mx-auto mb-4 opacity-30" />
             <p className="text-lg">No congressional trades found yet.</p>
             <p className="text-sm mt-2">Trade data will appear once the sync job runs.</p>
           </div>
         ) : (
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-x-auto">
+          <div
+            ref={tableContainerRef}
+            className="bg-white/[0.03] border border-white/10 rounded-xl overflow-auto"
+            style={{ maxHeight: '70vh' }}
+          >
             <table className="w-full min-w-[800px]">
-              <thead>
-                <tr className="border-b border-white/10 bg-white/[0.02]">
-                  {['Member', 'Ticker', 'Type', 'Amount', 'Trade Date', 'Disclosed', 'Filing Delay', 'Owner', ''].map((h) => {
-                    const hiddenOnMobile = ['Disclosed', 'Owner', ''].includes(h);
-                    return (
-                    <th key={h} className={`px-4 py-3 text-left text-xs font-mono text-white/40 uppercase tracking-wider ${hiddenOnMobile ? 'hidden md:table-cell' : ''}`}>
-                      {h}
-                    </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTrades.map((t) => (
-                  <tr key={t.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-                    <td className="px-4 py-3">
-                      <Link to={`/politics/people/${t.person_id}`} className="text-blue-400 hover:text-blue-300 text-sm font-medium no-underline">
-                        {t.member_name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-sm text-white font-semibold">
-                        {t.ticker || '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded ${
-                        t.transaction_type === 'purchase'
-                          ? 'bg-emerald-500/15 text-emerald-400'
-                          : t.transaction_type === 'sale'
-                          ? 'bg-red-500/15 text-red-400'
-                          : 'bg-white/10 text-white/50'
-                      }`}>
-                        {t.transaction_type === 'purchase' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        {t.transaction_type.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-sm text-white/70">
-                      {t.amount_range || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-white/50">
-                      {t.transaction_date || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-white/50">
-                      {t.disclosure_date || '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {t.reporting_gap ? (
-                        (() => {
-                          const gap = Number(t.reporting_gap);
-                          const gapClass = !isNaN(gap) && gap > 45
-                            ? 'bg-red-500/15 text-red-400'
-                            : !isNaN(gap) && gap > 30
-                            ? 'bg-yellow-500/15 text-yellow-400'
-                            : 'bg-emerald-500/15 text-emerald-400';
-                          return (
-                            <span className={`font-mono text-xs font-semibold px-2 py-0.5 rounded ${gapClass}`}>
-                              {t.reporting_gap}
-                            </span>
-                          );
-                        })()
-                      ) : (
-                        <span className="text-sm text-white/20">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-white/40">
-                      {t.owner || '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {t.source_url && (
-                          <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-white/60" title="Source filing">
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        )}
-                        <a
-                          href="https://www.capitoltrades.com/trades"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400/40 hover:text-blue-300 transition-colors"
-                          title="Capitol Trades"
+              <thead className="sticky top-0 z-10 bg-zinc-900/95 backdrop-blur-sm">
+                {table.getHeaderGroups().map((hg) => (
+                  <tr key={hg.id} className="border-b border-white/10">
+                    {hg.headers.map((header) => {
+                      const hiddenOnMobile = (header.column.columnDef.meta as any)?.hiddenOnMobile;
+                      return (
+                        <th
+                          key={header.id}
+                          className={`px-4 py-3 text-left text-xs font-mono text-white/40 uppercase tracking-wider select-none ${
+                            header.column.getCanSort() ? 'cursor-pointer hover:text-white/70' : ''
+                          } ${hiddenOnMobile ? 'hidden md:table-cell' : ''}`}
+                          style={{ width: header.getSize() }}
+                          onClick={header.column.getToggleSortingHandler()}
                         >
-                          <TrendingUp className="w-3.5 h-3.5" />
-                        </a>
-                      </div>
-                    </td>
+                          <div className="flex items-center gap-1">
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {header.column.getIsSorted() === 'asc' ? (
+                              <ChevronUp className="w-3 h-3 text-blue-400" />
+                            ) : header.column.getIsSorted() === 'desc' ? (
+                              <ChevronDown className="w-3 h-3 text-blue-400" />
+                            ) : header.column.getCanSort() ? (
+                              <ArrowUpDown className="w-3 h-3 opacity-30" />
+                            ) : null}
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 ))}
+              </thead>
+              <tbody>
+                {/* Spacer for virtual scroll */}
+                {rowVirtualizer.getVirtualItems().length > 0 && (
+                  <tr>
+                    <td style={{ height: rowVirtualizer.getVirtualItems()[0]?.start ?? 0 }} />
+                  </tr>
+                )}
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const row = rows[virtualRow.index];
+                  return (
+                    <tr
+                      key={row.id}
+                      data-index={virtualRow.index}
+                      ref={(node) => rowVirtualizer.measureElement(node)}
+                      className="border-b border-white/5 hover:bg-white/[0.03] transition-colors"
+                    >
+                      {row.getVisibleCells().map((cell) => {
+                        const hiddenOnMobile = (cell.column.columnDef.meta as any)?.hiddenOnMobile;
+                        return (
+                          <td
+                            key={cell.id}
+                            className={`px-4 py-3 ${hiddenOnMobile ? 'hidden md:table-cell' : ''}`}
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+                {/* Bottom spacer */}
+                {rowVirtualizer.getVirtualItems().length > 0 && (
+                  <tr>
+                    <td style={{
+                      height: rowVirtualizer.getTotalSize() -
+                        (rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1]?.end ?? 0),
+                    }} />
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
-        </>);
-        })()}
       </div>
     </div>
   );

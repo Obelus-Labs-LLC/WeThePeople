@@ -148,6 +148,7 @@ def get_institution_detail(institution_id: str):
             "complaint_count": complaint_count, "fred_count": fred_count,
             "press_count": press_count, "latest_stock": stock_data,
             "ai_profile_summary": inst.ai_profile_summary,
+            "sanctions_status": inst.sanctions_status,
         }
     finally:
         db.close()
