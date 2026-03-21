@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Activity, Pill, AlertTriangle, AlertCircle, ExternalLink,
   ArrowLeft, Landmark, FileText, BarChart3, Stethoscope, List, Filter,
@@ -33,7 +33,7 @@ import {
   type HealthContractItem,
   type HealthEnforcementAction,
 } from '../api/health';
-import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
+import { fmtDollar, fmtDate } from '../utils/format';
 import SanctionsBadge from '../components/SanctionsBadge';
 import { LOCAL_LOGOS } from '../data/healthLogos';
 import { getLogoUrl } from '../utils/logos';

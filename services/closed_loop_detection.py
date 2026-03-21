@@ -8,7 +8,6 @@ Uses a SQL-first approach: pre-compute donation pairs and committee-bill links,
 then join in Python to find closed loops efficiently.
 """
 
-import re
 from typing import Dict, Any, List, Optional
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session

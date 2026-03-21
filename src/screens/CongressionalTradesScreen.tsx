@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS, PARTY_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { CongressionalTrade } from '../api/types';

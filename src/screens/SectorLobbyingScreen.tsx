@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { UI_COLORS, ACCENT_COLORS } from '../constants/colors';
+import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { LobbyingFiling } from '../api/types';
 import { LoadingSpinner, EmptyState, StatCard } from '../components/ui';

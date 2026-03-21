@@ -21,7 +21,6 @@ from models.database import (
     MemberVote,
     Bill,
     BillAction,
-    PersonBill,
     GoldLedgerEntry,
     TrackedMember,
     MemberBillGroundTruth,
@@ -39,7 +38,6 @@ from services.matching import (
     get_profile,
     contains_gate_signal,
     contains_claim_signal,
-    CATEGORY_PROFILES,
     STOPWORDS_BASE,
 )
 from connectors.wikipedia import build_politician_profile
@@ -49,7 +47,6 @@ from utils.normalization import normalize_bill_id
 from services.bill_text import format_text_receipt
 from services.auth import require_press_key
 
-import os
 import json
 
 router = APIRouter(tags=["politics"])

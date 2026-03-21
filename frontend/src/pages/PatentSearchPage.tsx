@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, FileText, Calendar, ExternalLink, SearchX } from 'lucide-react';
+import { Search, Calendar, ExternalLink, SearchX } from 'lucide-react';
 import { TechSectorHeader } from '../components/SectorHeader';
 import {
   getTechCompanies,

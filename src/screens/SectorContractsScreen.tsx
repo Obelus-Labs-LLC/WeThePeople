@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { UI_COLORS, ACCENT_COLORS } from '../constants/colors';
+import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import { StatCard, LoadingSpinner, EmptyState } from '../components/ui';
 import type { ContractItem } from '../api/types';

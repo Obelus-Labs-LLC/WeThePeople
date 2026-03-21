@@ -13,7 +13,6 @@ Usage:
 
 import os
 import sys
-import json
 import time
 import hashlib
 import argparse
@@ -33,10 +32,8 @@ from models.database import Base
 from models.energy_models import (
     TrackedEnergyCompany,
     SECEnergyFiling,
-    EnergyEmission,
     EnergyGovernmentContract,
     EnergyLobbyingRecord,
-    EnergyEnforcement,
 )
 
 load_dotenv()

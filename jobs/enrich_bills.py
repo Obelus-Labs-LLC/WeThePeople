@@ -11,13 +11,12 @@ import json
 from datetime import datetime
 from typing import List, Tuple, Optional
 from sqlalchemy import distinct, or_, func
-import requests
 from requests.exceptions import Timeout, ConnectionError, RequestException
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.database import SessionLocal, Action, Bill, BillAction, ClaimEvaluation
+from models.database import SessionLocal, Action, Bill, BillAction
 from jobs.enrich_actions import (
     fetch_bill_details,
     upsert_bill,

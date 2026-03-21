@@ -50,7 +50,6 @@ def health_check():
     Point UptimeRobot / similar at this endpoint.
     """
     from sqlalchemy import func, text
-    from models.database import TrackedMember, Bill, MemberBillGroundTruth
 
     status = "ok"
     db_ok = False

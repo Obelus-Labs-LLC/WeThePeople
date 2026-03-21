@@ -33,7 +33,6 @@ from models.finance_models import (
     TrackedInstitution,
     FinanceLobbyingRecord,
     FinanceGovernmentContract,
-    FinanceEnforcement,
 )
 
 load_dotenv()

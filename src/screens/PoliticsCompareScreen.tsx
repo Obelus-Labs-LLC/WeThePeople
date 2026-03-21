@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { Person, PoliticsComparisonItem } from '../api/types';
-import { LoadingSpinner, EmptyState, PartyBadge } from '../components/ui';
+import { LoadingSpinner, EmptyState } from '../components/ui';
 
 type Metric = {
   key: keyof PoliticsComparisonItem | string;
