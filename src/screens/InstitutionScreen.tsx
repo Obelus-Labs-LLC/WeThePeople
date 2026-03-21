@@ -14,6 +14,7 @@ import type {
 } from '../api/types';
 import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
 import { SectorTypeBadge } from '../components/ui';
+import SanctionsBadge from '../components/SanctionsBadge';
 import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
 import { LobbyingTab, ContractsTab, EnforcementTab, DonationsTab } from '../components/company';
 
@@ -278,6 +279,11 @@ export default function InstitutionScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Sanctions Badge */}
+      {detail?.sanctions_status && (
+        <SanctionsBadge status={detail.sanctions_status} />
+      )}
 
       {/* === Overview Tab === */}
       {activeTab === 'overview' && (

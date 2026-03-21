@@ -294,7 +294,7 @@ export default function InstitutionPage() {
             <div className="mt-2 flex items-center gap-3 flex-wrap">
               {detail.ticker && <span className="rounded bg-white/10 px-3 py-1 font-mono text-sm text-white">{detail.ticker}</span>}
               <span className="font-mono text-xs uppercase tracking-wider text-white/40">{detail.sector_type.replace(/_/g, ' ')}</span>
-              <SanctionsBadge status={(detail as any).sanctions_status} />
+              <SanctionsBadge status={detail.sanctions_status} />
               {detail.headquarters && (
                 <span className="flex items-center gap-1 font-body text-sm text-white/50">
                   <span className="text-white/30">·</span> {detail.headquarters}

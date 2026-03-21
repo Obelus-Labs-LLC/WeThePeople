@@ -362,7 +362,7 @@ def get_top_contracts(limit: int = Query(10, ge=1, le=50)):
 def get_trade_timeline(
     ticker: str = Query(..., min_length=1),
     person_id: Optional[str] = Query(None),
-    range: str = Query("1y", regex="^(3m|6m|1y|2y)$"),
+    time_range: str = Query("1y", alias="range", regex="^(3m|6m|1y|2y)$"),
 ):
     """
     Return congressional trade markers for a given ticker, optionally filtered
@@ -371,7 +371,7 @@ def get_trade_timeline(
     from datetime import date, timedelta
 
     range_days = {"3m": 90, "6m": 180, "1y": 365, "2y": 730}
-    cutoff = date.today() - timedelta(days=range_days[range])
+    cutoff = date.today() - timedelta(days=range_days[time_range])
 
     db = SessionLocal()
     try:

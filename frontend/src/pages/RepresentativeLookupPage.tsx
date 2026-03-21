@@ -90,7 +90,7 @@ export default function RepresentativeLookupPage() {
       setReps(data.representatives || []);
     } catch (err: any) {
       // Network error or non-existent endpoint
-      setDataUnavailable(true);
+      setError('Unable to load data. Please try again.');
       setReps([]);
     } finally {
       setLoading(false);
@@ -165,6 +165,19 @@ export default function RepresentativeLookupPage() {
           <div className="flex items-center justify-center py-20">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
           </div>
+        )}
+
+        {/* Error state */}
+        {!loading && searched && error && !dataUnavailable && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="rounded-xl border border-red-500/20 bg-red-500/5 py-12 text-center"
+          >
+            <AlertCircle size={40} className="mx-auto mb-4 text-red-400/50" />
+            <p className="font-body text-sm text-red-300">{error}</p>
+          </motion.div>
         )}
 
         {/* Data unavailable / coming soon */}

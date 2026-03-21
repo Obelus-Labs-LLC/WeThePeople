@@ -24,6 +24,7 @@ import Footer from "../components/Footer";
 const FLAG_BG =
   "https://images.unsplash.com/photo-1508433957232-3107f5fd5995?w=1920&q=80&auto=format";
 
+// TODO: Import from utils/helpers.ts
 function formatMoney(n: number): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
@@ -39,10 +40,10 @@ const SECTOR_COLORS: Record<string, string> = {
 };
 
 const SECTOR_ROUTES: Record<string, string> = {
-  finance: "/finance/institution",
-  health: "/health/company",
-  tech: "/technology/company",
-  energy: "/energy/company",
+  finance: "/finance",
+  health: "/health",
+  tech: "/technology",
+  energy: "/energy",
 };
 
 /** Left-border accent color per sector slug */
@@ -50,9 +51,11 @@ const SECTOR_ACCENT: Record<string, string> = {
   politics: "border-l-blue-500",
   finance: "border-l-emerald-500",
   health: "border-l-rose-500",
+  // Future sectors - not yet implemented
   chemicals: "border-l-amber-500",
   energy: "border-l-orange-500",
   technology: "border-l-violet-500",
+  // Future sectors - not yet implemented
   defense: "border-l-red-500",
   agriculture: "border-l-lime-500",
 };

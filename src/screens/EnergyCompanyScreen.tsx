@@ -14,6 +14,7 @@ import type {
   EnforcementAction, NewsArticle,
 } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';
+import SanctionsBadge from '../components/SanctionsBadge';
 import { DonationsTab } from '../components/company';
 
 const ENERGY_SECTOR_COLORS: Record<string, string> = {
@@ -503,6 +504,11 @@ export default function EnergyCompanyScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Sanctions Badge */}
+      {company?.sanctions_status && (
+        <SanctionsBadge status={company.sanctions_status} />
+      )}
 
       {/* Tab content */}
       <View style={styles.tabContent}>

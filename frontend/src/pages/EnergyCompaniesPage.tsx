@@ -178,7 +178,7 @@ export default function EnergyCompaniesPage() {
   const [search, setSearch] = useState('');
   const [activeSector, setActiveSector] = useState<string | null>(initialSector);
   const headerRef = React.useRef<HTMLDivElement>(null);
-  const headerInView = useInView(headerRef, { once: true, amount: 0.1 });
+  useInView(headerRef, { once: true, amount: 0.1 });
 
   useEffect(() => {
     getEnergyCompanies({ limit: 200 })

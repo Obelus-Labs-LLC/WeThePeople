@@ -38,7 +38,7 @@ export default function ActivityFeedPage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const headerRef = React.useRef<HTMLDivElement>(null);
-  const headerInView = useInView(headerRef, { once: true, amount: 0.1 });
+  useInView(headerRef, { once: true, amount: 0.1 });
 
   useEffect(() => {
     Promise.all([

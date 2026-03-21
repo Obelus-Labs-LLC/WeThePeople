@@ -57,7 +57,7 @@ export default function MoneyFlowPage() {
     if (!data || !plotRef.current || data.nodes.length === 0) return;
 
     // Dynamically import Plotly to reduce initial bundle
-    import('plotly.js/dist/plotly.min.js' as string).then((Plotly: any) => {
+    import('plotly.js').then((Plotly: any) => {
       setPlotlyLoaded(true);
       const P = Plotly.default || Plotly;
 
@@ -105,7 +105,7 @@ export default function MoneyFlowPage() {
 
     return () => {
       if (plotRef.current) {
-        import('plotly.js/dist/plotly.min.js' as string).then((Plotly: any) => {
+        import('plotly.js').then((Plotly: any) => {
           const P = Plotly.default || Plotly;
           P.purge(plotRef.current);
         }).catch(() => {});

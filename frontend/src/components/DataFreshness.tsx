@@ -60,6 +60,8 @@ export default function DataFreshness() {
     { label: 'lobbying records', count: data.lobbying.record_count },
     { label: 'contracts', count: data.contracts.record_count },
     { label: 'enforcement actions', count: data.enforcement.record_count },
+    { label: 'congressional trades', count: data.trades.record_count },
+    { label: 'insider trades', count: data.insider_trades.record_count },
   ].filter((s) => s.count > 0);
 
   return (

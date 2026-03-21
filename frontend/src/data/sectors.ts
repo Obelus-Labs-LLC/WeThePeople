@@ -36,6 +36,7 @@ export const SECTORS: Sector[] = [
     route: "/health",
     available: true,
   },
+  // Future sectors - not yet implemented
   {
     slug: "chemicals",
     name: "Chemicals",
@@ -63,6 +64,7 @@ export const SECTORS: Sector[] = [
     route: "/technology",
     available: true,
   },
+  // Future sectors - not yet implemented
   {
     slug: "defense",
     name: "Defense",

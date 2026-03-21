@@ -60,6 +60,8 @@ export interface PersonProfile {
   infobox: Record<string, string>;
   sections: Record<string, string>;
   url: string | null;
+  sanctions_status?: string | null;
+  sanctions_data?: any;
 }
 
 export interface PersonFinance {
@@ -170,6 +172,8 @@ export interface InstitutionDetail extends Institution {
   fdic_cert: string | null;
   financial_count: number;
   latest_financial: FinancialSnapshot | null;
+  sanctions_status?: string | null;
+  sanctions_data?: any;
 }
 
 export interface FinancialSnapshot {
@@ -310,6 +314,8 @@ export interface CompanyDetail extends Company {
     reason_for_recall: string | null;
     status: string | null;
   } | null;
+  sanctions_status?: string | null;
+  sanctions_data?: any;
 }
 
 export interface FDAAdverseEvent {
@@ -423,6 +429,8 @@ export interface TechCompanyDetail extends TechCompany {
   sec_cik: string | null;
   total_contract_value: number;
   latest_stock: StockSnapshot | null;
+  sanctions_status?: string | null;
+  sanctions_data?: any;
 }
 
 export interface StockSnapshot {
@@ -692,6 +700,8 @@ export interface EnergyCompanyDetail extends EnergyCompany {
   total_contract_value: number;
   total_penalties: number;
   latest_stock: StockSnapshot | null;
+  sanctions_status?: string | null;
+  sanctions_data?: any;
 }
 
 export interface EnergyEmissionItem {
@@ -839,6 +849,8 @@ export interface InfluenceNetworkEdge {
   label: string;
   amount?: number;
   count?: number;
+  date?: string;
+  year?: number;
 }
 
 export interface InfluenceNetworkResponse {

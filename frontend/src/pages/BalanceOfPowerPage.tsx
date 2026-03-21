@@ -157,7 +157,7 @@ export default function BalanceOfPowerPage() {
 
   const navigate = useNavigate();
   const headerRef = React.useRef<HTMLDivElement>(null);
-  const headerInView = useInView(headerRef, { once: true, amount: 0.1 });
+  useInView(headerRef, { once: true, amount: 0.1 });
 
   useEffect(() => {
     Promise.all([
@@ -205,7 +205,7 @@ export default function BalanceOfPowerPage() {
             Balance of Power
           </h1>
           <p className="font-body text-lg text-white/50">
-            Party composition across the 119th Congress
+            Party composition across the {Math.floor((new Date().getFullYear() - 1789) / 2) + 1}th Congress
           </p>
         </motion.div>
 

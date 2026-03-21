@@ -49,6 +49,7 @@ if _cors_origins:
 
 
 # --- Startup ---
+# TODO: migrate to lifespan context manager when upgrading FastAPI
 @app.on_event("startup")
 async def startup_event():
     """Fetch recent presidential documents on startup."""

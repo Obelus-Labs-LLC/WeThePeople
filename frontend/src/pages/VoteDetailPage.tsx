@@ -135,7 +135,7 @@ const VoteDetailPage: React.FC = () => {
   if (!vote_id) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p className="font-dm-sans text-red-400 text-lg">
+        <p className="font-body text-red-400 text-lg">
           Missing vote_id in URL.
         </p>
       </div>
@@ -146,7 +146,7 @@ const VoteDetailPage: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <div className="w-10 h-10 border-4 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
-        <p className="font-dm-sans text-slate-400 text-lg">
+        <p className="font-body text-slate-400 text-lg">
           Loading vote details...
         </p>
       </div>
@@ -157,10 +157,10 @@ const VoteDetailPage: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl p-8 max-w-md text-center">
-          <p className="font-dm-sans text-red-400 text-lg mb-2">
+          <p className="font-body text-red-400 text-lg mb-2">
             Error loading vote
           </p>
-          <p className="font-dm-sans text-slate-500 text-sm">{error}</p>
+          <p className="font-body text-slate-500 text-sm">{error}</p>
         </div>
       </div>
     );
@@ -169,7 +169,7 @@ const VoteDetailPage: React.FC = () => {
   if (!vote) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p className="font-dm-sans text-slate-400 text-lg">
+        <p className="font-body text-slate-400 text-lg">
           Vote not found.
         </p>
       </div>
@@ -198,7 +198,7 @@ const VoteDetailPage: React.FC = () => {
           <BackButton to="/politics/activity" label="Activity" />
         </div>
 
-        <p className="font-fira-code text-lg text-slate-400 tracking-wider mb-2">
+        <p className="font-mono text-lg text-slate-400 tracking-wider mb-2">
           ROLL NO. {vote.roll_number} &bull;{" "}
           {vote.chamber.toUpperCase()} &bull;{" "}
           {vote.congress}
@@ -206,7 +206,7 @@ const VoteDetailPage: React.FC = () => {
           SESSION {vote.session}
         </p>
 
-        <h1 className="font-oswald text-5xl xl:text-6xl font-bold uppercase text-white leading-tight mb-4">
+        <h1 className="font-heading text-5xl xl:text-6xl font-bold uppercase text-white leading-tight mb-4">
           {vote.question}
         </h1>
 
@@ -215,7 +215,7 @@ const VoteDetailPage: React.FC = () => {
           {relatedBillSlug && (
             <Link
               to={`/politics/bill/${relatedBillSlug}`}
-              className="inline-flex items-center bg-[#1E293B] border border-[#334155] rounded-full px-4 py-1.5 text-sm font-dm-sans text-slate-300 hover:text-white hover:border-slate-400 transition-colors"
+              className="inline-flex items-center bg-[#1E293B] border border-[#334155] rounded-full px-4 py-1.5 text-sm font-body text-slate-300 hover:text-white hover:border-slate-400 transition-colors"
             >
               Related Bill:{" "}
               {vote.related_bill_type!.toUpperCase()}{" "}
@@ -227,7 +227,7 @@ const VoteDetailPage: React.FC = () => {
               href={vote.source_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center bg-[#1E293B] border border-[#334155] rounded-full px-4 py-1.5 text-sm font-dm-sans text-slate-300 hover:text-white hover:border-slate-400 transition-colors"
+              className="inline-flex items-center bg-[#1E293B] border border-[#334155] rounded-full px-4 py-1.5 text-sm font-body text-slate-300 hover:text-white hover:border-slate-400 transition-colors"
             >
               Official Record &rarr;
             </a>
@@ -237,7 +237,7 @@ const VoteDetailPage: React.FC = () => {
         {/* Result badge + date */}
         <div className="flex flex-wrap items-center gap-6">
           <span
-            className={`inline-flex items-center font-oswald text-3xl font-bold tracking-widest uppercase px-8 py-4 rounded-xl border ${
+            className={`inline-flex items-center font-heading text-3xl font-bold tracking-widest uppercase px-8 py-4 rounded-xl border ${
               passed
                 ? "bg-[rgba(16,185,129,0.2)] text-emerald-400 border-[rgba(16,185,129,0.3)]"
                 : failed
@@ -247,7 +247,7 @@ const VoteDetailPage: React.FC = () => {
           >
             {vote.result}
           </span>
-          <span className="font-fira-code text-sm text-slate-400">
+          <span className="font-mono text-sm text-slate-400">
             {formatDate(vote.vote_date)}
           </span>
         </div>
@@ -256,16 +256,16 @@ const VoteDetailPage: React.FC = () => {
       {/* ── MAIN CONTENT ── */}
       <div className="flex-1 min-h-0 flex flex-row gap-8 px-8 pb-8">
         {/* ── LEFT COLUMN (summary + party breakdown) ── */}
-        <div className="hidden 3xl:flex flex-col gap-6 w-[40%] overflow-y-auto pr-2">
+        <div className="hidden 2xl:flex flex-col gap-6 w-[40%] overflow-y-auto pr-2">
           {/* Vote Summary Card */}
           <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl p-6">
-            <h2 className="font-oswald text-xl uppercase text-white tracking-wider mb-4">
+            <h2 className="font-heading text-xl uppercase text-white tracking-wider mb-4">
               Vote Summary
             </h2>
-            <p className="text-slate-400 font-dm-sans text-sm mb-1">
+            <p className="text-slate-400 font-body text-sm mb-1">
               Total Votes
             </p>
-            <p className="font-fira-code text-3xl font-bold text-white mb-5">
+            <p className="font-mono text-3xl font-bold text-white mb-5">
               {total}
             </p>
 
@@ -335,7 +335,7 @@ const VoteDetailPage: React.FC = () => {
 
           {/* Party Breakdown Card */}
           <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl p-6">
-            <h2 className="font-oswald text-xl uppercase text-white tracking-wider mb-5">
+            <h2 className="font-heading text-xl uppercase text-white tracking-wider mb-5">
               Party Breakdown
             </h2>
             <div className="flex flex-col gap-5">
@@ -350,12 +350,12 @@ const VoteDetailPage: React.FC = () => {
                           PARTY_COLORS[pb.party] || "#64748B",
                       }}
                     />
-                    <span className="font-dm-sans font-bold text-lg text-white">
+                    <span className="font-body font-bold text-lg text-white">
                       {PARTY_NAMES[pb.party] || pb.party}
                     </span>
                   </div>
                   {/* Stats text */}
-                  <p className="font-dm-sans text-sm text-slate-400 mb-2">
+                  <p className="font-body text-sm text-slate-400 mb-2">
                     <span className="text-emerald-400 font-medium">
                       {pb.yea}
                     </span>{" "}
@@ -421,14 +421,14 @@ const VoteDetailPage: React.FC = () => {
               placeholder="Search members..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-[#0F172A] border border-[#334155] rounded-lg px-4 py-2.5 text-white font-dm-sans placeholder:text-slate-500 focus:border-blue-500 focus:outline-none transition-colors mb-3"
+              className="w-full bg-[#0F172A] border border-[#334155] rounded-lg px-4 py-2.5 text-white font-body placeholder:text-slate-500 focus:border-blue-500 focus:outline-none transition-colors mb-3"
             />
             <div className="flex flex-wrap gap-2">
               {POSITION_FILTERS.map((f) => (
                 <button
                   key={f}
                   onClick={() => setPositionFilter(f)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-dm-sans transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-body transition-colors ${
                     positionFilter === f
                       ? "bg-[#334155] text-white"
                       : "bg-[#0F172A] border border-[#1E293B] text-slate-400 hover:text-slate-200 hover:border-[#334155]"
@@ -442,16 +442,16 @@ const VoteDetailPage: React.FC = () => {
 
           {/* Table header */}
           <div className="shrink-0 grid grid-cols-4 px-8 py-4 bg-[rgba(15,23,42,0.5)] border-b border-[#1E293B]">
-            <span className="text-slate-400 text-sm uppercase font-medium tracking-wider font-dm-sans">
+            <span className="text-slate-400 text-sm uppercase font-medium tracking-wider font-body">
               Member
             </span>
-            <span className="text-slate-400 text-sm uppercase font-medium tracking-wider font-dm-sans">
+            <span className="text-slate-400 text-sm uppercase font-medium tracking-wider font-body">
               Party
             </span>
-            <span className="text-slate-400 text-sm uppercase font-medium tracking-wider font-dm-sans">
+            <span className="text-slate-400 text-sm uppercase font-medium tracking-wider font-body">
               State
             </span>
-            <span className="text-slate-400 text-sm uppercase font-medium tracking-wider font-dm-sans">
+            <span className="text-slate-400 text-sm uppercase font-medium tracking-wider font-body">
               Position
             </span>
           </div>
@@ -460,7 +460,7 @@ const VoteDetailPage: React.FC = () => {
           <div className="flex-1 overflow-y-auto">
             {filteredMembers.length === 0 ? (
               <div className="flex items-center justify-center py-16">
-                <p className="font-dm-sans text-slate-500 text-sm">
+                <p className="font-body text-slate-500 text-sm">
                   No members match your filters.
                 </p>
               </div>
@@ -475,12 +475,12 @@ const VoteDetailPage: React.FC = () => {
                     {m.person_id ? (
                       <Link
                         to={`/politics/people/${m.person_id}`}
-                        className="font-dm-sans text-lg font-bold text-white hover:text-blue-400 transition-colors"
+                        className="font-body text-lg font-bold text-white hover:text-blue-400 transition-colors"
                       >
                         {m.member_name}
                       </Link>
                     ) : (
-                      <span className="font-dm-sans text-lg font-bold text-white">
+                      <span className="font-body text-lg font-bold text-white">
                         {m.member_name}
                       </span>
                     )}
@@ -494,13 +494,13 @@ const VoteDetailPage: React.FC = () => {
                           PARTY_COLORS[m.party] || "#64748B",
                       }}
                     />
-                    <span className="font-dm-sans text-slate-300">
+                    <span className="font-body text-slate-300">
                       {m.party}
                     </span>
                   </div>
                   {/* State */}
                   <div className="flex items-center">
-                    <span className="font-fira-code text-slate-400">
+                    <span className="font-mono text-slate-400">
                       {m.state}
                     </span>
                   </div>
@@ -531,10 +531,10 @@ function StatBox({
 }) {
   return (
     <div className="bg-[rgba(15,23,42,0.5)] rounded-xl p-4">
-      <p className={`font-fira-code text-2xl font-bold ${color}`}>
+      <p className={`font-mono text-2xl font-bold ${color}`}>
         {count}
       </p>
-      <p className="text-sm text-slate-400 uppercase font-dm-sans mt-1">
+      <p className="text-sm text-slate-400 uppercase font-body mt-1">
         {label}
       </p>
     </div>

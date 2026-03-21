@@ -204,7 +204,7 @@ export default function PersonProfilePage() {
   useEffect(() => {
     if (!person_id) return;
     apiClient
-      .getPeople({ q: person_id, limit: 10 })
+      .getPeople({ q: person_id, limit: 1 })
       .then((res) => {
         const match = res.people.find((p) => p.person_id === person_id);
         if (match) setPerson(match);
@@ -487,7 +487,7 @@ export default function PersonProfilePage() {
                   {chamberLabel(chamber)}
                 </span>
               )}
-              <SanctionsBadge status={(person as any).sanctions_status} />
+              <SanctionsBadge status={person?.sanctions_status} />
               {/* Contribute to campaign */}
               {displayName && (
                 <a

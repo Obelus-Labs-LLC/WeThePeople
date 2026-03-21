@@ -258,7 +258,7 @@ export default function TechCompanyProfilePage() {
               <span className="rounded bg-white/10 px-3 py-1 font-mono text-xs uppercase tracking-wider text-white/60">
                 {detail.sector_type.replace(/_/g, ' ')}
               </span>
-              <SanctionsBadge status={(detail as any).sanctions_status} />
+              <SanctionsBadge status={detail.sanctions_status} />
               {detail.headquarters && (
                 <span className="font-body text-sm text-white/50">
                   {detail.headquarters}

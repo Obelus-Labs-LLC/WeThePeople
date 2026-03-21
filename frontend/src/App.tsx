@@ -61,6 +61,7 @@ const InfluenceNetworkPage = React.lazy(() => import("./pages/InfluenceNetworkPa
 const SectorLobbyingPage = React.lazy(() => import("./pages/SectorLobbyingPage"));
 const SectorContractsPage = React.lazy(() => import("./pages/SectorContractsPage"));
 const SectorEnforcementPage = React.lazy(() => import("./pages/SectorEnforcementPage"));
+const ComplaintsDashboardPage = React.lazy(() => import("./pages/ComplaintsDashboardPage"));
 const ClosedLoopPage = React.lazy(() => import("./pages/ClosedLoopPage"));
 const MoneyFlowPage = React.lazy(() => import("./pages/MoneyFlowPage"));
 const DataExplorerPage = React.lazy(() => import("./pages/DataExplorerPage"));
@@ -128,6 +129,7 @@ const App: React.FC = () => (
           <Route path="/finance/lobbying" element={<FinanceLayout><SectorLobbyingPage /></FinanceLayout>} />
           <Route path="/finance/contracts" element={<FinanceLayout><SectorContractsPage /></FinanceLayout>} />
           <Route path="/finance/enforcement" element={<FinanceLayout><SectorEnforcementPage /></FinanceLayout>} />
+          <Route path="/finance/complaints" element={<FinanceLayout><ComplaintsDashboardPage /></FinanceLayout>} />
           <Route path="/finance/:institution_id" element={<FinanceLayout><InstitutionPage /></FinanceLayout>} />
 
           {/* Technology section — all wrapped in TechLayout (MagicRings bg) */}
@@ -135,9 +137,9 @@ const App: React.FC = () => (
           <Route path="/technology/companies" element={<TechLayout><TechCompaniesPage /></TechLayout>} />
           <Route path="/technology/compare" element={<TechLayout><TechComparePage /></TechLayout>} />
           <Route path="/technology/patents" element={<TechLayout><PatentSearchPage /></TechLayout>} />
-          <Route path="/technology/lobbying" element={<TechLayout><LobbyingBreakdownPage /></TechLayout>} />
-          <Route path="/technology/contracts" element={<TechLayout><ContractTimelinePage /></TechLayout>} />
-          <Route path="/technology/enforcement" element={<TechLayout><EnforcementTrackerPage /></TechLayout>} />
+          <Route path="/technology/lobbying" element={<TechLayout><SectorLobbyingPage /></TechLayout>} />
+          <Route path="/technology/contracts" element={<TechLayout><SectorContractsPage /></TechLayout>} />
+          <Route path="/technology/enforcement" element={<TechLayout><SectorEnforcementPage /></TechLayout>} />
           <Route path="/technology/:companyId" element={<TechLayout><TechCompanyProfilePage /></TechLayout>} />
 
           {/* Health section — all wrapped in HealthLayout (Silk bg) */}
