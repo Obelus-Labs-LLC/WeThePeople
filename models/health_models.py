@@ -39,6 +39,9 @@ class TrackedCompany(Base):
     headquarters = Column(String, nullable=True)
     is_active = Column(Integer, nullable=False, server_default="1", index=True)  # SQLite: 0=inactive, 1=active
 
+    # AI-generated profile summary
+    ai_profile_summary = Column(Text, nullable=True)
+
     # Scheduling state
     needs_ingest = Column(Integer, nullable=False, server_default="1", index=True)
     last_full_refresh_at = Column(DateTime(timezone=True), nullable=True, index=True)
@@ -230,6 +233,9 @@ class HealthLobbyingRecord(Base):
     government_entities = Column(Text, nullable=True)
     specific_issues = Column(Text, nullable=True)
 
+    # AI-generated summary
+    ai_summary = Column(Text, nullable=True)
+
     dedupe_hash = Column(String, nullable=False, index=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -259,6 +265,9 @@ class HealthGovernmentContract(Base):
     end_date = Column(Date, nullable=True)
     contract_type = Column(String, nullable=True, index=True)
 
+    # AI-generated summary
+    ai_summary = Column(Text, nullable=True)
+
     dedupe_hash = Column(String, nullable=False, index=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -287,6 +296,9 @@ class HealthEnforcement(Base):
     penalty_amount = Column(Float, nullable=True)
     description = Column(Text, nullable=True)
     source = Column(String, nullable=True)  # 'FDA', 'DOJ', 'OIG', 'State AG'
+
+    # AI-generated summary
+    ai_summary = Column(Text, nullable=True)
 
     dedupe_hash = Column(String, nullable=False, index=True)
 

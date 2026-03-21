@@ -280,6 +280,13 @@ export default function TechCompanyProfilePage() {
           </div>
         </motion.div>
 
+        {(detail as any).ai_profile_summary && (
+          <div className="mb-6">
+            <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+            <p className="text-zinc-400 text-sm mt-1">{(detail as any).ai_profile_summary}</p>
+          </div>
+        )}
+
         {/* ── Tab Navigation ── */}
         <div className="mb-6 flex gap-1 border-b border-white/10 pb-0 overflow-x-auto shrink-0">
           {TABS.map((tab) => (

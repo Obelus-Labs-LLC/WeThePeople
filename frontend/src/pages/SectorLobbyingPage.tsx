@@ -87,6 +87,7 @@ interface IssueBreakdown {
   totalIncome: number;
   filingCount: number;
   companies: Map<string, { name: string; income: number }>;
+  aiSummaries: string[];
 }
 
 // ── Animation variants ──
@@ -190,14 +191,18 @@ export default function SectorLobbyingPage() {
           } else {
             existing.companies.set(filing.entity_id, { name: filing.entity_name, income });
           }
+          const aiSum = (filing as any).ai_summary;
+          if (aiSum && !existing.aiSummaries.includes(aiSum)) existing.aiSummaries.push(aiSum);
         } else {
           const companies = new Map<string, { name: string; income: number }>();
           companies.set(filing.entity_id, { name: filing.entity_name, income });
+          const aiSum = (filing as any).ai_summary;
           issueMap.set(issue, {
             issue,
             totalIncome: income,
             filingCount: 1,
             companies,
+            aiSummaries: aiSum ? [aiSum] : [],
           });
         }
       }
@@ -389,6 +394,16 @@ export default function SectorLobbyingPage() {
                         transition={{ duration: 0.8, delay: idx * 0.03, ease: [0.16, 1, 0.3, 1] }}
                       />
                     </div>
+
+                    {/* AI Summaries */}
+                    {isExpanded && item.aiSummaries.length > 0 && (
+                      <div className="mt-2 mb-1">
+                        <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+                        {item.aiSummaries.slice(0, 3).map((s, si) => (
+                          <p key={si} className="text-zinc-400 text-sm mt-1">{s}</p>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Company breakdown */}
                     {isExpanded ? (

@@ -437,6 +437,9 @@ export default function SectorContractsPage() {
                               {ct.description && (
                                 <p className="font-body text-sm text-white/70 mb-1">{ct.description}</p>
                               )}
+                              {(ct as any).ai_summary && (
+                                <p className="text-zinc-400 text-sm mt-1 mb-1">{(ct as any).ai_summary}</p>
+                              )}
                               <div className="flex items-center gap-4 flex-wrap">
                                 {ct.award_amount != null && (
                                   <span className="font-mono text-xs text-[#10B981]">{fmtDollar(ct.award_amount)}</span>

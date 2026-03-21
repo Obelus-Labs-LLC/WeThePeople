@@ -333,6 +333,7 @@ def get_people(
                     "party": r.party,
                     "is_active": bool(r.is_active),
                     "photo_url": r.photo_url,
+                    "ai_profile_summary": r.ai_profile_summary,
                 }
                 for r in rows
             ],
@@ -360,6 +361,7 @@ def get_person_directory_entry(person_id: str):
             "party": row.party,
             "is_active": bool(row.is_active),
             "photo_url": row.photo_url,
+            "ai_profile_summary": row.ai_profile_summary,
         }
     finally:
         db.close()
@@ -1344,6 +1346,7 @@ def list_votes(
                 "related_bill_number": v.related_bill_number,
                 "yea_count": v.yea_count, "nay_count": v.nay_count,
                 "not_voting_count": v.not_voting_count, "present_count": v.present_count,
+                "ai_summary": v.ai_summary,
             } for v in rows],
         }
     finally:
@@ -1377,6 +1380,7 @@ def get_vote(vote_id: int):
             "yea_count": v.yea_count, "nay_count": v.nay_count,
             "not_voting_count": v.not_voting_count, "present_count": v.present_count,
             "source_url": v.source_url,
+            "ai_summary": v.ai_summary,
             "member_votes": [{
                 "bioguide_id": mv.bioguide_id,
                 "member_name": mv.member_name,
@@ -1461,6 +1465,7 @@ def get_person_votes(
                 "related_bill_number": v.related_bill_number,
                 "bill_title": bill_title,
                 "bill_summary": bill_summary,
+                "ai_summary": v.ai_summary,
             })
 
         return {
