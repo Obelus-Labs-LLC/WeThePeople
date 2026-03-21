@@ -458,20 +458,30 @@ def get_tech_company_contract_trends(company_id: str):
         co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
         if not co:
             raise HTTPException(status_code=404, detail="Tech company not found")
-        contracts = db.query(GovernmentContract).filter_by(company_id=company_id).all()
-        by_year: Dict[str, Any] = {}
-        for ct in contracts:
-            year = str(ct.start_date.year) if ct.start_date else "Unknown"
-            if year not in by_year:
-                by_year[year] = {"total_amount": 0, "count": 0}
-            by_year[year]["total_amount"] += ct.award_amount or 0
-            by_year[year]["count"] += 1
-        sorted_years = sorted(
-            [{"year": y, **d} for y, d in by_year.items() if y != "Unknown"],
-            key=lambda x: x["year"],
-        )
-        if "Unknown" in by_year:
-            sorted_years.append({"year": "Unknown", **by_year["Unknown"]})
+        # Aggregate in SQL instead of loading all contracts into memory
+        rows = db.query(
+            func.strftime("%Y", GovernmentContract.start_date).label("year"),
+            func.sum(GovernmentContract.award_amount).label("total_amount"),
+            func.count(GovernmentContract.id).label("count"),
+        ).filter_by(company_id=company_id).filter(
+            GovernmentContract.start_date.isnot(None)
+        ).group_by("year").order_by("year").all()
+
+        sorted_years = [
+            {"year": r.year, "total_amount": float(r.total_amount or 0), "count": r.count}
+            for r in rows
+        ]
+
+        # Handle contracts with no start_date
+        unknown_row = db.query(
+            func.sum(GovernmentContract.award_amount).label("total_amount"),
+            func.count(GovernmentContract.id).label("count"),
+        ).filter_by(company_id=company_id).filter(
+            GovernmentContract.start_date.is_(None)
+        ).first()
+        if unknown_row and unknown_row.count > 0:
+            sorted_years.append({"year": "Unknown", "total_amount": float(unknown_row.total_amount or 0), "count": unknown_row.count})
+
         return {"trends": sorted_years}
     finally:
         db.close()
@@ -485,30 +495,41 @@ def get_tech_comparison(ids: str = Query(..., description="Comma-separated compa
         if not company_ids or len(company_ids) > 10:
             raise HTTPException(status_code=400, detail="Provide 2-10 company IDs")
 
-        results = []
-        for cid in company_ids:
-            co = db.query(TrackedTechCompany).filter_by(company_id=cid).first()
-            if not co:
-                continue
-            patent_count = db.query(TechPatent).filter_by(company_id=cid).count()
-            contract_count = db.query(GovernmentContract).filter_by(company_id=cid).count()
-            filing_count = db.query(SECTechFiling).filter_by(company_id=cid).count()
-            total_contract_value = db.query(func.sum(GovernmentContract.award_amount)).filter_by(company_id=cid).scalar() or 0
-            lobbying_total = db.query(func.sum(LobbyingRecord.income)).filter_by(company_id=cid).scalar() or 0
-            enforcement_count = db.query(FTCEnforcement).filter_by(company_id=cid).count()
-            total_penalties = db.query(func.sum(FTCEnforcement.penalty_amount)).filter_by(company_id=cid).scalar() or 0
+        # Batch all counts in single queries instead of N+1
+        companies = {co.company_id: co for co in db.query(TrackedTechCompany).filter(TrackedTechCompany.company_id.in_(company_ids)).all()}
+        patent_counts = dict(db.query(TechPatent.company_id, func.count(TechPatent.id)).filter(TechPatent.company_id.in_(company_ids)).group_by(TechPatent.company_id).all())
+        contract_counts = dict(db.query(GovernmentContract.company_id, func.count(GovernmentContract.id)).filter(GovernmentContract.company_id.in_(company_ids)).group_by(GovernmentContract.company_id).all())
+        filing_counts = dict(db.query(SECTechFiling.company_id, func.count(SECTechFiling.id)).filter(SECTechFiling.company_id.in_(company_ids)).group_by(SECTechFiling.company_id).all())
+        contract_values = dict(db.query(GovernmentContract.company_id, func.sum(GovernmentContract.award_amount)).filter(GovernmentContract.company_id.in_(company_ids)).group_by(GovernmentContract.company_id).all())
+        lobbying_totals = dict(db.query(LobbyingRecord.company_id, func.sum(LobbyingRecord.income)).filter(LobbyingRecord.company_id.in_(company_ids)).group_by(LobbyingRecord.company_id).all())
+        enforcement_counts = dict(db.query(FTCEnforcement.company_id, func.count(FTCEnforcement.id)).filter(FTCEnforcement.company_id.in_(company_ids)).group_by(FTCEnforcement.company_id).all())
+        penalty_totals = dict(db.query(FTCEnforcement.company_id, func.sum(FTCEnforcement.penalty_amount)).filter(FTCEnforcement.company_id.in_(company_ids)).group_by(FTCEnforcement.company_id).all())
 
+        stock_map = {}
+        for cid in company_ids:
             latest = db.query(StockFundamentals).filter_by(
                 entity_type="tech_company", entity_id=cid
             ).order_by(desc(StockFundamentals.snapshot_date)).first()
+            if latest:
+                stock_map[cid] = latest
+
+        results = []
+        for cid in company_ids:
+            co = companies.get(cid)
+            if not co:
+                continue
+            latest = stock_map.get(cid)
 
             results.append({
                 "company_id": co.company_id, "display_name": co.display_name,
                 "ticker": co.ticker, "sector_type": co.sector_type,
-                "patent_count": patent_count, "contract_count": contract_count,
-                "filing_count": filing_count, "total_contract_value": total_contract_value,
-                "lobbying_total": lobbying_total, "enforcement_count": enforcement_count,
-                "total_penalties": total_penalties,
+                "patent_count": patent_counts.get(cid, 0),
+                "contract_count": contract_counts.get(cid, 0),
+                "filing_count": filing_counts.get(cid, 0),
+                "total_contract_value": float(contract_values.get(cid, 0) or 0),
+                "lobbying_total": float(lobbying_totals.get(cid, 0) or 0),
+                "enforcement_count": enforcement_counts.get(cid, 0),
+                "total_penalties": float(penalty_totals.get(cid, 0) or 0),
                 "market_cap": latest.market_cap if latest else None,
                 "pe_ratio": latest.pe_ratio if latest else None,
                 "profit_margin": latest.profit_margin if latest else None,

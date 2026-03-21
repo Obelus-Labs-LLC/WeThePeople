@@ -511,32 +511,45 @@ def get_health_comparison(ids: str = Query(..., description="Comma-separated com
         if not company_ids or len(company_ids) > 10:
             raise HTTPException(status_code=400, detail="Provide 2-10 company IDs")
 
-        results = []
-        for cid in company_ids:
-            co = db.query(TrackedCompany).filter_by(company_id=cid).first()
-            if not co:
-                continue
-            adverse_count = db.query(FDAAdverseEvent).filter_by(company_id=cid).count()
-            recall_count = db.query(FDARecall).filter_by(company_id=cid).count()
-            trial_count = db.query(ClinicalTrial).filter_by(company_id=cid).count()
-            contract_count = db.query(HealthGovernmentContract).filter_by(company_id=cid).count()
-            total_contract_value = db.query(func.sum(HealthGovernmentContract.award_amount)).filter_by(company_id=cid).scalar() or 0
-            lobbying_total = db.query(func.sum(HealthLobbyingRecord.income)).filter_by(company_id=cid).scalar() or 0
-            enforcement_count = db.query(HealthEnforcement).filter_by(company_id=cid).count()
-            total_penalties = db.query(func.sum(HealthEnforcement.penalty_amount)).filter_by(company_id=cid).scalar() or 0
+        # Batch all counts in single queries instead of N+1
+        companies = {co.company_id: co for co in db.query(TrackedCompany).filter(TrackedCompany.company_id.in_(company_ids)).all()}
+        adverse_counts = dict(db.query(FDAAdverseEvent.company_id, func.count(FDAAdverseEvent.id)).filter(FDAAdverseEvent.company_id.in_(company_ids)).group_by(FDAAdverseEvent.company_id).all())
+        recall_counts = dict(db.query(FDARecall.company_id, func.count(FDARecall.id)).filter(FDARecall.company_id.in_(company_ids)).group_by(FDARecall.company_id).all())
+        trial_counts = dict(db.query(ClinicalTrial.company_id, func.count(ClinicalTrial.id)).filter(ClinicalTrial.company_id.in_(company_ids)).group_by(ClinicalTrial.company_id).all())
 
+        contract_counts = dict(db.query(HealthGovernmentContract.company_id, func.count(HealthGovernmentContract.id)).filter(HealthGovernmentContract.company_id.in_(company_ids)).group_by(HealthGovernmentContract.company_id).all())
+        contract_values = dict(db.query(HealthGovernmentContract.company_id, func.sum(HealthGovernmentContract.award_amount)).filter(HealthGovernmentContract.company_id.in_(company_ids)).group_by(HealthGovernmentContract.company_id).all())
+        lobbying_totals = dict(db.query(HealthLobbyingRecord.company_id, func.sum(HealthLobbyingRecord.income)).filter(HealthLobbyingRecord.company_id.in_(company_ids)).group_by(HealthLobbyingRecord.company_id).all())
+        enforcement_counts = dict(db.query(HealthEnforcement.company_id, func.count(HealthEnforcement.id)).filter(HealthEnforcement.company_id.in_(company_ids)).group_by(HealthEnforcement.company_id).all())
+        penalty_totals = dict(db.query(HealthEnforcement.company_id, func.sum(HealthEnforcement.penalty_amount)).filter(HealthEnforcement.company_id.in_(company_ids)).group_by(HealthEnforcement.company_id).all())
+
+        # Stock data - one query per company is fine (max 10), ordered by date
+        stock_map = {}
+        for cid in company_ids:
             latest = db.query(StockFundamentals).filter_by(
                 entity_type="company", entity_id=cid
             ).order_by(desc(StockFundamentals.snapshot_date)).first()
+            if latest:
+                stock_map[cid] = latest
+
+        results = []
+        for cid in company_ids:
+            co = companies.get(cid)
+            if not co:
+                continue
+            latest = stock_map.get(cid)
 
             results.append({
                 "company_id": co.company_id, "display_name": co.display_name,
                 "ticker": co.ticker, "sector_type": co.sector_type,
-                "adverse_event_count": adverse_count, "recall_count": recall_count,
-                "trial_count": trial_count,
-                "contract_count": contract_count, "total_contract_value": total_contract_value,
-                "lobbying_total": lobbying_total, "enforcement_count": enforcement_count,
-                "total_penalties": total_penalties,
+                "adverse_event_count": adverse_counts.get(cid, 0),
+                "recall_count": recall_counts.get(cid, 0),
+                "trial_count": trial_counts.get(cid, 0),
+                "contract_count": contract_counts.get(cid, 0),
+                "total_contract_value": float(contract_values.get(cid, 0) or 0),
+                "lobbying_total": float(lobbying_totals.get(cid, 0) or 0),
+                "enforcement_count": enforcement_counts.get(cid, 0),
+                "total_penalties": float(penalty_totals.get(cid, 0) or 0),
                 "market_cap": latest.market_cap if latest else None,
                 "pe_ratio": latest.pe_ratio if latest else None,
                 "profit_margin": latest.profit_margin if latest else None,

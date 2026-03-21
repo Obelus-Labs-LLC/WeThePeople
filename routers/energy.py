@@ -485,30 +485,41 @@ def get_energy_comparison(ids: str = Query(..., description="Comma-separated com
         if not company_ids or len(company_ids) > 10:
             raise HTTPException(status_code=400, detail="Provide 2-10 company IDs")
 
-        results = []
-        for cid in company_ids:
-            co = db.query(TrackedEnergyCompany).filter_by(company_id=cid).first()
-            if not co:
-                continue
-            emission_count = db.query(EnergyEmission).filter_by(company_id=cid).count()
-            total_emissions = db.query(func.sum(EnergyEmission.total_emissions)).filter_by(company_id=cid).scalar() or 0
-            contract_count = db.query(EnergyGovernmentContract).filter_by(company_id=cid).count()
-            total_contract_value = db.query(func.sum(EnergyGovernmentContract.award_amount)).filter_by(company_id=cid).scalar() or 0
-            lobbying_total = db.query(func.sum(EnergyLobbyingRecord.income)).filter_by(company_id=cid).scalar() or 0
-            enforcement_count = db.query(EnergyEnforcement).filter_by(company_id=cid).count()
-            total_penalties = db.query(func.sum(EnergyEnforcement.penalty_amount)).filter_by(company_id=cid).scalar() or 0
+        # Batch all counts in single queries instead of N+1
+        companies = {co.company_id: co for co in db.query(TrackedEnergyCompany).filter(TrackedEnergyCompany.company_id.in_(company_ids)).all()}
+        emission_counts = dict(db.query(EnergyEmission.company_id, func.count(EnergyEmission.id)).filter(EnergyEmission.company_id.in_(company_ids)).group_by(EnergyEmission.company_id).all())
+        emission_totals = dict(db.query(EnergyEmission.company_id, func.sum(EnergyEmission.total_emissions)).filter(EnergyEmission.company_id.in_(company_ids)).group_by(EnergyEmission.company_id).all())
+        contract_counts = dict(db.query(EnergyGovernmentContract.company_id, func.count(EnergyGovernmentContract.id)).filter(EnergyGovernmentContract.company_id.in_(company_ids)).group_by(EnergyGovernmentContract.company_id).all())
+        contract_values = dict(db.query(EnergyGovernmentContract.company_id, func.sum(EnergyGovernmentContract.award_amount)).filter(EnergyGovernmentContract.company_id.in_(company_ids)).group_by(EnergyGovernmentContract.company_id).all())
+        lobbying_totals = dict(db.query(EnergyLobbyingRecord.company_id, func.sum(EnergyLobbyingRecord.income)).filter(EnergyLobbyingRecord.company_id.in_(company_ids)).group_by(EnergyLobbyingRecord.company_id).all())
+        enforcement_counts = dict(db.query(EnergyEnforcement.company_id, func.count(EnergyEnforcement.id)).filter(EnergyEnforcement.company_id.in_(company_ids)).group_by(EnergyEnforcement.company_id).all())
+        penalty_totals = dict(db.query(EnergyEnforcement.company_id, func.sum(EnergyEnforcement.penalty_amount)).filter(EnergyEnforcement.company_id.in_(company_ids)).group_by(EnergyEnforcement.company_id).all())
 
+        stock_map = {}
+        for cid in company_ids:
             latest = db.query(StockFundamentals).filter_by(
                 entity_type="energy_company", entity_id=cid
             ).order_by(desc(StockFundamentals.snapshot_date)).first()
+            if latest:
+                stock_map[cid] = latest
+
+        results = []
+        for cid in company_ids:
+            co = companies.get(cid)
+            if not co:
+                continue
+            latest = stock_map.get(cid)
 
             results.append({
                 "company_id": co.company_id, "display_name": co.display_name,
                 "ticker": co.ticker, "sector_type": co.sector_type,
-                "emission_count": emission_count, "total_emissions": total_emissions,
-                "contract_count": contract_count, "total_contract_value": total_contract_value,
-                "lobbying_total": lobbying_total, "enforcement_count": enforcement_count,
-                "total_penalties": total_penalties,
+                "emission_count": emission_counts.get(cid, 0),
+                "total_emissions": float(emission_totals.get(cid, 0) or 0),
+                "contract_count": contract_counts.get(cid, 0),
+                "total_contract_value": float(contract_values.get(cid, 0) or 0),
+                "lobbying_total": float(lobbying_totals.get(cid, 0) or 0),
+                "enforcement_count": enforcement_counts.get(cid, 0),
+                "total_penalties": float(penalty_totals.get(cid, 0) or 0),
                 "market_cap": latest.market_cap if latest else None,
                 "pe_ratio": latest.pe_ratio if latest else None,
                 "profit_margin": latest.profit_margin if latest else None,
