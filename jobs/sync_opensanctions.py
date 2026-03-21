@@ -9,9 +9,12 @@ Run: python3 jobs/sync_opensanctions.py [--dry-run] [--limit N] [--sector SECTOR
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.database import SessionLocal, TrackedMember
 from models.finance_models import TrackedInstitution
