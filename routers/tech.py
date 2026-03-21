@@ -219,6 +219,7 @@ def get_tech_company(company_id: str):
             "filing_count": filing_count, "total_contract_value": total_contract_value,
             "latest_stock": latest_stock,
             "ai_profile_summary": co.ai_profile_summary,
+            "sanctions_status": co.sanctions_status,
         }
     finally:
         db.close()

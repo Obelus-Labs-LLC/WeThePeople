@@ -34,6 +34,7 @@ import {
   type HealthEnforcementAction,
 } from '../api/health';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
+import SanctionsBadge from '../components/SanctionsBadge';
 import { LOCAL_LOGOS } from '../data/healthLogos';
 import { getLogoUrl } from '../utils/logos';
 import CompanyLogo from '../components/CompanyLogo';
@@ -438,9 +439,12 @@ function PaymentsFilingsTab({ companyId, company }: { companyId: string; company
             <h3 className="text-3xl font-bold" style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}>
               {company.display_name}
             </h3>
-            <span className="text-sm uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
-              FINANCIAL PULSE
-            </span>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
+                FINANCIAL PULSE
+              </span>
+              <SanctionsBadge status={(company as any).sanctions_status} />
+            </div>
           </div>
         </div>
         <div className="hidden md:flex items-center gap-4">

@@ -334,6 +334,7 @@ def get_people(
                     "is_active": bool(r.is_active),
                     "photo_url": r.photo_url,
                     "ai_profile_summary": r.ai_profile_summary,
+                    "sanctions_status": r.sanctions_status,
                 }
                 for r in rows
             ],
@@ -362,6 +363,7 @@ def get_person_directory_entry(person_id: str):
             "is_active": bool(row.is_active),
             "photo_url": row.photo_url,
             "ai_profile_summary": row.ai_profile_summary,
+            "sanctions_status": row.sanctions_status,
         }
     finally:
         db.close()

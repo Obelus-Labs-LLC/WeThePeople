@@ -11,6 +11,7 @@ import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
 import { EnergySectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
+import SanctionsBadge from '../components/SanctionsBadge';
 import {
   getEnergyCompanyDetail,
   getEnergyCompanyEmissions,
@@ -255,6 +256,7 @@ export default function EnergyCompanyProfilePage() {
               <span className="rounded bg-white/10 px-3 py-1 font-mono text-xs uppercase tracking-wider text-white/60">
                 {detail.sector_type.replace(/_/g, ' ')}
               </span>
+              <SanctionsBadge status={(detail as any).sanctions_status} />
               {detail.headquarters && (
                 <span className="font-body text-sm text-white/50">
                   {detail.headquarters}

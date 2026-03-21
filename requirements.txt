@@ -32,6 +32,7 @@ fastscheduler>=0.1.0
 
 # PDF parsing
 pdfplumber>=0.10.0
+docling>=2.0.0  # IBM document converter with OCR for scanned PDFs
 
 # Optional: API clients
 beautifulsoup4>=4.12.0

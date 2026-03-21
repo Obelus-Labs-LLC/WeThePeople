@@ -169,6 +169,7 @@ def get_health_company(company_id: str):
             "enforcement_count": enforcement_count, "penalty_total": penalty_total,
             "latest_stock": stock_data,
             "ai_profile_summary": c.ai_profile_summary,
+            "sanctions_status": c.sanctions_status,
             "latest_recall": {
                 "recall_number": latest_recall.recall_number,
                 "classification": latest_recall.classification,

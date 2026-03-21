@@ -312,9 +312,8 @@ def download_pdf(doc_id: str, year: int) -> Optional[bytes]:
     return content
 
 
-def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extract text from PDF using pdfplumber with layout preservation.
-    Falls back to OCR (pytesseract) for scanned image PDFs."""
+def _extract_with_pdfplumber(pdf_bytes: bytes) -> str:
+    """Extract text using pdfplumber with layout preservation."""
     text_parts = []
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -328,33 +327,56 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
                     text_parts.append(page_text)
     except Exception as e:
         log.warning(f"pdfplumber extraction error: {e}")
+    return "\n".join(text_parts)
 
-    combined = "\n".join(text_parts)
 
-    # OCR fallback for scanned image PDFs
-    if not combined.strip():
+def _extract_with_docling(pdf_bytes: bytes) -> str:
+    """Extract text using Docling (IBM) — handles scanned/image PDFs with OCR."""
+    try:
+        from docling.document_converter import DocumentConverter
+        import tempfile
+        import os
+
+        # Docling needs a file path, so write to temp file
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+            f.write(pdf_bytes)
+            tmp_path = f.name
+
         try:
-            from pdf2image import convert_from_bytes
-            import pytesseract
+            converter = DocumentConverter()
+            result = converter.convert(tmp_path)
+            text = result.document.export_to_markdown()
+            if text and text.strip():
+                log.info(f"Docling extracted {len(text)} chars")
+                return text
+        finally:
+            os.unlink(tmp_path)
 
-            log.info("pdfplumber returned empty text, attempting OCR fallback...")
-            images = convert_from_bytes(pdf_bytes, dpi=300)
-            ocr_parts = []
-            for img in images:
-                page_text = pytesseract.image_to_string(img, config="--psm 6")
-                if page_text:
-                    ocr_parts.append(page_text)
-            combined = "\n".join(ocr_parts)
-            if combined.strip():
-                log.info(f"OCR extracted {len(combined)} chars from {len(images)} pages")
-            else:
-                log.warning("OCR also returned empty text")
-        except ImportError:
-            log.warning("OCR dependencies not installed (pip install pytesseract pdf2image; apt install tesseract-ocr poppler-utils)")
-        except Exception as e:
-            log.warning(f"OCR extraction error: {e}")
+    except ImportError:
+        log.debug("Docling not installed (pip install docling)")
+    except Exception as e:
+        log.warning(f"Docling extraction error: {e}")
 
-    return combined
+    return ""
+
+
+def extract_text_from_pdf(pdf_bytes: bytes) -> str:
+    """Extract text from PDF. Tries pdfplumber first (fast, layout-aware),
+    falls back to Docling (OCR-capable) for scanned image PDFs."""
+
+    # Try pdfplumber first — fast and reliable for born-digital PDFs
+    combined = _extract_with_pdfplumber(pdf_bytes)
+    if combined.strip():
+        return combined
+
+    # Fallback to Docling for scanned/image PDFs
+    log.info("pdfplumber returned empty text, trying Docling OCR fallback...")
+    combined = _extract_with_docling(pdf_bytes)
+    if combined.strip():
+        return combined
+
+    log.warning("All extraction methods returned empty text")
+    return ""
 
 
 # ---------------------------------------------------------------------------

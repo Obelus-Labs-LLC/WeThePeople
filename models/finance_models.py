@@ -41,6 +41,11 @@ class TrackedInstitution(Base):
     # AI-generated profile summary
     ai_profile_summary = Column(Text, nullable=True)
 
+    # OpenSanctions status
+    sanctions_status = Column(String, nullable=True)
+    sanctions_data = Column(Text, nullable=True)
+    sanctions_checked_at = Column(DateTime(timezone=True), nullable=True)
+
     # Scheduling state
     needs_ingest = Column(Integer, nullable=False, server_default="1", index=True)
     last_full_refresh_at = Column(DateTime(timezone=True), nullable=True, index=True)

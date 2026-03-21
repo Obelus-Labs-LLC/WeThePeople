@@ -5,6 +5,7 @@ import BackButton from '../components/BackButton';
 import { ExternalLink, Heart, Share2 } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import TradeTimeline from '../components/TradeTimeline';
+import SanctionsBadge from '../components/SanctionsBadge';
 import type { TradeMarker } from '../api/influence';
 import type {
   Person,
@@ -486,6 +487,7 @@ export default function PersonProfilePage() {
                   {chamberLabel(chamber)}
                 </span>
               )}
+              <SanctionsBadge status={(person as any).sanctions_status} />
               {/* Contribute to campaign */}
               {displayName && (
                 <a
