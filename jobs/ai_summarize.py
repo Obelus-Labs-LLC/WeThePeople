@@ -43,17 +43,20 @@ logger = logging.getLogger(__name__)
 
 # ── Config ───────────────────────────────────────────────────
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "wethepeople.db")
-RESEARCH_MODEL = "claude-sonnet-4-20250514"
+SONNET_MODEL = "claude-sonnet-4-20250514"
+HAIKU_MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 1024  # Summaries are short
 
-# ── Sonnet Pricing ───────────────────────────────────────────
-SONNET_INPUT_COST_PER_M = 3.0    # $3 per 1M input tokens
-SONNET_OUTPUT_COST_PER_M = 15.0  # $15 per 1M output tokens
+# ── Pricing ──────────────────────────────────────────────────
+PRICING = {
+    SONNET_MODEL: {"input": 3.0, "output": 15.0},   # $3/$15 per 1M tokens
+    HAIKU_MODEL: {"input": 1.0, "output": 5.0},      # $1/$5 per 1M tokens
+}
 
 # ── Budget ───────────────────────────────────────────────────
 BUDGET_LEDGER_PATH = Path(os.path.expanduser("~/.claude_api_budget.json"))
-WETHEPEOPLE_MONTHLY_CAP = 130.00  # $130/month for WeThePeople (raised for one-time backfill)
-TOTAL_MONTHLY_CAP = 150.00        # $150 shared: HB $25 + Guardian $15 + WTP $130 (backfill month)
+WETHEPEOPLE_MONTHLY_CAP = 80.00   # $80/month for WeThePeople (raised for one-time backfill)
+TOTAL_MONTHLY_CAP = 100.00        # $100 org limit: HB $25 + Guardian $15 + WTP $80 (backfill month)
 
 # ── Batch Config ─────────────────────────────────────────────
 BATCH_SIZE = 25          # Records per Claude call (batched for efficiency)
@@ -159,8 +162,12 @@ def _get_client():
     return _client
 
 
-def call_claude(system_prompt: str, user_prompt: str) -> Optional[str]:
+def call_claude(system_prompt: str, user_prompt: str,
+                model: str = None) -> Optional[str]:
     """Make a single Claude API call with budget checking."""
+    if model is None:
+        model = SONNET_MODEL
+
     budget = check_budget()
     if not budget["allowed"]:
         logger.warning(
@@ -173,7 +180,7 @@ def call_claude(system_prompt: str, user_prompt: str) -> Optional[str]:
     start = time.time()
 
     response = client.messages.create(
-        model=RESEARCH_MODEL,
+        model=model,
         max_tokens=MAX_TOKENS,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
@@ -182,12 +189,14 @@ def call_claude(system_prompt: str, user_prompt: str) -> Optional[str]:
     elapsed = time.time() - start
     input_tokens = response.usage.input_tokens
     output_tokens = response.usage.output_tokens
-    cost = (input_tokens * SONNET_INPUT_COST_PER_M / 1_000_000) + \
-           (output_tokens * SONNET_OUTPUT_COST_PER_M / 1_000_000)
+    pricing = PRICING.get(model, PRICING[SONNET_MODEL])
+    cost = (input_tokens * pricing["input"] / 1_000_000) + \
+           (output_tokens * pricing["output"] / 1_000_000)
 
     record_spend(cost)
     logger.info(
-        f"Claude: {elapsed:.1f}s, {input_tokens} in / {output_tokens} out, ${cost:.4f}"
+        f"Claude ({model.split('-')[1]}): {elapsed:.1f}s, "
+        f"{input_tokens} in / {output_tokens} out, ${cost:.4f}"
     )
 
     return response.content[0].text
@@ -420,7 +429,7 @@ def summarize_contracts(conn, limit: int = 0, dry_run: bool = False) -> int:
                 "end": str(r["end_date"]),
             } for r in batch], indent=None)
 
-            result = call_claude(CONTRACT_SYSTEM, prompt)
+            result = call_claude(CONTRACT_SYSTEM, prompt, model=HAIKU_MODEL)
             if result is None:
                 return total
 
@@ -474,7 +483,7 @@ def summarize_lobbying(conn, limit: int = 0, dry_run: bool = False) -> int:
                 "details": r["specific_issues"],
             } for r in batch], indent=None)
 
-            result = call_claude(LOBBYING_SYSTEM, prompt)
+            result = call_claude(LOBBYING_SYSTEM, prompt, model=HAIKU_MODEL)
             if result is None:
                 return total
 
