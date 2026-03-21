@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { Search, ArrowLeft, X, Loader2 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Person, CompareResponse, ComparePersonData } from '../api/types';

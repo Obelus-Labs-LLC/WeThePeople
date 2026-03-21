@@ -12,7 +12,6 @@ Also adds ai_profile_summary to entity tables (5):
   - tracked_members, tracked_institutions, tracked_companies, tracked_tech_companies, tracked_energy_companies
 """
 import sqlite3
-import sys
 
 DB_PATH = "wethepeople.db"
 

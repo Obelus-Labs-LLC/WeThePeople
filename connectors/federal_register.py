@@ -19,7 +19,6 @@ Pagination: Max 2000 results per search (use date ranges for more)
 
 import time
 import json
-import os
 import requests
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any

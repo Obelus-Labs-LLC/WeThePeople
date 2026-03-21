@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { UI_COLORS, PARTY_COLORS } from '../constants/colors';
+import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { RecentAction } from '../api/types';
 import { LoadingSpinner, EmptyState } from '../components/ui';

@@ -13,7 +13,6 @@ clear error messages when validation fails.
 import json
 from pathlib import Path
 from typing import List, Optional
-import jsonschema
 from jsonschema import validate, ValidationError
 
 

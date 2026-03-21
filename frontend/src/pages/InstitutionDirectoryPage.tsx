@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Building2, MapPin, SearchX, ArrowLeft } from 'lucide-react';
+import { Search, MapPin, SearchX } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';

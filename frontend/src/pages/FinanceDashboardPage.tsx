@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, DollarSign, FileText, Shield, TrendingUp, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { DollarSign, FileText, Shield, TrendingUp, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';

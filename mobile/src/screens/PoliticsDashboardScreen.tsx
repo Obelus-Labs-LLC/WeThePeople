@@ -17,7 +17,7 @@ import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { DashboardStats, Person, RecentAction } from '../api/types';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LoadingSpinner, StatCard, TierProgressBar, PartyBadge, ChamberBadge, EmptyState, TierBadge } from '../components/ui';
+import { LoadingSpinner, StatCard, PartyBadge, ChamberBadge, EmptyState } from '../components/ui';
 
 // ── Activity type color coding ──
 const ACTIVITY_TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {

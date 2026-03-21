@@ -18,8 +18,6 @@ from datetime import datetime, date
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from models import database  # noqa: F401
-import models.tech_models  # noqa: F401
 from models.database import SessionLocal
 from models.tech_models import (
     TrackedTechCompany,

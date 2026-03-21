@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Users, FileText, Vote, Scale, ArrowRight, Activity, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, FileText, Scale, ArrowRight, Activity, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { DashboardStats, Person, RecentAction } from '../api/types';

@@ -3,7 +3,6 @@ import {
   View, Text, ScrollView, TouchableOpacity, Image,
   StyleSheet, Linking, RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { UI_COLORS } from '../constants/colors';

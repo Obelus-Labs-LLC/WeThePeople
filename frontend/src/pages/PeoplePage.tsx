@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Users, SearchX, MapPin } from 'lucide-react';
+import { Search, SearchX, MapPin } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { Person } from '../api/types';

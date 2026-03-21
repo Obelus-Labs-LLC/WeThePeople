@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { Filter, Landmark, ArrowLeft, Search } from 'lucide-react';
+import { Filter, Landmark, Search } from 'lucide-react';
 import { FinanceSectorHeader } from '../components/SectorHeader';
 import {
   getAllInsiderTrades,

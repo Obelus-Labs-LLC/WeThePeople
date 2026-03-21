@@ -34,7 +34,6 @@ from models.health_models import (
     TrackedCompany,
     HealthLobbyingRecord,
     HealthGovernmentContract,
-    HealthEnforcement,
 )
 
 load_dotenv()

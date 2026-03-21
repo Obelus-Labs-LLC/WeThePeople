@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, SearchX, Building2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Search, MapPin, SearchX } from 'lucide-react';
 import { useInView } from 'framer-motion';
 import DomeGallery from '../components/DomeGallery';
 import ViewToggle, { type ViewMode } from '../components/ViewToggle';

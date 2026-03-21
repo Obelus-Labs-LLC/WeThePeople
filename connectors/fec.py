@@ -325,7 +325,7 @@ def build_finance_profile(
 
 if __name__ == "__main__":
     import sys
-    import json as json_module
+
 
     setup_logging("INFO")
 

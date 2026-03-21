@@ -15,7 +15,7 @@ import {
   type RecallItem,
   type ClinicalTrialItem,
 } from '../api/health';
-import { fmtNum, fmtDate } from '../utils/format';
+import { fmtDate } from '../utils/format';
 
 // ── Types ──
 

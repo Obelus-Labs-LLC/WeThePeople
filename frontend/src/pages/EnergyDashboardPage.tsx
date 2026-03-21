@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
-import { DollarSign, Landmark, Shield, Flame, Building2, ArrowRight, ChevronDown, ChevronUp, type LucideIcon } from 'lucide-react';
+import { DollarSign, Landmark, Shield, Flame, ArrowRight, ChevronDown, ChevronUp, type LucideIcon } from 'lucide-react';
 import { EnergySectorHeader } from '../components/SectorHeader';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
