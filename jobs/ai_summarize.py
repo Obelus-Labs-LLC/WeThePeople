@@ -345,8 +345,9 @@ def summarize_votes(conn, limit: int = 0, dry_run: bool = False) -> int:
             save_batch_summaries(conn, "votes", "id", pairs)
             total += len(pairs)
             logger.info(f"  Saved {len(pairs)} vote summaries (batch {i // BATCH_SIZE + 1})")
-        except (json.JSONDecodeError, KeyError) as e:
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
             logger.error(f"  Failed to parse vote batch: {e}")
+            logger.error(f"  Raw response: {result[:500] if result else 'None'}")
 
         time.sleep(SLEEP_BETWEEN_CALLS)
 
