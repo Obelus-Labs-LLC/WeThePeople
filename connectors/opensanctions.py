@@ -2,13 +2,13 @@
 OpenSanctions Connector
 
 Search the OpenSanctions API for sanctioned entities and politically exposed persons (PEPs).
-Free API tier — no key required for basic search.
 
 Source: https://api.opensanctions.org/
-Auth: None required (rate-limited)
+Auth: API key required (set OPENSANCTIONS_API_KEY in .env, free trial at opensanctions.org)
 """
 
 import hashlib
+import os
 import time
 import requests
 from typing import Optional, List, Dict, Any
@@ -18,7 +18,8 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 API_BASE = "https://api.opensanctions.org"
-POLITE_DELAY = 1.0  # Be respectful of free tier
+API_KEY = os.getenv("OPENSANCTIONS_API_KEY", "")
+POLITE_DELAY = 1.0  # Be respectful of rate limits
 
 
 def _compute_hash(*parts: str) -> str:
@@ -53,13 +54,16 @@ def search_entity(
 
     try:
         time.sleep(POLITE_DELAY)
+        headers = {
+            "User-Agent": "WeThePeople/1.0 (Civic transparency platform)",
+            "Accept": "application/json",
+        }
+        if API_KEY:
+            headers["Authorization"] = f"ApiKey {API_KEY}"
         resp = requests.get(
             url,
             params=params,
-            headers={
-                "User-Agent": "WeThePeople/1.0 (Civic transparency platform)",
-                "Accept": "application/json",
-            },
+            headers=headers,
             timeout=30,
         )
         resp.raise_for_status()
