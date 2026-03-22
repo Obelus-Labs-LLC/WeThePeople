@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import type { EvidenceItem } from '../api/claims';
 
-const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
+const TYPE_CONFIG: Record<string, { icon: typeof FileText; color: string; label: string }> = {
   bill: { icon: FileText, color: 'text-blue-400', label: 'Bill Match' },
   vote: { icon: Vote, color: 'text-violet-400', label: 'Vote Match' },
   trade: { icon: TrendingUp, color: 'text-emerald-400', label: 'Trade Match' },
@@ -45,8 +45,8 @@ export default function EvidenceList({ evidence, className = '' }: EvidenceListP
   return (
     <div className={`space-y-4 ${className}`}>
       {Object.entries(grouped).map(([type, items]: [string, EvidenceItem[]]) => {
-        const config = TYPE_CONFIG[type] ?? { icon: FileText, color: 'text-slate-400', label: type };
-        const Icon = config.icon as React.ElementType;
+        const config = TYPE_CONFIG[type] ?? { icon: FileText, color: 'text-slate-400' as const, label: type };
+        const Icon = config.icon;
         return (
           <div key={type}>
             <div className={`flex items-center gap-2 mb-2 ${config.color}`}>
