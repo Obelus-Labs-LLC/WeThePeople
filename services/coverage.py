@@ -1,3 +1,14 @@
+"""
+DEPRECATED: V1 coverage scoring service from the Public Accountability Ledger era.
+Not used by the current WeThePeople civic transparency platform.
+Production coverage/completeness is tracked via /influence/data-freshness endpoint.
+Kept for reference only.
+
+TODO: If revived, score production tables instead:
+  TrackedMember, TrackedInstitution, TrackedCompany, TrackedTechCompany, TrackedEnergyCompany,
+  LobbyingRecord, GovernmentContract, CongressionalTrade, CompanyDonation, etc.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

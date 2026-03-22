@@ -55,6 +55,7 @@ def start_pipeline_run(
         error=None,
     )
     db.add(row)
+    # NOTE: Commits transaction internally.
     db.commit()
     return row
 
@@ -75,4 +76,5 @@ def finish_pipeline_run(
     row.status = status
     row.error = error
     row.counts_json = json.dumps(counts or {}, sort_keys=True)
+    # NOTE: Commits transaction internally.
     db.commit()

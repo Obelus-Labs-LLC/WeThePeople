@@ -1,5 +1,8 @@
 """Lightweight in-memory rate limiter for FastAPI.
 
+NOTE: Production uses slowapi middleware in main.py. This is an alternative implementation
+that may be used standalone or as a fallback.
+
 Uses a sliding window counter per client IP. No external dependencies.
 
 Env vars:
@@ -29,18 +32,43 @@ def _rpm_limit() -> int:
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Simple per-IP sliding window rate limiter."""
 
+    _MAX_TRACKED_IPS = 10_000
+    _CLEANUP_INTERVAL = 100  # prune stale IPs every N requests
+
     def __init__(self, app):
         super().__init__(app)
         self._requests: dict[str, list[float]] = defaultdict(list)
+        self._request_count = 0
 
     async def dispatch(self, request: Request, call_next):
         if not _is_enabled():
             return await call_next(request)
 
+        # Note: request.client can be None behind certain proxies (e.g., uvicorn behind nginx).
+        # Falls back to "unknown" which means all such requests share one bucket.
         client_ip = request.client.host if request.client else "unknown"
         now = time.time()
         window = 60.0  # 1 minute
         limit = _rpm_limit()
+
+        # Periodic cleanup: prune IPs not seen in the last hour to prevent memory leak
+        self._request_count += 1
+        if self._request_count % self._CLEANUP_INTERVAL == 0:
+            stale_cutoff = now - 3600.0
+            stale_ips = [
+                ip for ip, ts in self._requests.items()
+                if not ts or ts[-1] < stale_cutoff
+            ]
+            for ip in stale_ips:
+                del self._requests[ip]
+            # Hard cap: if still too many IPs, drop the oldest half
+            if len(self._requests) > self._MAX_TRACKED_IPS:
+                sorted_ips = sorted(
+                    self._requests.keys(),
+                    key=lambda ip: self._requests[ip][-1] if self._requests[ip] else 0,
+                )
+                for ip in sorted_ips[: len(sorted_ips) // 2]:
+                    del self._requests[ip]
 
         # Prune old entries
         timestamps = self._requests[client_ip]

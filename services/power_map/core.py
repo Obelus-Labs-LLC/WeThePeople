@@ -1,4 +1,11 @@
-"""Power Map (graph) generation.
+"""
+DEPRECATED: V1 Power Map graph generation from the Public Accountability Ledger era.
+Not used by the current WeThePeople civic transparency platform.
+Production influence graph uses services/influence_network.py and routers/influence.py.
+Kept for reference only.
+
+Original description:
+Power Map (graph) generation.
 
 The Power Map is a *derived* view: it must never invent facts.
 It is built from canonical ledger layers, with Gold as the primary input.
@@ -67,7 +74,8 @@ def build_person_power_map(
         claim_node_id = _node_id("claim", claim_id)
 
         # Best-effort claim label
-        claim_label = g.normalized_text[:60] + ("..." if len(g.normalized_text) > 60 else "")
+        claim_label = (g.normalized_text[:60] + "...") if g.normalized_text and len(g.normalized_text) > 60 else (g.normalized_text or "")
+        # TODO: Batch-load claims/bills upfront instead of per-row queries
         claim = db.query(Claim).filter(Claim.id == claim_id).first()
         if claim and claim.text:
             claim_label = claim.text[:60] + ("..." if len(claim.text) > 60 else "")
@@ -121,6 +129,7 @@ def build_person_power_map(
             bill_node_id = _node_id("bill", bill_id)
 
             bill_label = bill_id
+            # TODO: Batch-load claims/bills upfront instead of per-row queries
             bill = db.query(Bill).filter(Bill.bill_id == bill_id).first()
             if bill and bill.title:
                 bill_label = bill.title

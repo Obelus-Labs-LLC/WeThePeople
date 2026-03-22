@@ -69,7 +69,7 @@ def compute_status_bucket(bill_actions: List[BillAction]) -> Tuple[str, str]:
     if passed_house_action and passed_senate_action:
         later_action = (
             passed_senate_action
-            if passed_senate_action[1] > passed_house_action[1]
+            if passed_senate_action[1] and passed_house_action[1] and passed_senate_action[1] > passed_house_action[1]
             else passed_house_action
         )
         snippet = later_action[0][:80] + "..." if len(later_action[0]) > 80 else later_action[0]
@@ -146,8 +146,8 @@ def normalize_bill_timeline(db: Session, *, bill_id: str) -> Dict[str, Any]:
     seen: Dict[str, int] = {}
 
     # Work oldest->newest so the "keep" decision is stable.
-    for a in sorted(actions, key=lambda x: (x.action_date, x.id)):
-        date_str = a.action_date.strftime("%Y-%m-%d")
+    for a in sorted(actions, key=lambda x: (x.action_date or datetime.min, x.id)):
+        date_str = a.action_date.strftime("%Y-%m-%d") if a.action_date else None
         computed = compute_action_dedupe_hash(bill_id, date_str, a.action_text or "")
 
         if not a.dedupe_hash:
@@ -182,6 +182,7 @@ def normalize_bill_timeline(db: Session, *, bill_id: str) -> Dict[str, Any]:
         bill.status_bucket = status_bucket
         bill.status_reason = status_reason
 
+    # NOTE: Commits transaction. Caller should not wrap this in a larger transaction.
     db.commit()
 
     return {

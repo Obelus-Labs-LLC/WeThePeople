@@ -49,19 +49,6 @@ class ServerError(HTTPError):
     pass
 
 
-def _should_retry(exception: Exception) -> bool:
-    """Determine if exception is retryable."""
-    if isinstance(exception, (RateLimitError, ServerError)):
-        return True
-    if isinstance(exception, AuthError):
-        return False  # Fail fast on auth errors
-    if isinstance(exception, requests.exceptions.Timeout):
-        return True
-    if isinstance(exception, requests.exceptions.ConnectionError):
-        return True
-    return False
-
-
 class HTTPClient:
     """
     Resilient HTTP client with retries and caching.
@@ -126,10 +113,8 @@ class HTTPClient:
             
             return response
             
-        except requests.exceptions.Timeout as e:
-            raise HTTPError(0, f"Request timeout: {e}")
-        except requests.exceptions.ConnectionError as e:
-            raise HTTPError(0, f"Connection error: {e}")
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            raise  # Let tenacity retry these directly
     
     def get(
         self,
