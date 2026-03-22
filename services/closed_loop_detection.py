@@ -8,17 +8,24 @@ Uses a SQL-first approach: pre-compute donation pairs and committee-bill links,
 then join in Python to find closed loops efficiently.
 
 Performance safeguards:
-- Donation pairs capped at 500, sorted by amount desc
-- Bill refs filtered by year and capped at 5000
+- Donation pairs capped at 200, sorted by amount desc
+- Bill refs filtered by year and capped at 2000
 - Lobbying IN clauses batched at 100
 - Assembly loop early-terminates at limit * 3
-- 25-second timeout returns partial results
+- 8-second timeout returns partial results
+- In-memory cache (5 min TTL) for repeated requests
 """
 
 import time
-from typing import Dict, Any, List, Optional
+import hashlib
+import json
+from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy import func, text, desc
 from sqlalchemy.orm import Session
+
+# Simple in-memory cache: key -> (timestamp, result)
+_cache: Dict[str, Tuple[float, Dict]] = {}
+_CACHE_TTL = 300  # 5 minutes
 
 from models.database import (
     TrackedMember, Bill, BillAction, CompanyDonation,
@@ -62,7 +69,7 @@ for issue, policies in ISSUE_TO_POLICY.items():
         POLICY_TO_ISSUES.setdefault(p, set()).add(issue)
 
 # Timeout in seconds for the entire function
-_TIMEOUT_SECONDS = 25
+_TIMEOUT_SECONDS = 8
 
 
 def _batched_in_query(db, query_fn, ids, batch_size=100):
@@ -88,7 +95,18 @@ def find_closed_loops(
     """
     Find closed-loop influence chains using a SQL-first approach.
     """
-    start_time = time.monotonic()
+    # Check cache first
+    cache_key = hashlib.md5(json.dumps({
+        "et": entity_type, "eid": entity_id, "pid": person_id,
+        "md": min_donation, "yf": year_from, "yt": year_to, "l": limit
+    }, sort_keys=True).encode()).hexdigest()
+    now = time.monotonic()
+    if cache_key in _cache:
+        cached_time, cached_result = _cache[cache_key]
+        if now - cached_time < _CACHE_TTL:
+            return cached_result
+
+    start_time = now
     is_partial = False
 
     def _check_timeout():
@@ -123,7 +141,7 @@ def find_closed_loops(
     if person_id:
         donation_q = donation_q.filter(CompanyDonation.person_id == person_id)
 
-    donation_pairs = donation_q.order_by(desc("total_amount")).limit(500).all()
+    donation_pairs = donation_q.order_by(desc("total_amount")).limit(200).all()
     if not donation_pairs:
         return {"closed_loops": [], "stats": _empty_stats()}
 
@@ -214,7 +232,7 @@ def find_closed_loops(
             BillAction.action_date >= f"{year_from}-01-01"
         )
 
-    bill_refs = bill_refs_q.limit(5000).all()
+    bill_refs = bill_refs_q.limit(2000).all()
 
     if _check_timeout():
         return {"closed_loops": [], "stats": {**_empty_stats(), "partial": True}}
@@ -409,10 +427,13 @@ def find_closed_loops(
     if is_partial:
         stats["partial"] = True
 
-    return {
+    result = {
         "closed_loops": loops,
         "stats": stats,
     }
+    # Cache the result
+    _cache[cache_key] = (time.monotonic(), result)
+    return result
 
 
 def _empty_stats():
