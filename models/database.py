@@ -93,92 +93,6 @@ class Action(Base):
     # Relationships
     source = relationship("SourceDocument", backref="actions")
 
-class BronzeDocument(Base):
-    """
-    Bronze Layer: Raw fetched documents before extraction.
-    Stores original HTML/text for replay and audit trail.
-    """
-    __tablename__ = "bronze_documents"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    person_id = Column(String, nullable=False, index=True)
-    source_url = Column(Text, nullable=False)
-    fetched_at = Column(DateTime(timezone=True), nullable=False)
-    
-    # Content storage
-    content_type = Column(String, nullable=True)  # 'html', 'text', 'json'
-    raw_text = Column(Text, nullable=True)
-    raw_html = Column(Text, nullable=True)
-    
-    # Deduplication: MD5 hash of content
-    fetch_hash = Column(String, nullable=False, index=True)
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class SilverClaim(Base):
-    """
-    Silver Layer: normalized, deduplicated claim records.
-
-    Canonical intent/policy fields are derived from existing Claim + Evaluation/Action
-    without replacing the Bronze->Claim pipeline.
-    """
-    __tablename__ = "silver_claims"
-
-    __table_args__ = (
-        UniqueConstraint(
-            "person_id",
-            "source_url",
-            "normalized_text",
-            name="uq_silver_claims_person_url_text",
-        ),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-
-    # Linkage back to Bronze when available
-    bronze_id = Column(Integer, ForeignKey("bronze_documents.id"), nullable=True, index=True)
-
-    person_id = Column(String, nullable=False, index=True)
-    normalized_text = Column(Text, nullable=False)
-    intent_type = Column(String, nullable=True)
-    policy_area = Column(String, nullable=True)
-    source_url = Column(Text, nullable=False)
-    published_at = Column(Date, nullable=True, index=True)
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-
-class SilverAction(Base):
-    """
-    Silver Layer: normalized, deduplicated bill action timeline.
-
-    Built from BillAction/Bill to provide a canonical, query-friendly action feed.
-    """
-    __tablename__ = "silver_actions"
-
-    __table_args__ = (
-        UniqueConstraint(
-            "bill_id",
-            "action_date",
-            "description",
-            name="uq_silver_actions_bill_date_desc",
-        ),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-
-    bill_id = Column(String, ForeignKey("bills.bill_id"), nullable=False, index=True)
-    action_type = Column(String, nullable=True)
-    chamber = Column(String, nullable=True)
-    canonical_status = Column(String, nullable=True)
-    description = Column(Text, nullable=False)
-    action_date = Column(DateTime, nullable=False)
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-
 class GoldLedgerEntry(Base):
     """Gold Layer: canonical, query-friendly ledger rows.
 
@@ -493,26 +407,6 @@ class PersonBill(Base):
     
     # Relationships
     bill = relationship("Bill", backref="person_links")
-
-
-class IngestCheckpoint(Base):
-    """
-    Checkpoint table for resumable bill ingestion.
-    Tracks pagination progress per member + kind (sponsored/cosponsored).
-    """
-    __tablename__ = "ingest_checkpoints"
-
-    id = Column(Integer, primary_key=True, index=True)
-    person_id = Column(String, index=True, nullable=False)      # 'aoc', 'sanders', etc.
-    kind = Column(String, nullable=False)                        # 'sponsored' or 'cosponsored'
-    offset = Column(Integer, nullable=False, server_default="0") # Next offset to fetch
-    last_page = Column(Integer, nullable=True)                   # Last page number processed
-    completed = Column(Integer, nullable=False, server_default="0")  # SQLite boolean
-    
-    # Audit fields
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    last_success_at = Column(DateTime, nullable=True)
-    last_error = Column(Text, nullable=True)
 
 
 class MemberBillGroundTruth(Base):

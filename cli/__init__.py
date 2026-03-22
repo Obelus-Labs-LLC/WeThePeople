@@ -1,1 +1,0 @@
-"""WeThePeople CLI tools."""
