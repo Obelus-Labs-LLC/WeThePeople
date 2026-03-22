@@ -116,32 +116,36 @@ def find_closed_loops(
             return True
         return False
 
-    # Step 1: Get donation pairs (entity_id, entity_type, person_id) with aggregates
-    # Capped at 500, sorted by total_amount desc for most interesting results first
-    donation_q = db.query(
-        CompanyDonation.entity_id,
-        CompanyDonation.entity_type,
-        CompanyDonation.person_id,
-        func.sum(CompanyDonation.amount).label("total_amount"),
-        func.count(CompanyDonation.id).label("donation_count"),
-        func.max(CompanyDonation.donation_date).label("latest_date"),
-    ).filter(
-        CompanyDonation.person_id.isnot(None),
-    ).group_by(
-        CompanyDonation.entity_id,
-        CompanyDonation.entity_type,
-        CompanyDonation.person_id,
-    )
-    if min_donation > 0:
-        donation_q = donation_q.having(func.sum(CompanyDonation.amount) >= min_donation)
+    # Step 1: Get donation pairs using raw SQL for speed
+    # ORM GROUP BY on the full donations table is too slow (~10s); raw SQL is ~1-2s
+    sql_filters = ["person_id IS NOT NULL"]
+    sql_params = {}
     if entity_type:
-        donation_q = donation_q.filter(CompanyDonation.entity_type == entity_type)
+        sql_filters.append("entity_type = :entity_type")
+        sql_params["entity_type"] = entity_type
     if entity_id:
-        donation_q = donation_q.filter(CompanyDonation.entity_id == entity_id)
+        sql_filters.append("entity_id = :entity_id")
+        sql_params["entity_id"] = entity_id
     if person_id:
-        donation_q = donation_q.filter(CompanyDonation.person_id == person_id)
+        sql_filters.append("person_id = :person_id")
+        sql_params["person_id"] = person_id
 
-    donation_pairs = donation_q.order_by(desc("total_amount")).limit(200).all()
+    where_clause = " AND ".join(sql_filters)
+    having_clause = f"HAVING total_amount >= {float(min_donation)}" if min_donation > 0 else ""
+
+    raw_sql = text(f"""
+        SELECT entity_id, entity_type, person_id,
+               SUM(amount) as total_amount,
+               COUNT(id) as donation_count,
+               MAX(donation_date) as latest_date
+        FROM company_donations
+        WHERE {where_clause}
+        GROUP BY entity_id, entity_type, person_id
+        {having_clause}
+        ORDER BY total_amount DESC
+        LIMIT 100
+    """)
+    donation_pairs = db.execute(raw_sql, sql_params).fetchall()
     if not donation_pairs:
         return {"closed_loops": [], "stats": _empty_stats()}
 
