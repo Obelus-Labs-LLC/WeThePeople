@@ -194,6 +194,15 @@ JOB_REGISTRY: List[JobDef] = [
         description="FEC PAC donation data",
     ),
 
+    # ── Every 6 hours — Twitter Bot ──────────────────────────────
+    JobDef(
+        name="twitter_bot",
+        script="jobs/twitter_bot.py",
+        interval_hours=6,
+        timeout_sec=120,
+        description="Post automated tweet to @WTPForUs (4x/day max)",
+    ),
+
     # ── Monthly (720h) ───────────────────────────────────────────
     JobDef(
         name="sync_state_data",
