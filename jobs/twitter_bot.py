@@ -106,10 +106,14 @@ def _fmt_money(n: float) -> str:
 
 
 def generate_data_tweet() -> tuple:
-    """Pull real data from the API and generate a 'Today in Influence' tweet."""
+    """Pull real data and generate a punchy, name-and-dollar tweet.
+
+    Strategy: Post insight as native text (no link), then reply with link.
+    Links in main tweet get 30-50% reach penalty on X.
+    """
     options = []
 
-    # Try: top lobbying
+    # Try: top lobbying — name names
     data = api_get("/influence/top-lobbying", {"limit": 10})
     items = data if isinstance(data, list) else data.get("items", [])
     if items:
@@ -117,12 +121,13 @@ def generate_data_tweet() -> tuple:
         name = item.get("name", "A company")
         total = item.get("total_income", 0) or item.get("total", 0)
         if total > 0:
-            options.append(
-                f"{name} spent {_fmt_money(total)} lobbying Congress. "
-                f"Wonder what they want. {SITE}/influence"
-            )
+            options.append((
+                f"{name} spent {_fmt_money(total)} lobbying Congress.\n\n"
+                f"Wonder what they asked for.",
+                f"{SITE}/influence"
+            ))
 
-    # Try: top contracts
+    # Try: top contracts — taxpayer angle
     data = api_get("/influence/top-contracts", {"limit": 10})
     items = data if isinstance(data, list) else data.get("items", [])
     if items:
@@ -130,12 +135,13 @@ def generate_data_tweet() -> tuple:
         name = item.get("name", "A company")
         total = item.get("total_value", 0) or item.get("total", 0)
         if total > 0:
-            options.append(
-                f"{name} landed {_fmt_money(total)} in government contracts. "
-                f"Your tax dollars at work. {SITE}/influence"
-            )
+            options.append((
+                f"{name} received {_fmt_money(total)} in government contracts.\n\n"
+                f"Your tax dollars. Their bottom line.",
+                f"{SITE}/influence"
+            ))
 
-    # Try: recent congressional trades
+    # Try: congressional trades — irony/conflict angle
     data = api_get("/congressional-trades", {"limit": 20})
     trades = data.get("trades", data.get("items", []))
     if trades:
@@ -143,81 +149,89 @@ def generate_data_tweet() -> tuple:
         person = trade.get("person_name", trade.get("politician", "A member of Congress"))
         ticker = trade.get("ticker", "???")
         tx_type = (trade.get("transaction_type", "") or "traded").lower()
-        options.append(
-            f"{person} just {tx_type} {ticker} stock. "
-            f"Check the full trade log. {SITE}/politics/trades"
-        )
+        amount = trade.get("amount", "")
+        amount_str = f" ({amount})" if amount and amount != "N/A" else ""
+        options.append((
+            f"{person} {tx_type} ${ticker}{amount_str}.\n\n"
+            f"Disclosed days later. As required by law. Barely.",
+            f"{SITE}/politics/trades"
+        ))
 
-    # Try: influence stats for a big number
+    # Try: influence stats — big numbers
     stats = api_get("/influence/stats")
     if stats:
         total_lobbying = stats.get("total_lobbying_filings", 0)
         total_contracts = stats.get("total_contracts", 0)
         total_trades = stats.get("total_trades", 0)
         if total_lobbying > 1000:
-            options.append(
-                f"We're tracking {total_lobbying:,} lobbying filings, "
-                f"{total_contracts:,} government contracts, and {total_trades:,} "
-                f"congressional stock trades. All free. {SITE}"
-            )
+            options.append((
+                f"{total_lobbying:,} lobbying filings.\n"
+                f"{total_contracts:,} government contracts.\n"
+                f"{total_trades:,} stock trades by Congress.\n\n"
+                f"All searchable. All free.",
+                SITE
+            ))
 
     if not options:
         return None, "data"
 
-    tweet = random.choice(options)
-    return tweet, "data"
+    tweet_text, link = random.choice(options)
+    return (tweet_text, link), "data"
 
 
 def generate_product_tweet() -> tuple:
-    """Generate a 'Did You Know?' product awareness tweet."""
+    """Generate a punchy product awareness tweet. Link goes in reply."""
     templates = [
-        f"Your senator bought pharma stocks while sitting on the Health Committee. We track all the trades. {SITE}/politics/trades",
-        f"One search. Every lobbying dollar, every contract, every enforcement action. Six sectors. All free. {SITE}",
-        f"We cross-reference congressional trades with committee assignments. The overlap is... something. {SITE}/politics/trades",
-        f"Want to know who's lobbying your state's politicians? We mapped it. {SITE}/influence/map",
-        f"6 sectors. 26 data sources. 600K+ records. No paywall. {SITE}",
-        f"Politicians write the rules. Corporations fund the politicians. We track both sides. {SITE}",
-        f"Every government contract. Every lobbying filing. Every stock trade by Congress. One platform. {SITE}",
-        f"Think your representative works for you? Check who's actually paying them. {SITE}/politics",
-        f"We built what Congress hoped nobody would build — a searchable record of who pays them. {SITE}",
-        f"The influence network graph shows you exactly how money flows from corporations to politicians. {SITE}/influence/network",
-        f"Track FDA enforcement, SEC filings, and lobbying spend for every major health company. All connected. {SITE}/health",
-        f"Boeing, Lockheed, Raytheon — see which defense contractors are lobbying the hardest. {SITE}/transportation",
-        f"CFPB complaints, insider trades, lobbying filings — the full picture on every major bank. {SITE}/finance",
-        f"Follow the money from industry to politics. That's literally all we do. {SITE}",
-        f"Open source. Free forever. Because transparency shouldn't have a paywall. {SITE}",
+        ("Your senator bought pharma stocks while sitting on the Health Committee.\n\nWe track every trade.", f"{SITE}/politics/trades"),
+        ("One search. Every lobbying dollar, every contract, every enforcement action.\n\nSix sectors. Open source.", SITE),
+        ("We cross-reference congressional trades with committee assignments.\n\nThe overlap is... something.", f"{SITE}/politics/trades"),
+        ("Want to know who's lobbying your state's politicians?\n\nWe mapped it.", f"{SITE}/influence/map"),
+        ("6 sectors. 26 data sources. 600K+ records. No paywall.", SITE),
+        ("Politicians write the rules. Corporations fund the politicians.\n\nWe track both sides.", SITE),
+        ("Every government contract. Every lobbying filing. Every stock trade by Congress.\n\nOne platform.", SITE),
+        ("Think your representative works for you?\n\nCheck who's actually paying them.", f"{SITE}/politics"),
+        ("We built what Congress hoped nobody would build — a searchable record of who pays them.", SITE),
+        ("The influence network shows you exactly how money flows from corporations to politicians.", f"{SITE}/influence/network"),
+        ("FDA enforcement. SEC filings. Lobbying spend. All connected for every major health company.", f"{SITE}/health"),
+        ("CFPB complaints, insider trades, lobbying filings — the full picture on every major bank.", f"{SITE}/finance"),
+        ("Follow the money from industry to politics.\n\nThat's literally all we do.", SITE),
+        ("Open source. Because transparency shouldn't have a paywall.", SITE),
+        ("\"I don't take corporate money.\"\n\nCool. We checked the FEC filings.\n\nYou do.", f"{SITE}/verify"),
     ]
 
-    tweet = random.choice(templates)
-    return tweet, "product"
+    tweet_text, link = random.choice(templates)
+    return (tweet_text, link), "product"
 
 
 def generate_verify_tweet() -> tuple:
-    """Generate a claim verification promo tweet."""
+    """Generate a claim verification promo tweet. Link in reply."""
     templates = [
-        f"Politicians talk. We check receipts. {SITE}/verify",
-        f"They said they'd never take corporate money. The FEC data says otherwise. {SITE}/verify",
-        f"Submit any political claim. We'll match it against the actual record — votes, trades, lobbying, all of it. {SITE}/verify",
-        f"\"I've always fought for the working class.\" Cool. Let's see the lobbying disclosures. {SITE}/verify",
-        f"Campaign promises vs. legislative record. We automate that comparison. {SITE}/verify",
+        ("Politicians talk. We check receipts.", f"{SITE}/verify"),
+        ("They said they'd never take corporate money.\n\nThe FEC data says otherwise.", f"{SITE}/verify"),
+        ("Submit any political claim. We match it against votes, trades, lobbying, contracts, and donations.\n\nAutomatically.", f"{SITE}/verify"),
+        ("\"I've always fought for the working class.\"\n\nCool. Let's see the lobbying disclosures.", f"{SITE}/verify"),
+        ("Campaign promises vs. legislative record.\n\nWe automate that comparison.", f"{SITE}/verify"),
+        ("9 data sources. One verdict.\n\nStrong. Moderate. Weak. Unverified.\n\nEvery claim, fact-checked against the record.", f"{SITE}/verify"),
     ]
 
-    tweet = random.choice(templates)
-    return tweet, "verify"
+    tweet_text, link = random.choice(templates)
+    return (tweet_text, link), "verify"
 
 
 def generate_engagement_tweet() -> tuple:
-    """Generate an engagement tweet (poll-style, question, etc.)."""
+    """Generate an engagement tweet. No link — pure engagement."""
     templates = [
-        "Guess which sector spent the most on lobbying this year. Wrong answers only.",
+        "Guess which sector spent the most on lobbying this year.\n\nWrong answers only.",
         "Name a politician. We'll show you who's paying them.",
         "What company should we investigate next? Drop a name.",
         "Which surprises you more — the lobbying spend or the stock trades?",
         "If you could make one thing about Congress transparent, what would it be?",
+        "Your representative made a stock trade last week.\n\nDid you know? Should you?",
+        "What's wilder — how much pharma spends lobbying or how many FDA enforcement actions they dodge?",
     ]
 
-    tweet = random.choice(templates)
-    return tweet, "engagement"
+    tweet_text = random.choice(templates)
+    return (tweet_text, None), "engagement"
 
 
 def generate_thread() -> tuple:
@@ -266,7 +280,12 @@ def pick_category() -> str:
 # ── Main ──
 
 def run(category: str = None, dry_run: bool = False):
-    """Generate and post a tweet."""
+    """Generate and post a tweet. Links go in a reply for better reach.
+
+    X penalizes tweets with external links by 30-50% reach. Strategy:
+    post the insight as native text, then immediately reply with the link.
+    Replying to own tweets also boosts algorithm score (+75 weight).
+    """
     session = SessionLocal()
 
     # Rate limit: max 4 tweets/day
@@ -280,7 +299,7 @@ def run(category: str = None, dry_run: bool = False):
     cat = category or pick_category()
     generator, _ = CATEGORIES.get(cat, (generate_product_tweet, 0))
 
-    # Generate content
+    # Generate content — all generators return ((text, link), category)
     result, actual_cat = generator()
     if result is None:
         log.warning("Category '%s' returned no content. Falling back to product.", cat)
@@ -289,6 +308,12 @@ def run(category: str = None, dry_run: bool = False):
     # Handle thread vs single tweet
     is_thread = isinstance(result, list)
 
+    if is_thread:
+        tweet_text = result[0]
+        link = None
+    else:
+        tweet_text, link = result
+
     if dry_run:
         if is_thread:
             print(f"\n[DRY RUN] Thread ({actual_cat}):")
@@ -296,20 +321,26 @@ def run(category: str = None, dry_run: bool = False):
                 print(f"  [{i+1}] {t}")
         else:
             print(f"\n[DRY RUN] Tweet ({actual_cat}):")
-            print(f"  {result}")
+            print(f"  {tweet_text}")
+            if link:
+                print(f"  [REPLY] {link}")
         session.close()
         return
 
     # Check for duplicates
-    check_text = result[0] if is_thread else result
+    check_text = result[0] if is_thread else tweet_text
     if already_posted(session, check_text):
         log.info("Already posted similar content. Regenerating...")
-        # Try once more
         result, actual_cat = generator()
         if result is None:
             result, actual_cat = generate_product_tweet()
         is_thread = isinstance(result, list)
-        check_text = result[0] if is_thread else result
+        if is_thread:
+            tweet_text = result[0]
+            link = None
+        else:
+            tweet_text, link = result
+        check_text = result[0] if is_thread else tweet_text
         if already_posted(session, check_text):
             log.warning("Still a duplicate. Skipping this cycle.")
             session.close()
@@ -322,10 +353,15 @@ def run(category: str = None, dry_run: bool = False):
             log_tweet(session, ids[0], actual_cat, result[0])
             log.info("Thread posted: %d tweets", len(ids))
     else:
-        tweet_id = post_tweet(result)
+        tweet_id = post_tweet(tweet_text)
         if tweet_id:
-            log_tweet(session, tweet_id, actual_cat, result)
+            log_tweet(session, tweet_id, actual_cat, tweet_text)
             log.info("Tweet posted: %s", tweet_id)
+            # Reply with link for better reach (links in main tweet = -50% reach)
+            if link:
+                reply_id = post_tweet(link, reply_to=tweet_id)
+                if reply_id:
+                    log.info("Link reply posted: %s", reply_id)
 
     session.close()
 

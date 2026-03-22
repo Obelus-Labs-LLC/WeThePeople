@@ -71,7 +71,7 @@ export const SECTORS: Sector[] = [
     icon: "\u{1F69A}",
     gradient: "from-blue-500 to-slate-700",
     route: "/transportation",
-    available: true,
+    available: false,
   },
   // Future sectors - not yet implemented
   {
