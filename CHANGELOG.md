@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Major Features)
+- **Claim Verification pipeline** — top-level `/verify` section. Submit text or URLs, Claude extracts claims, matches against 9 data sources (bills, votes, trades, lobbying, contracts, enforcement, donations, committees, SEC filings), scores as Strong/Moderate/Weak/Unverified. Free tier: 5/day. Enterprise: unlimited.
+- **Transportation sector** — 6th sector with 80 seed companies (airlines, logistics, auto, rail, aerospace, maritime). Full stack: models, router, sync jobs, 4 web pages, 4 mobile screens, blue (#3B82F6) accent.
+- Verify web pages: Dashboard, Submit, Result, Entity, Methodology
+- Verify components: TierBadge, VerificationCard, ClaimSubmitForm, EvidenceList
+- Verify mobile screens: Dashboard, Submit, Result, Entity
+- Transportation web pages: Dashboard, Companies, Profile, Compare
+- Transportation mobile screens: Dashboard, Companies, Profile, Compare
+- Enterprise auth tier in `services/auth.py` with rate limiting
+- Homepage "Verify Claims" CTA card with emerald accent
+- Transportation tab in mobile bottom navigation
+
+### Removed (V1 Cleanup)
+- ~150 V1 dead files deleted (~20,000 lines): scripts/ (68), tests/ (62), cli/ (5), 13 V1 jobs, 3 V1 utils
+- Deprecated models: BronzeDocument, SilverClaim, SilverAction, IngestCheckpoint
+- V1 services: matching/, power_map/, ops/, coverage.py, change_detection.py
+- V1 endpoints: /ops/coverage, /powermap/person/{id}
+
+### Changed
+- Matching engine ported from `services/matching/core.py` to `services/claims/match.py` with 8 new V2 matchers
+- `routers/politics.py` imports updated to use `services.claims.match`
+
 ### Fixed (Services)
 - `bill_timeline.py` crash on null `action_date` in strftime and date comparisons
 - `matching/core.py` loading 5000 rows into memory (now uses SQL-level bill filter)
