@@ -13,6 +13,9 @@ from models.transportation_models import (
     TransportationGovernmentContract,
     TransportationLobbyingRecord,
     TransportationEnforcement,
+    NHTSARecall,
+    NHTSAComplaint,
+    FuelEconomyVehicle,
 )
 from models.market_models import StockFundamentals
 from models.database import CompanyDonation
@@ -35,6 +38,11 @@ def get_transportation_dashboard_stats():
         total_contract_value = db.query(func.sum(TransportationGovernmentContract.award_amount)).scalar() or 0
         total_penalties = db.query(func.sum(TransportationEnforcement.penalty_amount)).scalar() or 0
 
+        # NHTSA + Fuel Economy totals
+        total_recalls = db.query(func.count(NHTSARecall.id)).scalar() or 0
+        total_complaints = db.query(func.count(NHTSAComplaint.id)).scalar() or 0
+        total_fuel_economy_vehicles = db.query(func.count(FuelEconomyVehicle.id)).scalar() or 0
+
         by_sector = {}
         rows = db.query(TrackedTransportationCompany.sector_type, func.count()).filter(
             TrackedTransportationCompany.is_active == 1
@@ -48,6 +56,8 @@ def get_transportation_dashboard_stats():
             "total_enforcement": total_enforcement,
             "total_lobbying": total_lobbying, "total_lobbying_spend": total_lobbying_spend,
             "total_contract_value": total_contract_value, "total_penalties": total_penalties,
+            "total_recalls": total_recalls, "total_complaints": total_complaints,
+            "total_fuel_economy_vehicles": total_fuel_economy_vehicles,
             "by_sector": by_sector,
         }
     finally:
@@ -484,6 +494,113 @@ def get_transportation_company_donations(
                 "donation_date": str(d.donation_date) if d.donation_date else None,
                 "source_url": d.source_url,
             } for d in donations],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/recalls")
+def get_transportation_company_recalls(
+    company_id: str, model_year: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """NHTSA recall campaigns for a transportation company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTransportationCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Transportation company not found")
+        query = db.query(NHTSARecall).filter_by(company_id=company_id)
+        if model_year:
+            query = query.filter(NHTSARecall.model_year == model_year)
+        total = query.count()
+        recalls = query.order_by(desc(NHTSARecall.recall_date)).offset(offset).limit(limit).all()
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "recalls": [{
+                "id": r.id, "recall_number": r.recall_number, "make": r.make,
+                "model": r.model, "model_year": r.model_year,
+                "recall_date": r.recall_date, "component": r.component,
+                "summary": r.summary, "consequence": r.consequence,
+                "remedy": r.remedy, "manufacturer": r.manufacturer,
+            } for r in recalls],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/complaints")
+def get_transportation_company_complaints(
+    company_id: str, model_year: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """NHTSA complaint records for a transportation company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTransportationCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Transportation company not found")
+        query = db.query(NHTSAComplaint).filter_by(company_id=company_id)
+        if model_year:
+            query = query.filter(NHTSAComplaint.model_year == model_year)
+        total = query.count()
+        complaints = query.order_by(desc(NHTSAComplaint.date_of_complaint)).offset(offset).limit(limit).all()
+
+        # Aggregate safety stats
+        total_injuries = db.query(func.sum(NHTSAComplaint.injuries)).filter_by(company_id=company_id).scalar() or 0
+        total_deaths = db.query(func.sum(NHTSAComplaint.deaths)).filter_by(company_id=company_id).scalar() or 0
+        crash_count = db.query(NHTSAComplaint).filter_by(company_id=company_id, crash=True).count()
+        fire_count = db.query(NHTSAComplaint).filter_by(company_id=company_id, fire=True).count()
+
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "total_injuries": total_injuries, "total_deaths": total_deaths,
+            "crash_count": crash_count, "fire_count": fire_count,
+            "complaints": [{
+                "id": c.id, "odi_number": c.odi_number, "make": c.make,
+                "model": c.model, "model_year": c.model_year,
+                "date_of_complaint": c.date_of_complaint, "crash": c.crash,
+                "fire": c.fire, "injuries": c.injuries, "deaths": c.deaths,
+                "component": c.component, "summary": c.summary,
+            } for c in complaints],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/fuel-economy")
+def get_transportation_company_fuel_economy(
+    company_id: str, year: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """EPA/DOE fuel economy data for a transportation company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTransportationCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Transportation company not found")
+        query = db.query(FuelEconomyVehicle).filter_by(company_id=company_id)
+        if year:
+            query = query.filter(FuelEconomyVehicle.year == year)
+        total = query.count()
+        vehicles = query.order_by(desc(FuelEconomyVehicle.year), FuelEconomyVehicle.model).offset(offset).limit(limit).all()
+
+        # Aggregate fuel economy stats
+        avg_mpg = db.query(func.avg(FuelEconomyVehicle.mpg_combined)).filter_by(company_id=company_id).scalar()
+        avg_co2 = db.query(func.avg(FuelEconomyVehicle.co2_tailpipe)).filter_by(company_id=company_id).scalar()
+
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "avg_mpg_combined": round(float(avg_mpg), 1) if avg_mpg else None,
+            "avg_co2_tailpipe": round(float(avg_co2), 1) if avg_co2 else None,
+            "vehicles": [{
+                "id": v.id, "vehicle_id": v.vehicle_id, "year": v.year,
+                "make": v.make, "model": v.model,
+                "mpg_city": v.mpg_city, "mpg_highway": v.mpg_highway,
+                "mpg_combined": v.mpg_combined, "co2_tailpipe": v.co2_tailpipe,
+                "fuel_type": v.fuel_type, "vehicle_class": v.vehicle_class,
+                "ghg_score": v.ghg_score, "smog_rating": v.smog_rating,
+            } for v in vehicles],
         }
     finally:
         db.close()
