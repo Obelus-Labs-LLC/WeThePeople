@@ -203,49 +203,56 @@ export default function PersonProfilePage() {
   // ── Load basic person info ──
   useEffect(() => {
     if (!person_id) return;
+    let cancelled = false;
     apiClient
       .getPeople({ q: person_id, limit: 1 })
       .then((res) => {
+        if (cancelled) return;
         const match = res.people.find((p) => p.person_id === person_id);
         if (match) setPerson(match);
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [person_id]);
 
   // ── Load overview data on mount ──
   useEffect(() => {
     if (!person_id) return;
+    let cancelled = false;
     setOverviewLoading(true);
 
     const profileP = apiClient
       .getPersonProfile(person_id)
       .then((r) => {
+        if (cancelled) return;
         setProfile(r);
         setProfileError(false);
       })
-      .catch(() => setProfileError(true));
+      .catch(() => { if (!cancelled) setProfileError(true); });
 
     const perfP = apiClient
       .getPersonPerformance(person_id)
       .then((r) => {
+        if (cancelled) return;
         setPerformance(r);
         setPerformanceError(false);
       })
-      .catch(() => setPerformanceError(true));
+      .catch(() => { if (!cancelled) setPerformanceError(true); });
 
-    const statsP = apiClient.getPersonStats(person_id).then(setStats).catch(() => {});
+    const statsP = apiClient.getPersonStats(person_id).then((r) => { if (!cancelled) setStats(r); }).catch(() => {});
 
-    const graphP = apiClient.getPersonGraph(person_id, 5).then(setGraph).catch(() => {});
+    const graphP = apiClient.getPersonGraph(person_id, 5).then((r) => { if (!cancelled) setGraph(r); }).catch(() => {});
 
     const committeesP = apiClient
       .getPersonCommittees(person_id)
-      .then((res) => setCommittees(res.committees || []))
+      .then((res) => { if (!cancelled) setCommittees(res.committees || []); })
       .catch(() => {});
 
     // Eagerly load activity + votes for stat pills in header
     const actP = apiClient
       .getPersonActivity(person_id, { limit: 50 })
       .then((res) => {
+        if (cancelled) return;
         setActivity(res);
         setActivityEntries(res.entries || []);
         markLoaded('legislation');
@@ -255,13 +262,15 @@ export default function PersonProfilePage() {
     const votesP = apiClient
       .getPersonVotes(person_id, { limit: 50 })
       .then((res) => {
+        if (cancelled) return;
         setVotesData(res);
         setVoteEntries(res.votes || []);
         markLoaded('votes');
       })
       .catch(() => {});
 
-    Promise.all([profileP, perfP, statsP, graphP, committeesP, actP, votesP]).finally(() => setOverviewLoading(false));
+    Promise.all([profileP, perfP, statsP, graphP, committeesP, actP, votesP]).finally(() => { if (!cancelled) setOverviewLoading(false); });
+    return () => { cancelled = true; };
   }, [person_id]);
 
   // ── Lazy load: legislation ──

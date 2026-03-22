@@ -137,7 +137,7 @@ def fetch_contracts(
                 "start_date": start_date,
                 "end_date": end_date,
                 "contract_type": contract_type,
-                "dedupe_hash": _compute_hash(award_id or description[:50]),
+                "dedupe_hash": _compute_hash(award_id or (description or "")[:50]),
             })
 
         # Stop if we got fewer than a full page (no more results)

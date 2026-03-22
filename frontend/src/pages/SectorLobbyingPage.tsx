@@ -142,6 +142,7 @@ export default function SectorLobbyingPage() {
 
     async function loadData() {
       if (!config.aggregateEndpoint) {
+        setError('No lobbying data available for this sector.');
         setLoading(false);
         return;
       }

@@ -66,7 +66,7 @@ const columns = [
           : 'bg-white/10 text-white/50'
         }`}>
           {v === 'purchase' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-          {v.toUpperCase()}
+          {(v || '').toUpperCase()}
         </span>
       );
     },
@@ -165,6 +165,7 @@ export default function CongressionalTradesPage() {
 
   useEffect(() => {
     setLoading(true);
+    // TODO: Implement server-side pagination to reduce initial payload
     const params = new URLSearchParams({ limit: '10000' });
     if (filter !== 'all') params.set('transaction_type', filter);
     if (search) params.set('ticker', search.toUpperCase());
@@ -354,7 +355,7 @@ export default function CongressionalTradesPage() {
                 {/* Spacer for virtual scroll */}
                 {rowVirtualizer.getVirtualItems().length > 0 && (
                   <tr>
-                    <td style={{ height: rowVirtualizer.getVirtualItems()[0]?.start ?? 0 }} />
+                    <td colSpan={columns.length} style={{ height: rowVirtualizer.getVirtualItems()[0]?.start ?? 0 }} />
                   </tr>
                 )}
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -383,7 +384,7 @@ export default function CongressionalTradesPage() {
                 {/* Bottom spacer */}
                 {rowVirtualizer.getVirtualItems().length > 0 && (
                   <tr>
-                    <td style={{
+                    <td colSpan={columns.length} style={{
                       height: rowVirtualizer.getTotalSize() -
                         (rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1]?.end ?? 0),
                     }} />

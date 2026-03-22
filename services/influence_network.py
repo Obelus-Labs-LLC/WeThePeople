@@ -60,10 +60,21 @@ def _amount_range_to_float(amount_range: Optional[str]) -> float:
     if not amount_range:
         return 0.0
     try:
-        cleaned = amount_range.replace("$", "").replace(",", "")
+        cleaned = amount_range.replace("$", "").replace(",", "").strip()
+        # Handle "Over $50,000,000" or "Under $1,000"
+        lower = cleaned.lower()
+        if lower.startswith("over "):
+            return float(lower[5:].strip())
+        if lower.startswith("under "):
+            return float(lower[6:].strip()) / 2
         parts = cleaned.split("-")
         if len(parts) == 2:
-            lo, hi = float(parts[0].strip()), float(parts[1].strip())
+            lo_str = parts[0].strip()
+            hi_str = parts[1].strip()
+            if not hi_str:
+                # Open-ended range like "$1,001 -"
+                return float(lo_str)
+            lo, hi = float(lo_str), float(hi_str)
             return (lo + hi) / 2
         return float(parts[0].strip())
     except (ValueError, IndexError):
@@ -688,11 +699,12 @@ def build_influence_network(
     nodes_list = sorted(nodes.values(), key=lambda n: n["id"])
     edges_sorted = sorted(edges, key=lambda e: (e["source"], e["target"], e["type"]))
 
-    # Deduplicate edges (same source+target+type)
+    # Deduplicate edges (same source+target+type, normalized so A->B == B->A)
     seen_edges: Set[str] = set()
     unique_edges: List[Dict[str, Any]] = []
     for e in edges_sorted:
-        key = f'{e["source"]}|{e["target"]}|{e["type"]}'
+        s, t, tp = e["source"], e["target"], e["type"]
+        key = f'{min(s,t)}|{max(s,t)}|{tp}'
         if key not in seen_edges:
             seen_edges.add(key)
             unique_edges.append(e)

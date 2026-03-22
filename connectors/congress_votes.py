@@ -6,11 +6,14 @@ Primary source for vote evidence (Phase 2).
 Docs: https://github.com/LibraryOfCongress/api.congress.gov/
 """
 
+import logging
 import os
 import requests
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from models.database import SessionLocal, Vote, MemberVote
+
+logger = logging.getLogger(__name__)
 
 CONGRESS_API_KEY = os.getenv("API_KEY_CONGRESS")
 BASE_URL = "https://api.congress.gov/v3"
@@ -90,7 +93,7 @@ def ingest_vote_with_members(congress: int, chamber: str, roll_number: int, pers
         ).first()
         
         if existing:
-            print(f"Vote {congress}/{chamber}/{roll_number} already exists (id={existing.id})")
+            logger.info("Vote %s/%s/%s already exists (id=%s)", congress, chamber, roll_number, existing.id)
             db.close()
             return existing.id
         
@@ -105,8 +108,8 @@ def ingest_vote_with_members(congress: int, chamber: str, roll_number: int, pers
         if vote_data.get("date"):
             try:
                 vote_date = datetime.fromisoformat(vote_data["date"].replace("Z", "+00:00")).date()
-            except:
-                pass
+            except (ValueError, TypeError):
+                logger.warning("Could not parse vote date: %s", vote_data.get("date"))
         
         # Extract related bill info
         bill_congress = None
@@ -176,11 +179,11 @@ def ingest_vote_with_members(congress: int, chamber: str, roll_number: int, pers
             member_count += 1
         
         db.commit()
-        print(f"✅ Ingested vote {congress}/{chamber}/{roll_number} (id={vote.id}) with {member_count} member votes")
+        logger.info("Ingested vote %s/%s/%s (id=%s) with %d member votes", congress, chamber, roll_number, vote.id, member_count)
         return vote.id
         
     except Exception as e:
-        print(f"❌ Failed to ingest vote {congress}/{chamber}/{roll_number}: {e}")
+        logger.error("Failed to ingest vote %s/%s/%s: %s", congress, chamber, roll_number, e)
         db.rollback()
         return None
     finally:
@@ -217,7 +220,7 @@ def ingest_recent_house_votes(congress: int = 119, limit: int = 50, person_id_ma
 
 if __name__ == "__main__":
     # Test ingestion
-    print("Testing Congress.gov vote connector...")
+    logger.info("Testing Congress.gov vote connector...")
     
     # Example: AOC's bioguide ID is O000172
     # You can add more mappings as needed
@@ -226,4 +229,4 @@ if __name__ == "__main__":
     }
     
     count = ingest_recent_house_votes(congress=119, limit=10, person_id_map=test_map)
-    print(f"\n✅ Ingested {count} votes")
+    logger.info("Ingested %d votes", count)

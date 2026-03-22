@@ -94,6 +94,7 @@ function AdverseEventsTab({ companyId }: { companyId: string }) {
   const [events, setEvents] = useState<AdverseEventItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     getHealthCompanyAdverseEvents(companyId, { limit: 50 })
@@ -101,6 +102,14 @@ function AdverseEventsTab({ companyId }: { companyId: string }) {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [companyId]);
+
+  const handleLoadMore = () => {
+    setLoadingMore(true);
+    getHealthCompanyAdverseEvents(companyId, { limit: 50, offset: events.length })
+      .then((res) => { setEvents((prev) => [...prev, ...(res.adverse_events || [])]); })
+      .catch(console.error)
+      .finally(() => setLoadingMore(false));
+  };
 
   if (loading) return <LoadingSpinner />;
 
@@ -194,6 +203,15 @@ function AdverseEventsTab({ companyId }: { companyId: string }) {
           </div>
         ))
       )}
+      {events.length < total && (
+        <button
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+          className="mt-4 w-full rounded-lg border border-white/10 bg-white/[0.03] py-2.5 text-sm text-white/60 hover:bg-white/[0.06] hover:text-white transition-colors disabled:opacity-50"
+        >
+          {loadingMore ? 'Loading...' : `Load More (${events.length} of ${total.toLocaleString()})`}
+        </button>
+      )}
     </div>
   );
 }
@@ -204,6 +222,7 @@ function RecallsTab({ companyId }: { companyId: string }) {
   const [recalls, setRecalls] = useState<RecallItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     getHealthCompanyRecalls(companyId, { limit: 50 })
@@ -211,6 +230,14 @@ function RecallsTab({ companyId }: { companyId: string }) {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [companyId]);
+
+  const handleLoadMore = () => {
+    setLoadingMore(true);
+    getHealthCompanyRecalls(companyId, { limit: 50, offset: recalls.length })
+      .then((res) => { setRecalls((prev) => [...prev, ...(res.recalls || [])]); })
+      .catch(console.error)
+      .finally(() => setLoadingMore(false));
+  };
 
   if (loading) return <LoadingSpinner />;
 
@@ -285,6 +312,15 @@ function RecallsTab({ companyId }: { companyId: string }) {
           );
         })
       )}
+      {recalls.length < total && (
+        <button
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+          className="mt-4 w-full rounded-lg border border-white/10 bg-white/[0.03] py-2.5 text-sm text-white/60 hover:bg-white/[0.06] hover:text-white transition-colors disabled:opacity-50"
+        >
+          {loadingMore ? 'Loading...' : `Load More (${recalls.length} of ${total.toLocaleString()})`}
+        </button>
+      )}
     </div>
   );
 }
@@ -295,6 +331,7 @@ function TrialsTab({ companyId }: { companyId: string }) {
   const [trials, setTrials] = useState<ClinicalTrialItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     getHealthCompanyTrials(companyId, { limit: 50 })
@@ -302,6 +339,14 @@ function TrialsTab({ companyId }: { companyId: string }) {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [companyId]);
+
+  const handleLoadMore = () => {
+    setLoadingMore(true);
+    getHealthCompanyTrials(companyId, { limit: 50, offset: trials.length })
+      .then((res) => { setTrials((prev) => [...prev, ...(res.trials || [])]); })
+      .catch(console.error)
+      .finally(() => setLoadingMore(false));
+  };
 
   if (loading) return <LoadingSpinner />;
 
@@ -383,6 +428,15 @@ function TrialsTab({ companyId }: { companyId: string }) {
             );
           })}
         </div>
+      )}
+      {trials.length < total && (
+        <button
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+          className="mt-4 w-full rounded-lg border border-white/10 bg-white/[0.03] py-2.5 text-sm text-white/60 hover:bg-white/[0.06] hover:text-white transition-colors disabled:opacity-50"
+        >
+          {loadingMore ? 'Loading...' : `Load More (${trials.length} of ${total.toLocaleString()})`}
+        </button>
       )}
     </div>
   );
@@ -946,10 +1000,12 @@ export default function HealthCompanyProfilePage() {
 
   useEffect(() => {
     if (!companyId) return;
+    let cancelled = false;
     getHealthCompanyDetail(companyId)
-      .then(setCompany)
+      .then((d) => { if (!cancelled) setCompany(d); })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   if (loading || !company) {

@@ -108,7 +108,7 @@ function FilingRow({ filing }: { filing: SECFiling }) {
 
 // ── Tab Types ──
 
-type TabKey = 'overview' | 'lobbying' | 'contracts' | 'enforcement' | 'insider' | 'donations' | 'financials';
+type TabKey = 'overview' | 'lobbying' | 'contracts' | 'enforcement' | 'insider' | 'donations' | 'complaints' | 'financials';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -117,6 +117,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'enforcement', label: 'Enforcement' },
   { key: 'insider', label: 'Insider Trades' },
   { key: 'donations', label: 'Donations' },
+  { key: 'complaints', label: 'Complaints' },
   { key: 'financials', label: 'Financials' },
 ];
 
@@ -180,6 +181,7 @@ export default function InstitutionPage() {
   // Load overview data on mount
   useEffect(() => {
     if (!institution_id) return;
+    let cancelled = false;
     setLoading(true);
     Promise.all([
       getInstitutionDetail(institution_id),
@@ -188,19 +190,21 @@ export default function InstitutionPage() {
       getInstitutionStock(institution_id).catch(() => ({ stock: null })),
     ])
       .then(([d, f, fin, s]) => {
+        if (cancelled) return;
         setDetail(d);
         setFilings(f.filings || []);
         setFinancials(fin.financials || []);
         setStock(s.stock || null);
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [institution_id]);
 
   // Lazy load tab data
   useEffect(() => {
     if (!institution_id) return;
-    if (activeTab === 'financials' && !complaintsLoaded) {
+    if (activeTab === 'complaints' && !complaintsLoaded) {
       Promise.all([
         getInstitutionComplaints(institution_id, { limit: 50 }),
         getInstitutionComplaintSummary(institution_id),
@@ -354,7 +358,6 @@ export default function InstitutionPage() {
                       <MetricItem label="ROE" value={fmtPctRaw(latestFin.roe)} />
                       <MetricItem label="Tier 1 Capital" value={fmtPctRaw(latestFin.tier1_capital_ratio)} />
                       <MetricItem label="Efficiency Ratio" value={fmtPctRaw(latestFin.efficiency_ratio)} />
-                      <MetricItem label="NPL Ratio" value={fmtPctRaw(latestFin.npl_ratio)} />
                       <MetricItem label="Noncurrent Loans" value={fmtPctRaw(latestFin.noncurrent_loan_ratio)} />
                       <MetricItem label="Net Charge-Off" value={fmtPctRaw(latestFin.net_charge_off_ratio)} />
                       {latestFin.report_date && <MetricItem label="Report Date" value={latestFin.report_date} />}
@@ -627,7 +630,85 @@ export default function InstitutionPage() {
             </div>
           )}
 
-          {/* FINANCIALS TAB (collapsed: SEC filings + FDIC + complaints + FRED) */}
+          {/* COMPLAINTS TAB */}
+          {activeTab === 'complaints' && (
+            <div className="h-full overflow-y-auto pr-4 space-y-6">
+              {!complaintsLoaded ? (
+                <div className="flex justify-center py-12">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" />
+                </div>
+              ) : (
+                <>
+                  {/* Summary by product */}
+                  {complaintSummary && (
+                    <div>
+                      <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">CFPB Complaints by Product ({complaintsTotal.toLocaleString()})</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {Object.entries(complaintSummary.by_product || {}).slice(0, 8).map(([product, count]) => (
+                          <div key={product} className="rounded border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-xs text-white/40 mb-1">{product}</p>
+                            <p className="font-mono text-lg text-white">{(count as number).toLocaleString()}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Individual complaints table */}
+                  {complaints.length > 0 && (
+                    <div>
+                      <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">Recent Complaints</h3>
+                      <div className="space-y-2">
+                        {complaints.map((c) => (
+                          <div key={c.complaint_id} className="rounded border border-white/5 bg-white/[0.02] p-3">
+                            <div className="flex items-start justify-between gap-3 mb-1">
+                              <div className="min-w-0 flex-1">
+                                {c.product && <p className="text-sm text-white/70 font-medium">{c.product}</p>}
+                                {c.issue && <p className="text-xs text-white/40 mt-0.5">{c.issue}</p>}
+                              </div>
+                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                {c.date_received && <span className="font-mono text-[10px] text-white/30">{c.date_received}</span>}
+                                {c.company_response && (
+                                  <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${
+                                    c.company_response.toLowerCase().includes('closed') ? 'bg-green-500/10 text-green-400' : 'bg-white/10 text-white/50'
+                                  }`}>
+                                    {c.company_response}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {c.sub_product && <p className="text-xs text-white/25 mt-1">{c.sub_product}</p>}
+                            {c.state && <span className="font-mono text-[10px] text-white/20">{c.state}</span>}
+                          </div>
+                        ))}
+                      </div>
+                      {complaints.length < complaintsTotal && (
+                        <button
+                          onClick={() => {
+                            setComplaintsLoadingMore(true);
+                            getInstitutionComplaints(institution_id!, { limit: 50, offset: complaints.length })
+                              .then((r) => { setComplaints((prev) => [...prev, ...(r.complaints || [])]); })
+                              .catch(console.error)
+                              .finally(() => setComplaintsLoadingMore(false));
+                          }}
+                          disabled={complaintsLoadingMore}
+                          className="mt-4 w-full rounded-lg border border-white/10 bg-white/[0.03] py-2.5 text-sm text-white/60 hover:bg-white/[0.06] hover:text-white transition-colors disabled:opacity-50"
+                        >
+                          {complaintsLoadingMore ? 'Loading...' : `Load More (${complaints.length} of ${complaintsTotal.toLocaleString()})`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {complaints.length === 0 && !complaintSummary && (
+                    <p className="text-center py-12 font-body text-white/30">No CFPB complaints on record.</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* FINANCIALS TAB (SEC filings + FDIC + FRED) */}
           {activeTab === 'financials' && (
             <div className="h-full overflow-y-auto pr-4 space-y-6">
               {/* SEC Filings */}
@@ -656,54 +737,6 @@ export default function InstitutionPage() {
                   </div>
                 )}
               </div>
-
-              {/* Complaints summary */}
-              {complaintSummary && (
-                <div>
-                  <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">CFPB Complaints ({complaintsTotal})</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {Object.entries(complaintSummary.by_product || {}).slice(0, 6).map(([product, count]) => (
-                      <div key={product} className="rounded border border-white/5 bg-white/[0.02] p-3">
-                        <p className="text-xs text-white/40 mb-1">{product}</p>
-                        <p className="font-mono text-lg text-white">{count}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Individual Complaints */}
-              {complaints.length > 0 && (
-                <div>
-                  <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">Recent Complaints</h3>
-                  <div className="space-y-2">
-                    {complaints.slice(0, 20).map((c) => (
-                      <div key={c.complaint_id} className="rounded border border-white/5 bg-white/[0.02] p-3">
-                        <div className="flex items-start justify-between gap-3 mb-1">
-                          <div className="min-w-0 flex-1">
-                            {c.product && <p className="text-sm text-white/70 font-medium">{c.product}</p>}
-                            {c.issue && <p className="text-xs text-white/40 mt-0.5">{c.issue}</p>}
-                          </div>
-                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                            {c.date_received && <span className="font-mono text-[10px] text-white/30">{c.date_received}</span>}
-                            {c.company_response && (
-                              <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${
-                                c.company_response.toLowerCase().includes('closed') ? 'bg-green-500/10 text-green-400' : 'bg-white/10 text-white/50'
-                              }`}>
-                                {c.company_response}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {c.sub_product && <p className="text-xs text-white/25 mt-1">{c.sub_product}</p>}
-                      </div>
-                    ))}
-                  </div>
-                  {complaints.length > 20 && (
-                    <p className="font-mono text-xs text-white/30 mt-2">Showing 20 of {complaintsTotal} complaints</p>
-                  )}
-                </div>
-              )}
 
               {/* Stock data */}
               {stock && (

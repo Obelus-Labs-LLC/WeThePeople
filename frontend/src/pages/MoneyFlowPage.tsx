@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Filter } from 'lucide-react';
 import { getApiBaseUrl } from '../api/client';
+import { fmtMoney as formatMoney } from '../utils/format';
 
 const API_BASE = getApiBaseUrl();
 
@@ -28,18 +29,12 @@ const GROUP_COLORS: Record<string, string> = {
   politician: '#EF4444',
 };
 
-function formatMoney(n: number): string {
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
-  return `$${n.toLocaleString()}`;
-}
-
 export default function MoneyFlowPage() {
   const [data, setData] = useState<MoneyFlowData | null>(null);
   const [loading, setLoading] = useState(true);
   const [sector, setSector] = useState<string>('');
   const plotRef = useRef<HTMLDivElement>(null);
+  const plotlyRef = useRef<any>(null);
   const [plotlyLoaded, setPlotlyLoaded] = useState(false);
 
   useEffect(() => {
@@ -58,8 +53,9 @@ export default function MoneyFlowPage() {
 
     // Dynamically import Plotly to reduce initial bundle
     import('plotly.js').then((Plotly: any) => {
-      setPlotlyLoaded(true);
       const P = Plotly.default || Plotly;
+      plotlyRef.current = P;
+      setPlotlyLoaded(true);
 
       const nodeColors = data.nodes.map((n) => GROUP_COLORS[n.group] || '#6B7280');
 
@@ -103,12 +99,10 @@ export default function MoneyFlowPage() {
       console.warn('Plotly dynamic import failed:', err);
     });
 
+    const node = plotRef.current;
     return () => {
-      if (plotRef.current) {
-        import('plotly.js').then((Plotly: any) => {
-          const P = Plotly.default || Plotly;
-          P.purge(plotRef.current);
-        }).catch(() => {});
+      if (node && plotlyRef.current) {
+        plotlyRef.current.purge(node);
       }
     };
   }, [data]);
