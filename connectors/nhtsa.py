@@ -29,10 +29,28 @@ def _compute_hash(*parts: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+def _get_models_for_make(make: str, model_year: int) -> List[str]:
+    """Get all model names for a make/year from NHTSA products API."""
+    url = f"{NHTSA_BASE}/products/vehicle/models"
+    params = {"make": make, "modelYear": model_year, "issueType": "r"}
+    try:
+        time.sleep(POLITE_DELAY)
+        resp = requests.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        logger.debug("NHTSA models lookup for '%s' %d: %s", make, model_year, e)
+        return []
+
+    results_list = data.get("results", [])
+    return [m.get("model", "") for m in results_list if m.get("model")]
+
+
 def fetch_recalls(make: str, model_year_start: int = 2015) -> List[Dict[str, Any]]:
     """
     Fetch NHTSA vehicle recall campaigns for a given make.
-    Loops from model_year_start through the current year.
+    Uses 2-step approach: get models, then get recalls per model.
+    NHTSA API requires make + model + modelYear (all 3 params).
 
     Args:
         make: Vehicle make name (e.g. 'Ford', 'Toyota', 'GM')
@@ -45,42 +63,52 @@ def fetch_recalls(make: str, model_year_start: int = 2015) -> List[Dict[str, Any
     """
     current_year = datetime.now().year
     results = []
+    seen_hashes = set()
 
     for year in range(model_year_start, current_year + 1):
-        url = f"{NHTSA_BASE}/recalls/recallsByVehicle"
-        params = {"make": make, "modelYear": year}
+        models = _get_models_for_make(make, year)
+        if not models:
+            logger.debug("NHTSA: no models found for '%s' year %d", make, year)
+            continue
 
-        try:
-            time.sleep(POLITE_DELAY)
-            resp = requests.get(url, params=params, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-        except requests.exceptions.HTTPError as e:
-            if e.response is not None and e.response.status_code == 404:
-                logger.info("NHTSA recalls for '%s' year %d: no results", make, year)
+        for model in models:
+            url = f"{NHTSA_BASE}/recalls/recallsByVehicle"
+            params = {"make": make, "model": model, "modelYear": year}
+
+            try:
+                time.sleep(POLITE_DELAY)
+                resp = requests.get(url, params=params, timeout=30)
+                resp.raise_for_status()
+                data = resp.json()
+            except requests.exceptions.HTTPError as e:
+                if e.response is not None and e.response.status_code == 404:
+                    continue
+                logger.error("NHTSA recalls fetch failed for '%s' '%s' year %d: %s", make, model, year, e)
                 continue
-            logger.error("NHTSA recalls fetch failed for '%s' year %d: %s", make, year, e)
-            continue
-        except Exception as e:
-            logger.error("NHTSA recalls fetch failed for '%s' year %d: %s", make, year, e)
-            continue
+            except Exception as e:
+                logger.error("NHTSA recalls fetch failed for '%s' '%s' year %d: %s", make, model, year, e)
+                continue
 
-        recalls_raw = data.get("results", [])
-        for recall in recalls_raw:
-            recall_number = recall.get("NHTSACampaignNumber", "")
-            results.append({
-                "recall_number": recall_number,
-                "make": recall.get("Make", make),
-                "model": recall.get("Model", ""),
-                "model_year": year,
-                "recall_date": recall.get("ReportReceivedDate"),
-                "component": recall.get("Component", ""),
-                "summary": (recall.get("Summary", "") or "")[:2000],
-                "consequence": (recall.get("Consequence", "") or "")[:1000],
-                "remedy": (recall.get("Remedy", "") or "")[:1000],
-                "manufacturer": recall.get("Manufacturer", ""),
-                "dedupe_hash": _compute_hash(recall_number or f"{make}_{year}_{recall.get('Model', '')}"),
-            })
+            recalls_raw = data.get("results", [])
+            for recall in recalls_raw:
+                recall_number = recall.get("NHTSACampaignNumber", "")
+                h = _compute_hash(recall_number or f"{make}_{year}_{model}")
+                if h in seen_hashes:
+                    continue
+                seen_hashes.add(h)
+                results.append({
+                    "recall_number": recall_number,
+                    "make": recall.get("Make", make),
+                    "model": recall.get("Model", model),
+                    "model_year": year,
+                    "recall_date": recall.get("ReportReceivedDate"),
+                    "component": recall.get("Component", ""),
+                    "summary": (recall.get("Summary", "") or "")[:2000],
+                    "consequence": (recall.get("Consequence", "") or "")[:1000],
+                    "remedy": (recall.get("Remedy", "") or "")[:1000],
+                    "manufacturer": recall.get("Manufacturer", ""),
+                    "dedupe_hash": h,
+                })
 
     logger.info("NHTSA recalls '%s': %d recalls (%d-%d)", make, len(results), model_year_start, current_year)
     return results
@@ -89,7 +117,8 @@ def fetch_recalls(make: str, model_year_start: int = 2015) -> List[Dict[str, Any
 def fetch_complaints(make: str, model_year_start: int = 2015) -> List[Dict[str, Any]]:
     """
     Fetch NHTSA vehicle complaint records for a given make.
-    Loops from model_year_start through the current year.
+    Uses 2-step approach: get models, then get complaints per model.
+    NHTSA API requires make + model + modelYear (all 3 params).
 
     Args:
         make: Vehicle make name (e.g. 'Ford', 'Toyota')
@@ -102,43 +131,53 @@ def fetch_complaints(make: str, model_year_start: int = 2015) -> List[Dict[str, 
     """
     current_year = datetime.now().year
     results = []
+    seen_hashes = set()
 
     for year in range(model_year_start, current_year + 1):
-        url = f"{NHTSA_BASE}/complaints/complaintsByVehicle"
-        params = {"make": make, "modelYear": year}
+        # Use "c" issueType for complaints
+        models = _get_models_for_make(make, year)
+        if not models:
+            continue
 
-        try:
-            time.sleep(POLITE_DELAY)
-            resp = requests.get(url, params=params, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-        except requests.exceptions.HTTPError as e:
-            if e.response is not None and e.response.status_code == 404:
-                logger.info("NHTSA complaints for '%s' year %d: no results", make, year)
+        for model in models:
+            url = f"{NHTSA_BASE}/complaints/complaintsByVehicle"
+            params = {"make": make, "model": model, "modelYear": year}
+
+            try:
+                time.sleep(POLITE_DELAY)
+                resp = requests.get(url, params=params, timeout=30)
+                resp.raise_for_status()
+                data = resp.json()
+            except requests.exceptions.HTTPError as e:
+                if e.response is not None and e.response.status_code == 404:
+                    continue
+                logger.error("NHTSA complaints fetch failed for '%s' '%s' year %d: %s", make, model, year, e)
                 continue
-            logger.error("NHTSA complaints fetch failed for '%s' year %d: %s", make, year, e)
-            continue
-        except Exception as e:
-            logger.error("NHTSA complaints fetch failed for '%s' year %d: %s", make, year, e)
-            continue
+            except Exception as e:
+                logger.error("NHTSA complaints fetch failed for '%s' '%s' year %d: %s", make, model, year, e)
+                continue
 
-        complaints_raw = data.get("results", [])
-        for complaint in complaints_raw:
-            odi_number = str(complaint.get("odiNumber", ""))
-            results.append({
-                "odi_number": odi_number,
-                "make": complaint.get("make", make),
-                "model": complaint.get("model", ""),
-                "model_year": year,
-                "date_of_complaint": complaint.get("dateOfComplaint"),
-                "crash": complaint.get("crash", "N") == "Y",
-                "fire": complaint.get("fire", "N") == "Y",
-                "injuries": int(complaint.get("numberOfInjuries", 0) or 0),
-                "deaths": int(complaint.get("numberOfDeaths", 0) or 0),
-                "component": complaint.get("components", ""),
-                "summary": (complaint.get("summary", "") or "")[:2000],
-                "dedupe_hash": _compute_hash(odi_number or f"{make}_{year}_{complaint.get('model', '')}_{complaint.get('dateOfComplaint', '')}"),
-            })
+            complaints_raw = data.get("results", [])
+            for complaint in complaints_raw:
+                odi_number = str(complaint.get("odiNumber", ""))
+                h = _compute_hash(odi_number or f"{make}_{year}_{model}_{complaint.get('dateOfComplaint', '')}")
+                if h in seen_hashes:
+                    continue
+                seen_hashes.add(h)
+                results.append({
+                    "odi_number": odi_number,
+                    "make": complaint.get("make", make),
+                    "model": complaint.get("model", model),
+                    "model_year": year,
+                    "date_of_complaint": complaint.get("dateOfComplaint"),
+                    "crash": complaint.get("crash", "N") == "Y",
+                    "fire": complaint.get("fire", "N") == "Y",
+                    "injuries": int(complaint.get("numberOfInjuries", 0) or 0),
+                    "deaths": int(complaint.get("numberOfDeaths", 0) or 0),
+                    "component": complaint.get("components", ""),
+                    "summary": (complaint.get("summary", "") or "")[:2000],
+                    "dedupe_hash": h,
+                })
 
     logger.info("NHTSA complaints '%s': %d complaints (%d-%d)", make, len(results), model_year_start, current_year)
     return results
