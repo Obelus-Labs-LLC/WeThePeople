@@ -125,10 +125,14 @@ def fetch_lobbying(session, inst: TrackedInstitution):
 
                 issues = []
                 gov_entities = set()
+                descriptions = []
                 for activity in (r.get("lobbying_activities") or []):
                     issue_code = activity.get("general_issue_code_display")
                     if issue_code:
                         issues.append(issue_code)
+                    desc = activity.get("description") or ""
+                    if desc.strip():
+                        descriptions.append(desc.strip())
                     for entity in (activity.get("government_entities") or []):
                         name = entity.get("name") if isinstance(entity, dict) else str(entity)
                         if name:
@@ -145,9 +149,14 @@ def fetch_lobbying(session, inst: TrackedInstitution):
                     client_name=(r.get("client") or {}).get("name"),
                     lobbying_issues=", ".join(sorted(set(issues))) if issues else None,
                     government_entities=", ".join(sorted(gov_entities)) if gov_entities else None,
+                    specific_issues=" || ".join(descriptions) if descriptions else None,
                     dedupe_hash=dedupe,
                 ))
                 count += 1
+
+            # Commit after each page to avoid large transactions
+            if count > 0:
+                session.commit()
 
             page_url = data.get("next")
             page_num += 1
@@ -213,6 +222,10 @@ def fetch_contracts(session, inst: TrackedInstitution):
             ))
             count += 1
 
+        # Commit after each page to avoid large transactions
+        if count > 0:
+            session.commit()
+
         if len(results) < page_size:
             break
         page += 1
@@ -257,6 +270,7 @@ def main():
                     totals["contracts"] += fetch_contracts(session, inst)
             except Exception as e:
                 log.error(f"FAILED {inst_id}: {e}")
+                # NOTE: totals may be slightly inaccurate if lobbying succeeded but contracts failed
                 session.rollback()
 
         log.info(f"Done. Lobbying: {totals['lobbying']} new, Contracts: {totals['contracts']} new")

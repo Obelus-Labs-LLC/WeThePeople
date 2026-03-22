@@ -51,11 +51,11 @@ FINANCE_INSTITUTIONS = [
     {"institution_id": "state-street", "display_name": "State Street Corporation", "ticker": "STT", "sector_type": "bank", "sec_cik": "0000093751", "fdic_cert": "14", "cfpb_company_name": "STATE STREET BANK AND TRUST COMPANY"},
     {"institution_id": "charles-schwab", "display_name": "Charles Schwab Corporation", "ticker": "SCHW", "sector_type": "bank", "sec_cik": "0000316709", "fdic_cert": "57450", "cfpb_company_name": "CHARLES SCHWAB BANK"},
     {"institution_id": "hsbc-us", "display_name": "HSBC Holdings plc (US)", "ticker": "HSBC", "sector_type": "bank", "sec_cik": "0000083246", "fdic_cert": "413", "cfpb_company_name": "HSBC BANK USA, N.A."},
-    {"institution_id": "citizens-financial", "display_name": "Citizens Financial Group Inc.", "ticker": "CFG", "sector_type": "bank", "sec_cik": "0000831001", "fdic_cert": "21029", "cfpb_company_name": "CITIZENS BANK, N.A."},
+    {"institution_id": "citizens-financial", "display_name": "Citizens Financial Group Inc.", "ticker": "CFG", "sector_type": "bank", "sec_cik": "0001694514", "fdic_cert": "21029", "cfpb_company_name": "CITIZENS BANK, N.A."},
     {"institution_id": "fifth-third", "display_name": "Fifth Third Bancorp", "ticker": "FITB", "sector_type": "bank", "sec_cik": "0000035527", "fdic_cert": "6672", "cfpb_company_name": "FIFTH THIRD BANK"},
     {"institution_id": "mandt", "display_name": "M&T Bank Corporation", "ticker": "MTB", "sector_type": "bank", "sec_cik": "0000036270", "fdic_cert": "501", "cfpb_company_name": "M&T BANK"},
     {"institution_id": "keycorp", "display_name": "KeyCorp", "ticker": "KEY", "sector_type": "bank", "sec_cik": "0000091576", "fdic_cert": "17394", "cfpb_company_name": "KEYBANK NATIONAL ASSOCIATION"},
-    {"institution_id": "regions-financial", "display_name": "Regions Financial Corporation", "ticker": "RF", "sector_type": "bank", "sec_cik": "0000049196", "fdic_cert": "233", "cfpb_company_name": "REGIONS BANK"},
+    {"institution_id": "regions-financial", "display_name": "Regions Financial Corporation", "ticker": "RF", "sector_type": "bank", "sec_cik": "0001281761", "fdic_cert": "233", "cfpb_company_name": "REGIONS BANK"},
     {"institution_id": "huntington-bancshares", "display_name": "Huntington Bancshares Inc.", "ticker": "HBAN", "sector_type": "bank", "sec_cik": "0000049196", "fdic_cert": "7745", "cfpb_company_name": "THE HUNTINGTON NATIONAL BANK"},
     {"institution_id": "northern-trust", "display_name": "Northern Trust Corporation", "ticker": "NTRS", "sector_type": "bank", "sec_cik": "0000073124", "fdic_cert": "10635", "cfpb_company_name": "THE NORTHERN TRUST COMPANY"},
     {"institution_id": "ally-financial", "display_name": "Ally Financial Inc.", "ticker": "ALLY", "sector_type": "bank", "sec_cik": "0000040729", "fdic_cert": "57803", "cfpb_company_name": "ALLY FINANCIAL INC."},
@@ -81,7 +81,7 @@ FINANCE_INSTITUTIONS = [
     {"institution_id": "bok-financial", "display_name": "BOK Financial Corporation", "ticker": "BOKF", "sector_type": "bank", "sec_cik": "0000875357"},
     {"institution_id": "pacific-premier", "display_name": "Pacific Premier Bancorp", "ticker": "PPBI", "sector_type": "bank", "sec_cik": "0000792966"},
     {"institution_id": "independent-bank", "display_name": "Independent Bank Group Inc.", "ticker": "IBTX", "sector_type": "bank", "sec_cik": "0001564618"},
-    {"institution_id": "home-bancfin", "display_name": "Home BancFins Inc.", "ticker": "HBAN", "sector_type": "bank", "sec_cik": None},
+    {"institution_id": "home-bancfin", "display_name": "Home BancFins Inc.", "ticker": "HBCP", "sector_type": "bank", "sec_cik": None},
 
     # ── Federal Reserve ──
     {"institution_id": "federal-reserve", "display_name": "Federal Reserve System", "ticker": None, "sector_type": "central_bank", "sec_cik": None},
@@ -507,7 +507,7 @@ ENERGY_COMPANIES = [
 
     # ── Pipelines / Midstream ──
     {"company_id": "enbridge", "display_name": "Enbridge Inc.", "ticker": "ENB", "sector_type": "pipeline", "sec_cik": "0000895728"},
-    {"company_id": "enterprise-products", "display_name": "Enterprise Products Partners", "ticker": "EPD", "sector_type": "pipeline", "sec_cik": "0000797468"},
+    {"company_id": "enterprise-products", "display_name": "Enterprise Products Partners", "ticker": "EPD", "sector_type": "pipeline", "sec_cik": "0000048962"},
     {"company_id": "kinder-morgan", "display_name": "Kinder Morgan Inc.", "ticker": "KMI", "sector_type": "pipeline", "sec_cik": "0001506307"},
     {"company_id": "williams-companies", "display_name": "The Williams Companies Inc.", "ticker": "WMB", "sector_type": "pipeline", "sec_cik": "0000107263"},
     {"company_id": "oneok", "display_name": "ONEOK Inc.", "ticker": "OKE", "sector_type": "pipeline", "sec_cik": "0000275880"},

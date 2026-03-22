@@ -81,12 +81,8 @@ export default function VoteDetailScreen() {
     return '#6B7280';
   };
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
-    >
+  const renderVoteHeader = () => (
+    <View style={styles.content}>
       {/* Hero */}
       <LinearGradient
         colors={['#2563EB', '#1D4ED8', '#1E40AF']}
@@ -173,39 +169,51 @@ export default function VoteDetailScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-
           <Text style={styles.countText}>{filteredVotes.length} votes</Text>
-
-          {filteredVotes.map((mv: any, idx: number) => {
-            const pos = mv.position || mv.vote_position || '';
-            const posColor = getPositionColor(pos);
-            const partyColor = PARTY_COLORS[mv.party?.charAt(0)] || '#6B7280';
-            return (
-              <TouchableOpacity
-                key={`${mv.person_id || idx}`}
-                style={styles.memberCard}
-                onPress={() => {
-                  if (mv.person_id) navigation.navigate('PersonDetail', { person_id: mv.person_id });
-                }}
-              >
-                <View style={styles.memberLeft}>
-                  <Text style={styles.memberName}>{mv.display_name || mv.member_name || 'Unknown'}</Text>
-                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
-                    <View style={[styles.badge, { backgroundColor: partyColor + '12', borderColor: partyColor + '25' }]}>
-                      <Text style={[styles.badgeText, { color: partyColor }]}>{mv.party || '?'}</Text>
-                    </View>
-                    {mv.state && <Text style={styles.memberState}>{mv.state}</Text>}
-                  </View>
-                </View>
-                <View style={[styles.positionBadge, { backgroundColor: posColor + '15' }]}>
-                  <Text style={[styles.positionText, { color: posColor }]}>{pos}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
         </>
       )}
-    </ScrollView>
+    </View>
+  );
+
+  const renderMemberVote = ({ item: mv, index: idx }: { item: any; index: number }) => {
+    const pos = mv.position || mv.vote_position || '';
+    const posColor = getPositionColor(pos);
+    const partyColor = PARTY_COLORS[mv.party?.charAt(0)] || '#6B7280';
+    return (
+      <TouchableOpacity
+        key={`${mv.person_id || idx}`}
+        style={styles.memberCard}
+        onPress={() => {
+          if (mv.person_id) navigation.navigate('PersonDetail', { person_id: mv.person_id });
+        }}
+      >
+        <View style={styles.memberLeft}>
+          <Text style={styles.memberName}>{mv.display_name || mv.member_name || 'Unknown'}</Text>
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
+            <View style={[styles.badge, { backgroundColor: partyColor + '12', borderColor: partyColor + '25' }]}>
+              <Text style={[styles.badgeText, { color: partyColor }]}>{mv.party || '?'}</Text>
+            </View>
+            {mv.state && <Text style={styles.memberState}>{mv.state}</Text>}
+          </View>
+        </View>
+        <View style={[styles.positionBadge, { backgroundColor: posColor + '15' }]}>
+          <Text style={[styles.positionText, { color: posColor }]}>{pos}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <FlatList
+      style={styles.container}
+      data={filteredVotes}
+      keyExtractor={(item, idx) => `${item.person_id || idx}`}
+      renderItem={renderMemberVote}
+      ListHeaderComponent={renderVoteHeader}
+      ListEmptyComponent={memberVotes.length === 0 ? undefined : undefined}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={UI_COLORS.ACCENT} />}
+      contentContainerStyle={{ paddingBottom: 32 }}
+    />
   );
 }
 

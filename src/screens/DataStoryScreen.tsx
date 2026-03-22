@@ -115,7 +115,7 @@ export default function DataStoryScreen() {
       animateTransition(next);
     }, 4000);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [isPlaying, currentStep]);
+  }, [isPlaying, currentStep, enrichedSteps.length]);
 
   const animateTransition = (next: number) => {
     Animated.sequence([

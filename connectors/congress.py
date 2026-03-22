@@ -42,15 +42,17 @@ def get_tracked_members():
     try:
         from models.database import TrackedMember
         session = SessionLocal()
-        members = session.query(TrackedMember).filter(
-            TrackedMember.is_active == 1,
-            TrackedMember.bioguide_id.isnot(None),
-            TrackedMember.bioguide_id != ""
-        ).all()
-        result = {m.person_id: m.bioguide_id for m in members}
-        session.close()
-        if result:
-            return result
+        try:
+            members = session.query(TrackedMember).filter(
+                TrackedMember.is_active == 1,
+                TrackedMember.bioguide_id.isnot(None),
+                TrackedMember.bioguide_id != ""
+            ).all()
+            result = {m.person_id: m.bioguide_id for m in members}
+            if result:
+                return result
+        finally:
+            session.close()
     except Exception as e:
         print(f"  Warning: Could not load tracked members from DB: {e}")
     return MEMBERS
@@ -354,7 +356,7 @@ def process_bill_item(session, person_name, bill, action_type):
     if date_str:
         try:
             action_date = datetime.strptime(date_str, "%Y-%m-%d")
-        except:
+        except Exception:
             action_date = datetime.utcnow()
     else:
         action_date = datetime.utcnow()

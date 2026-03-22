@@ -84,23 +84,6 @@ function ComingSoonPlaceholder({ route }: { route: any }) {
   );
 }
 
-function GlobalSearchPlaceholder() {
-  const navigation = useNavigation();
-  return (
-    <View style={placeholderStyles.container}>
-      <Ionicons name="search" size={48} color={UI_COLORS.TEXT_MUTED} />
-      <Text style={placeholderStyles.title}>Global Search</Text>
-      <Text style={placeholderStyles.subtitle}>Search across all sectors</Text>
-      <TouchableOpacity
-        style={placeholderStyles.closeBtn}
-        onPress={() => navigation.goBack()}
-      >
-        <Text style={placeholderStyles.closeBtnText}>Close</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 const placeholderStyles = StyleSheet.create({
   container: {
     flex: 1,
@@ -118,18 +101,6 @@ const placeholderStyles = StyleSheet.create({
   subtitle: {
     color: UI_COLORS.TEXT_MUTED,
     fontSize: 14,
-  },
-  closeBtn: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    backgroundColor: UI_COLORS.ACCENT,
-    borderRadius: 8,
-  },
-  closeBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
 });
 
@@ -618,6 +589,20 @@ function TechnologyStackScreen() {
   );
 }
 
+const SettingsStack = createNativeStackNavigator();
+
+function SettingsStackScreen() {
+  return (
+    <SettingsStack.Navigator screenOptions={baseStackScreenOptions}>
+      <SettingsStack.Screen
+        name="SettingsMain"
+        component={SettingsScreen}
+        options={{ title: 'Settings' }}
+      />
+    </SettingsStack.Navigator>
+  );
+}
+
 const TAB_ICONS: Record<string, { focused: IoniconsName; default: IoniconsName }> = {
   HomeTab: { focused: 'home', default: 'home-outline' },
   PoliticsTab: { focused: 'business', default: 'business-outline' },
@@ -687,19 +672,8 @@ export default function TabNavigator() {
       />
       <Tab.Screen
         name="SettingsTab"
-        component={SettingsScreen}
-        options={{
-          title: 'Settings',
-          headerShown: true,
-          headerStyle: { backgroundColor: UI_COLORS.PRIMARY_BG },
-          headerTintColor: UI_COLORS.TEXT_PRIMARY,
-          headerTitleStyle: {
-            color: UI_COLORS.TEXT_PRIMARY,
-            fontSize: 18,
-            fontWeight: '800',
-          },
-          headerShadowVisible: false,
-        }}
+        component={SettingsStackScreen}
+        options={{ title: 'Settings' }}
       />
     </Tab.Navigator>
   );

@@ -53,14 +53,14 @@ export default function BalanceOfPowerScreen() {
   const congressNumber = Math.floor((currentYear - 1789) / 2) + 1;
 
   const renderBar = (dem: number, rep: number, ind: number, total: number) => {
-    const dPct = total > 0 ? (dem / total) * 100 : 0;
-    const rPct = total > 0 ? (rep / total) * 100 : 0;
-    const iPct = total > 0 ? (ind / total) * 100 : 0;
+    const dFlex = total > 0 ? dem / total : 0;
+    const rFlex = total > 0 ? rep / total : 0;
+    const iFlex = total > 0 ? ind / total : 0;
     return (
       <View style={styles.barContainer}>
-        <View style={[styles.barSegment, { width: `${dPct}%`, backgroundColor: PARTY_COLORS.D }]} />
-        <View style={[styles.barSegment, { width: `${iPct}%`, backgroundColor: PARTY_COLORS.I }]} />
-        <View style={[styles.barSegment, { width: `${rPct}%`, backgroundColor: PARTY_COLORS.R }]} />
+        {dFlex > 0 && <View style={[styles.barSegment, { flex: dFlex, backgroundColor: PARTY_COLORS.D }]} />}
+        {iFlex > 0 && <View style={[styles.barSegment, { flex: iFlex, backgroundColor: PARTY_COLORS.I }]} />}
+        {rFlex > 0 && <View style={[styles.barSegment, { flex: rFlex, backgroundColor: PARTY_COLORS.R }]} />}
       </View>
     );
   };

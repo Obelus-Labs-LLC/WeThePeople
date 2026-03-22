@@ -65,8 +65,14 @@ def _parse_event(event: Dict[str, Any]) -> Dict[str, Any]:
             reaction_terms.append(term)
     reaction = ", ".join(reaction_terms[:5]) if reaction_terms else None
 
-    # Outcome
-    outcome = event.get("patient", {}).get("patientonsetage")
+    # Outcome — extract from patient.reaction[].reactionoutcome (numeric code)
+    _OUTCOME_MAP = {
+        "1": "Recovered", "2": "Recovering", "3": "Not Recovered",
+        "4": "Resolved", "5": "Fatal", "6": "Unknown",
+    }
+    reactions_for_outcome = event.get("patient", {}).get("reaction", [])
+    outcome_code = str(reactions_for_outcome[0].get("reactionoutcome", "")) if reactions_for_outcome else ""
+    outcome = _OUTCOME_MAP.get(outcome_code)
 
     return {
         "report_id": report_id,
@@ -208,7 +214,7 @@ def fetch_recalls(
                 "reason_for_recall": reason,
                 "status": status,
                 "raw_json": json.dumps(recall)[:2000],
-                "dedupe_hash": _compute_hash(recall_number or product_desc[:50]),
+                "dedupe_hash": _compute_hash(f"{recall_number or ''}{product_desc[:80]}"),
             })
 
         total = data.get("meta", {}).get("results", {}).get("total", 0)

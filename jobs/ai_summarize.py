@@ -34,6 +34,30 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+# File locking for budget ledger (cross-platform)
+try:
+    import fcntl
+    def _lock_file(f):
+        fcntl.flock(f, fcntl.LOCK_EX)
+    def _unlock_file(f):
+        fcntl.flock(f, fcntl.LOCK_UN)
+except ImportError:
+    # Windows fallback using msvcrt
+    try:
+        import msvcrt
+        def _lock_file(f):
+            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+        def _unlock_file(f):
+            try:
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
+    except ImportError:
+        def _lock_file(f):
+            pass
+        def _unlock_file(f):
+            pass
+
 # ── Logging ──────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -68,10 +92,15 @@ SLEEP_BETWEEN_CALLS = 0.3  # Seconds between API calls (rate limit safety)
 # ═══════════════════════════════════════════════════════════
 
 def _load_budget_ledger() -> Dict[str, Any]:
-    """Load the shared budget ledger."""
+    """Load the shared budget ledger with file locking to prevent race conditions."""
     if BUDGET_LEDGER_PATH.exists():
         try:
-            return json.loads(BUDGET_LEDGER_PATH.read_text())
+            with open(BUDGET_LEDGER_PATH, "r") as f:
+                _lock_file(f)
+                try:
+                    return json.loads(f.read())
+                finally:
+                    _unlock_file(f)
         except (json.JSONDecodeError, Exception):
             pass
     now = datetime.now()
@@ -84,9 +113,14 @@ def _load_budget_ledger() -> Dict[str, Any]:
 
 
 def _save_budget_ledger(ledger: Dict[str, Any]) -> None:
-    """Save budget ledger to shared location."""
+    """Save budget ledger to shared location with file locking."""
     BUDGET_LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
-    BUDGET_LEDGER_PATH.write_text(json.dumps(ledger, indent=2, default=str))
+    with open(BUDGET_LEDGER_PATH, "w") as f:
+        _lock_file(f)
+        try:
+            f.write(json.dumps(ledger, indent=2, default=str))
+        finally:
+            _unlock_file(f)
 
 
 def check_budget() -> Dict[str, Any]:
@@ -608,27 +642,32 @@ def summarize_company_profiles(conn, limit: int = 0, dry_run: bool = False) -> i
         ("tracked_energy_companies", "company_id", "energy"),
     ]
 
-    # Map sector to its data tables
+    # Map sector to its data tables and foreign key column name
+    # Finance uses institution_id; health/tech/energy use company_id
     sector_tables = {
         "finance": {
             "lobbying": "finance_lobbying_records",
             "contracts": "finance_government_contracts",
             "enforcement": "finance_enforcement_actions",
+            "fk_col": "institution_id",
         },
         "health": {
             "lobbying": "health_lobbying_records",
             "contracts": "health_government_contracts",
             "enforcement": "health_enforcement_actions",
+            "fk_col": "company_id",
         },
         "tech": {
             "lobbying": "lobbying_records",
             "contracts": "government_contracts",
             "enforcement": "ftc_enforcement_actions",
+            "fk_col": "company_id",
         },
         "energy": {
             "lobbying": "energy_lobbying_records",
             "contracts": "energy_government_contracts",
             "enforcement": "energy_enforcement_actions",
+            "fk_col": "company_id",
         },
     }
 
@@ -650,25 +689,26 @@ def summarize_company_profiles(conn, limit: int = 0, dry_run: bool = False) -> i
             continue
 
         tables = sector_tables[sector]
+        fk_col = tables["fk_col"]
         for r in records:
             eid = r[id_col]
             name = r["display_name"]
 
-            # Aggregate stats
+            # Aggregate stats — use the correct FK column per sector
             lob = conn.execute(
                 f"SELECT COUNT(*) as cnt, COALESCE(SUM(income), 0) as total "
-                f"FROM {tables['lobbying']} WHERE entity_id = ?", (eid,)
+                f"FROM {tables['lobbying']} WHERE {fk_col} = ?", (eid,)
             ).fetchone()
             con = conn.execute(
                 f"SELECT COUNT(*) as cnt, COALESCE(SUM(award_amount), 0) as total "
-                f"FROM {tables['contracts']} WHERE entity_id = ?", (eid,)
+                f"FROM {tables['contracts']} WHERE {fk_col} = ?", (eid,)
             ).fetchone()
             enf = conn.execute(
                 f"SELECT COUNT(*) as cnt, COALESCE(SUM(COALESCE(penalty_amount, 0)), 0) as total "
-                f"FROM {tables['enforcement']} WHERE entity_id = ?", (eid,)
+                f"FROM {tables['enforcement']} WHERE {fk_col} = ?", (eid,)
             ).fetchone()
 
-            # Donations
+            # Donations (company_donations uses polymorphic entity_id)
             don = conn.execute(
                 "SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total "
                 "FROM company_donations WHERE entity_id = ?", (eid,)

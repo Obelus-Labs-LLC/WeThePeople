@@ -76,8 +76,9 @@ DATE_RE = re.compile(r"(\d{2}/\d{2}/\d{4})")
 AMOUNT_RE = re.compile(r"\$([0-9,]+)\s*-\s*\$([0-9,]+)")
 AMOUNT_OVER_RE = re.compile(r"Over\s+\$([0-9,]+)", re.IGNORECASE)
 
-# Transaction type: single letter P/S/E surrounded by whitespace
-TRANSACTION_TYPE_RE = re.compile(r"(?:^|\s)([PSE])(?:\s|$)")
+# Transaction type: single letter P/S/E in context of a transaction line
+# Requires nearby dollar amount or date pattern to avoid false positives on stray letters
+TRANSACTION_TYPE_RE = re.compile(r"(?:^|\s)([PSE])(?:\s+\$|\s+\d{2}/|\s*$)")
 
 # Partial sale indicator
 PARTIAL_SALE_RE = re.compile(r"S\s*\(partial\)", re.IGNORECASE)

@@ -69,30 +69,29 @@ export default function CongressionalTradesScreen() {
   const loadData = useCallback(async (currentOffset: number, append = false) => {
     setError(null);
     try {
-      // API supports ticker and party filters; we'll search client-side for name
       const params: any = { limit: PAGE_SIZE, offset: currentOffset };
-      if (typeFilter === 'purchase') params.ticker = undefined; // no server filter for type, we filter client-side
-      if (typeFilter === 'sale') params.ticker = undefined;
+
+      // Pass ticker search to API if it looks like a ticker (all caps, short)
+      const q = searchDebounced.trim();
+      if (q && /^[A-Z]{1,5}$/.test(q.toUpperCase())) {
+        params.ticker = q.toUpperCase();
+      }
+
+      // Pass transaction_type to API when filtering by type
+      if (typeFilter === 'purchase') params.transaction_type = 'purchase';
+      if (typeFilter === 'sale') params.transaction_type = 'sale_full';
 
       const res = await apiClient.getCongressionalTrades(params);
       let data = res.trades || [];
 
-      // Client-side filtering
-      if (searchDebounced.trim()) {
-        const q = searchDebounced.toLowerCase();
+      // Client-side name filtering (API doesn't support general text search)
+      if (q && !params.ticker) {
+        const lq = q.toLowerCase();
         data = data.filter(
           (t) =>
-            t.member_name?.toLowerCase().includes(q) ||
-            t.ticker?.toLowerCase().includes(q)
+            t.member_name?.toLowerCase().includes(lq) ||
+            t.ticker?.toLowerCase().includes(lq)
         );
-      }
-      if (typeFilter !== 'all') {
-        data = data.filter((t) => {
-          const txType = (t.transaction_type || '').toLowerCase();
-          if (typeFilter === 'purchase') return txType.includes('purchase') || txType.includes('buy');
-          if (typeFilter === 'sale') return txType.includes('sale') || txType.includes('sell');
-          return true;
-        });
       }
 
       if (append) {
@@ -128,6 +127,7 @@ export default function CongressionalTradesScreen() {
   };
 
   // Apply sorting
+  // NOTE: Sorts by lower bound of amount range — approximate ordering
   const sortedTrades = [...trades].sort((a, b) => {
     switch (sortBy) {
       case 'date_desc':

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, FlatList,
-  StyleSheet, RefreshControl, Dimensions, Linking,
+  StyleSheet, RefreshControl, useWindowDimensions, Linking,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,8 +16,6 @@ import { LoadingSpinner, EmptyState } from '../components/ui';
 import SanctionsBadge from '../components/SanctionsBadge';
 import { FilterPillGroup, FilterOption } from '../components/FilterPillGroup';
 import { LobbyingTab, ContractsTab, EnforcementTab, DonationsTab } from '../components/company';
-
-const { width } = Dimensions.get('window');
 
 type Tab = 'overview' | 'safety' | 'trials' | 'filings' | 'lobbying' | 'contracts' | 'enforcement' | 'donations';
 

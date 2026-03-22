@@ -158,13 +158,16 @@ def _build_pac_search_name(display_name: str) -> str:
           'Alphabet Inc.' -> 'ALPHABET'
     """
     name = display_name.upper()
-    # Remove common suffixes
-    for suffix in [" INC.", " INC", " CORP.", " CORP", " CORPORATION", " CO.", " CO",
-                   " LLC", " LTD.", " LTD", " L.P.", " LP", " PLC", " GROUP",
-                   " HOLDINGS", " HOLDING", " & CO.", " & CO"]:
-        if name.endswith(suffix):
-            name = name[: -len(suffix)]
-            break
+    # Remove common suffixes iteratively (a name may have multiple, e.g. "FOO HOLDINGS INC.")
+    changed = True
+    while changed:
+        changed = False
+        for suffix in [" INC.", " INC", " CORP.", " CORP", " CORPORATION", " CO.", " CO",
+                       " LLC", " LTD.", " LTD", " L.P.", " LP", " PLC", " GROUP",
+                       " HOLDINGS", " HOLDING", " & CO.", " & CO"]:
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+                changed = True
     return name.strip()
 
 

@@ -16,6 +16,14 @@ export type HomeStackParamList = {
   SpendingMap: undefined;
   Methodology: undefined;
   About: undefined;
+  MoneyFlow: undefined;
+  DataExplorer: undefined;
+  DataStory: undefined;
+  InfluenceTimeline: undefined;
+  ClosedLoop: undefined;
+  PrivacyPolicy: undefined;
+  TermsOfUse: undefined;
+  Disclaimer: undefined;
   GlobalSearch: undefined;
 };
 
@@ -36,6 +44,9 @@ export type PoliticsStackParamList = {
   PoliticsLobbying: undefined;
   PoliticsContracts: undefined;
   PoliticsEnforcement: undefined;
+  BalanceOfPower: undefined;
+  VoteDetail: { vote_id: string };
+  PressTools: undefined;
   GlobalSearch: undefined;
 };
 
@@ -51,6 +62,7 @@ export type FinanceStackParamList = {
   FinanceLobbying: undefined;
   FinanceContracts: undefined;
   FinanceEnforcement: undefined;
+  MarketMovers: undefined;
   GlobalSearch: undefined;
 };
 
@@ -65,6 +77,7 @@ export type HealthStackParamList = {
   HealthLobbying: undefined;
   HealthContracts: undefined;
   HealthEnforcement: undefined;
+  FDAApprovals: undefined;
   GlobalSearch: undefined;
 };
 
@@ -77,6 +90,7 @@ export type TechnologyStackParamList = {
   TechLobbying: undefined;
   TechContracts: undefined;
   TechEnforcement: undefined;
+  PatentSearch: undefined;
   GlobalSearch: undefined;
 };
 

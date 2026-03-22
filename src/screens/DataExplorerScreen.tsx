@@ -147,15 +147,30 @@ export default function DataExplorerScreen() {
       {freshness && (
         <View style={styles.section}>
           <SectionHeader title="Data Freshness" accent={UI_COLORS.GOLD} />
-          {(Array.isArray(freshness) ? freshness : freshness.items || [])
-            .filter((item: any) => {
+          {(() => {
+            // freshness is Record<string, {last_updated, record_count}> or array
+            const items: Array<{ key: string; label: string; record_count?: number; last_sync?: string }> =
+              Array.isArray(freshness)
+                ? freshness
+                : freshness.items
+                  ? freshness.items
+                  : Object.entries(freshness).map(([key, val]: [string, any]) => ({
+                      key,
+                      label: key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+                      record_count: val?.record_count,
+                      last_sync: val?.last_updated || val?.last_sync,
+                    }));
+            const filtered = items.filter((item: any) => {
               if (!item.sector) return true;
               return activeSectors.has(item.sector);
-            })
-            .map((item: any, idx: number) => (
-              <View key={idx} style={styles.freshnessCard}>
+            });
+            if (filtered.length === 0) {
+              return <EmptyState title="No freshness data" message="Data freshness information is not available." />;
+            }
+            return filtered.map((item: any, idx: number) => (
+              <View key={item.key || idx} style={styles.freshnessCard}>
                 <View style={styles.freshnessLeft}>
-                  <Text style={styles.freshnessLabel}>{item.label || item.dataset || item.name}</Text>
+                  <Text style={styles.freshnessLabel}>{item.label || item.dataset || item.name || item.key}</Text>
                   <Text style={styles.freshnessDetail}>
                     {item.record_count?.toLocaleString() || '---'} records
                   </Text>
@@ -166,10 +181,8 @@ export default function DataExplorerScreen() {
                   </Text>
                 </View>
               </View>
-            ))}
-          {(!freshness || (Array.isArray(freshness) ? freshness.length === 0 : !freshness.items?.length)) && (
-            <EmptyState title="No freshness data" message="Data freshness information is not available." />
-          )}
+            ));
+          })()}
         </View>
       )}
 

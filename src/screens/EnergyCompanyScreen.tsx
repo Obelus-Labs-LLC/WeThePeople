@@ -48,20 +48,24 @@ export default function EnergyCompanyScreen() {
   // Emissions tab data
   const [emissions, setEmissions] = useState<EnergyEmissionItem[]>([]);
   const [emissionsLoading, setEmissionsLoading] = useState(false);
+  const [emissionsLoaded, setEmissionsLoaded] = useState(false);
 
   // Contracts tab data
   const [contracts, setContracts] = useState<ContractItem[]>([]);
   const [contractSummary, setContractSummary] = useState<ContractSummary | null>(null);
   const [contractsLoading, setContractsLoading] = useState(false);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
 
   // Lobbying tab data
   const [filings, setFilings] = useState<LobbyingFiling[]>([]);
   const [lobbySummary, setLobbySummary] = useState<LobbyingSummary | null>(null);
   const [lobbyLoading, setLobbyLoading] = useState(false);
+  const [lobbyLoaded, setLobbyLoaded] = useState(false);
 
   // Enforcement tab data
   const [enforcement, setEnforcement] = useState<EnforcementAction[]>([]);
   const [enforcementLoading, setEnforcementLoading] = useState(false);
+  const [enforcementLoaded, setEnforcementLoaded] = useState(false);
   const [totalPenalties, setTotalPenalties] = useState(0);
 
   // Donations tab data
@@ -94,14 +98,14 @@ export default function EnergyCompanyScreen() {
   // Lazy load tab data
   useEffect(() => {
     if (!company) return;
-    if (tab === 'emissions' && emissions.length === 0 && !emissionsLoading) {
+    if (tab === 'emissions' && !emissionsLoaded && !emissionsLoading) {
       setEmissionsLoading(true);
       apiClient.getEnergyCompanyEmissions(companyId, { limit: 50 })
         .then(r => setEmissions(r.emissions || []))
         .catch(() => {})
-        .finally(() => setEmissionsLoading(false));
+        .finally(() => { setEmissionsLoading(false); setEmissionsLoaded(true); });
     }
-    if (tab === 'contracts' && contracts.length === 0 && !contractsLoading) {
+    if (tab === 'contracts' && !contractsLoaded && !contractsLoading) {
       setContractsLoading(true);
       Promise.all([
         apiClient.getEnergyCompanyContracts(companyId, { limit: 25 }),
@@ -112,9 +116,9 @@ export default function EnergyCompanyScreen() {
           setContractSummary(sRes);
         })
         .catch(() => {})
-        .finally(() => setContractsLoading(false));
+        .finally(() => { setContractsLoading(false); setContractsLoaded(true); });
     }
-    if (tab === 'lobbying' && filings.length === 0 && !lobbyLoading) {
+    if (tab === 'lobbying' && !lobbyLoaded && !lobbyLoading) {
       setLobbyLoading(true);
       Promise.all([
         apiClient.getEnergyCompanyLobbying(companyId, { limit: 20 }),
@@ -125,9 +129,9 @@ export default function EnergyCompanyScreen() {
           setLobbySummary(sRes);
         })
         .catch(() => {})
-        .finally(() => setLobbyLoading(false));
+        .finally(() => { setLobbyLoading(false); setLobbyLoaded(true); });
     }
-    if (tab === 'enforcement' && enforcement.length === 0 && !enforcementLoading) {
+    if (tab === 'enforcement' && !enforcementLoaded && !enforcementLoading) {
       setEnforcementLoading(true);
       apiClient.getEnergyCompanyEnforcement(companyId, { limit: 50 })
         .then(r => {
@@ -135,7 +139,7 @@ export default function EnergyCompanyScreen() {
           setTotalPenalties(r.total_penalties || 0);
         })
         .catch(() => {})
-        .finally(() => setEnforcementLoading(false));
+        .finally(() => { setEnforcementLoading(false); setEnforcementLoaded(true); });
     }
     if (tab === 'donations' && donations === null && !donationsLoading) {
       setDonationsLoading(true);
@@ -144,7 +148,7 @@ export default function EnergyCompanyScreen() {
         .catch(() => setDonations([]))
         .finally(() => setDonationsLoading(false));
     }
-  }, [tab, company, companyId, emissions.length, contracts.length, filings.length, enforcement.length, emissionsLoading, contractsLoading, lobbyLoading, enforcementLoading, donations, donationsLoading]);
+  }, [tab, company, companyId, emissionsLoaded, contractsLoaded, lobbyLoaded, enforcementLoaded, emissionsLoading, contractsLoading, lobbyLoading, enforcementLoading, donations, donationsLoading]);
 
   const onRefresh = () => { setRefreshing(true); loadCompany(); };
 
