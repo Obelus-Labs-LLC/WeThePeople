@@ -67,11 +67,11 @@ export const SECTORS: Sector[] = [
   {
     slug: "transportation",
     name: "Transportation",
-    tagline: "Airlines, automakers, rail, and aerospace lobbying and government contracts — Coming Soon",
+    tagline: "Airlines, automakers, rail, and aerospace lobbying and government contracts",
     icon: "\u{1F69A}",
     gradient: "from-blue-500 to-slate-700",
     route: "/transportation",
-    available: false,
+    available: true,
   },
   // Future sectors - not yet implemented
   {
