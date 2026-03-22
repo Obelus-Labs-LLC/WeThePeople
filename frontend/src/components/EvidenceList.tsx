@@ -44,9 +44,9 @@ export default function EvidenceList({ evidence, className = '' }: EvidenceListP
 
   return (
     <div className={`space-y-4 ${className}`}>
-      {Object.entries(grouped).map(([type, items]) => {
-        const config = TYPE_CONFIG[type] || { icon: FileText, color: 'text-slate-400', label: type };
-        const Icon = config.icon;
+      {Object.entries(grouped).map(([type, items]: [string, EvidenceItem[]]) => {
+        const config = TYPE_CONFIG[type] ?? { icon: FileText, color: 'text-slate-400', label: type };
+        const Icon = config.icon as React.ElementType;
         return (
           <div key={type}>
             <div className={`flex items-center gap-2 mb-2 ${config.color}`}>
