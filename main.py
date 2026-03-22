@@ -75,10 +75,12 @@ from routers.search import router as search_router
 # Future sectors (scaffolded)
 from routers.education import router as education_router
 from routers.energy import router as energy_router
+from routers.transportation import router as transportation_router
 from routers.defense import router as defense_router
 from routers.infrastructure import router as infrastructure_router
 from routers.state import router as state_router
 from routers.aggregate import router as aggregate_router
+from routers.claims import router as claims_router
 
 app.include_router(common_router)
 app.include_router(politics_router)
@@ -91,7 +93,9 @@ app.include_router(search_router)
 # Future sectors — placeholder routes
 app.include_router(education_router)
 app.include_router(energy_router)
+app.include_router(transportation_router)
 app.include_router(defense_router)
 app.include_router(infrastructure_router)
 app.include_router(state_router)
 app.include_router(aggregate_router)
+app.include_router(claims_router, prefix="/claims", tags=["claims"])

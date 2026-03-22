@@ -1,13 +1,25 @@
-# services/matching.py
 """
-DEPRECATED: V1 claim-matching engine from the Public Accountability Ledger era.
-Not used by the current WeThePeople civic transparency platform.
-Production matching uses sector-specific SQL queries in routers/.
-Kept for reference only.
+Claim matching engine — ported from V1 services/matching/core.py + new V2 matchers.
 
-Original description:
-Single source of truth for claim matching and evidence framework.
-Shared by API endpoints and batch jobs.
+Exports used by routers/politics.py:
+  - compute_matches_for_claim
+  - auto_classify_claim
+  - detect_intent
+  - score_action_against_claim
+  - get_profile  (+ CATEGORY_PROFILES)
+  - contains_gate_signal
+  - contains_claim_signal
+  - STOPWORDS_BASE
+
+New V2 matchers for expanded data:
+  - match_against_votes
+  - match_against_trades
+  - match_against_lobbying
+  - match_against_contracts
+  - match_against_enforcement
+  - match_against_donations
+  - match_against_committee_positions
+  - match_against_sec_filings
 """
 
 import re
@@ -17,10 +29,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 from sqlalchemy import desc
 
-from models.database import Claim, Action, SourceDocument, Vote, MemberVote, Bill, BillAction, TrackedMember, MemberBillGroundTruth
+from models.database import (
+    Claim, Action, SourceDocument, Vote, MemberVote, Bill, BillAction,
+    TrackedMember, MemberBillGroundTruth, CongressionalTrade,
+)
 from utils.normalization import normalize_bill_id
 
-# Import bill text helper for Phase 3.2
+# Import bill text helper
 try:
     from services.bill_text import format_text_receipt
     BILL_TEXT_AVAILABLE = True
@@ -29,8 +44,8 @@ except ImportError:
     def format_text_receipt(*args, **kwargs):
         return None
 
-# Import fuzzy matching (always available now)
-from services.matching.similarity import fuzzy_title_match
+# Import fuzzy matching
+from services.claims.similarity import fuzzy_title_match
 
 # Lazy-load sentence-transformers (heavy import)
 _SEMANTIC_MODEL = None
@@ -45,7 +60,6 @@ def _get_semantic_model():
         return _SEMANTIC_MODEL
     try:
         from sentence_transformers import SentenceTransformer
-        # WARNING: Loads ~500MB model into memory. May cause OOM on constrained VMs (4GB RAM).
         _SEMANTIC_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
         _SEMANTIC_AVAILABLE = True
         return _SEMANTIC_MODEL
@@ -54,6 +68,10 @@ def _get_semantic_model():
         return None
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Stopwords & boilerplate
+# ---------------------------------------------------------------------------
 
 STOPWORDS_BASE = {
     "the","a","an","and","or","but","if","then","so","to","of","in","on","for","with","as","at","by",
@@ -66,7 +84,6 @@ STOPWORDS_BASE = {
     "committee","committees","section","title","subtitle","chapter","subchapter"
 }
 
-# Boilerplate civic terms that don't prove specificity
 BOILERPLATE_CIVIC_TERMS = {
     "congress","bill","act","legislation","law","house","senate","committee",
     "introduced","passed","vote","voted","voting","resolution","amendment",
@@ -74,45 +91,51 @@ BOILERPLATE_CIVIC_TERMS = {
     "direct","removal","purposes","united","states","member","members"
 }
 
-# Policy area mapping for category-to-policy domain validation
-# Maps claim categories to acceptable bill policy areas
+# ---------------------------------------------------------------------------
+# Policy area mapping
+# ---------------------------------------------------------------------------
+
 CATEGORY_TO_POLICY_AREAS = {
     "finance_ethics": {
         "Finance and Financial Sector",
         "Economics and Public Finance",
         "Government Operations and Politics",
-        "Congress",  # Congressional ethics/operations
+        "Congress",
         "Commerce",
     },
     "environment": {
         "Environmental Protection",
         "Energy",
         "Public Lands and Natural Resources",
-        "Science, Technology, Communications",  # Climate tech
+        "Science, Technology, Communications",
     },
     "healthcare": {
         "Health",
-        "Labor and Employment",  # Employee health benefits
-        "Economics and Public Finance",  # Healthcare funding
+        "Labor and Employment",
+        "Economics and Public Finance",
     },
     "immigration": {
         "Immigration",
-        "International Affairs",  # Border/refugee issues
-        "Labor and Employment",  # Work visas
+        "International Affairs",
+        "Labor and Employment",
     },
     "guns": {
         "Crime and Law Enforcement",
-        "Armed Forces and National Security",  # Military weapons
-        "Commerce",  # Gun sales regulation
+        "Armed Forces and National Security",
+        "Commerce",
     },
     "education": {
         "Education",
-        "Labor and Employment",  # Student loans, workforce training
-        "Economics and Public Finance",  # Education funding
+        "Labor and Employment",
+        "Economics and Public Finance",
     },
-    "general": None,  # No filtering for general claims
+    "general": None,
     "unknown": None,
 }
+
+# ---------------------------------------------------------------------------
+# Category profiles
+# ---------------------------------------------------------------------------
 
 CATEGORY_PROFILES = {
     "general": {
@@ -265,6 +288,10 @@ def get_profile(category: str):
     return CATEGORY_PROFILES.get(key, CATEGORY_PROFILES["general"])
 
 
+# ---------------------------------------------------------------------------
+# Tokenization helpers
+# ---------------------------------------------------------------------------
+
 def tokenize(text: str, stopwords: set) -> List[str]:
     if not text:
         return []
@@ -272,194 +299,117 @@ def tokenize(text: str, stopwords: set) -> List[str]:
     return [p for p in parts if len(p) >= 3 and p not in stopwords]
 
 
+# ---------------------------------------------------------------------------
+# Bill name extraction from URL
+# ---------------------------------------------------------------------------
+
 def extract_bill_name_from_url(url: str) -> Optional[str]:
-    """
-    Extract bill name hints from source URL slug.
-    
-    GUARDRAILS:
-    - Only accepts URLs with at least one distinctive token (length >= 5, not in stoplist)
-    - Filters generic terms like "act", "bill", "press", "release", "members", "calling"
-    - Removes person names to prevent false matches
-    
-    Examples:
-        .../pass-defiance-act -> "defiance act" (ACCEPTED - "defiance" is distinctive)
-        .../introducing-safe-act -> "safe act" (REJECTED - "safe" too short, not distinctive)
-        .../calling-pass-act -> None (REJECTED - only stopwords + "act")
-        .../infrastructure-investment-jobs-act -> "infrastructure investment jobs act" (ACCEPTED)
-    
-    Returns distinctive phrase (not just "act") or None.
-    """
+    """Extract bill name hints from source URL slug."""
     if not url:
         return None
-    
-    # Extract path slug (last segment before query/fragment)
     path = url.split('?')[0].split('#')[0]
     segments = path.split('/')
-    
-    # Get last non-empty segment
     slug = None
     for seg in reversed(segments):
         if seg and not seg.startswith('.'):
             slug = seg
             break
-    
     if not slug:
         return None
-    
-    # Convert hyphens to spaces, lowercase
     phrase = slug.replace('-', ' ').lower()
-    
-    # Must contain "act" or "bill" 
     words = phrase.split()
     if 'act' not in words and 'bill' not in words:
         return None
-    
-    # Remove common prefixes/suffixes and generic terms
     stop_terms = {
-        'the', 'of', 'to', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'for', 
+        'the', 'of', 'to', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'for',
         'pass', 'passing', 'calling', 'introduces', 'introduced', 'introducing',
         'support', 'supports', 'supporting', 'advocates', 'advocate', 'advocating',
         'join', 'joins', 'joined', 'members', 'member', 'house', 'senate', 'congress',
         'press', 'release', 'releases', 'statement', 'statements',
-        'ocasio', 'cortez', 'lee', 'sanders', 'bernie', 'aoc'  # Remove person names
+        'ocasio', 'cortez', 'lee', 'sanders', 'bernie', 'aoc'
     }
-    
-    # GUARDRAIL: Require at least one distinctive token (length >= 5, not in stoplist)
     has_distinctive = False
     for w in words:
         if w not in stop_terms and w not in ('act', 'bill') and len(w) >= 5:
             has_distinctive = True
             break
-    
     if not has_distinctive:
         return None
-    
-    # Keep only meaningful words
     distinctive_words = [w for w in words if w not in stop_terms and len(w) > 2]
-    
     if not distinctive_words:
         return None
-    
-    # If we have "act"/"bill" + distinctive words, extract just those
-    # Look for pattern: [distinctive words] + act/bill
     anchor = 'act' if 'act' in words else 'bill'
     anchor_index = words.index(anchor)
-
-    # Take 2-3 words before the anchor (if they're distinctive)
     start_index = max(0, anchor_index - 3)
     candidate_words = words[start_index:anchor_index + 1]
-
-    # Filter to distinctive only
     final_words = [w for w in candidate_words if w not in stop_terms]
-    final_words.append(anchor)  # Always include anchor word
-
-    if len(final_words) <= 1:  # Just "act"/"bill"
+    final_words.append(anchor)
+    if len(final_words) <= 1:
         return None
-
     return ' '.join(final_words)
 
 
 def normalize_title_for_matching(title: str) -> str:
-    """
-    Normalize bill title for fuzzy matching.
-    - Lowercase
-    - Remove punctuation
-    - Remove "of 2024", "of 2025", etc.
-    - Collapse whitespace
-    """
     if not title:
         return ""
-    
     normalized = title.lower()
-    
-    # Remove year suffixes
     normalized = re.sub(r'\s+of\s+20\d{2}\s*$', '', normalized)
-    
-    # Remove punctuation
     normalized = re.sub(r'[^\w\s]', ' ', normalized)
-    
-    # Collapse whitespace
     normalized = re.sub(r'\s+', ' ', normalized).strip()
-    
     return normalized
 
 
-# -------------------------
+# ---------------------------------------------------------------------------
 # Bill Name Extraction from Claim Text
-# -------------------------
+# ---------------------------------------------------------------------------
 
-# Pattern A: Capitalized words (with lowercase connectors) ending in "Act"
-# Handles: "Inflation Reduction Act", "Anti-Corruption and Public Integrity Act"
 _ACT_NAME_STANDARD = re.compile(
     r'\b((?:[A-Z][A-Za-z-]+(?:\s+(?:and|for|of|the|on|in|to)\s+|\s+)){0,7}[A-Z][A-Za-z-]+\s+Act)\b'
 )
-
-# Pattern B: ALL-CAPS acronym(s) + "Act"
-# Handles: "CARES Act", "TAKE IT DOWN Act", "DEFIANCE Act"
 _ACT_NAME_ACRONYM = re.compile(
     r'\b((?:[A-Z]{2,}\s+)*[A-Z]{2,}\s+Act)\b'
 )
-
-# Pattern C: Parenthetical acronym before "Act"
-# Handles: "...Essentials (AWARE) Act" -> extracts "AWARE Act"
 _ACT_NAME_PAREN = re.compile(
     r'\(([A-Z]{2,})\)\s*Act\b'
 )
-
-# Pattern: explicit bill numbers like "H.R. 3562", "S. 1234", "H.J.Res. 5"
 _BILL_NUMBER_PATTERN = re.compile(
     r'\b(H\.?\s*R\.?|S\.?|H\.?\s*J\.?\s*Res\.?|S\.?\s*J\.?\s*Res\.?)\s*(\d{1,5})\b',
     re.IGNORECASE,
 )
 
-def extract_bill_names_from_text(text: str) -> List[str]:
-    """
-    Extract bill names and numbers directly from claim text.
 
-    Returns normalized lowercase names suitable for fuzzy matching against bill titles.
-    Examples:
-        "I fought for the DEFIANCE Act" -> ["defiance act"]
-        "We passed H.R. 3562" -> ["hr3562"]
-        "the Inflation Reduction Act of 2022" -> ["inflation reduction act"]
-        "the (AWARE) Act" -> ["aware act"]
-        "Anti-Corruption and Public Integrity Act" -> ["anti-corruption and public integrity act"]
-    """
+def extract_bill_names_from_text(text: str) -> List[str]:
+    """Extract bill names and numbers directly from claim text."""
     if not text:
         return []
-
     results = []
     seen = set()
 
     def _add(name: str):
         normalized = normalize_title_for_matching(name)
         if normalized and normalized not in seen and len(normalized.split()) >= 2:
-            # Skip if only stopwords + Act
             words = normalized.split()
             distinctive = [w for w in words if w not in STOPWORDS_BASE and len(w) >= 3]
             if distinctive:
                 seen.add(normalized)
                 results.append(normalized)
 
-    # Pattern A: Standard capitalized names with connectors
     for m in _ACT_NAME_STANDARD.finditer(text):
         _add(m.group(1).strip())
-
-    # Pattern B: ALL-CAPS acronym names
     for m in _ACT_NAME_ACRONYM.finditer(text):
         _add(m.group(1).strip())
-
-    # Pattern C: Parenthetical acronyms -> "ACRONYM Act"
     for m in _ACT_NAME_PAREN.finditer(text):
         _add(f"{m.group(1)} Act")
-
-    # Extract explicit bill numbers
     for m in _BILL_NUMBER_PATTERN.finditer(text):
-        bill_type = re.sub(r'[\s.]', '', m.group(1)).lower()  # "H.R." -> "hr"
+        bill_type = re.sub(r'[\s.]', '', m.group(1)).lower()
         bill_num = m.group(2)
         results.append(f"{bill_type}{bill_num}")
-
     return results
 
+
+# ---------------------------------------------------------------------------
+# Gate signal helpers (used by politics.py)
+# ---------------------------------------------------------------------------
 
 def contains_gate_signal(text: str, gate_terms: set, stopwords: set) -> bool:
     toks = set(tokenize(text or "", stopwords))
@@ -470,6 +420,10 @@ def contains_claim_signal(claim_text: str, claim_gate_terms: set, stopwords: set
     toks = set(tokenize(claim_text or "", stopwords))
     return len(toks.intersection(claim_gate_terms)) > 0
 
+
+# ---------------------------------------------------------------------------
+# Procedural action detection
+# ---------------------------------------------------------------------------
 
 PROCEDURAL_PHRASES = [
     "providing for the consideration of",
@@ -488,21 +442,25 @@ def is_procedural_action(action: dict) -> bool:
     return any(p in title for p in PROCEDURAL_PHRASES)
 
 
-def score_action_against_claim(claim_text: str, action_title: str, action_summary: str, meta: dict, profile: dict, claim_source_url: str = None, skip_semantic: bool = False) -> dict:
-    """
-    Score how well an action matches a claim.
-    
-    Now includes:
-    - URL-based bill name hints
-    - Exact/fuzzy title matching
-    - Original token overlap scoring
-    """
+# ---------------------------------------------------------------------------
+# Scoring: action vs claim
+# ---------------------------------------------------------------------------
+
+def score_action_against_claim(
+    claim_text: str,
+    action_title: str,
+    action_summary: str,
+    meta: dict,
+    profile: dict,
+    claim_source_url: str = None,
+    skip_semantic: bool = False,
+) -> dict:
+    """Score how well an action matches a claim."""
     stopwords = STOPWORDS_BASE.union(profile["stopwords_extra"])
     strong_terms = profile["strong_terms"]
     phrase_boosts = profile["phrase_boosts"]
 
     claim_tokens = set(tokenize(claim_text, stopwords))
-
     title = (action_title or "")
     summary = (action_summary or "")
     hay = f"{title} {summary}".lower()
@@ -518,7 +476,6 @@ def score_action_against_claim(claim_text: str, action_title: str, action_summar
         enriched_text = f"{policy_area} {latest_text} {enriched_title}".lower()
 
     enriched_tokens = set(tokenize(enriched_text, stopwords))
-
     overlap_basic = claim_tokens.intersection(hay_tokens)
     overlap_enriched = claim_tokens.intersection(enriched_tokens)
 
@@ -536,33 +493,28 @@ def score_action_against_claim(claim_text: str, action_title: str, action_summar
         if phrase in combined:
             score += boost
             phrase_hits.append(phrase)
-    
-    # NEW: URL-based bill name matching
+
+    # URL-based bill name matching
     url_boost = 0.0
     url_hint = None
     if claim_source_url:
         url_hint = extract_bill_name_from_url(claim_source_url)
         if url_hint:
-            # Normalize both title and URL hint
             normalized_title = normalize_title_for_matching(title)
             normalized_hint = normalize_title_for_matching(url_hint)
-            
-            # Check for exact phrase match
             if normalized_hint in normalized_title or normalized_title in normalized_hint:
-                url_boost = 50.0  # Strong boost for URL-title match
+                url_boost = 50.0
                 phrase_hits.append(f"url_match:{url_hint}")
-            # Check for substantial word overlap
             else:
                 hint_words = set(normalized_hint.split())
                 title_words = set(normalized_title.split())
                 overlap = hint_words.intersection(title_words)
-                if len(overlap) >= 2:  # At least 2 distinctive words match
-                    url_boost = 25.0  # Moderate boost
+                if len(overlap) >= 2:
+                    url_boost = 25.0
                     phrase_hits.append(f"url_partial:{url_hint}")
-    
     score += url_boost
 
-    # NEW: Fuzzy title matching (claim text vs action/bill title)
+    # Fuzzy title matching
     fuzzy_boost = 0.0
     full_title = title
     if isinstance(enriched, dict) and enriched.get("title"):
@@ -573,26 +525,24 @@ def score_action_against_claim(claim_text: str, action_title: str, action_summar
         if normalized_claim and normalized_full_title:
             fuzzy_result = fuzzy_title_match(
                 normalized_claim, normalized_full_title,
-                threshold=0.65,  # Moderate threshold to catch more matches
+                threshold=0.65,
                 method="token_sort_ratio",
             )
             if fuzzy_result["matched"]:
-                fuzzy_boost = min(fuzzy_result["score"] * 30.0, 25.0)  # Up to 25 pts
+                fuzzy_boost = min(fuzzy_result["score"] * 30.0, 25.0)
                 phrase_hits.append(f"fuzzy_title_match:{fuzzy_result['score']:.2f}:{fuzzy_result['threshold']}")
     score += fuzzy_boost
 
-    # NEW: Bill name extraction from claim text
+    # Bill name extraction from claim text
     claim_bill_boost = 0.0
     extracted_names = extract_bill_names_from_text(claim_text)
     if extracted_names and full_title:
         normalized_full_title = normalize_title_for_matching(full_title)
         for name in extracted_names:
-            # Check if extracted name matches action title
             if name in normalized_full_title or normalized_full_title in name:
                 claim_bill_boost = 40.0
                 phrase_hits.append(f"claim_text_bill_name:{name}")
                 break
-            # Check partial word overlap (at least 2 distinctive words)
             name_words = set(name.split()) - STOPWORDS_BASE
             title_words = set(normalized_full_title.split()) - STOPWORDS_BASE
             shared = name_words.intersection(title_words)
@@ -602,8 +552,7 @@ def score_action_against_claim(claim_text: str, action_title: str, action_summar
                 break
     score += claim_bill_boost
 
-    # NEW: Semantic similarity (lazy-loaded, 0 cost if unavailable)
-    # Skipped on first pass for performance; applied in second pass on top candidates only
+    # Semantic similarity (lazy-loaded)
     semantic_boost = 0.0
     if not skip_semantic:
         model = _get_semantic_model()
@@ -614,10 +563,10 @@ def score_action_against_claim(claim_text: str, action_title: str, action_summar
                 embeddings = model.encode([claim_text, action_text], convert_to_tensor=True)
                 cosine_score = st_util.cos_sim(embeddings[0], embeddings[1]).item()
                 if cosine_score >= 0.55:
-                    semantic_boost = min(cosine_score * 30.0, 20.0)  # Up to 20 pts
+                    semantic_boost = min(cosine_score * 30.0, 20.0)
                     phrase_hits.append(f"semantic_similarity:{cosine_score:.2f}")
             except Exception:
-                pass  # Graceful degradation
+                pass
     score += semantic_boost
 
     return {
@@ -634,9 +583,9 @@ def score_action_against_claim(claim_text: str, action_title: str, action_summar
     }
 
 
-# -------------------------
-# Evidence Framework Logic
-# -------------------------
+# ---------------------------------------------------------------------------
+# Evidence framework
+# ---------------------------------------------------------------------------
 
 LEGISLATIVE_PROGRESS_ORDER = [
     "introduced",
@@ -647,25 +596,15 @@ LEGISLATIVE_PROGRESS_ORDER = [
 
 
 def classify_progress(action: dict) -> str:
-    """
-    Best-effort classification using latest_action_text.
-    If we don't have action text, return 'unknown' (do not guess).
-    """
     text = (action.get("latest_action_text") or "").lower()
-
     if not text:
         return "unknown"
-
     if "became public law" in text or "became law" in text or "signed by the president" in text:
         return "enacted"
-
     if "passed house" in text or "passed the house" in text or "passed senate" in text or "passed the senate" in text:
         return "passed_chamber"
-
     if "committee" in text or "ordered to be reported" in text or "reported to" in text:
         return "passed_committee"
-
-    # fallback: if we have action text but no stronger signal
     return "introduced"
 
 
@@ -675,29 +614,23 @@ def classify_timing(claim_date, action_date):
         a = datetime.fromisoformat(action_date)
     except Exception:
         return "unknown"
-
     if a >= c:
         return "follow_through"
     return "retroactive_credit"
 
 
 def classify_relevance(score, overlap_basic, overlap_enriched, phrase_hits):
-    """
-    Relevance is about semantic connection between claim and action.
-    Now recognizes fuzzy, bill name, and semantic signals as evidence of relevance.
-    """
     overlap_basic = overlap_basic or []
     overlap_enriched = overlap_enriched or []
     phrase_hits = phrase_hits or []
-
     has_basic = len(overlap_basic) > 0
     has_enriched = len(overlap_enriched) > 0
     has_overlap = has_basic or has_enriched
 
-    # New signal types that prove relevance even without token overlap
     has_fuzzy = any(p.startswith('fuzzy_title_match:') for p in phrase_hits)
     has_claim_bill = any(p.startswith('claim_text_bill_name:') for p in phrase_hits)
     has_url_match = any(p.startswith('url_match:') for p in phrase_hits)
+
     def _safe_parse_score(p):
         try:
             return float(p.split(':')[1])
@@ -710,66 +643,42 @@ def classify_relevance(score, overlap_basic, overlap_enriched, phrase_hits):
         if p.startswith('semantic_similarity:')
     )
 
-    # Strong signals prove high relevance
     if has_claim_bill or has_url_match:
         return "high"
-
     if has_fuzzy or has_semantic_high:
         return "high"
-
-    # Enriched token overlap is high relevance
     if has_enriched:
         return "high"
-
-    # Moderate semantic similarity (0.55-0.70) + any overlap is medium
     has_semantic_any = any(p.startswith('semantic_similarity:') for p in phrase_hits)
     if has_semantic_any and has_overlap:
         return "high"
-
     if has_semantic_any:
         return "medium"
-
-    # Phrase-only with no overlap is low relevance
     if not has_overlap:
         return "low" if score and score > 0 else "none"
-
-    # Basic-only overlap
     if has_basic:
         return "medium"
-
     return "none"
 
 
 def resolve_evidence_tier(relevance, progress, timing, score, overlap_basic, overlap_enriched, phrase_hits=None):
-    """
-    Conservative tier classification:
-    - strong requires: high relevance + meaningful progress + follow_through
-    - moderate requires: real overlap AND (score >= 4 OR relevance is high)
-    - phrase-only matches cap at weak
-    
-    URL matches (url_match: prefix in phrase_hits) are treated as strong evidence.
-    """
     overlap_basic = overlap_basic or []
     overlap_enriched = overlap_enriched or []
     phrase_hits = phrase_hits or []
-
     has_overlap = (len(overlap_basic) + len(overlap_enriched)) > 0
 
-    # URL matches with exact bill name are treated as strong evidence
     has_url_match = any(p.startswith('url_match:') for p in phrase_hits)
     if has_url_match and score and score >= 50.0:
         has_overlap = True
 
-    # Fuzzy title match, claim text bill name, and semantic similarity count as overlap
     has_fuzzy = any(p.startswith('fuzzy_title_match:') for p in phrase_hits)
     has_claim_bill = any(p.startswith('claim_text_bill_name:') for p in phrase_hits)
     has_semantic = any(p.startswith('semantic_similarity:') for p in phrase_hits)
     if has_fuzzy or has_claim_bill or has_semantic:
         has_overlap = True
-    
+
     phrase_only = (not has_overlap) and (len(phrase_hits) > 0)
 
-    # Strong: high relevance + real progress + follow-through
     if (
         relevance == "high"
         and progress in {"passed_committee", "passed_chamber", "enacted"}
@@ -777,56 +686,26 @@ def resolve_evidence_tier(relevance, progress, timing, score, overlap_basic, ove
     ):
         return "strong"
 
-    # Moderate: requires overlap (no exceptions)
     if progress in {"introduced", "passed_committee", "passed_chamber", "enacted"}:
         if not has_overlap:
-            # Phrase-only or zero-signal: never moderate
             return "weak" if (score and score > 0) else "none"
-
-        # If overlap exists, require either strong score or high relevance
         if relevance == "high" or (score is not None and score >= 4.0):
             return "moderate"
-
-        # Overlap exists but weak signal
         return "weak" if (score and score > 0) else "none"
 
-    # Low relevance never above weak
     if relevance == "low" or phrase_only:
         return "weak" if (score and score > 0) else "none"
 
     return "none"
 
 
-def apply_boilerplate_guardrail(tier: str, claim: Claim, overlap_basic: List[str], overlap_enriched: List[str], phrase_hits: List[str] = None) -> str:
-    """
-    Boilerplate overlap guardrail for general/unknown intent claims.
-    
-    Prevents false matches on generic civic terms like "congress", "legislation", "bill".
-    
-    Rule:
-    - If claim.category in {"general","unknown"} OR claim.intent is null:
-      - Disallow moderate and strong entirely
-      - Allow weak only if overlap contains at least one domain-specific token
-      - If overlap is only boilerplate → tier = none
-    
-    Exception: URL matches (url_match: in phrase_hits) bypass this guardrail.
-    
-    Args:
-        tier: Computed tier from resolve_evidence_tier
-        claim: Claim object
-        overlap_basic: Basic token overlap
-        overlap_enriched: Enriched token overlap
-        phrase_hits: Phrase matches (for URL match detection)
-        
-    Returns:
-        Adjusted tier (downgraded if necessary)
-    """
+def apply_boilerplate_guardrail(tier, claim, overlap_basic, overlap_enriched, phrase_hits=None):
     phrase_hits = phrase_hits or []
-    
-    # Strong evidence signals bypass boilerplate guardrail
+
     has_url_match = any(p.startswith('url_match:') for p in phrase_hits)
     has_claim_bill = any(p.startswith('claim_text_bill_name:') for p in phrase_hits)
     has_fuzzy = any(p.startswith('fuzzy_title_match:') for p in phrase_hits)
+
     def _safe_parse_score_boilerplate(p):
         try:
             return float(p.split(':')[1])
@@ -841,79 +720,40 @@ def apply_boilerplate_guardrail(tier: str, claim: Claim, overlap_basic: List[str
     if has_url_match or has_claim_bill or has_fuzzy or has_semantic:
         return tier
 
-    # Only apply guardrail to general/unknown claims or claims with no intent
     if claim.category not in {"general", "unknown"} and claim.intent:
         return tier
 
-    # For general/unknown: allow moderate if overlap has domain-specific tokens
-    # (not just boilerplate civic terms)
     all_overlap = set(overlap_basic + overlap_enriched)
     non_boilerplate = all_overlap - BOILERPLATE_CIVIC_TERMS
     if tier in {"moderate", "strong"} and non_boilerplate:
-        # Has real domain-specific overlap, allow moderate (cap strong→moderate)
         tier = "moderate" if tier == "strong" else tier
     elif tier in {"moderate", "strong"}:
         tier = "weak"
-    
-    # Check if overlap is only boilerplate
+
     all_overlap = set(overlap_basic + overlap_enriched)
     non_boilerplate = all_overlap - BOILERPLATE_CIVIC_TERMS
-    
-    # If only boilerplate overlap, downgrade to none
     if all_overlap and not non_boilerplate:
         return "none"
-    
+
     return tier
 
 
-def apply_policy_area_mismatch_filter(tier: str, claim: Claim, policy_area: Optional[str]) -> str:
-    """
-    Policy area mismatch filter - blocks matches from unrelated policy domains.
-    
-    Prevents matching bills that are clearly in the wrong policy area.
-    Example: finance_ethics claim should not match "International Affairs" bills.
-    
-    Rule:
-    - If claim has a specific category AND bill has a policy_area
-    - Check if policy_area is in the valid set for that category
-    - If mismatch: hard-block by returning tier="none"
-    
-    This is defensible: not judging truth, just filtering wrong policy domains.
-    
-    Args:
-        tier: Current evidence tier
-        claim: Claim object
-        policy_area: Bill's policy area (from Congress.gov)
-        
-    Returns:
-        Adjusted tier (downgraded to "none" if policy mismatch)
-    """
-    # Skip if no category, general category, or no policy area to check
+def apply_policy_area_mismatch_filter(tier, claim, policy_area):
     if not claim.category or claim.category in {"general", "unknown"}:
         return tier
-    
     if not policy_area:
-        # No policy area on bill - can't verify, allow through
         return tier
-    
-    # Get valid policy areas for this category
     valid_areas = CATEGORY_TO_POLICY_AREAS.get(claim.category)
-    
     if valid_areas is None:
-        # Category not in mapping - allow through
         return tier
-    
-    # Check if policy area matches
     if policy_area not in valid_areas:
-        # Hard block: wrong policy domain
         return "none"
-    
     return tier
 
 
-# -------------------------
-# Auto-Classification & Intent Detection
-# -------------------------
+# ---------------------------------------------------------------------------
+# Intent detection & auto-classification
+# ---------------------------------------------------------------------------
 
 INTENT_PATTERNS = {
     "sponsored": ["introduced", "sponsored", "authored", "co-sponsored"],
@@ -925,12 +765,7 @@ INTENT_PATTERNS = {
 
 
 def auto_classify_claim(claim_text: str) -> List[Tuple[str, float]]:
-    """
-    Returns sorted [(category, confidence), ...]
-
-    Uses strong_terms + phrase matching from category profiles to detect category signals.
-    Improved to catch claims with phrase-level signals even when individual tokens miss.
-    """
+    """Returns sorted [(category, confidence), ...]"""
     text_lower = (claim_text or "").lower()
     tokens = set(tokenize(claim_text or "", STOPWORDS_BASE))
     raw_scores: Dict[str, float] = {}
@@ -938,31 +773,23 @@ def auto_classify_claim(claim_text: str) -> List[Tuple[str, float]]:
     for category, profile in CATEGORY_PROFILES.items():
         if category == "general":
             continue
-
-        # Token-level: strong_terms overlap
         signal_terms = profile.get("strong_terms") or set()
         overlap = tokens.intersection(signal_terms)
         token_score = float(len(overlap))
-
-        # Phrase-level: check phrase_boosts against full claim text
         phrase_score = 0.0
         for phrase, boost in profile.get("phrase_boosts", []):
             if phrase in text_lower:
-                phrase_score += 1.0  # Count matched phrases (not boost magnitude)
-
+                phrase_score += 1.0
         raw_scores[category] = token_score + phrase_score
 
     total = sum(raw_scores.values())
-
     if total == 0:
         return [("general", 1.0)]
-
     results = [
         (cat, score / total)
         for cat, score in raw_scores.items()
         if score > 0
     ]
-
     return sorted(results, key=lambda x: x[1], reverse=True)
 
 
@@ -974,29 +801,16 @@ def detect_intent(claim_text: str) -> str:
     return "unknown"
 
 
-# -------------------------
-# Vote Matching (Phase 2)
-# -------------------------
+# ---------------------------------------------------------------------------
+# Vote matching (Phase 2)
+# ---------------------------------------------------------------------------
 
 def match_votes_for_claim(claim: Claim, db, limit: int = 25) -> Dict[str, Any]:
-    """
-    Match vote claims against actual roll call vote records.
-    
-    Args:
-        claim: Claim object with vote intent
-        db: Database session
-        limit: Max matches to return
-        
-    Returns:
-        Dictionary with claim, matches, and metadata
-    """
+    """Match vote claims against actual roll call vote records."""
     intent = claim.intent or detect_intent(claim.text)
     expected_position = "Yea" if intent == "voted_for" else "Nay"
-    
-    # Tokenize claim for matching against vote questions
     claim_tokens = set(tokenize(claim.text, STOPWORDS_BASE))
-    
-    # Query member votes for this person
+
     results = (
         db.query(MemberVote, Vote)
           .join(Vote, MemberVote.vote_id == Vote.id)
@@ -1005,7 +819,7 @@ def match_votes_for_claim(claim: Claim, db, limit: int = 25) -> Dict[str, Any]:
           .limit(500)
           .all()
     )
-    
+
     if not results:
         return {
             "claim": {
@@ -1020,39 +834,27 @@ def match_votes_for_claim(claim: Claim, db, limit: int = 25) -> Dict[str, Any]:
             "matches": [],
             "note": f"Vote claim detected (intent={intent}). No votes found for {claim.person_id} in database."
         }
-    
-    # Score each vote
+
     scored = []
     for member_vote, vote in results:
-        # Basic scoring: tokenize vote question + related bill info
         vote_text = f"{vote.question or ''} {vote.related_bill_type or ''} {vote.related_bill_number or ''}"
         vote_tokens = set(tokenize(vote_text, STOPWORDS_BASE))
-        
         overlap = claim_tokens.intersection(vote_tokens)
         score = len(overlap)
-        
-        # Bonus if vote position matches expected intent
         position_match = member_vote.position == expected_position
         if position_match:
             score += 2.0
-        
-        # Classify evidence
-        progress = "voted"  # All of these are votes
-        
+        progress = "voted"
         timing = classify_timing(
             claim.claim_date.isoformat() if claim.claim_date else None,
             vote.vote_date.isoformat() if vote.vote_date else None
         )
-        
-        # Relevance based on overlap
         if len(overlap) >= 2:
             relevance = "high"
         elif len(overlap) >= 1:
             relevance = "medium"
         else:
             relevance = "low"
-        
-        # Tier classification for votes
         tier = "none"
         if position_match and relevance in ("high", "medium"):
             if vote.result in ("Passed", "Agreed to"):
@@ -1061,7 +863,6 @@ def match_votes_for_claim(claim: Claim, db, limit: int = 25) -> Dict[str, Any]:
                 tier = "moderate"
         elif position_match:
             tier = "weak"
-        
         scored.append({
             "score": score,
             "vote": {
@@ -1093,10 +894,8 @@ def match_votes_for_claim(claim: Claim, db, limit: int = 25) -> Dict[str, Any]:
                 "actual_position": member_vote.position,
             }
         })
-    
-    # Sort by score
+
     scored.sort(key=lambda x: x["score"], reverse=True)
-    
     return {
         "claim": {
             "id": claim.id,
@@ -1113,31 +912,25 @@ def match_votes_for_claim(claim: Claim, db, limit: int = 25) -> Dict[str, Any]:
     }
 
 
-# -------------------------
-# Main Matching Function
-# -------------------------
+# ---------------------------------------------------------------------------
+# Main matching function
+# ---------------------------------------------------------------------------
 
 def compute_matches_for_claim(
     claim: Claim,
     db,
     limit: int = 25,
 ) -> Dict[str, Any]:
-    """
-    Single source of truth for matching a claim to actions.
-    Returns the exact structure the /claims/{id}/matches endpoint returns.
-    
-    Intent-aware: vote claims require vote records, not bill sponsorships.
-    """
+    """Single source of truth for matching a claim to actions."""
     profile = get_profile(claim.category)
     stopwords = STOPWORDS_BASE.union(profile["stopwords_extra"])
-    
-    # INTENT GATING: Vote claims require vote records (Phase 2 safety)
+
+    # Vote claims require vote records
     intent = claim.intent or detect_intent(claim.text)
     if intent in ("voted_for", "voted_against"):
-        # Vote claims must match against vote records, not bill sponsorships
         return match_votes_for_claim(claim, db, limit)
 
-    # Check claim-side gate (category-specific signal terms)
+    # Check claim-side gate
     claim_gate_terms = profile.get("claim_gate_terms")
     if claim_gate_terms is not None:
         if not contains_claim_signal(claim.text, claim_gate_terms, stopwords):
@@ -1156,14 +949,10 @@ def compute_matches_for_claim(
                 "note": "Claim missing category signal terms; refusing to match vague claim."
             }
 
-    # Pull candidate actions: same person_id, with source_url joined in
-    # GROUND TRUTH RAIL: Constrain to member's actual bills when available
-    
-    # Get member's bioguide_id
+    # Pull candidate actions
     member = db.query(TrackedMember).filter(TrackedMember.person_id == claim.person_id).first()
     bioguide_id = member.bioguide_id if member else None
-    
-    # Get ground truth bill_ids if available
+
     ground_truth_bill_ids = None
     if bioguide_id:
         gt_records = db.query(MemberBillGroundTruth.bill_id).filter(
@@ -1171,45 +960,34 @@ def compute_matches_for_claim(
         ).all()
         if gt_records:
             ground_truth_bill_ids = {r[0] for r in gt_records}
-    
-    # Base query: same person_id
+
     query = (
         db.query(Action, SourceDocument.url)
           .outerjoin(SourceDocument, Action.source_id == SourceDocument.id)
           .filter(Action.person_id == claim.person_id)
     )
 
-    # Apply ground truth constraint if available
     rows = []
     if ground_truth_bill_ids:
-        # Build bill_id from action columns
-        # Filter to only bills in the ground truth set
         for action, url in query.order_by(desc(Action.date)).limit(2000).all():
             if action.bill_congress and action.bill_type and action.bill_number:
                 action_bill_id = f"{action.bill_type.lower()}{action.bill_number}-{action.bill_congress}"
                 if action_bill_id in ground_truth_bill_ids:
                     rows.append((action, url))
     else:
-        # No ground truth available, use all actions for this person
         rows = query.order_by(desc(Action.date)).limit(2000).all()
 
-    # GROUND TRUTH FALLBACK: If person has 0 actions but has ground truth bills,
-    # search for actions on those bills from ANY person. This covers members like
-    # Elizabeth Warren and Ron Wyden who have ground truth bills but 0 Action rows
-    # under their person_id.
+    # Ground truth fallback
     if not rows and ground_truth_bill_ids:
-        gt_bill_list = list(ground_truth_bill_ids)[:500]  # Cap for performance
+        gt_bill_list = list(ground_truth_bill_ids)[:500]
         fallback_query = (
             db.query(Action, SourceDocument.url)
               .outerjoin(SourceDocument, Action.source_id == SourceDocument.id)
         )
-        # Filter to ground truth bills in SQL instead of loading all rows
         from sqlalchemy import or_, and_
         bill_conditions = []
         for gt_bill_id in gt_bill_list:
-            # Parse "typenumber-congress" format
-            import re as _re
-            m = _re.match(r'^([a-z]+)(\d+)-(\d+)$', gt_bill_id)
+            m = re.match(r'^([a-z]+)(\d+)-(\d+)$', gt_bill_id)
             if m:
                 bill_conditions.append(and_(
                     Action.bill_type == m.group(1),
@@ -1233,46 +1011,36 @@ def compute_matches_for_claim(
     for a, url in rows:
         meta = a.metadata_json if isinstance(a.metadata_json, dict) else {}
         enriched = (meta.get("enriched") or {}) if isinstance(meta, dict) else {}
-
-        # Use column data first (faster), fallback to metadata_json
         combined_text = f"{a.title or ''} {a.summary or ''} {enriched.get('title') or ''} {a.policy_area or ''} {a.latest_action_text or ''}"
 
         if profile["gate_terms"] is not None:
             if not contains_gate_signal(combined_text, profile["gate_terms"], stopwords):
                 continue
-        
-        # Skip procedural actions
         if is_procedural_action({"title": a.title}):
             continue
 
         s = score_action_against_claim(claim.text, a.title, a.summary, meta, profile, claim.claim_source_url, skip_semantic=True)
 
-        # Check for bill reference match (Step 2-lite enhancement)
+        # Bill reference match
         bill_ref_match = False
         bill_ref_evidence = None
         if claim.bill_refs_json and a.bill_congress and a.bill_type and a.bill_number:
             try:
                 bill_refs = json.loads(claim.bill_refs_json)
                 if bill_refs and 'normalized' in bill_refs:
-                    # Build normalized bill ID from action (e.g., "hr3562")
                     action_bill_norm = f"{a.bill_type.lower()}{a.bill_number}"
-                    
-                    # Check if this bill is in the claim's extracted references
                     if action_bill_norm in bill_refs['normalized']:
                         bill_ref_match = True
-                        # Find the display version for evidence
                         idx = bill_refs['normalized'].index(action_bill_norm)
                         display_ref = bill_refs['display'][idx] if idx < len(bill_refs['display']) else action_bill_norm.upper()
                         bill_ref_evidence = f"bill_ref:{display_ref}"
-                        
-                        # Apply hard boost for direct bill reference
                         s["score"] += 50.0
                         if bill_ref_evidence not in s["phrase_hits"]:
                             s["phrase_hits"].append(bill_ref_evidence)
             except (json.JSONDecodeError, KeyError, TypeError):
-                pass  # Invalid JSON, skip bill ref matching
-        
-        # Evidence classification - use column data
+                pass
+
+        # Evidence classification
         progress = classify_progress({
             "latest_action_text": a.latest_action_text,
             "title": a.title,
@@ -1282,73 +1050,49 @@ def compute_matches_for_claim(
             a.date.isoformat() if a.date else None
         )
         relevance = classify_relevance(
-            s["score"],
-            s["overlap_basic"],
-            s["overlap_enriched"],
-            s["phrase_hits"],
+            s["score"], s["overlap_basic"], s["overlap_enriched"], s["phrase_hits"],
         )
         evidence_tier = resolve_evidence_tier(
-            relevance,
-            progress,
-            timing,
-            float(s["score"]),
-            s.get("overlap_basic", []),
-            s.get("overlap_enriched", []),
+            relevance, progress, timing, float(s["score"]),
+            s.get("overlap_basic", []), s.get("overlap_enriched", []),
             s.get("phrase_hits", []),
         )
-        
-        # Apply boilerplate guardrail for general/unknown claims
         evidence_tier = apply_boilerplate_guardrail(
-            evidence_tier,
-            claim,
-            s.get("overlap_basic", []),
-            s.get("overlap_enriched", []),
+            evidence_tier, claim,
+            s.get("overlap_basic", []), s.get("overlap_enriched", []),
             s.get("phrase_hits", [])
         )
-        
-        # Look up enriched Bill data (if available)
+
+        # Look up enriched Bill data
         bill_data = None
         bill_actions = []
         if a.bill_congress and a.bill_type and a.bill_number:
             bill_id = normalize_bill_id(a.bill_congress, a.bill_type, a.bill_number)
             bill_data = db.query(Bill).filter(Bill.bill_id == bill_id).first()
-            
-            # Get recent BillAction timeline for context
             if bill_data:
                 bill_actions = db.query(BillAction).filter(
                     BillAction.bill_id == bill_id
                 ).order_by(BillAction.action_date.desc()).limit(3).all()
-        
-        # Use enriched Bill data if available, fallback to Action table
+
         latest_action_text = bill_data.latest_action_text if bill_data else a.latest_action_text
         latest_action_date = bill_data.latest_action_date if bill_data else a.latest_action_date
         policy_area = bill_data.policy_area if bill_data else a.policy_area
-        
-        # Apply policy area mismatch filter
-        evidence_tier = apply_policy_area_mismatch_filter(
-            evidence_tier,
-            claim,
-            policy_area
-        )
-        
-        # CRITICAL: Reject weak matches with low scores or retroactive timing
-        # Prevents "hallucinating" wrong bills with weak evidence
+
+        evidence_tier = apply_policy_area_mismatch_filter(evidence_tier, claim, policy_area)
+
         if evidence_tier == "weak":
-            # Reject weak matches below score threshold
             if s["score"] < 2.0:
                 evidence_tier = "none"
-            # Reject weak retroactive matches (claiming credit for old bills)
             elif timing == "retroactive_credit":
                 evidence_tier = "none"
-        
-        # Normalize latest_action_date to isoformat string (handle both datetime and string)
+
         latest_action_date_str = None
         if latest_action_date:
             if hasattr(latest_action_date, 'isoformat'):
                 latest_action_date_str = latest_action_date.isoformat()
             else:
                 latest_action_date_str = str(latest_action_date)
-        
+
         action_data = {
             "score": s["score"],
             "why": {
@@ -1356,7 +1100,6 @@ def compute_matches_for_claim(
                 "overlap_basic": s["overlap_basic"],
                 "overlap_enriched": s["overlap_enriched"],
                 "phrase_hits": s.get("phrase_hits", []),
-                # Add enriched evidence context
                 "latest_action_text": latest_action_text,
                 "latest_action_date": latest_action_date_str,
                 "progress_bucket": bill_data.status_bucket if bill_data else None,
@@ -1387,16 +1130,13 @@ def compute_matches_for_claim(
                 "summary": a.summary,
                 "date": a.date.isoformat() if a.date else None,
                 "source_url": url,
-                # Use enriched Bill data (receipt-backed)
                 "policy_area": policy_area,
                 "latest_action_text": latest_action_text,
                 "latest_action_date": latest_action_date_str,
             }
         }
-        
+
         if s["score"] >= profile["min_score"]:
-            # WARNING: Makes HTTP call per match. Consider caching or batching bill text fetches.
-            # Phase 3.2: Add bill text receipt only for matched actions (expensive HTTP call)
             if BILL_TEXT_AVAILABLE and a.bill_congress and a.bill_type and a.bill_number:
                 text_receipt = format_text_receipt(a.bill_congress, a.bill_type, a.bill_number)
                 if text_receipt:
@@ -1407,7 +1147,7 @@ def compute_matches_for_claim(
 
     scored.sort(key=lambda x: x["score"], reverse=True)
 
-    # SECOND PASS: Apply semantic similarity to top-20 candidates only (performance)
+    # Second pass: semantic similarity on top candidates
     model = _get_semantic_model()
     if model is not None and claim.text:
         try:
@@ -1425,7 +1165,6 @@ def compute_matches_for_claim(
                             semantic_boost = min(cosine_score * 30.0, 20.0)
                             match["score"] += semantic_boost
                             match["why"]["phrase_hits"].append(f"semantic_similarity:{cosine_score:.2f}")
-                            # Re-evaluate tier with new evidence
                             relevance = classify_relevance(
                                 match["score"],
                                 match["why"].get("overlap_basic", []),
@@ -1443,47 +1182,37 @@ def compute_matches_for_claim(
                                 match["why"]["phrase_hits"],
                             )
                             match["evidence"]["tier"] = evidence_tier
-                # Re-sort after semantic boost
                 scored.sort(key=lambda x: x["score"], reverse=True)
         except Exception:
-            pass  # Graceful degradation
+            pass
 
-    # GUARDRAIL: If multiple bills have URL-only evidence (same score, same URL phrase),
-    # require secondary evidence (keyword overlap or sponsor link) OR choose the most recent
+    # URL-only match guardrail
     url_only_matches = [
-        m for m in scored 
-        if m["score"] >= 45.0  # URL boost threshold
+        m for m in scored
+        if m["score"] >= 45.0
         and any(p.startswith("url_match:") for p in m["why"].get("phrase_hits", []))
-        and not m["why"].get("overlap_basic")  # No keyword overlap
-        and not m["why"].get("overlap_enriched")  # No enriched overlap
+        and not m["why"].get("overlap_basic")
+        and not m["why"].get("overlap_enriched")
     ]
-    
     if len(url_only_matches) > 1:
-        # Multiple bills match same URL phrase with no secondary evidence
-        # Strategy: Keep ONLY the most recent bill (by date), downgrade others to none
-        # This handles cases like "DEFIANCE Act of 2024" vs "DEFIANCE Act of 2025"
         most_recent = None
         most_recent_date = None
-        
         for m in url_only_matches:
             action_date = m["action"].get("date")
             if action_date:
                 if most_recent_date is None or action_date > most_recent_date:
                     most_recent = m
                     most_recent_date = action_date
-        
-        # Downgrade all except the most recent
         for m in url_only_matches:
             if m != most_recent:
                 m["evidence"]["tier"] = "none"
-    
-    # Soft fallback: if no strong matches, return top 1-2 weak candidates
+
+    # Soft fallback
     if not scored and weak_candidates:
         weak_candidates.sort(key=lambda x: x["score"], reverse=True)
         fallback_matches = weak_candidates[:2]
         for match in fallback_matches:
             match["weak_evidence"] = True
-        
         return {
             "claim": {
                 "id": claim.id,
@@ -1513,3 +1242,627 @@ def compute_matches_for_claim(
         "min_score": profile["min_score"],
         "matches": scored[:limit],
     }
+
+
+# ===========================================================================
+# NEW V2 MATCHERS — match claims against expanded data sources
+# ===========================================================================
+
+def match_against_votes(claim_text: str, person_id: str, db, limit: int = 20) -> list:
+    """
+    Search MemberVote/Vote for votes related to claim text.
+    Returns list of dicts with vote info and relevance score.
+    """
+    claim_tokens = set(tokenize(claim_text, STOPWORDS_BASE))
+    if not claim_tokens:
+        return []
+
+    results = (
+        db.query(MemberVote, Vote)
+          .join(Vote, MemberVote.vote_id == Vote.id)
+          .filter(MemberVote.person_id == person_id)
+          .order_by(desc(Vote.vote_date))
+          .limit(500)
+          .all()
+    )
+
+    scored = []
+    for member_vote, vote in results:
+        vote_text = f"{vote.question or ''} {vote.related_bill_type or ''} {vote.related_bill_number or ''}"
+        if vote.description:
+            vote_text += f" {vote.description}"
+        vote_tokens = set(tokenize(vote_text, STOPWORDS_BASE))
+        overlap = claim_tokens.intersection(vote_tokens)
+        if not overlap:
+            continue
+        score = float(len(overlap))
+        scored.append({
+            "type": "vote",
+            "score": score,
+            "overlap": sorted(list(overlap)),
+            "data": {
+                "vote_id": vote.id,
+                "congress": vote.congress,
+                "chamber": vote.chamber,
+                "roll_number": vote.roll_number,
+                "question": vote.question,
+                "vote_date": vote.vote_date.isoformat() if vote.vote_date else None,
+                "result": vote.result,
+                "position": member_vote.position,
+                "related_bill": f"{vote.related_bill_type} {vote.related_bill_number}" if vote.related_bill_type else None,
+            },
+        })
+
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return scored[:limit]
+
+
+def match_against_trades(claim_text: str, person_id: str, db, limit: int = 20) -> list:
+    """
+    Search CongressionalTrade for trades related to claim text.
+    Returns list of dicts with trade info and relevance score.
+    """
+    claim_tokens = set(tokenize(claim_text, STOPWORDS_BASE))
+    if not claim_tokens:
+        return []
+
+    trades = (
+        db.query(CongressionalTrade)
+          .filter(CongressionalTrade.person_id == person_id)
+          .order_by(desc(CongressionalTrade.transaction_date))
+          .limit(500)
+          .all()
+    )
+
+    scored = []
+    for trade in trades:
+        trade_text = f"{trade.ticker or ''} {trade.asset_description or ''} {trade.asset_type or ''}"
+        trade_tokens = set(tokenize(trade_text, STOPWORDS_BASE))
+        overlap = claim_tokens.intersection(trade_tokens)
+        if not overlap:
+            continue
+        score = float(len(overlap))
+        scored.append({
+            "type": "trade",
+            "score": score,
+            "overlap": sorted(list(overlap)),
+            "data": {
+                "trade_id": trade.id,
+                "ticker": trade.ticker,
+                "asset_description": trade.asset_description,
+                "transaction_type": trade.transaction_type,
+                "transaction_date": trade.transaction_date.isoformat() if trade.transaction_date else None,
+                "amount_range": trade.amount,
+                "person_id": trade.person_id,
+            },
+        })
+
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return scored[:limit]
+
+
+def match_against_lobbying(claim_text: str, entity_id: str, entity_type: str, db, limit: int = 20) -> list:
+    """
+    Search lobbying records for lobbying related to claim text.
+    Supports all sector lobbying tables based on entity_type.
+
+    entity_type: "tech" | "finance" | "health" | "energy"
+    """
+    claim_tokens = set(tokenize(claim_text, STOPWORDS_BASE))
+    if not claim_tokens:
+        return []
+
+    # Select the right model and FK column based on entity_type
+    if entity_type == "tech":
+        from models.tech_models import LobbyingRecord as LobbyModel
+        fk_col = LobbyModel.company_id
+    elif entity_type == "finance":
+        from models.finance_models import FinanceLobbyingRecord as LobbyModel
+        fk_col = LobbyModel.institution_id
+    elif entity_type == "health":
+        from models.health_models import HealthLobbyingRecord as LobbyModel
+        fk_col = LobbyModel.company_id
+    elif entity_type == "energy":
+        from models.energy_models import EnergyLobbyingRecord as LobbyModel
+        fk_col = LobbyModel.company_id
+    else:
+        return []
+
+    records = (
+        db.query(LobbyModel)
+          .filter(fk_col == entity_id)
+          .order_by(desc(LobbyModel.filing_year))
+          .limit(500)
+          .all()
+    )
+
+    scored = []
+    for rec in records:
+        lobby_text = f"{rec.client_name or ''} {rec.registrant_name or ''} {getattr(rec, 'specific_issues', '') or ''}"
+        lobby_tokens = set(tokenize(lobby_text, STOPWORDS_BASE))
+        overlap = claim_tokens.intersection(lobby_tokens)
+        if not overlap:
+            continue
+        score = float(len(overlap))
+        scored.append({
+            "type": "lobbying",
+            "score": score,
+            "overlap": sorted(list(overlap)),
+            "data": {
+                "id": rec.id,
+                "client_name": rec.client_name,
+                "registrant_name": rec.registrant_name,
+                "filing_year": rec.filing_year,
+                "filing_period": getattr(rec, "filing_period", None),
+                "income": getattr(rec, "income", None),
+                "specific_issues": getattr(rec, "specific_issues", None),
+            },
+        })
+
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return scored[:limit]
+
+
+def match_against_contracts(claim_text: str, entity_id: str, entity_type: str, db, limit: int = 20) -> list:
+    """
+    Search government contracts for an entity and match against claim text.
+    Supports all sector contract tables based on entity_type.
+
+    entity_type: "tech" | "finance" | "health" | "energy"
+
+    Useful for claims like "We never got government contracts" or
+    "We work with the Department of Defense."
+    """
+    claim_tokens = set(tokenize(claim_text, STOPWORDS_BASE))
+    if not claim_tokens:
+        return []
+
+    # Select the right model and FK column based on entity_type
+    if entity_type == "tech":
+        from models.tech_models import GovernmentContract as ContractModel
+        fk_col = ContractModel.company_id
+    elif entity_type == "finance":
+        from models.finance_models import FinanceGovernmentContract as ContractModel
+        fk_col = ContractModel.institution_id
+    elif entity_type == "health":
+        from models.health_models import HealthGovernmentContract as ContractModel
+        fk_col = ContractModel.company_id
+    elif entity_type == "energy":
+        from models.energy_models import EnergyGovernmentContract as ContractModel
+        fk_col = ContractModel.company_id
+    else:
+        return []
+
+    records = (
+        db.query(ContractModel)
+          .filter(fk_col == entity_id)
+          .order_by(desc(ContractModel.start_date))
+          .limit(500)
+          .all()
+    )
+
+    scored = []
+    for rec in records:
+        contract_text = f"{rec.description or ''} {rec.awarding_agency or ''} {rec.contract_type or ''}"
+        contract_tokens = set(tokenize(contract_text, STOPWORDS_BASE))
+        overlap = claim_tokens.intersection(contract_tokens)
+        if not overlap:
+            continue
+        score = float(len(overlap))
+        # Boost for specific agency mentions
+        if rec.awarding_agency:
+            agency_lower = rec.awarding_agency.lower()
+            claim_lower = claim_text.lower()
+            if agency_lower in claim_lower or any(
+                word in claim_lower for word in agency_lower.split() if len(word) >= 4
+            ):
+                score += 3.0
+        scored.append({
+            "type": "contract",
+            "description": f"${rec.award_amount:,.0f} contract from {rec.awarding_agency}" if rec.award_amount and rec.awarding_agency else f"Contract: {(rec.description or 'N/A')[:80]}",
+            "date": rec.start_date.isoformat() if rec.start_date else None,
+            "source_url": None,
+            "relevance_score": score,
+            "overlap": sorted(list(overlap)),
+            "data": {
+                "id": rec.id,
+                "award_id": rec.award_id,
+                "award_amount": rec.award_amount,
+                "awarding_agency": rec.awarding_agency,
+                "description": rec.description,
+                "start_date": rec.start_date.isoformat() if rec.start_date else None,
+                "end_date": rec.end_date.isoformat() if rec.end_date else None,
+                "contract_type": rec.contract_type,
+            },
+        })
+
+    scored.sort(key=lambda x: x["relevance_score"], reverse=True)
+    return scored[:limit]
+
+
+def match_against_enforcement(claim_text: str, entity_id: str, entity_type: str, db, limit: int = 20) -> list:
+    """
+    Search enforcement actions for an entity and match against claim text.
+    Supports all sector enforcement tables based on entity_type.
+
+    entity_type: "tech" | "finance" | "health" | "energy"
+
+    Useful for claims like "We've never been fined" or "Our safety record is clean."
+    """
+    claim_tokens = set(tokenize(claim_text, STOPWORDS_BASE))
+    if not claim_tokens:
+        return []
+
+    if entity_type == "tech":
+        from models.tech_models import FTCEnforcement as EnfModel
+        fk_col = EnfModel.company_id
+    elif entity_type == "finance":
+        from models.finance_models import FinanceEnforcement as EnfModel
+        fk_col = EnfModel.institution_id
+    elif entity_type == "health":
+        from models.health_models import HealthEnforcement as EnfModel
+        fk_col = EnfModel.company_id
+    elif entity_type == "energy":
+        from models.energy_models import EnergyEnforcement as EnfModel
+        fk_col = EnfModel.company_id
+    else:
+        return []
+
+    records = (
+        db.query(EnfModel)
+          .filter(fk_col == entity_id)
+          .order_by(desc(EnfModel.case_date))
+          .limit(500)
+          .all()
+    )
+
+    scored = []
+    for rec in records:
+        enf_text = f"{rec.case_title or ''} {rec.description or ''} {rec.enforcement_type or ''} {rec.source or ''}"
+        enf_tokens = set(tokenize(enf_text, STOPWORDS_BASE))
+        overlap = claim_tokens.intersection(enf_tokens)
+        if not overlap:
+            continue
+        score = float(len(overlap))
+        # Boost for penalty-related claims
+        penalty_terms = {"fine", "fined", "penalty", "penalized", "settlement", "violation"}
+        if claim_tokens.intersection(penalty_terms) and rec.penalty_amount:
+            score += 5.0
+        scored.append({
+            "type": "enforcement",
+            "description": f"{rec.enforcement_type or 'Enforcement'}: {rec.case_title}" if rec.case_title else "Enforcement action",
+            "date": rec.case_date.isoformat() if rec.case_date else None,
+            "source_url": rec.case_url,
+            "relevance_score": score,
+            "overlap": sorted(list(overlap)),
+            "data": {
+                "id": rec.id,
+                "case_title": rec.case_title,
+                "case_date": rec.case_date.isoformat() if rec.case_date else None,
+                "case_url": rec.case_url,
+                "enforcement_type": rec.enforcement_type,
+                "penalty_amount": rec.penalty_amount,
+                "description": rec.description,
+                "source": rec.source,
+            },
+        })
+
+    scored.sort(key=lambda x: x["relevance_score"], reverse=True)
+    return scored[:limit]
+
+
+def match_against_donations(claim_text: str, person_id: str, db, limit: int = 20) -> list:
+    """
+    Search CompanyDonation for donations TO a politician.
+    Useful for claims like "I don't take money from Big Pharma" --
+    cross-reference against all donations from health sector entities.
+    """
+    from models.database import CompanyDonation
+
+    claim_tokens = set(tokenize(claim_text, STOPWORDS_BASE))
+    if not claim_tokens:
+        return []
+
+    donations = (
+        db.query(CompanyDonation)
+          .filter(CompanyDonation.person_id == person_id)
+          .order_by(desc(CompanyDonation.donation_date))
+          .limit(500)
+          .all()
+    )
+
+    # Sector keywords for detecting sector-specific denial claims
+    sector_keywords = {
+        "finance": {"bank", "banks", "banking", "financial", "wall street", "finance"},
+        "health": {"pharma", "pharmaceutical", "drug", "health", "healthcare", "hospital", "insurance", "medical"},
+        "tech": {"tech", "technology", "silicon valley", "big tech", "software", "platform"},
+        "energy": {"oil", "gas", "energy", "fossil", "coal", "petroleum", "pipeline"},
+    }
+
+    # Detect which sectors the claim is about
+    claim_lower = claim_text.lower()
+    claimed_sectors = set()
+    for sector, keywords in sector_keywords.items():
+        if any(kw in claim_lower for kw in keywords):
+            claimed_sectors.add(sector)
+
+    scored = []
+    for don in donations:
+        donation_text = f"{don.committee_name or ''} {don.candidate_name or ''} {don.entity_type or ''} {don.entity_id or ''}"
+        donation_tokens = set(tokenize(donation_text, STOPWORDS_BASE))
+        overlap = claim_tokens.intersection(donation_tokens)
+        score = float(len(overlap))
+        # Boost if donation is from a sector the claim mentions
+        if don.entity_type and don.entity_type in claimed_sectors:
+            score += 5.0
+        if score <= 0:
+            continue
+        scored.append({
+            "type": "donation",
+            "description": f"${don.amount:,.0f} from {don.committee_name or don.entity_id} ({don.entity_type})" if don.amount else f"Donation from {don.committee_name or don.entity_id}",
+            "date": don.donation_date.isoformat() if don.donation_date else None,
+            "source_url": don.source_url,
+            "relevance_score": score,
+            "overlap": sorted(list(overlap)) if overlap else [],
+            "data": {
+                "id": don.id,
+                "entity_type": don.entity_type,
+                "entity_id": don.entity_id,
+                "committee_name": don.committee_name,
+                "committee_id": don.committee_id,
+                "candidate_name": don.candidate_name,
+                "amount": don.amount,
+                "cycle": don.cycle,
+                "donation_date": don.donation_date.isoformat() if don.donation_date else None,
+            },
+        })
+
+    scored.sort(key=lambda x: x["relevance_score"], reverse=True)
+    return scored[:limit]
+
+
+def match_against_committee_positions(claim_text: str, person_id: str, db, limit: int = 20) -> list:
+    """
+    Search CommitteeMembership + Committee for a politician's committee positions.
+    Useful for claims about committee membership, oversight authority, etc.
+    """
+    from models.committee_models import Committee, CommitteeMembership
+
+    claim_tokens = set(tokenize(claim_text, STOPWORDS_BASE))
+    if not claim_tokens:
+        return []
+
+    memberships = (
+        db.query(CommitteeMembership, Committee)
+          .join(Committee, CommitteeMembership.committee_thomas_id == Committee.thomas_id)
+          .filter(CommitteeMembership.person_id == person_id)
+          .all()
+    )
+
+    scored = []
+    for membership, committee in memberships:
+        committee_text = f"{committee.name or ''} {committee.jurisdiction or ''} {membership.role or ''}"
+        committee_tokens = set(tokenize(committee_text, STOPWORDS_BASE))
+        overlap = claim_tokens.intersection(committee_tokens)
+        if not overlap:
+            continue
+        score = float(len(overlap))
+        # Boost for leadership roles
+        if membership.role in ("chair", "ranking_member", "vice_chair"):
+            score += 3.0
+        scored.append({
+            "type": "committee_position",
+            "description": f"{membership.role.replace('_', ' ').title() if membership.role else 'Member'} of {committee.name}",
+            "date": membership.created_at.isoformat() if membership.created_at else None,
+            "source_url": committee.url,
+            "relevance_score": score,
+            "overlap": sorted(list(overlap)),
+            "data": {
+                "committee_thomas_id": committee.thomas_id,
+                "committee_name": committee.name,
+                "chamber": committee.chamber,
+                "role": membership.role,
+                "rank": membership.rank,
+                "party": membership.party,
+                "jurisdiction": committee.jurisdiction,
+                "parent_thomas_id": committee.parent_thomas_id,
+            },
+        })
+
+    scored.sort(key=lambda x: x["relevance_score"], reverse=True)
+    return scored[:limit]
+
+
+def match_against_sec_filings(claim_text: str, entity_id: str, entity_type: str, db, limit: int = 20) -> list:
+    """
+    Search SEC filings (insider trades for finance, regular filings for all sectors)
+    for relevant financial disclosures.
+
+    entity_type: "tech" | "finance" | "health" | "energy"
+
+    Useful for claims about financial positions, stock transactions, etc.
+    """
+    claim_tokens = set(tokenize(claim_text, STOPWORDS_BASE))
+    if not claim_tokens:
+        return []
+
+    scored = []
+
+    if entity_type == "finance":
+        from models.finance_models import SECFiling, SECInsiderTrade
+
+        # Insider trades
+        trades = (
+            db.query(SECInsiderTrade)
+              .filter(SECInsiderTrade.institution_id == entity_id)
+              .order_by(desc(SECInsiderTrade.transaction_date))
+              .limit(300)
+              .all()
+        )
+        for trade in trades:
+            trade_text = f"{trade.filer_name or ''} {trade.filer_title or ''} {trade.transaction_type or ''}"
+            trade_tokens = set(tokenize(trade_text, STOPWORDS_BASE))
+            overlap = claim_tokens.intersection(trade_tokens)
+            if not overlap:
+                continue
+            score = float(len(overlap))
+            scored.append({
+                "type": "sec_insider_trade",
+                "description": f"{trade.filer_name} ({trade.filer_title or 'insider'}) {trade.transaction_type or ''} ${trade.total_value:,.0f}" if trade.total_value else f"Insider trade by {trade.filer_name}",
+                "date": trade.transaction_date.isoformat() if trade.transaction_date else None,
+                "source_url": trade.filing_url,
+                "relevance_score": score,
+                "overlap": sorted(list(overlap)),
+                "data": {
+                    "id": trade.id,
+                    "filer_name": trade.filer_name,
+                    "filer_title": trade.filer_title,
+                    "transaction_date": trade.transaction_date.isoformat() if trade.transaction_date else None,
+                    "transaction_type": trade.transaction_type,
+                    "shares": trade.shares,
+                    "price_per_share": trade.price_per_share,
+                    "total_value": trade.total_value,
+                    "filing_url": trade.filing_url,
+                },
+            })
+
+        # SEC filings
+        filings = (
+            db.query(SECFiling)
+              .filter(SECFiling.institution_id == entity_id)
+              .order_by(desc(SECFiling.filing_date))
+              .limit(200)
+              .all()
+        )
+        for filing in filings:
+            filing_text = f"{filing.form_type or ''} {filing.description or ''}"
+            filing_tokens = set(tokenize(filing_text, STOPWORDS_BASE))
+            overlap = claim_tokens.intersection(filing_tokens)
+            if not overlap:
+                continue
+            score = float(len(overlap))
+            scored.append({
+                "type": "sec_filing",
+                "description": f"SEC {filing.form_type}: {(filing.description or 'N/A')[:80]}",
+                "date": filing.filing_date.isoformat() if filing.filing_date else None,
+                "source_url": filing.filing_url or filing.primary_doc_url,
+                "relevance_score": score,
+                "overlap": sorted(list(overlap)),
+                "data": {
+                    "id": filing.id,
+                    "accession_number": filing.accession_number,
+                    "form_type": filing.form_type,
+                    "filing_date": filing.filing_date.isoformat() if filing.filing_date else None,
+                    "description": filing.description,
+                    "filing_url": filing.filing_url,
+                    "primary_doc_url": filing.primary_doc_url,
+                },
+            })
+
+    elif entity_type == "tech":
+        from models.tech_models import SECTechFiling
+
+        filings = (
+            db.query(SECTechFiling)
+              .filter(SECTechFiling.company_id == entity_id)
+              .order_by(desc(SECTechFiling.filing_date))
+              .limit(200)
+              .all()
+        )
+        for filing in filings:
+            filing_text = f"{filing.form_type or ''} {filing.description or ''}"
+            filing_tokens = set(tokenize(filing_text, STOPWORDS_BASE))
+            overlap = claim_tokens.intersection(filing_tokens)
+            if not overlap:
+                continue
+            score = float(len(overlap))
+            scored.append({
+                "type": "sec_filing",
+                "description": f"SEC {filing.form_type}: {(filing.description or 'N/A')[:80]}",
+                "date": filing.filing_date.isoformat() if filing.filing_date else None,
+                "source_url": filing.filing_url or filing.primary_doc_url,
+                "relevance_score": score,
+                "overlap": sorted(list(overlap)),
+                "data": {
+                    "id": filing.id,
+                    "accession_number": filing.accession_number,
+                    "form_type": filing.form_type,
+                    "filing_date": filing.filing_date.isoformat() if filing.filing_date else None,
+                    "description": filing.description,
+                    "filing_url": filing.filing_url,
+                    "primary_doc_url": filing.primary_doc_url,
+                },
+            })
+
+    elif entity_type == "health":
+        from models.health_models import SECHealthFiling
+
+        filings = (
+            db.query(SECHealthFiling)
+              .filter(SECHealthFiling.company_id == entity_id)
+              .order_by(desc(SECHealthFiling.filing_date))
+              .limit(200)
+              .all()
+        )
+        for filing in filings:
+            filing_text = f"{filing.form_type or ''} {filing.description or ''}"
+            filing_tokens = set(tokenize(filing_text, STOPWORDS_BASE))
+            overlap = claim_tokens.intersection(filing_tokens)
+            if not overlap:
+                continue
+            score = float(len(overlap))
+            scored.append({
+                "type": "sec_filing",
+                "description": f"SEC {filing.form_type}: {(filing.description or 'N/A')[:80]}",
+                "date": filing.filing_date.isoformat() if filing.filing_date else None,
+                "source_url": filing.filing_url or filing.primary_doc_url,
+                "relevance_score": score,
+                "overlap": sorted(list(overlap)),
+                "data": {
+                    "id": filing.id,
+                    "accession_number": filing.accession_number,
+                    "form_type": filing.form_type,
+                    "filing_date": filing.filing_date.isoformat() if filing.filing_date else None,
+                    "description": filing.description,
+                    "filing_url": filing.filing_url,
+                    "primary_doc_url": filing.primary_doc_url,
+                },
+            })
+
+    elif entity_type == "energy":
+        from models.energy_models import SECEnergyFiling
+
+        filings = (
+            db.query(SECEnergyFiling)
+              .filter(SECEnergyFiling.company_id == entity_id)
+              .order_by(desc(SECEnergyFiling.filing_date))
+              .limit(200)
+              .all()
+        )
+        for filing in filings:
+            filing_text = f"{filing.form_type or ''} {filing.description or ''}"
+            filing_tokens = set(tokenize(filing_text, STOPWORDS_BASE))
+            overlap = claim_tokens.intersection(filing_tokens)
+            if not overlap:
+                continue
+            score = float(len(overlap))
+            scored.append({
+                "type": "sec_filing",
+                "description": f"SEC {filing.form_type}: {(filing.description or 'N/A')[:80]}",
+                "date": filing.filing_date.isoformat() if filing.filing_date else None,
+                "source_url": filing.filing_url or filing.primary_doc_url,
+                "relevance_score": score,
+                "overlap": sorted(list(overlap)),
+                "data": {
+                    "id": filing.id,
+                    "accession_number": filing.accession_number,
+                    "form_type": filing.form_type,
+                    "filing_date": filing.filing_date.isoformat() if filing.filing_date else None,
+                    "description": filing.description,
+                    "filing_url": filing.filing_url,
+                    "primary_doc_url": filing.primary_doc_url,
+                },
+            })
+
+    scored.sort(key=lambda x: x["relevance_score"], reverse=True)
+    return scored[:limit]

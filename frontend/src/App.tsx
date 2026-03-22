@@ -5,6 +5,7 @@ import FinanceLayout from "./layouts/FinanceLayout";
 import TechLayout from "./layouts/TechLayout";
 import HealthLayout from "./layouts/HealthLayout";
 import EnergyLayout from "./layouts/EnergyLayout";
+import TransportationLayout from "./layouts/TransportationLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import GlobalSearch from "./components/GlobalSearch";
@@ -52,6 +53,10 @@ const EnergyDashboardPage = React.lazy(() => import("./pages/EnergyDashboardPage
 const EnergyCompaniesPage = React.lazy(() => import("./pages/EnergyCompaniesPage"));
 const EnergyCompanyProfilePage = React.lazy(() => import("./pages/EnergyCompanyProfilePage"));
 const EnergyComparePage = React.lazy(() => import("./pages/EnergyComparePage"));
+const TransportationDashboardPage = React.lazy(() => import("./pages/TransportationDashboardPage"));
+const TransportationCompaniesPage = React.lazy(() => import("./pages/TransportationCompaniesPage"));
+const TransportationCompanyProfilePage = React.lazy(() => import("./pages/TransportationCompanyProfilePage"));
+const TransportationComparePage = React.lazy(() => import("./pages/TransportationComparePage"));
 const CongressionalTradesPage = React.lazy(() => import("./pages/CongressionalTradesPage"));
 const StateExplorerPage = React.lazy(() => import("./pages/StateExplorerPage"));
 const StateDashboardPage = React.lazy(() => import("./pages/StateDashboardPage"));
@@ -162,6 +167,15 @@ const App: React.FC = () => (
           <Route path="/energy/contracts" element={<EnergyLayout><SectorContractsPage /></EnergyLayout>} />
           <Route path="/energy/enforcement" element={<EnergyLayout><SectorEnforcementPage /></EnergyLayout>} />
           <Route path="/energy/:companyId" element={<EnergyLayout><EnergyCompanyProfilePage /></EnergyLayout>} />
+
+          {/* Transportation section — all wrapped in TransportationLayout */}
+          <Route path="/transportation" element={<TransportationLayout><TransportationDashboardPage /></TransportationLayout>} />
+          <Route path="/transportation/companies" element={<TransportationLayout><TransportationCompaniesPage /></TransportationLayout>} />
+          <Route path="/transportation/compare" element={<TransportationLayout><TransportationComparePage /></TransportationLayout>} />
+          <Route path="/transportation/lobbying" element={<TransportationLayout><SectorLobbyingPage /></TransportationLayout>} />
+          <Route path="/transportation/contracts" element={<TransportationLayout><SectorContractsPage /></TransportationLayout>} />
+          <Route path="/transportation/enforcement" element={<TransportationLayout><SectorEnforcementPage /></TransportationLayout>} />
+          <Route path="/transportation/:companyId" element={<TransportationLayout><TransportationCompanyProfilePage /></TransportationLayout>} />
 
           {/* Legal / Info pages */}
           <Route path="/privacy" element={<PrivacyPolicyPage />} />

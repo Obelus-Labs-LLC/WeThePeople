@@ -29,9 +29,7 @@ from models.database import (
     CongressionalTrade,
 )
 from models.committee_models import Committee, CommitteeMembership
-from services.coverage import compute_coverage_report
-from services.ops.pilot_cohort import get_pilot_person_ids
-from services.matching import (
+from services.claims.match import (
     compute_matches_for_claim,
     auto_classify_claim,
     detect_intent,
@@ -43,7 +41,6 @@ from services.matching import (
 )
 from connectors.wikipedia import build_politician_profile
 from connectors.fec import build_finance_profile
-from services.power_map import build_person_power_map
 from utils.normalization import normalize_bill_id
 from services.bill_text import format_text_receipt
 from services.auth import require_press_key
@@ -262,43 +259,6 @@ def get_ledger_claim(claim_id: int):
         result["display_name"] = member.display_name if member else row.person_id
 
         return result
-    finally:
-        db.close()
-
-
-# ── Coverage ──
-
-@router.get("/ops/coverage", dependencies=[Depends(require_press_key)])
-def get_ops_coverage(
-    person_id: Optional[str] = Query(None, description="Optional person_id filter. Comma-separated for multiple."),
-    pilot_only: bool = Query(False, description="If true, filters to the canonical pilot cohort."),
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
-    active_only: bool = Query(True),
-    order: str = Query("worst", description="Ordering: worst|best"),
-):
-    """Operational coverage snapshot (Phase L3)."""
-    db = SessionLocal()
-    try:
-        person_ids = None
-        if person_id is not None:
-            person_ids = [p.strip() for p in person_id.split(",") if p.strip()]
-
-        if pilot_only:
-            pilot_ids = get_pilot_person_ids(db)
-            if person_ids is None:
-                person_ids = pilot_ids
-            else:
-                pilot_set = set(pilot_ids)
-                person_ids = [p for p in person_ids if p in pilot_set]
-        return compute_coverage_report(
-            db,
-            person_ids=person_ids,
-            limit=limit,
-            offset=offset,
-            active_only=active_only,
-            order=order,
-        )
     finally:
         db.close()
 
@@ -1316,16 +1276,6 @@ def get_person_graph(person_id: str, limit: int = Query(50, ge=1, le=200)):
                 })
 
         return {"person_id": person_id, "display_name": member.display_name, "connections": connections}
-    finally:
-        db.close()
-
-
-@router.get("/powermap/person/{person_id}")
-def get_person_powermap(person_id: str, limit: int = Query(25)):
-    """Power map for a person."""
-    db = SessionLocal()
-    try:
-        return build_person_power_map(db, person_id=person_id, limit=limit)
     finally:
         db.close()
 

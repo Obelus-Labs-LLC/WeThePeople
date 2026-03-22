@@ -17,6 +17,7 @@ const SECTOR_COLORS: Record<string, { bg: string; activeBg: string; activeText: 
   health: { bg: 'bg-red-500', activeBg: 'bg-red-500/20', activeText: 'text-red-400' },
   technology: { bg: 'bg-violet-500', activeBg: 'bg-violet-500/20', activeText: 'text-violet-400' },
   energy: { bg: 'bg-orange-500', activeBg: 'bg-orange-500/20', activeText: 'text-orange-400' },
+  transportation: { bg: 'bg-blue-500', activeBg: 'bg-blue-500/20', activeText: 'text-blue-400' },
 };
 
 export default function SectorHeader({ sector, links }: SectorHeaderProps) {
@@ -137,4 +138,18 @@ const ENERGY_LINKS: NavLink[] = [
 
 export function EnergySectorHeader() {
   return <SectorHeader sector="energy" links={ENERGY_LINKS} />;
+}
+
+const TRANSPORTATION_LINKS: NavLink[] = [
+  { label: 'Sectors', to: '/' },
+  { label: 'Dashboard', to: '/transportation' },
+  { label: 'Companies', to: '/transportation/companies' },
+  { label: 'Lobbying', to: '/transportation/lobbying' },
+  { label: 'Contracts', to: '/transportation/contracts' },
+  { label: 'Enforcement', to: '/transportation/enforcement' },
+  { label: 'Compare', to: '/transportation/compare' },
+];
+
+export function TransportationSectorHeader() {
+  return <SectorHeader sector="transportation" links={TRANSPORTATION_LINKS} />;
 }
