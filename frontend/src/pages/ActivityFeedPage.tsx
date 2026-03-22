@@ -35,6 +35,7 @@ export default function ActivityFeedPage() {
   const [actions, setActions] = useState<RecentAction[]>([]);
   const [votes, setVotes] = useState<VoteType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   const headerRef = React.useRef<HTMLDivElement>(null);
@@ -49,7 +50,10 @@ export default function ActivityFeedPage() {
         setActions(actionsRes || []);
         setVotes(votesRes.votes || []);
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        setError(err.message || 'Failed to load activity feed');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -57,6 +61,23 @@ export default function ActivityFeedPage() {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-red-400 mb-2">Failed to load activity feed</p>
+          <p className="text-sm text-white/50 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 font-body text-sm text-white/60 hover:bg-white/10 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }

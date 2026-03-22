@@ -308,13 +308,13 @@ export default function SectorEnforcementPage() {
 
           {/* Stat cards */}
           {loading ? (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[0, 1, 2, 3].map((i) => (
                 <div key={i} className="h-24 rounded-xl bg-zinc-900 animate-pulse" />
               ))}
             </div>
           ) : (
-            <motion.div variants={containerVariants} className="grid grid-cols-4 gap-4">
+            <motion.div variants={containerVariants} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <motion.div
                 variants={itemVariants}
                 className="group relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-5 flex flex-col gap-3"

@@ -179,6 +179,7 @@ export default function LegislationTrackerPage() {
   };
 
   // Unique sponsors for the dropdown
+  // TODO: Fetch all unique sponsors from API instead of deriving from loaded page
   const uniqueSponsors = useMemo(() => {
     const map = new Map<string, string>();
     for (const bill of bills) {
@@ -289,7 +290,7 @@ export default function LegislationTrackerPage() {
                   {STATUS_OPTIONS.map((opt) => (
                     <button
                       key={opt.key}
-                      onClick={() => setStatusFilter(opt.key)}
+                      onClick={() => { setStatusFilter(opt.key); setPipelineStage(''); }}
                       className={`rounded-full px-3 py-1.5 font-body text-xs transition-all ${
                         statusFilter === opt.key
                           ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
@@ -335,7 +336,7 @@ export default function LegislationTrackerPage() {
           >
             <BillPipeline
               bills={bills}
-              onStageClick={(stage) => setPipelineStage(stage)}
+              onStageClick={(stage) => { setPipelineStage(stage); setStatusFilter('all'); }}
               activeStage={pipelineStage}
             />
           </motion.div>

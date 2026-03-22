@@ -334,9 +334,9 @@ export default function ComparePageNew() {
             <SectionTitle>Overview Metrics</SectionTitle>
             {(() => {
               const metrics = [
-                { label: 'Legislative Actions', values: comparisonPairs.map(({ data }) => data.total_claims ?? 0) },
-                { label: 'Actions Scored', values: comparisonPairs.map(({ data }) => data.total_scored ?? 0) },
-                { label: 'Total Actions', values: comparisonPairs.map(({ data }) => data.total_actions ?? 0) },
+                { label: 'Claims Tracked', values: comparisonPairs.map(({ data }) => data.total_claims ?? 0) },
+                { label: 'Claims Evaluated', values: comparisonPairs.map(({ data }) => data.total_scored ?? 0) },
+                { label: 'Legislative Actions', values: comparisonPairs.map(({ data }) => data.total_actions ?? 0) },
               ];
               return metrics.map((m) => {
                 const best = maxIndices(m.values);
@@ -390,7 +390,7 @@ export default function ComparePageNew() {
             )}
 
             {/* POLICY AREAS */}
-            <SectionTitle>Policy Areas</SectionTitle>
+            {policyRows.length > 0 && <SectionTitle>Policy Areas</SectionTitle>}
             {policyRows.map((row, rowIdx) => {
               const best = maxIndices(row.values);
               return (
@@ -440,6 +440,11 @@ export default function ComparePageNew() {
             <p className="font-dm-sans text-lg text-slate-400">
               Side-by-side legislative analysis
             </p>
+            {selectedIds.length < MAX_SELECTED && (
+              <p className="font-dm-sans text-sm text-slate-500 mt-1">
+                Select up to {MAX_SELECTED} members to compare
+              </p>
+            )}
           </div>
 
           {/* Selected chips */}

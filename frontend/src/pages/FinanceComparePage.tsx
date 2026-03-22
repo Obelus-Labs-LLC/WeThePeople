@@ -177,6 +177,13 @@ function InstitutionDropdown({
       </span>
       <button
         onClick={() => setOpen(!open)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setOpen(false);
+          if ((e.key === 'Enter' || e.key === ' ') && !open) { e.preventDefault(); setOpen(true); }
+          if (e.key === 'ArrowDown' && !open) { e.preventDefault(); setOpen(true); }
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-4 py-3 text-left transition-all hover:border-white/20 focus:outline-none focus:border-[#34D399]/50"
       >
         <span className={`font-body text-sm truncate ${selected ? 'text-white' : 'text-white/40'}`}>
@@ -204,13 +211,15 @@ function InstitutionDropdown({
               className="w-full rounded-md bg-white/[0.05] px-3 py-2 font-body text-sm text-white placeholder:text-white/40 outline-none border border-white/5 focus:border-[#34D399]/30"
             />
           </div>
-          <div className="overflow-y-auto">
+          <div className="overflow-y-auto" role="listbox">
             {filtered.length === 0 ? (
               <p className="px-4 py-3 font-body text-sm text-white/40">No results</p>
             ) : (
               filtered.map((inst) => (
                 <button
                   key={inst.institution_id}
+                  role="option"
+                  aria-selected={inst.institution_id === value}
                   onClick={() => {
                     onChange(inst.institution_id);
                     setOpen(false);
@@ -279,6 +288,7 @@ export default function FinanceComparePage() {
   }
 
   // Auto-compare on first load
+  // Note: handleCompare is not in deps but idA/idB changes trigger re-comparison correctly
   useEffect(() => {
     if (idA && idB && idA !== idB && compared.length === 0 && !comparing) {
       handleCompare();
@@ -481,7 +491,7 @@ export default function FinanceComparePage() {
         ) : !comparing ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
-              <GitCompareArrows size={40} className="mx-auto mb-3 text-white/40/30" />
+              <GitCompareArrows size={40} className="mx-auto mb-3 text-white/30" />
               <p className="font-body text-sm text-white/40">
                 Pick two institutions above and hit Compare
               </p>

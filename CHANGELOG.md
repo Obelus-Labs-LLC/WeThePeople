@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Error state with retry button on Activity Feed page
+- Selection limit hint ("Select up to 4 members") on politics compare page
+- Favicon link tag in index.html
+- Deployment instructions with `sed` substitution in SETUP.md and service file headers
+
+### Changed
+- Methodology page updated: removed 3 stale limitations (Senate votes, FEC donations, state data now available), added 4 current limitations
+- Drug Lookup page reduced from 90 to 30 parallel API calls per search
+- Politics compare metrics relabeled to match actual backend response fields
+- Enforcement page stat cards responsive on mobile (`grid-cols-2 lg:grid-cols-4`)
+- Bill Detail page scrolls naturally on mobile (split-panel preserved on desktop)
+- Pipeline stage and status filters now mutually exclusive on Legislation Tracker
+- Compare page dropdowns now keyboard accessible (Enter/Space/Escape/arrows) with ARIA attributes
+- Commented out `psycopg2-binary` and `docling` from requirements.txt (optional, cause install failures)
+- Removed 3 unused npm packages: `vizzu`, `@knight-lab/timelinejs`, `lightweight-charts`
+- Commented out broken OG image meta tags (image file doesn't exist)
+- V1-era scripts guarded with exit warnings redirecting to current equivalents
+
 ### Fixed
 - Company profile AI summaries querying wrong column name (`entity_id` instead of `institution_id`/`company_id`)
 - 3 pairs of tracked companies sharing incorrect SEC CIK numbers (Citizens Financial, Huntington Bancshares, Enterprise Products)
@@ -35,6 +54,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mobile infinite re-fetch loop for companies with zero records in a tab
 - Mobile CommitteesScreen rendering 230 items without virtualization
 - Mobile SearchBar timer not cleared on unmount
+- Activity Feed silently swallowing API errors (now shows error with retry)
+- Enforcement page stat cards crushed on mobile (4 columns, now responsive)
+- Invalid Tailwind class `text-white/40/30` on Finance compare page
+- Pipeline stage and status filter conflict on Legislation Tracker
+- Bill Detail page scroll locked on mobile due to `h-screen overflow-hidden`
+- Backup script falsely reporting failure (`member_bills_groundtruth` threshold 1M, actual ~4K)
+- Two scripts with wrong `sys.path` (pointing to `scripts/` instead of project root)
+- DB check script defaulting to wrong database name (`wtp.db` instead of `wethepeople.db`)
+- `.nexus/` directory not in `.gitignore`
+- Unused `color`/`activeColor` props in SectorHeader component
+- Dead `STATE_FLAGS` constant in StateExplorerPage
 
 ## [2.1.0] - 2026-03-22
 

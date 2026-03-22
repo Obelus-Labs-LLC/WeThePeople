@@ -1,3 +1,8 @@
+# DEPLOYMENT: Before installing, substitute placeholders:
+#   sed -i 's|%USER%|dshon|g; s|%HOME%|/home/dshon|g' wethepeople-scheduler.service
+#   sudo cp wethepeople-scheduler.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now wethepeople-scheduler
+
 [Unit]
 Description=WeThePeople Sync Scheduler
 After=network.target wethepeople.service

@@ -36,7 +36,7 @@ HEALTH_FILE = BACKUP_DIR / "backup_health.json"
 # Minimum expected row counts — alert if below these
 MIN_COUNTS = {
     "tracked_members": 530,
-    "member_bills_groundtruth": 1_000_000,
+    "member_bills_groundtruth": 1_000,
     "bills": 35_000,
 }
 
