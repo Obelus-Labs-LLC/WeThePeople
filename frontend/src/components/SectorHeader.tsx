@@ -18,6 +18,7 @@ const SECTOR_COLORS: Record<string, { bg: string; activeBg: string; activeText: 
   technology: { bg: 'bg-violet-500', activeBg: 'bg-violet-500/20', activeText: 'text-violet-400' },
   energy: { bg: 'bg-orange-500', activeBg: 'bg-orange-500/20', activeText: 'text-orange-400' },
   transportation: { bg: 'bg-blue-500', activeBg: 'bg-blue-500/20', activeText: 'text-blue-400' },
+  verify: { bg: 'bg-emerald-500', activeBg: 'bg-emerald-500/20', activeText: 'text-emerald-400' },
 };
 
 export default function SectorHeader({ sector, links }: SectorHeaderProps) {
@@ -152,4 +153,15 @@ const TRANSPORTATION_LINKS: NavLink[] = [
 
 export function TransportationSectorHeader() {
   return <SectorHeader sector="transportation" links={TRANSPORTATION_LINKS} />;
+}
+
+const VERIFY_LINKS: NavLink[] = [
+  { label: 'Sectors', to: '/' },
+  { label: 'Dashboard', to: '/verify' },
+  { label: 'Submit', to: '/verify/submit' },
+  { label: 'Methodology', to: '/verify/methodology' },
+];
+
+export function VerifySectorHeader() {
+  return <SectorHeader sector="verify" links={VERIFY_LINKS} />;
 }

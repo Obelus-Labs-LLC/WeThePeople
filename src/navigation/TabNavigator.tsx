@@ -54,6 +54,18 @@ import SectorLobbyingScreen from '../screens/SectorLobbyingScreen';
 import SectorContractsScreen from '../screens/SectorContractsScreen';
 import SectorEnforcementScreen from '../screens/SectorEnforcementScreen';
 
+// Transportation screens
+import TransportationDashboardScreen from '../screens/TransportationDashboardScreen';
+import TransportationCompaniesScreen from '../screens/TransportationCompaniesScreen';
+import TransportationCompanyScreen from '../screens/TransportationCompanyScreen';
+import TransportationCompareScreen from '../screens/TransportationCompareScreen';
+
+// Verify screens
+import VerifyDashboardScreen from '../screens/VerifyDashboardScreen';
+import VerifySubmitScreen from '../screens/VerifySubmitScreen';
+import VerifyResultScreen from '../screens/VerifyResultScreen';
+import VerifyEntityScreen from '../screens/VerifyEntityScreen';
+
 // New screens — Session 13 parity
 import MoneyFlowScreen from '../screens/MoneyFlowScreen';
 import DataExplorerScreen from '../screens/DataExplorerScreen';
@@ -214,6 +226,26 @@ function HomeStackScreen() {
         name="ClosedLoop"
         component={ClosedLoopScreen}
         options={{ title: 'Closed Loops' }}
+      />
+      <HomeStack.Screen
+        name="VerifyDashboard"
+        component={VerifyDashboardScreen}
+        options={{ title: 'Verify Claims' }}
+      />
+      <HomeStack.Screen
+        name="VerifySubmit"
+        component={VerifySubmitScreen}
+        options={{ title: 'Submit Verification' }}
+      />
+      <HomeStack.Screen
+        name="VerifyResult"
+        component={VerifyResultScreen}
+        options={{ title: 'Verification Result' }}
+      />
+      <HomeStack.Screen
+        name="VerifyEntity"
+        component={VerifyEntityScreen}
+        options={{ title: 'Entity Verifications' }}
       />
       <HomeStack.Screen
         name="PrivacyPolicy"
@@ -589,6 +621,59 @@ function TechnologyStackScreen() {
   );
 }
 
+const TransportationStack = createNativeStackNavigator();
+
+function TransportationStackScreen() {
+  const navigation = useNavigation();
+  return (
+    <TransportationStack.Navigator screenOptions={createStackScreenOptions(navigation)}>
+      <TransportationStack.Screen
+        name="TransportationDashboard"
+        component={TransportationDashboardScreen}
+        options={{ title: 'Transportation' }}
+      />
+      <TransportationStack.Screen
+        name="TransportationCompaniesDirectory"
+        component={TransportationCompaniesScreen}
+        options={{ title: 'Companies' }}
+      />
+      <TransportationStack.Screen
+        name="TransportationCompanyDetail"
+        component={TransportationCompanyScreen}
+        options={{ title: '' }}
+      />
+      <TransportationStack.Screen
+        name="TransportationCompare"
+        component={TransportationCompareScreen}
+        options={{ title: 'Compare Companies' }}
+      />
+      <TransportationStack.Screen
+        name="TransportationLobbying"
+        component={SectorLobbyingScreen}
+        options={{ title: 'Transportation Lobbying' }}
+        initialParams={{ sector: 'transportation' }}
+      />
+      <TransportationStack.Screen
+        name="TransportationContracts"
+        component={SectorContractsScreen}
+        options={{ title: 'Transportation Contracts' }}
+        initialParams={{ sector: 'transportation' }}
+      />
+      <TransportationStack.Screen
+        name="TransportationEnforcement"
+        component={SectorEnforcementScreen}
+        options={{ title: 'Transportation Enforcement' }}
+        initialParams={{ sector: 'transportation' }}
+      />
+      <TransportationStack.Screen
+        name="GlobalSearch"
+        component={GlobalSearchScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
+    </TransportationStack.Navigator>
+  );
+}
+
 const SettingsStack = createNativeStackNavigator();
 
 function SettingsStackScreen() {
@@ -610,6 +695,7 @@ const TAB_ICONS: Record<string, { focused: IoniconsName; default: IoniconsName }
   HealthTab: { focused: 'medkit', default: 'medkit-outline' },
   EnergyTab: { focused: 'flame', default: 'flame-outline' },
   TechnologyTab: { focused: 'hardware-chip', default: 'hardware-chip-outline' },
+  TransportationTab: { focused: 'airplane', default: 'airplane-outline' },
   SettingsTab: { focused: 'settings', default: 'settings-outline' },
 };
 
@@ -669,6 +755,11 @@ export default function TabNavigator() {
         name="TechnologyTab"
         component={TechnologyStackScreen}
         options={{ title: 'Tech' }}
+      />
+      <Tab.Screen
+        name="TransportationTab"
+        component={TransportationStackScreen}
+        options={{ title: 'Transport' }}
       />
       <Tab.Screen
         name="SettingsTab"

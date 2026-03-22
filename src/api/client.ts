@@ -73,6 +73,11 @@ import type {
   RecentActivityResponse,
   // Health Comparison
   HealthComparisonResponse,
+  // Transportation
+  TransportationDashboardStats,
+  TransportationCompaniesResponse,
+  TransportationCompanyDetail,
+  TransportationComparisonResponse,
 } from './types';
 
 // Hardcoded production API URL.
@@ -1120,6 +1125,168 @@ class WTPClient {
   async getMarketMovers(): Promise<any> {
     // No dedicated market movers endpoint — return top finance institutions as fallback
     return this.fetchJSON<any>(`${this.baseUrl}/finance/institutions?limit=20`);
+  }
+
+  // ── Transportation Sector ──
+
+  async getTransportationDashboard(): Promise<TransportationDashboardStats> {
+    return this.fetchJSON<TransportationDashboardStats>(`${this.baseUrl}/transportation/dashboard/stats`);
+  }
+
+  async getTransportationCompanies(params?: {
+    limit?: number; offset?: number; q?: string; sector_type?: string;
+  }): Promise<TransportationCompaniesResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    if (params?.q) sp.set('q', params.q);
+    if (params?.sector_type) sp.set('sector_type', params.sector_type);
+    return this.fetchJSON<TransportationCompaniesResponse>(`${this.baseUrl}/transportation/companies?${sp}`);
+  }
+
+  async getTransportationCompanyDetail(id: string): Promise<TransportationCompanyDetail> {
+    return this.fetchJSON<TransportationCompanyDetail>(
+      `${this.baseUrl}/transportation/companies/${encodeURIComponent(id)}`
+    );
+  }
+
+  async getTransportationRecentActivity(): Promise<RecentActivityResponse> {
+    return this.fetchJSON<RecentActivityResponse>(`${this.baseUrl}/transportation/dashboard/recent-activity`);
+  }
+
+  async getTransportationCompanyContracts(
+    id: string, params?: { limit?: number; offset?: number }
+  ): Promise<ContractsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<ContractsResponse>(
+      `${this.baseUrl}/transportation/companies/${encodeURIComponent(id)}/contracts?${sp}`
+    );
+  }
+
+  async getTransportationCompanyContractSummary(id: string): Promise<ContractSummary> {
+    return this.fetchJSON<ContractSummary>(
+      `${this.baseUrl}/transportation/companies/${encodeURIComponent(id)}/contracts/summary`
+    );
+  }
+
+  async getTransportationCompanyLobbying(
+    id: string, params?: { filing_year?: number; limit?: number; offset?: number }
+  ): Promise<LobbyingResponse> {
+    const sp = new URLSearchParams();
+    if (params?.filing_year !== undefined) sp.set('filing_year', params.filing_year.toString());
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<LobbyingResponse>(
+      `${this.baseUrl}/transportation/companies/${encodeURIComponent(id)}/lobbying?${sp}`
+    );
+  }
+
+  async getTransportationCompanyLobbySummary(id: string): Promise<LobbyingSummary> {
+    return this.fetchJSON<LobbyingSummary>(
+      `${this.baseUrl}/transportation/companies/${encodeURIComponent(id)}/lobbying/summary`
+    );
+  }
+
+  async getTransportationCompanyEnforcement(
+    id: string, params?: { limit?: number; offset?: number }
+  ): Promise<EnforcementResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<EnforcementResponse>(
+      `${this.baseUrl}/transportation/companies/${encodeURIComponent(id)}/enforcement?${sp}`
+    );
+  }
+
+  async getTransportationCompanyFilings(
+    id: string, params?: { form_type?: string; limit?: number; offset?: number }
+  ): Promise<FilingsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.form_type) sp.set('form_type', params.form_type);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<FilingsResponse>(
+      `${this.baseUrl}/transportation/companies/${encodeURIComponent(id)}/filings?${sp}`
+    );
+  }
+
+  async getTransportationCompanyDonations(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(
+      `${this.baseUrl}/transportation/companies/${encodeURIComponent(id)}/donations?${sp}`
+    );
+  }
+
+  async getTransportationComparison(ids: string[]): Promise<TransportationComparisonResponse> {
+    return this.fetchJSON<TransportationComparisonResponse>(
+      `${this.baseUrl}/transportation/compare?ids=${ids.join(',')}`
+    );
+  }
+
+  // ── Claims Verification ──
+
+  async submitVerification(
+    text: string,
+    entity_id: string,
+    entity_type: string,
+  ): Promise<any> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    try {
+      const res = await fetch(`${this.baseUrl}/claims/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, entity_id, entity_type }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') throw new Error('Request timed out');
+      throw error;
+    }
+  }
+
+  async getVerifications(params?: {
+    limit?: number;
+    offset?: number;
+    entity_id?: string;
+    tier?: string;
+  }): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    if (params?.entity_id) sp.set('entity_id', params.entity_id);
+    if (params?.tier) sp.set('tier', params.tier);
+    return this.fetchJSON<any>(`${this.baseUrl}/claims/verifications?${sp}`);
+  }
+
+  async getVerificationDetail(id: number): Promise<any> {
+    return this.fetchJSON<any>(`${this.baseUrl}/claims/verifications/${id}`);
+  }
+
+  async getVerificationStats(): Promise<any> {
+    return this.fetchJSON<any>(`${this.baseUrl}/claims/dashboard/stats`);
+  }
+
+  async getEntityVerifications(
+    entityType: string,
+    entityId: string,
+    params?: { limit?: number; offset?: number },
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(`${this.baseUrl}/claims/entity/${entityType}/${entityId}?${sp}`);
   }
 }
 
