@@ -57,6 +57,15 @@ class TweetLog(_Base):
 
 # ── API Helpers ──
 
+def api_healthy() -> bool:
+    """Check if the WTP API is up and serving data."""
+    try:
+        r = requests.get(f"{API_BASE}/health", timeout=5)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
 def api_get(path: str, params: dict = None) -> dict:
     """Fetch from WTP API."""
     try:
@@ -296,8 +305,18 @@ def run(category: str = None, dry_run: bool = False):
         session.close()
         return
 
+    # Check API health — skip data/thread tweets if API is down
+    api_up = api_healthy()
+    if not api_up:
+        log.warning("API is down. Skipping data tweets, using product/engagement only.")
+
     # Pick category
     cat = category or pick_category()
+
+    # If API is down, only allow categories that don't need live data
+    if not api_up and cat in ("data", "thread"):
+        cat = random.choice(["product", "verify", "engagement"])
+
     generator, _ = CATEGORIES.get(cat, (generate_product_tweet, 0))
 
     # Generate content — all generators return ((text, link), category)
