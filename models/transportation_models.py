@@ -6,7 +6,7 @@ government contracts, lobbying, enforcement (NHTSA/FAA/FMC/FMCSA), and SEC filin
 """
 
 from sqlalchemy import (
-    Column, String, Integer, DateTime, Float, Text, Date,
+    Column, String, Integer, DateTime, Float, Text, Date, Boolean,
     ForeignKey, UniqueConstraint, JSON
 )
 from sqlalchemy.sql import func
@@ -177,3 +177,102 @@ class TransportationEnforcement(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     company = relationship("TrackedTransportationCompany", backref="enforcement_actions")
+
+
+class NHTSARecall(Base):
+    """
+    NHTSA vehicle recall campaigns for tracked transportation companies.
+    Data from api.nhtsa.gov.
+    """
+    __tablename__ = "nhtsa_recalls"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_nhtsa_recalls_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(String, ForeignKey("tracked_transportation_companies.company_id"), nullable=False, index=True)
+
+    recall_number = Column(String, nullable=False, index=True)
+    make = Column(String, nullable=True, index=True)
+    model = Column(String, nullable=True, index=True)
+    model_year = Column(Integer, nullable=True, index=True)
+    recall_date = Column(String, nullable=True, index=True)  # Date string from API
+    component = Column(String, nullable=True)
+    summary = Column(Text, nullable=True)
+    consequence = Column(Text, nullable=True)
+    remedy = Column(Text, nullable=True)
+    manufacturer = Column(String, nullable=True)
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    company = relationship("TrackedTransportationCompany", backref="nhtsa_recalls")
+
+
+class NHTSAComplaint(Base):
+    """
+    NHTSA vehicle complaint records for tracked transportation companies.
+    Data from api.nhtsa.gov.
+    """
+    __tablename__ = "nhtsa_complaints"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_nhtsa_complaints_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(String, ForeignKey("tracked_transportation_companies.company_id"), nullable=False, index=True)
+
+    odi_number = Column(String, nullable=False, index=True)
+    make = Column(String, nullable=True, index=True)
+    model = Column(String, nullable=True, index=True)
+    model_year = Column(Integer, nullable=True, index=True)
+    date_of_complaint = Column(String, nullable=True, index=True)  # Date string from API
+    crash = Column(Boolean, nullable=True, server_default="0")
+    fire = Column(Boolean, nullable=True, server_default="0")
+    injuries = Column(Integer, nullable=True, server_default="0")
+    deaths = Column(Integer, nullable=True, server_default="0")
+    component = Column(String, nullable=True)
+    summary = Column(Text, nullable=True)
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    company = relationship("TrackedTransportationCompany", backref="nhtsa_complaints")
+
+
+class FuelEconomyVehicle(Base):
+    """
+    EPA/DOE fuel economy data for tracked transportation companies.
+    Data from fueleconomy.gov.
+    """
+    __tablename__ = "fuel_economy_vehicles"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_fuel_economy_vehicles_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(String, ForeignKey("tracked_transportation_companies.company_id"), nullable=False, index=True)
+
+    vehicle_id = Column(String, nullable=False, index=True)  # FuelEconomy.gov vehicle ID
+    year = Column(Integer, nullable=True, index=True)
+    make = Column(String, nullable=True, index=True)
+    model = Column(String, nullable=True, index=True)
+    mpg_city = Column(Float, nullable=True)
+    mpg_highway = Column(Float, nullable=True)
+    mpg_combined = Column(Float, nullable=True)
+    co2_tailpipe = Column(Float, nullable=True)  # grams per mile
+    fuel_type = Column(String, nullable=True)
+    vehicle_class = Column(String, nullable=True)
+    ghg_score = Column(Integer, nullable=True)  # 1-10 greenhouse gas score
+    smog_rating = Column(Integer, nullable=True)  # 1-10 smog rating
+
+    dedupe_hash = Column(String, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    company = relationship("TrackedTransportationCompany", backref="fuel_economy_vehicles")
