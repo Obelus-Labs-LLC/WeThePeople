@@ -4,6 +4,7 @@ import SectorBackground from '../components/SectorBackground';
 /**
  * Shared layout for all energy sector pages.
  * Uses standardized cube pattern background (originated here).
+ * NOTE: All sector layouts use identical implementation. Kept separate for future per-sector customization.
  */
 export default function EnergyLayout({ children }: { children: React.ReactNode }) {
   return (

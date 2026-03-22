@@ -1,7 +1,13 @@
 """
 Initialize the database schema.
 Run this script to create all tables.
+
+WARNING: V1-era script. The current schema is managed by models/database.py create_all().
 """
+import sys
+print("WARNING: This is a V1-era script. The current schema is managed by models/database.py create_all().")
+sys.exit(1)
+
 from models.database import Base, engine
 # Import models so SQLAlchemy registers them
 from models.database import Person, Action, SourceDocument

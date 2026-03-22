@@ -1,5 +1,6 @@
 """
-Member Management CLI
+Member Management CLI (V1-era)
+NOTE: HIGH_IMPACT_50 list is from V1 era. Current DB has 547+ members loaded via jobs/seed_tracked_companies.py.
 Manage tracked officials for accountability monitoring.
 
 Usage:

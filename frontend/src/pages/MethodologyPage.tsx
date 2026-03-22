@@ -5,7 +5,7 @@ const DATA_SOURCES = [
   { source: 'Senate LDA', dataType: 'Lobbying filings', sectors: 'All', frequency: 'Quarterly', notes: 'Filing-level data from the Senate Lobbying Disclosure Act database' },
   { source: 'USASpending.gov', dataType: 'Government contracts', sectors: 'All', frequency: 'Monthly', notes: 'Federal contracts only; award-level detail' },
   { source: 'Federal Register', dataType: 'Enforcement actions', sectors: 'All', frequency: 'Weekly', notes: 'Rules, notices, and enforcement actions' },
-  { source: 'Congress.gov', dataType: 'Votes, bills', sectors: 'Politics', frequency: 'Daily', notes: 'House votes only (Senate votes pending API support)' },
+  { source: 'Congress.gov', dataType: 'Votes, bills', sectors: 'Politics', frequency: 'Daily', notes: 'House and Senate roll call votes, bill text and status' },
   { source: 'OpenFDA', dataType: 'Adverse events, recalls', sectors: 'Health', frequency: 'Monthly', notes: 'FAERS database for drug adverse event reports' },
   { source: 'ClinicalTrials.gov', dataType: 'Clinical trials', sectors: 'Health', frequency: 'Monthly', notes: 'Active and completed clinical trial registrations' },
   { source: 'SEC EDGAR', dataType: 'Insider trades, filings', sectors: 'Finance', frequency: 'Daily', notes: 'Form 4 insider transaction data' },
@@ -14,11 +14,11 @@ const DATA_SOURCES = [
 ];
 
 const LIMITATIONS = [
-  'Senate votes are not yet available due to a Congress.gov API limitation. Only House roll call votes are currently tracked.',
-  'Congressional trade data is sourced from STOCK Act financial disclosure filings. Transaction-level details may require parsing the original PDF disclosures.',
-  'Donation data (FEC integration) is planned but not yet implemented. PAC and individual contribution tracking is coming soon.',
-  'State-level data is not yet included. All data currently reflects federal-level records only.',
+  'Congressional trade data is sourced from STOCK Act financial disclosure filings. Some House financial disclosure PDFs are scanned images and could not be parsed (~6 filings).',
+  'OpenSanctions entity checks (sanctions, PEP, watchlist) require an API key that may not be configured in all environments.',
   'Enforcement records may not be exhaustive. Some agencies publish enforcement data on inconsistent schedules.',
+  'AI-generated summaries are available for votes and enforcement actions. Lobbying and contract summaries are pending due to cost constraints.',
+  'Stock fundamental data (Alpha Vantage) is limited to 25 requests per day on the free tier, so coverage may be incomplete.',
 ];
 
 export default function MethodologyPage() {

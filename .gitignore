@@ -54,6 +54,7 @@ logs/
 # Cache
 .cache/
 .claude/
+.nexus/
 
 # Raw data (too large for git; fetched via ingestion pipeline)
 data/raw/

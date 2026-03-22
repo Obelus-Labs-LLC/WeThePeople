@@ -196,8 +196,8 @@ export default function BillDetailPage() {
 
   return (
     <div
-      className="flex h-screen flex-col overflow-hidden"
-         >
+      className="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden"
+    >
       {/* ── Header (non-scrolling) ── */}
       <div className="flex-shrink-0 px-8 pt-8 pb-0">
         <PoliticsSectorHeader />
@@ -300,8 +300,8 @@ export default function BillDetailPage() {
         </div>
       </div>
 
-      {/* ── Main Content (scrollable) ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
+      {/* ── Main Content (scrollable on desktop, natural flow on mobile) ── */}
+      <div className="flex-1 lg:min-h-0 lg:overflow-y-auto px-8 pb-8">
         <div className="grid grid-cols-1 gap-8 2xl:grid-cols-3">
           {/* ── Left / Center (col-span-2) ── */}
           <div className="2xl:col-span-2 space-y-8">

@@ -3,6 +3,9 @@ Backfill bill ingestion for new Congress members.
 Processes members with needs_ingest=1 in batches using the existing
 ingest_member_legislation() pipeline.
 
+WARNING: V1-era script. TrackedMember.needs_ingest no longer exists.
+Use jobs/sync_votes.py and jobs/sync_donations.py for current data pipelines.
+
 Resumable: re-run picks up where it left off (only processes needs_ingest=1).
 
 Usage:
@@ -12,6 +15,8 @@ Usage:
 """
 import os
 import sys
+print("WARNING: V1-era script. TrackedMember.needs_ingest no longer exists.")
+sys.exit(1)
 import time
 import argparse
 from datetime import datetime

@@ -4,6 +4,7 @@ import SectorBackground from '../components/SectorBackground';
 /**
  * Shared layout for all politics sector pages.
  * Uses standardized cube pattern background.
+ * NOTE: All sector layouts use identical implementation. Kept separate for future per-sector customization.
  */
 export default function PoliticsLayout({ children }: { children: React.ReactNode }) {
   return (

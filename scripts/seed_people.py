@@ -1,3 +1,7 @@
+import sys
+print("WARNING: This is a V1-era script. Use jobs/seed_tracked_companies.py instead.")
+sys.exit(1)
+
 import json
 from models import database
 from models.database import SessionLocal, Person

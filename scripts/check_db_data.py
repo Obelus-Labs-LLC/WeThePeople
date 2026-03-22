@@ -3,7 +3,7 @@ import sys
 from sqlalchemy import create_engine, text, inspect
 
 # Get DB connection
-db_url = os.getenv("DATABASE_URL", "sqlite:///./wtp.db")
+db_url = os.getenv("DATABASE_URL", "sqlite:///./wethepeople.db")
 engine = create_engine(db_url)
 
 inspector = inspect(engine)

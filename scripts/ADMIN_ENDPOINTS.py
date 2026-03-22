@@ -1,7 +1,8 @@
 """
 Admin endpoints for recomputation and cache invalidation.
 
-Add these to main.py after the last endpoint.
+NOTE: This is a code snippet, not a runnable script. Paste into main.py if needed.
+These reference V1-era models (Claim, ClaimEvaluation, Action) that no longer exist.
 """
 
 # --- ADMIN ENDPOINTS (add to main.py) ---

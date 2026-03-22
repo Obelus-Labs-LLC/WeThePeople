@@ -8,8 +8,6 @@ interface NavLink {
 
 interface SectorHeaderProps {
   sector: string;
-  color: string;
-  activeColor: string;
   links: NavLink[];
 }
 
@@ -112,19 +110,19 @@ const TECH_LINKS: NavLink[] = [
 ];
 
 export function PoliticsSectorHeader() {
-  return <SectorHeader sector="politics" color="" activeColor="" links={POLITICS_LINKS} />;
+  return <SectorHeader sector="politics" links={POLITICS_LINKS} />;
 }
 
 export function FinanceSectorHeader() {
-  return <SectorHeader sector="finance" color="" activeColor="" links={FINANCE_LINKS} />;
+  return <SectorHeader sector="finance" links={FINANCE_LINKS} />;
 }
 
 export function HealthSectorHeader() {
-  return <SectorHeader sector="health" color="" activeColor="" links={HEALTH_LINKS} />;
+  return <SectorHeader sector="health" links={HEALTH_LINKS} />;
 }
 
 export function TechSectorHeader() {
-  return <SectorHeader sector="technology" color="" activeColor="" links={TECH_LINKS} />;
+  return <SectorHeader sector="technology" links={TECH_LINKS} />;
 }
 
 const ENERGY_LINKS: NavLink[] = [
@@ -138,5 +136,5 @@ const ENERGY_LINKS: NavLink[] = [
 ];
 
 export function EnergySectorHeader() {
-  return <SectorHeader sector="energy" color="" activeColor="" links={ENERGY_LINKS} />;
+  return <SectorHeader sector="energy" links={ENERGY_LINKS} />;
 }

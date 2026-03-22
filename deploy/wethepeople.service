@@ -1,3 +1,8 @@
+# DEPLOYMENT: Before installing, substitute placeholders:
+#   sed -i 's|%USER%|dshon|g; s|%HOME%|/home/dshon|g' wethepeople.service
+#   sudo cp wethepeople.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now wethepeople
+
 [Unit]
 Description=WeThePeople API Server
 After=network.target

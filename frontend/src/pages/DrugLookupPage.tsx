@@ -88,8 +88,9 @@ export default function DrugLookupPage() {
       trials: [],
     };
 
-    // Search in parallel across all companies (limited to first 30 for performance)
-    const companySlice = companies.slice(0, 30);
+    // Search across companies in sequential batches of 10 to avoid rate limits
+    // (3 API calls per company x 10 = 30 concurrent requests per batch)
+    const companySlice = companies.slice(0, 10);
     const qLower = q.toLowerCase();
 
     try {
