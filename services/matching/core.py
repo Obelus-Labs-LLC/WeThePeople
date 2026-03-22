@@ -1,5 +1,11 @@
 # services/matching.py
 """
+DEPRECATED: V1 claim-matching engine from the Public Accountability Ledger era.
+Not used by the current WeThePeople civic transparency platform.
+Production matching uses sector-specific SQL queries in routers/.
+Kept for reference only.
+
+Original description:
 Single source of truth for claim matching and evidence framework.
 Shared by API endpoints and batch jobs.
 """
@@ -39,6 +45,7 @@ def _get_semantic_model():
         return _SEMANTIC_MODEL
     try:
         from sentence_transformers import SentenceTransformer
+        # WARNING: Loads ~500MB model into memory. May cause OOM on constrained VMs (4GB RAM).
         _SEMANTIC_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
         _SEMANTIC_AVAILABLE = True
         return _SEMANTIC_MODEL
@@ -691,8 +698,14 @@ def classify_relevance(score, overlap_basic, overlap_enriched, phrase_hits):
     has_fuzzy = any(p.startswith('fuzzy_title_match:') for p in phrase_hits)
     has_claim_bill = any(p.startswith('claim_text_bill_name:') for p in phrase_hits)
     has_url_match = any(p.startswith('url_match:') for p in phrase_hits)
+    def _safe_parse_score(p):
+        try:
+            return float(p.split(':')[1])
+        except (IndexError, ValueError):
+            return 0.0
+
     has_semantic_high = any(
-        p.startswith('semantic_similarity:') and float(p.split(':')[1]) >= 0.70
+        p.startswith('semantic_similarity:') and _safe_parse_score(p) >= 0.70
         for p in phrase_hits
         if p.startswith('semantic_similarity:')
     )
@@ -814,8 +827,14 @@ def apply_boilerplate_guardrail(tier: str, claim: Claim, overlap_basic: List[str
     has_url_match = any(p.startswith('url_match:') for p in phrase_hits)
     has_claim_bill = any(p.startswith('claim_text_bill_name:') for p in phrase_hits)
     has_fuzzy = any(p.startswith('fuzzy_title_match:') for p in phrase_hits)
+    def _safe_parse_score_boilerplate(p):
+        try:
+            return float(p.split(':')[1])
+        except (IndexError, ValueError):
+            return 0.0
+
     has_semantic = any(
-        p.startswith('semantic_similarity:') and float(p.split(':')[1]) >= 0.70
+        p.startswith('semantic_similarity:') and _safe_parse_score_boilerplate(p) >= 0.70
         for p in phrase_hits
         if p.startswith('semantic_similarity:')
     )
@@ -1156,7 +1175,7 @@ def compute_matches_for_claim(
     # Base query: same person_id
     query = (
         db.query(Action, SourceDocument.url)
-          .join(SourceDocument, Action.source_id == SourceDocument.id)
+          .outerjoin(SourceDocument, Action.source_id == SourceDocument.id)
           .filter(Action.person_id == claim.person_id)
     )
 
@@ -1182,9 +1201,23 @@ def compute_matches_for_claim(
         gt_bill_list = list(ground_truth_bill_ids)[:500]  # Cap for performance
         fallback_query = (
             db.query(Action, SourceDocument.url)
-              .join(SourceDocument, Action.source_id == SourceDocument.id)
+              .outerjoin(SourceDocument, Action.source_id == SourceDocument.id)
         )
-        # Query actions matching any ground truth bill
+        # Filter to ground truth bills in SQL instead of loading all rows
+        from sqlalchemy import or_, and_
+        bill_conditions = []
+        for gt_bill_id in gt_bill_list:
+            # Parse "typenumber-congress" format
+            import re as _re
+            m = _re.match(r'^([a-z]+)(\d+)-(\d+)$', gt_bill_id)
+            if m:
+                bill_conditions.append(and_(
+                    Action.bill_type == m.group(1),
+                    Action.bill_number == int(m.group(2)),
+                    Action.bill_congress == int(m.group(3)),
+                ))
+        if bill_conditions:
+            fallback_query = fallback_query.filter(or_(*bill_conditions))
         fallback_rows_raw = fallback_query.order_by(desc(Action.date)).limit(5000).all()
         for action, url in fallback_rows_raw:
             if action.bill_congress and action.bill_type and action.bill_number:
@@ -1362,6 +1395,7 @@ def compute_matches_for_claim(
         }
         
         if s["score"] >= profile["min_score"]:
+            # WARNING: Makes HTTP call per match. Consider caching or batching bill text fetches.
             # Phase 3.2: Add bill text receipt only for matched actions (expensive HTTP call)
             if BILL_TEXT_AVAILABLE and a.bill_congress and a.bill_type and a.bill_number:
                 text_receipt = format_text_receipt(a.bill_congress, a.bill_type, a.bill_number)

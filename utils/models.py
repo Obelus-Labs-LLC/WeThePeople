@@ -1,3 +1,4 @@
+# DEPRECATED: V1 Pydantic models. Production uses TypeScript types in frontend/ and SQLAlchemy models in models/.
 """
 Pydantic Models for Congress.gov API v3
 

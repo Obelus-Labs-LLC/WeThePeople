@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (Services)
+- `bill_timeline.py` crash on null `action_date` in strftime and date comparisons
+- `matching/core.py` loading 5000 rows into memory (now uses SQL-level bill filter)
+- `matching/core.py` inner join dropping actions without source documents
+- `matching/core.py` crash on malformed `phrase_hits` score parsing
+- `evidence/validate.py` crash at import if `schema.json` missing
+- `llm/client.py` truncation cutting prompt template instead of document text
+- `rate_limit.py` memory leak from unbounded IP tracking dict (now prunes hourly, caps at 10K)
+- Deprecated `datetime.utcnow()` calls in change_detection.py
+- Missing `os.makedirs` for snapshot directories
+
+### Fixed (CLI/Utils)
+- Missing `cli/__init__.py` — entire CLI package was non-importable
+- Missing `utils/__init__.py` — fragile package imports
+- `http_client.py` retry logic never firing (Timeout/ConnectionError converted to HTTPError before retry)
+- `env.py` default port 8000 (production is 8006)
+- `config.py` FEC key reading from wrong env var (`API_KEY_DATA_GOV` instead of `FEC_API_KEY`)
+
+### Changed
+- V1 dead code modules marked with deprecation notices (power_map, matching, coverage, change_detection, pilot_cohort, invalidation, models)
+- LLM client model now configurable via `LLM_MODEL` env var
+- LLM client logs cost estimates after each API call
+- `load_dotenv` moved to module level in env.py (was called twice per function)
+
+### Removed
+- Dead `_should_retry` function from http_client.py
+- Dead `GlobalSearchPlaceholder` from TabNavigator (already noted)
+
 ### Added
 - Error state with retry button on Activity Feed page
 - Selection limit hint ("Select up to 4 members") on politics compare page

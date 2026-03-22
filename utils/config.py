@@ -1,4 +1,9 @@
 """
+NOTE: This config uses V1-era env var names (API_KEY_DATA_GOV, API_KEY_CENSUS, etc.).
+Production connectors in connectors/ load API keys directly via os.getenv() with
+different names (CONGRESS_API_KEY, QUIVER_API_KEY, FEC_API_KEY, etc.).
+This config is only used by the V1 CLI tools.
+
 Configuration Management
 
 Loads environment variables safely for dev (dotenv) and prod (real env).
@@ -38,8 +43,8 @@ class Config:
     IA_S3_SECRET: Optional[str] = os.getenv("API_KEY_INTERNET_ARCHIVE_S3_SECRET")
     IA_BASE: str = "https://web.archive.org"
 
-    # FEC — uses data.gov key
-    FEC_API_KEY: Optional[str] = os.getenv("API_KEY_DATA_GOV")
+    # FEC — prefer dedicated FEC_API_KEY, fall back to data.gov key
+    FEC_API_KEY: Optional[str] = os.getenv("FEC_API_KEY") or os.getenv("API_KEY_DATA_GOV")
     FEC_API_BASE: str = "https://api.open.fec.gov/v1"
 
     # Census
@@ -52,7 +57,7 @@ class Config:
     GOOGLE_CIVIC_API_KEY: Optional[str] = os.getenv("API_KEY_GOOGLE_CIVIC")
     GOOGLE_CIVIC_API_BASE: str = "https://www.googleapis.com/civicinfo/v2"
 
-    # Enigma
+    # NOTE: Enigma API not currently used by any connector
     ENIGMA_API_KEY: Optional[str] = os.getenv("API_KEY_ENIGMA")
 
     # HTTP client settings

@@ -1,6 +1,14 @@
 """
-Change Detection Service
+DEPRECATED: V1 change detection service from the Public Accountability Ledger era.
+Not used by the current WeThePeople civic transparency platform.
+Production data freshness uses /influence/data-freshness endpoint in routers/influence.py.
+Kept for reference only.
 
+TODO: If revived, snapshot production tables instead:
+  TrackedMember, TrackedInstitution, TrackedCompany, TrackedTechCompany, TrackedEnergyCompany,
+  LobbyingRecord, GovernmentContract, CongressionalTrade, StateLegislator, etc.
+
+Original description:
 After each daily sync, compares current row counts and key metrics against
 the previous snapshot. Stores diffs as JSON for alerting and activity feeds.
 
@@ -14,7 +22,8 @@ Usage:
 """
 
 import json
-from datetime import datetime
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -32,14 +41,16 @@ from models.database import (
 )
 
 SNAPSHOT_DIR = Path(__file__).parent.parent / "data" / "snapshots"
+os.makedirs(SNAPSHOT_DIR, exist_ok=True)
 LATEST_FILE = SNAPSHOT_DIR / "latest_snapshot.json"
 DIFF_DIR = SNAPSHOT_DIR / "diffs"
+os.makedirs(DIFF_DIR, exist_ok=True)
 
 
 def capture_snapshot(db: Session) -> Dict[str, Any]:
     """Capture current database counts and key metrics."""
     snapshot = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "counts": {
             "members_active": db.query(func.count(TrackedMember.id)).filter(TrackedMember.is_active == 1).scalar() or 0,
             "bills": db.query(func.count(Bill.bill_id)).scalar() or 0,
@@ -75,7 +86,7 @@ def save_snapshot(snapshot: Dict[str, Any]):
     LATEST_FILE.write_text(json.dumps(snapshot, indent=2))
 
     # Archive
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     archive = SNAPSHOT_DIR / f"snapshot_{ts}.json"
     archive.write_text(json.dumps(snapshot, indent=2))
 
@@ -145,7 +156,7 @@ def compute_diff(current: Dict[str, Any]) -> Dict[str, Any]:
 def save_diff(diff: Dict[str, Any]):
     """Save diff report."""
     DIFF_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     diff_file = DIFF_DIR / f"diff_{ts}.json"
     diff_file.write_text(json.dumps(diff, indent=2))
 

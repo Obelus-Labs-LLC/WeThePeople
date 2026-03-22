@@ -6,6 +6,7 @@ speeches, floor statements) to Claude and receive structured claim data.
 """
 
 import json
+import logging
 import os
 import time
 from typing import List, Dict, Optional
@@ -17,8 +18,10 @@ from .prompts import CLAIM_EXTRACTION_SYSTEM_PROMPT, build_claim_extraction_prom
 # Singleton client
 _client: Optional[Anthropic] = None
 
-# Default model — Sonnet 4 for high-quality extraction
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
+# Default model — configurable via env var, falls back to Sonnet 4
+DEFAULT_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-4-20250514")
+
+_cost_logger = logging.getLogger(__name__ + ".cost")
 
 
 def get_llm_client() -> Anthropic:
@@ -26,9 +29,9 @@ def get_llm_client() -> Anthropic:
     global _client
     if _client is None:
         api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
+        if not api_key or not api_key.strip():
             raise ValueError(
-                "ANTHROPIC_API_KEY not set. Add it to your .env file."
+                "ANTHROPIC_API_KEY not set or empty. Add it to your .env file."
             )
         _client = Anthropic(api_key=api_key)
     return _client
@@ -73,11 +76,17 @@ def extract_claims_from_text(
         source_type=source_type,
     )
 
-    # Truncate very long documents to stay within token limits
-    # Claude Haiku has 200k context, but we want to be efficient
-    max_chars = 50_000  # ~12k tokens, plenty for a press release
-    if len(user_prompt) > max_chars:
-        user_prompt = user_prompt[:max_chars] + "\n\n[Document truncated for length]"
+    # Truncate the source text before building the final prompt to stay within token limits.
+    # Sonnet has 200k context, but we want to be efficient.
+    max_text_chars = 50_000  # ~12k tokens, plenty for a press release
+    if len(text) > max_text_chars:
+        text_truncated = text[:max_text_chars] + "\n\n[Document truncated for length]"
+        user_prompt = build_claim_extraction_prompt(
+            text=text_truncated,
+            person_name=person_name,
+            source_url=source_url,
+            source_type=source_type,
+        )
 
     delay = 1.0
     for attempt in range(max_retries + 1):
@@ -90,6 +99,17 @@ def extract_claims_from_text(
                     {"role": "user", "content": user_prompt}
                 ],
             )
+
+            # Log approximate cost for tracking
+            if hasattr(message, 'usage') and message.usage:
+                input_tokens = getattr(message.usage, 'input_tokens', 0) or 0
+                output_tokens = getattr(message.usage, 'output_tokens', 0) or 0
+                # Approximate cost: Sonnet input=$3/MTok, output=$15/MTok
+                approx_cost = (input_tokens * 3.0 / 1_000_000) + (output_tokens * 15.0 / 1_000_000)
+                _cost_logger.info(
+                    f"LLM call: model={model} in={input_tokens} out={output_tokens} "
+                    f"approx_cost=${approx_cost:.4f}"
+                )
 
             # Extract the text response
             response_text = message.content[0].text
@@ -114,7 +134,7 @@ def extract_claims_from_text(
                 continue
             raise
 
-    return []
+    return []  # pragma: no cover — unreachable; loop always returns or raises
 
 
 def _parse_claims_response(response_text: str) -> List[Dict]:

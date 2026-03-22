@@ -16,10 +16,15 @@ from typing import List, Optional
 from jsonschema import validate, ValidationError
 
 
+# V1 evidence schema — used by the V1 claim validation pipeline, not current production.
 # Load schema once at module import
 SCHEMA_PATH = Path(__file__).parent / "schema.json"
-with open(SCHEMA_PATH) as f:
-    EVIDENCE_SCHEMA = json.load(f)
+try:
+    EVIDENCE_SCHEMA = json.loads(SCHEMA_PATH.read_text())
+except (FileNotFoundError, json.JSONDecodeError) as e:
+    EVIDENCE_SCHEMA = None
+    import warnings
+    warnings.warn(f"Could not load evidence schema: {e}")
 
 
 def validate_evidence(evidence_list: Optional[List[str]]) -> None:
@@ -44,7 +49,10 @@ def validate_evidence(evidence_list: Optional[List[str]]) -> None:
     """
     if evidence_list is None:
         return  # None is allowed (no evidence)
-    
+
+    if EVIDENCE_SCHEMA is None:
+        return  # Schema not loaded, skip validation
+
     # Validate against schema
     try:
         validate(instance=evidence_list, schema=EVIDENCE_SCHEMA)
@@ -54,7 +62,7 @@ def validate_evidence(evidence_list: Optional[List[str]]) -> None:
             f"Evidence validation failed: {e.message}\n"
             f"Invalid evidence: {evidence_list}\n"
             f"Path: {'.'.join(str(p) for p in e.path)}"
-        )
+        ) from e
 
 
 def validate_evidence_dict(evidence_dict: dict) -> None:

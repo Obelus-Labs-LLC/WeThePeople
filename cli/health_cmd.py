@@ -77,6 +77,7 @@ def health():
             all_passed = False
         else:
             # Test API call
+            # Uses AOC's bioguide as a canary test for Congress API availability
             data = http_client.get_congress_api(
                 "member/O000172/sponsored-legislation",
                 params={"congress": 119, "limit": 1},

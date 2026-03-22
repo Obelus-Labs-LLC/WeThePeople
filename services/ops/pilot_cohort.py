@@ -40,6 +40,7 @@ def get_pilot_person_ids(db: Session) -> List[str]:
     This function is deterministic and performs no network calls.
     """
 
+    # V1 pilot column - not present in current TrackedMember model
     if _tracked_members_has_column(db, "pilot"):
         rows = db.execute(
             text(

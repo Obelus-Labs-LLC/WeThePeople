@@ -1,4 +1,7 @@
 """
+DEPRECATED: V1 ground truth sync from the Public Accountability Ledger era.
+Production data is managed by jobs/sync_*.py and jobs/seed_tracked_companies.py.
+
 Ground Truth Rail Commands
 
 Sync member bill relationships from Congress.gov API.
@@ -39,6 +42,7 @@ def sync(
     """
     Sync ground truth bill relationships for member(s).
     """
+    print("WARNING: This command targets V1 claim tables. Use jobs/ scripts for production data.")
     # Import here to avoid circular imports
     from jobs.sync_member_groundtruth import sync_groundtruth
     
@@ -109,6 +113,7 @@ def sync(
 @app.command()
 def stats():
     """Show ground truth statistics."""
+    print("WARNING: This command targets V1 claim tables. Use jobs/ scripts for production data.")
     db = SessionLocal()
     
     try:

@@ -1,4 +1,7 @@
 """
+DEPRECATED: V1 ground truth sync from the Public Accountability Ledger era.
+Production data is managed by jobs/sync_*.py and jobs/seed_tracked_companies.py.
+
 Ingest CLI Commands
 
 Commands for managing data ingestion and Bronze layer.
@@ -43,8 +46,9 @@ def ingest_status(
     - Latest fetch times
     - Storage statistics
     """
+    print("WARNING: This command targets V1 claim tables. Use jobs/ scripts for production data.")
     console.print("\n[bold]📥 Ingestion Status - Bronze Layer[/bold]\n")
-    
+
     db = SessionLocal()
     
     try:
