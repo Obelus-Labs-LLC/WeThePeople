@@ -35,12 +35,12 @@ export default function EvidenceList({ evidence, className = '' }: EvidenceListP
   }
 
   // Group by type
-  const grouped = evidence.reduce<Record<string, EvidenceItem[]>>((acc, item) => {
+  const grouped: Record<string, EvidenceItem[]> = {};
+  for (const item of evidence) {
     const key = item.type || 'other';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(item);
-    return acc;
-  }, {});
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(item);
+  }
 
   return (
     <div className={`space-y-4 ${className}`}>
