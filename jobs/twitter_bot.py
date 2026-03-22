@@ -146,10 +146,11 @@ def generate_data_tweet() -> tuple:
     trades = data.get("trades", data.get("items", []))
     if trades:
         trade = random.choice(trades[:10])
-        person = trade.get("person_name", trade.get("politician", "A member of Congress"))
+        person = trade.get("member_name", trade.get("person_name", "A member of Congress"))
         ticker = trade.get("ticker", "???")
-        tx_type = (trade.get("transaction_type", "") or "traded").lower()
-        amount = trade.get("amount", "")
+        raw_type = (trade.get("transaction_type", "") or "").lower()
+        tx_type = {"purchase": "bought", "sale": "sold", "sale (partial)": "sold", "purchase (partial)": "bought", "exchange": "exchanged"}.get(raw_type, "traded")
+        amount = trade.get("amount_range", "")
         amount_str = f" ({amount})" if amount and amount != "N/A" else ""
         options.append((
             f"{person} {tx_type} ${ticker}{amount_str}.\n\n"
