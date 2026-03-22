@@ -17,6 +17,7 @@ import {
   Users,
   TrendingUp,
   ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
 import Footer from "../components/Footer";
 
@@ -148,6 +149,29 @@ const HomePage: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Verify Claims CTA */}
+        <div className="max-w-5xl mx-auto px-4 -mt-2 pb-6">
+          <button
+            onClick={() => navigate("/verify")}
+            className="w-full relative group rounded-xl border-l-2 border-l-emerald-500 bg-emerald-500/[0.06] backdrop-blur-sm border border-emerald-500/20 p-5 text-left transition-all duration-200 hover:bg-emerald-500/[0.12] hover:border-emerald-500/30 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-emerald-500"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-600/20 shrink-0">
+                <ShieldCheck className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-base font-bold text-white mb-0.5">
+                  Verify Claims
+                </div>
+                <div className="text-sm text-emerald-300/70 leading-snug">
+                  Compare what politicians say to what they actually do — check speeches, press releases, and campaign promises against the legislative record.
+                </div>
+              </div>
+              <ArrowRight className="w-5 h-5 text-emerald-400 opacity-50 group-hover:opacity-100 transition-opacity shrink-0" />
+            </div>
+          </button>
         </div>
 
         {/* Sector grid */}

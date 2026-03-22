@@ -1108,3 +1108,60 @@ export interface HealthComparisonItem {
 export interface HealthComparisonResponse {
   companies: HealthComparisonItem[];
 }
+
+// ── Transportation Sector Types ──
+
+export interface TransportationDashboardStats {
+  total_companies: number;
+  total_contracts: number;
+  total_lobbying: number;
+  total_enforcement: number;
+  by_sector: Record<string, number>;
+}
+
+export interface TransportationCompany {
+  company_id: string;
+  display_name: string;
+  ticker: string | null;
+  sector_type: string;
+  headquarters: string | null;
+  logo_url: string | null;
+  contract_count: number;
+  lobbying_count: number;
+  enforcement_count: number;
+  filing_count: number;
+}
+
+export interface TransportationCompaniesResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  companies: TransportationCompany[];
+}
+
+export interface TransportationCompanyDetail extends TransportationCompany {
+  sec_cik: string | null;
+  total_contract_value: number;
+  total_penalties: number;
+  latest_stock: StockSnapshot | null;
+  sanctions_status?: string | null;
+  sanctions_data?: any;
+}
+
+export interface TransportationComparisonItem {
+  company_id: string;
+  display_name: string;
+  ticker: string | null;
+  sector_type: string;
+  contract_count: number;
+  total_contract_value: number;
+  lobbying_total: number;
+  enforcement_count: number;
+  total_penalties: number;
+  market_cap: number | null;
+  profit_margin: number | null;
+}
+
+export interface TransportationComparisonResponse {
+  companies: TransportationComparisonItem[];
+}

@@ -6,6 +6,7 @@ import TechLayout from "./layouts/TechLayout";
 import HealthLayout from "./layouts/HealthLayout";
 import EnergyLayout from "./layouts/EnergyLayout";
 import TransportationLayout from "./layouts/TransportationLayout";
+import VerifyLayout from "./layouts/VerifyLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import GlobalSearch from "./components/GlobalSearch";
@@ -72,6 +73,11 @@ const MoneyFlowPage = React.lazy(() => import("./pages/MoneyFlowPage"));
 const DataExplorerPage = React.lazy(() => import("./pages/DataExplorerPage"));
 const DataStoryPage = React.lazy(() => import("./pages/DataStoryPage"));
 const InfluenceTimelinePage = React.lazy(() => import("./pages/InfluenceTimelinePage"));
+const VerifyDashboardPage = React.lazy(() => import("./pages/VerifyDashboardPage"));
+const VerifySubmitPage = React.lazy(() => import("./pages/VerifySubmitPage"));
+const VerifyResultPage = React.lazy(() => import("./pages/VerifyResultPage"));
+const VerifyEntityPage = React.lazy(() => import("./pages/VerifyEntityPage"));
+const VerifyMethodologyPage = React.lazy(() => import("./pages/VerifyMethodologyPage"));
 const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage"));
 const PrivacyPolicyPage = React.lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfUsePage = React.lazy(() => import("./pages/TermsOfUsePage"));
@@ -176,6 +182,13 @@ const App: React.FC = () => (
           <Route path="/transportation/contracts" element={<TransportationLayout><SectorContractsPage /></TransportationLayout>} />
           <Route path="/transportation/enforcement" element={<TransportationLayout><SectorEnforcementPage /></TransportationLayout>} />
           <Route path="/transportation/:companyId" element={<TransportationLayout><TransportationCompanyProfilePage /></TransportationLayout>} />
+
+          {/* Claim Verification section — wrapped in VerifyLayout */}
+          <Route path="/verify" element={<VerifyLayout><VerifyDashboardPage /></VerifyLayout>} />
+          <Route path="/verify/submit" element={<VerifyLayout><VerifySubmitPage /></VerifyLayout>} />
+          <Route path="/verify/results/:id" element={<VerifyLayout><VerifyResultPage /></VerifyLayout>} />
+          <Route path="/verify/entity/:type/:id" element={<VerifyLayout><VerifyEntityPage /></VerifyLayout>} />
+          <Route path="/verify/methodology" element={<VerifyLayout><VerifyMethodologyPage /></VerifyLayout>} />
 
           {/* Legal / Info pages */}
           <Route path="/privacy" element={<PrivacyPolicyPage />} />

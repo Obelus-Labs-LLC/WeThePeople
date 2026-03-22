@@ -106,6 +106,18 @@ export type EnergyStackParamList = {
   GlobalSearch: undefined;
 };
 
+// ── Transportation Stack ──
+export type TransportationStackParamList = {
+  TransportationDashboard: undefined;
+  TransportationCompaniesDirectory: undefined;
+  TransportationCompanyDetail: { company_id: string };
+  TransportationCompare: undefined;
+  TransportationLobbying: undefined;
+  TransportationContracts: undefined;
+  TransportationEnforcement: undefined;
+  GlobalSearch: undefined;
+};
+
 // ── Bottom Tabs ──
 export type RootTabParamList = {
   HomeTab: undefined;
@@ -114,5 +126,6 @@ export type RootTabParamList = {
   HealthTab: undefined;
   EnergyTab: undefined;
   TechnologyTab: undefined;
+  TransportationTab: undefined;
   SettingsTab: undefined;
 };
