@@ -237,6 +237,7 @@ def sync_lobbying(company: TrackedTechCompany, db) -> int:
             client_name=f.get("client_name"),
             lobbying_issues=f.get("lobbying_issues"),
             government_entities=f.get("government_entities"),
+            specific_issues=f.get("specific_issues"),
             dedupe_hash=f["dedupe_hash"],
         )
         db.add(record)

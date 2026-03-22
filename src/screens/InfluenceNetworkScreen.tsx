@@ -240,39 +240,40 @@ export default function InfluenceNetworkScreen({ navigation }: InfluenceNetworkS
         </View>
       )}
 
-      {/* Edge Type Filters */}
+      {/* Edge Type Filters + Connection List */}
       {network && !loadingNetwork && (
-        <>
-          <View style={styles.filterRow}>
-            {Object.entries(EDGE_TYPE_COLORS).map(([type, color]) => (
-              <TouchableOpacity
-                key={type}
-                style={[
-                  styles.filterPill,
-                  activeFilters.has(type)
-                    ? { backgroundColor: color + '18', borderColor: color + '40' }
-                    : { backgroundColor: UI_COLORS.CARD_BG, borderColor: UI_COLORS.BORDER },
-                ]}
-                onPress={() => toggleFilter(type)}
-              >
-                <Ionicons name={EDGE_TYPE_ICONS[type] as any} size={12} color={activeFilters.has(type) ? color : UI_COLORS.TEXT_MUTED} />
-                <Text style={[styles.filterText, { color: activeFilters.has(type) ? color : UI_COLORS.TEXT_MUTED }]}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.resultsCount}>{connections.length} connections</Text>
-
-          <FlatList
-            data={connections}
-            keyExtractor={(item, idx) => `${item.edge.source}-${item.edge.target}-${item.edge.type}-${idx}`}
-            renderItem={renderConnection}
-            contentContainerStyle={styles.listContent}
-            ListEmptyComponent={<EmptyState title="No connections" message="Try selecting different filter types." />}
-          />
-        </>
+        <FlatList
+          data={connections}
+          keyExtractor={(item, idx) => `${item.edge.source}-${item.edge.target}-${item.edge.type}-${idx}`}
+          renderItem={renderConnection}
+          contentContainerStyle={styles.listContent}
+          ListHeaderComponent={
+            <>
+              <View style={styles.filterRow}>
+                {Object.entries(EDGE_TYPE_COLORS).map(([type, color]) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.filterPill,
+                      activeFilters.has(type)
+                        ? { backgroundColor: color + '18', borderColor: color + '40' }
+                        : { backgroundColor: UI_COLORS.CARD_BG, borderColor: UI_COLORS.BORDER },
+                    ]}
+                    onPress={() => toggleFilter(type)}
+                  >
+                    <Ionicons name={EDGE_TYPE_ICONS[type] as any} size={12} color={activeFilters.has(type) ? color : UI_COLORS.TEXT_MUTED} />
+                    <Text style={[styles.filterText, { color: activeFilters.has(type) ? color : UI_COLORS.TEXT_MUTED }]}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.resultsCount}>{connections.length} connections</Text>
+            </>
+          }
+          ListEmptyComponent={<EmptyState title="No connections" message="Try selecting different filter types." />}
+          style={{ flex: 1 }}
+        />
       )}
 
       {/* Empty state when nothing selected */}

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
+  View, Text, FlatList, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -112,8 +112,8 @@ export default function CommitteesScreen() {
     );
   }
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+  const renderCommitteeHeader = useCallback(() => (
+    <View>
       {/* Search */}
       <View style={styles.searchRow}>
         <Ionicons name="search" size={18} color={UI_COLORS.TEXT_MUTED} style={styles.searchIcon} />
@@ -141,99 +141,110 @@ export default function CommitteesScreen() {
 
       {/* Count */}
       <Text style={styles.countText}>{filtered.length} committee{filtered.length !== 1 ? 's' : ''}</Text>
+    </View>
+  ), [search, chamberFilter, filtered.length]);
 
-      {/* Committee list */}
-      {filtered.map((committee) => (
-        <View key={committee.thomas_id} style={styles.committeeCard}>
-          <TouchableOpacity
-            style={styles.committeeHeader}
-            onPress={() => toggleExpand(committee)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.chamberIcon, { backgroundColor: chamberColor(committee.chamber) + '20' }]}>
-              <Text style={[styles.chamberIconText, { color: chamberColor(committee.chamber) }]}>
-                {committee.chamber === 'senate' ? 'S' : committee.chamber === 'joint' ? 'J' : 'H'}
+  const renderCommittee = useCallback(({ item: committee }: { item: Committee }) => (
+    <View style={styles.committeeCard}>
+      <TouchableOpacity
+        style={styles.committeeHeader}
+        onPress={() => toggleExpand(committee)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.chamberIcon, { backgroundColor: chamberColor(committee.chamber) + '20' }]}>
+          <Text style={[styles.chamberIconText, { color: chamberColor(committee.chamber) }]}>
+            {committee.chamber === 'senate' ? 'S' : committee.chamber === 'joint' ? 'J' : 'H'}
+          </Text>
+        </View>
+        <View style={styles.committeeInfo}>
+          <Text style={styles.committeeName} numberOfLines={2}>{committee.name}</Text>
+          <View style={styles.metaRow}>
+            <View style={[styles.chamberBadge, { backgroundColor: chamberColor(committee.chamber) + '20' }]}>
+              <Text style={[styles.chamberBadgeText, { color: chamberColor(committee.chamber) }]}>
+                {committee.chamber.toUpperCase()}
               </Text>
             </View>
-            <View style={styles.committeeInfo}>
-              <Text style={styles.committeeName} numberOfLines={2}>{committee.name}</Text>
-              <View style={styles.metaRow}>
-                <View style={[styles.chamberBadge, { backgroundColor: chamberColor(committee.chamber) + '20' }]}>
-                  <Text style={[styles.chamberBadgeText, { color: chamberColor(committee.chamber) }]}>
-                    {committee.chamber.toUpperCase()}
-                  </Text>
-                </View>
-                <Text style={styles.memberCount}>{committee.member_count} members</Text>
-                {committee.subcommittees && committee.subcommittees.length > 0 && (
-                  <Text style={styles.memberCount}>{committee.subcommittees.length} subs</Text>
-                )}
-              </View>
-            </View>
-            <Ionicons
-              name={expandedId === committee.thomas_id ? 'chevron-down' : 'chevron-forward'}
-              size={18}
-              color={UI_COLORS.TEXT_MUTED}
-            />
-          </TouchableOpacity>
+            <Text style={styles.memberCount}>{committee.member_count} members</Text>
+            {committee.subcommittees && committee.subcommittees.length > 0 && (
+              <Text style={styles.memberCount}>{committee.subcommittees.length} subs</Text>
+            )}
+          </View>
+        </View>
+        <Ionicons
+          name={expandedId === committee.thomas_id ? 'chevron-down' : 'chevron-forward'}
+          size={18}
+          color={UI_COLORS.TEXT_MUTED}
+        />
+      </TouchableOpacity>
 
-          {/* Expanded members */}
-          {expandedId === committee.thomas_id && (
-            <View style={styles.membersSection}>
-              {loadingMembers === committee.thomas_id ? (
-                <ActivityIndicator size="small" color={UI_COLORS.ACCENT} style={{ padding: 16 }} />
-              ) : members[committee.thomas_id] && members[committee.thomas_id].length > 0 ? (
-                members[committee.thomas_id].map((member, i) => {
-                  const name = member.display_name || member.member_name || 'Unknown';
-                  const party = member.member_party;
-                  const roleLabel = member.role?.replace(/_/g, ' ');
-                  const isLeadership = member.role && member.role !== 'member';
+      {/* Expanded members */}
+      {expandedId === committee.thomas_id && (
+        <View style={styles.membersSection}>
+          {loadingMembers === committee.thomas_id ? (
+            <ActivityIndicator size="small" color={UI_COLORS.ACCENT} style={{ padding: 16 }} />
+          ) : members[committee.thomas_id] && members[committee.thomas_id].length > 0 ? (
+            members[committee.thomas_id].map((member, i) => {
+              const name = member.display_name || member.member_name || 'Unknown';
+              const party = member.member_party;
+              const roleLabel = member.role?.replace(/_/g, ' ');
+              const isLeadership = member.role && member.role !== 'member';
 
-                  return (
-                    <TouchableOpacity
-                      key={member.bioguide_id || i}
-                      style={styles.memberRow}
-                      disabled={!member.person_id}
-                      onPress={() => {
-                        if (member.person_id) {
-                          navigation.navigate('PersonDetail', { person_id: member.person_id });
-                        }
-                      }}
-                    >
-                      <View style={[styles.memberAvatar, { backgroundColor: partyColor(party) + '20' }]}>
-                        <Text style={[styles.memberAvatarText, { color: partyColor(party) }]}>
-                          {name.charAt(0)}
-                        </Text>
-                      </View>
-                      <View style={styles.memberInfo}>
-                        <Text style={styles.memberName} numberOfLines={1}>{name}</Text>
-                        <View style={styles.memberMeta}>
-                          {party && (
-                            <Text style={[styles.memberParty, { color: partyColor(party) }]}>{party}</Text>
-                          )}
-                          {member.state && (
-                            <Text style={styles.memberState}>{member.state}</Text>
-                          )}
-                          {isLeadership && (
-                            <View style={styles.roleBadge}>
-                              <Text style={styles.roleBadgeText}>{roleLabel}</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                      {member.person_id && (
-                        <Ionicons name="chevron-forward" size={14} color={UI_COLORS.TEXT_MUTED} />
+              return (
+                <TouchableOpacity
+                  key={member.bioguide_id || i}
+                  style={styles.memberRow}
+                  disabled={!member.person_id}
+                  onPress={() => {
+                    if (member.person_id) {
+                      navigation.navigate('PersonDetail', { person_id: member.person_id });
+                    }
+                  }}
+                >
+                  <View style={[styles.memberAvatar, { backgroundColor: partyColor(party) + '20' }]}>
+                    <Text style={[styles.memberAvatarText, { color: partyColor(party) }]}>
+                      {name.charAt(0)}
+                    </Text>
+                  </View>
+                  <View style={styles.memberInfo}>
+                    <Text style={styles.memberName} numberOfLines={1}>{name}</Text>
+                    <View style={styles.memberMeta}>
+                      {party && (
+                        <Text style={[styles.memberParty, { color: partyColor(party) }]}>{party}</Text>
                       )}
-                    </TouchableOpacity>
-                  );
-                })
-              ) : (
-                <Text style={styles.noMembers}>Member data not available.</Text>
-              )}
-            </View>
+                      {member.state && (
+                        <Text style={styles.memberState}>{member.state}</Text>
+                      )}
+                      {isLeadership && (
+                        <View style={styles.roleBadge}>
+                          <Text style={styles.roleBadgeText}>{roleLabel}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  {member.person_id && (
+                    <Ionicons name="chevron-forward" size={14} color={UI_COLORS.TEXT_MUTED} />
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          ) : (
+            <Text style={styles.noMembers}>Member data not available.</Text>
           )}
         </View>
-      ))}
-    </ScrollView>
+      )}
+    </View>
+  ), [expandedId, members, loadingMembers, navigation]);
+
+  return (
+    <FlatList
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      data={filtered}
+      keyExtractor={(item) => item.thomas_id}
+      renderItem={renderCommittee}
+      ListHeaderComponent={renderCommitteeHeader}
+      extraData={{ expandedId, members, loadingMembers }}
+    />
   );
 }
 

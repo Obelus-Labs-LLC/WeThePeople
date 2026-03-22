@@ -330,6 +330,8 @@ class MemberVote(Base):
     """
     __tablename__ = "member_votes"
 
+    # NOTE: SQLite treats NULLs as distinct in unique constraints. PostgreSQL does not.
+    # If bioguide_id is NULL, SQLite allows duplicate (vote_id, NULL) rows.
     __table_args__ = (
         UniqueConstraint("vote_id", "bioguide_id", name="uq_member_votes_vote_bioguide"),
     )

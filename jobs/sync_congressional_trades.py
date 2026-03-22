@@ -23,7 +23,7 @@ from typing import Optional
 
 import requests
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -45,6 +45,14 @@ AINVEST_API_KEY = os.getenv("AINVEST_API_KEY", "")
 AINVEST_URL = "https://openapi.ainvest.com/open/ownership/congress"
 
 engine = create_engine(DB_PATH, connect_args={"check_same_thread": False} if "sqlite" in DB_PATH else {})
+
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=60000")
+    cursor.close()
+
 Session = sessionmaker(bind=engine)
 
 
@@ -175,10 +183,10 @@ def main():
 
     members = query.all()
     bioguide_map = {m.bioguide_id: m for m in members if m.bioguide_id}
-    name_map = {}  # fallback: last_name → member
+    name_map = {}  # fallback: last_name → list of members (handles collisions)
     for m in members:
         last = m.display_name.split()[-1].lower()
-        name_map[last] = m
+        name_map.setdefault(last, []).append(m)
 
     log.info(f"Loaded {len(members)} tracked members ({len(bioguide_map)} with BioGuide IDs)")
 
@@ -244,9 +252,26 @@ def main():
 
         # Match to tracked member by BioGuide ID first, then by name
         member = bioguide_map.get(bioguide)
-        if not member:
-            last_name = representative.split()[-1].lower() if representative else ""
-            member = name_map.get(last_name)
+        if not member and representative:
+            last_name = representative.split()[-1].lower()
+            candidates = name_map.get(last_name, [])
+            if len(candidates) == 1:
+                member = candidates[0]
+            elif len(candidates) > 1:
+                # Multiple members share last name — try full name match
+                rep_lower = representative.lower().strip()
+                for c in candidates:
+                    if c.display_name.lower() == rep_lower:
+                        member = c
+                        break
+                if not member:
+                    # Try first+last match
+                    rep_parts = rep_lower.split()
+                    for c in candidates:
+                        c_parts = c.display_name.lower().split()
+                        if rep_parts and c_parts and rep_parts[0] == c_parts[0]:
+                            member = c
+                            break
 
         if not member:
             skipped_no_member += 1

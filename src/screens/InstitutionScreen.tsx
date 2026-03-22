@@ -47,7 +47,15 @@ function formatNewsDate(raw: string): string {
 
 export default function InstitutionScreen() {
   const route = useRoute<any>();
-  const { institution_id } = route.params;
+  const institution_id = route.params?.institution_id;
+
+  if (!institution_id) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: UI_COLORS.SECONDARY_BG }}>
+        <Text style={{ color: UI_COLORS.TEXT_MUTED, fontSize: 14 }}>No institution selected.</Text>
+      </View>
+    );
+  }
 
   const [detail, setDetail] = useState<InstitutionDetail | null>(null);
   const [filings, setFilings] = useState<SECFiling[]>([]);

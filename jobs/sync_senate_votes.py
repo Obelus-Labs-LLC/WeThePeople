@@ -583,6 +583,10 @@ def sync_senate_votes(
     if end is not None:
         vote_numbers = [v for v in vote_numbers if v <= end]
 
+    if not vote_numbers:
+        logger.info("No votes to process after filtering")
+        return {"total": 0, "ingested": 0, "updated": 0, "skipped": 0, "failed": 0}
+
     logger.info(f"Processing {len(vote_numbers)} votes (range {vote_numbers[0]}-{vote_numbers[-1]})")
 
     stats = {"total": len(vote_numbers), "ingested": 0, "updated": 0, "skipped": 0, "failed": 0}

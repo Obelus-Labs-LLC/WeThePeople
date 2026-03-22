@@ -16,6 +16,7 @@ import { LoadingSpinner, EmptyState } from '../components/ui';
 import SearchBar from '../components/SearchBar';
 import PillTabBar from '../components/PillTabBar';
 
+// TODO: Use bill status_bucket field from API instead of text matching
 const STATUS_FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'introduced', label: 'Introduced' },

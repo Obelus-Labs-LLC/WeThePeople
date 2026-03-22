@@ -106,11 +106,32 @@ class WTPClient {
   }
 
   private async fetchJSON<T>(url: string): Promise<T> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await this.fetchWithRetry(url, controller.signal);
+      clearTimeout(timeoutId);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') throw new Error('Request timed out');
+      throw error;
     }
-    return response.json();
+  }
+
+  private async fetchWithRetry(url: string, signal: AbortSignal, retries = 1): Promise<Response> {
+    try {
+      return await fetch(url, { signal });
+    } catch (error: any) {
+      // Don't retry on abort (timeout) or if no retries left
+      if (error.name === 'AbortError' || retries <= 0) throw error;
+      // Retry once after 1 second on network errors
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return fetch(url, { signal });
+    }
   }
 
   async getPeople(params?: {
@@ -1038,42 +1059,67 @@ class WTPClient {
   // ── Balance of Power ──
 
   async getBalanceOfPower(): Promise<any> {
-    return this.fetchJSON<any>(`${this.baseUrl}/dashboard/stats`);
+    // Fetch all members and compute party counts client-side
+    const res = await this.fetchJSON<PeopleResponse>(`${this.baseUrl}/people?limit=600&active_only=1`);
+    const people = res.people || [];
+    const senate = { D: 0, R: 0, I: 0 };
+    const house = { D: 0, R: 0, I: 0 };
+    for (const p of people) {
+      const party = (p.party || '').charAt(0).toUpperCase();
+      const bucket = party === 'D' ? 'D' : party === 'R' ? 'R' : 'I';
+      const chamber = (p.chamber || '').toLowerCase();
+      if (chamber === 'senate') senate[bucket]++;
+      else if (chamber === 'house') house[bucket]++;
+    }
+    return {
+      party_breakdown: { senate, house },
+      people_count: people.length,
+      bill_count: null,
+      vote_count: null,
+      committee_count: null,
+    };
   }
 
-  // ── Patents search (global) ──
+  // ── Patents search (per-company) ──
+  // TODO: Backend has no global patent search endpoint. Use per-company endpoint.
 
-  async searchPatents(params?: { q?: string; limit?: number; offset?: number }): Promise<any> {
+  async searchPatents(params?: { q?: string; company_id?: string; limit?: number; offset?: number }): Promise<any> {
+    if (!params?.company_id) {
+      // No global patent search endpoint exists — return empty result
+      return { patents: [], total: 0 };
+    }
     const sp = new URLSearchParams();
-    if (params?.q) sp.set('q', params.q);
     if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
     if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
-    return this.fetchJSON<any>(`${this.baseUrl}/tech/patents?${sp}`);
+    return this.fetchJSON<any>(`${this.baseUrl}/tech/companies/${encodeURIComponent(params.company_id)}/patents?${sp}`);
   }
 
   // ── FDA Approvals ──
+  // TODO: Backend endpoint /health/fda-approvals does not exist. Returns health companies as fallback.
 
   async getFDAApprovals(params?: { q?: string; limit?: number; offset?: number }): Promise<any> {
+    // No dedicated FDA approvals endpoint — return health companies as fallback
     const sp = new URLSearchParams();
     if (params?.q) sp.set('q', params.q);
     if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
     if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
-    return this.fetchJSON<any>(`${this.baseUrl}/health/fda-approvals?${sp}`);
+    return this.fetchJSON<any>(`${this.baseUrl}/health/companies?${sp}`);
   }
 
   // ── Press / News ──
+  // TODO: Backend endpoint /politics/press does not exist. Returns empty fallback.
 
   async getPressReleases(params?: { limit?: number; offset?: number }): Promise<any> {
-    const sp = new URLSearchParams();
-    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
-    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
-    return this.fetchJSON<any>(`${this.baseUrl}/politics/press?${sp}`);
+    // No press releases endpoint exists — return empty result
+    return { releases: [], total: 0 };
   }
 
   // ── Market Movers ──
+  // TODO: Backend endpoint /finance/market-movers does not exist. Returns institutions as fallback.
 
   async getMarketMovers(): Promise<any> {
-    return this.fetchJSON<any>(`${this.baseUrl}/finance/market-movers`);
+    // No dedicated market movers endpoint — return top finance institutions as fallback
+    return this.fetchJSON<any>(`${this.baseUrl}/finance/institutions?limit=20`);
   }
 }
 

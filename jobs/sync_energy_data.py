@@ -119,7 +119,7 @@ ENERGY_COMPANIES = [
 
     # Pipelines / Midstream
     {"company_id": "enbridge", "display_name": "Enbridge Inc.", "ticker": "ENB", "sector_type": "pipeline", "headquarters": "Calgary, Canada", "sec_cik": "0000895728"},
-    {"company_id": "enterprise-products", "display_name": "Enterprise Products Partners", "ticker": "EPD", "sector_type": "pipeline", "headquarters": "Houston, TX", "sec_cik": "0000797468"},
+    {"company_id": "enterprise-products", "display_name": "Enterprise Products Partners", "ticker": "EPD", "sector_type": "pipeline", "headquarters": "Houston, TX", "sec_cik": "0000048962"},
     {"company_id": "kinder-morgan", "display_name": "Kinder Morgan Inc.", "ticker": "KMI", "sector_type": "pipeline", "headquarters": "Houston, TX", "sec_cik": "0001506307"},
     {"company_id": "williams-companies", "display_name": "The Williams Companies Inc.", "ticker": "WMB", "sector_type": "pipeline", "headquarters": "Tulsa, OK", "sec_cik": "0000107263"},
     {"company_id": "oneok", "display_name": "ONEOK Inc.", "ticker": "OKE", "sector_type": "pipeline", "headquarters": "Tulsa, OK", "sec_cik": "0000275880"},
@@ -195,6 +195,7 @@ def fetch_sec_filings(session, company: TrackedEnergyCompany, limit: int = 10000
             form_type=forms[i],
             filing_date=parse_date(dates[i]) if i < len(dates) else None,
             primary_doc_url=filing_url,
+            # NOTE: Legacy EDGAR CGI URL still works via redirect to EFTS. Kept for compatibility.
             filing_url=f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={forms[i]}&dateb=&owner=include&count=10",
             description=descs[i] if i < len(descs) else None,
             dedupe_hash=dedupe,
@@ -323,10 +324,14 @@ def fetch_lobbying(session, company: TrackedEnergyCompany):
 
                 issues = []
                 gov_entities = set()
+                descriptions = []
                 for activity in (r.get("lobbying_activities") or []):
                     issue_code = activity.get("general_issue_code_display")
                     if issue_code:
                         issues.append(issue_code)
+                    desc = activity.get("description") or ""
+                    if desc.strip():
+                        descriptions.append(desc.strip())
                     for entity in (activity.get("government_entities") or []):
                         name = entity.get("name") if isinstance(entity, dict) else str(entity)
                         if name:
@@ -343,9 +348,14 @@ def fetch_lobbying(session, company: TrackedEnergyCompany):
                     client_name=(r.get("client") or {}).get("name"),
                     lobbying_issues=", ".join(sorted(set(issues))) if issues else None,
                     government_entities=", ".join(sorted(gov_entities)) if gov_entities else None,
+                    specific_issues=" || ".join(descriptions) if descriptions else None,
                     dedupe_hash=dedupe,
                 ))
                 count += 1
+
+            # Commit after each page to avoid large transactions
+            if count > 0:
+                session.commit()
 
             page_url = data.get("next")
             page_num += 1
@@ -363,7 +373,8 @@ def main():
     parser.add_argument("--skip-sec", action="store_true", help="Skip SEC filings")
     parser.add_argument("--skip-contracts", action="store_true", help="Skip USASpending contracts")
     parser.add_argument("--skip-lobbying", action="store_true", help="Skip lobbying data")
-    parser.add_argument("--skip-emissions", action="store_true", help="Skip EPA emissions")
+    # NOTE: Emissions sync not yet implemented. Flag accepted but ignored.
+    parser.add_argument("--skip-emissions", action="store_true", help="Skip EPA emissions (not yet implemented)")
     parser.add_argument("--seed-only", action="store_true", help="Only seed companies, skip data fetch")
     args = parser.parse_args()
 
@@ -410,6 +421,7 @@ def main():
                 session.commit()
             except Exception as e:
                 log.error(f"FAILED {cid}: {e}")
+                # NOTE: totals may be slightly inaccurate if some syncs succeeded before the failure
                 session.rollback()
 
         log.info(f"\nDone! Synced {len(companies)} companies.")

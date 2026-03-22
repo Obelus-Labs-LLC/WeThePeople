@@ -34,22 +34,26 @@ export default function TechCompanyScreen() {
   // Patents tab data
   const [patents, setPatents] = useState<TechPatentItem[]>([]);
   const [patentsLoading, setPatentsLoading] = useState(false);
+  const [patentsLoaded, setPatentsLoaded] = useState(false);
 
   // Contracts tab data
   const [contracts, setContracts] = useState<ContractItem[]>([]);
   const [contractSummary, setContractSummary] = useState<ContractSummary | null>(null);
   const [contractTrends, setContractTrends] = useState<ContractTrendYear[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
 
   // Lobbying tab data
   const [lobbyingFilings, setLobbyingFilings] = useState<LobbyingFiling[]>([]);
   const [lobbySummary, setLobbySummary] = useState<LobbyingSummary | null>(null);
   const [lobbyingLoading, setLobbyingLoading] = useState(false);
+  const [lobbyingLoaded, setLobbyingLoaded] = useState(false);
 
   // Enforcement tab data
   const [enforcementActions, setEnforcementActions] = useState<EnforcementAction[]>([]);
   const [totalPenalties, setTotalPenalties] = useState(0);
   const [enforcementLoading, setEnforcementLoading] = useState(false);
+  const [enforcementLoaded, setEnforcementLoaded] = useState(false);
 
   // Donations tab data
   const [donations, setDonations] = useState<any[] | null>(null);
@@ -97,18 +101,18 @@ export default function TechCompanyScreen() {
 
   // Load patents when tab switches
   useEffect(() => {
-    if (tab === 'patents' && patents.length === 0 && !patentsLoading) {
+    if (tab === 'patents' && !patentsLoaded && !patentsLoading) {
       setPatentsLoading(true);
       apiClient.getTechCompanyPatents(companyId, { limit: 50 })
         .then((res) => setPatents(res.patents || []))
         .catch(() => {})
-        .finally(() => setPatentsLoading(false));
+        .finally(() => { setPatentsLoading(false); setPatentsLoaded(true); });
     }
   }, [tab, companyId]);
 
   // Load contracts + trends when tab switches
   useEffect(() => {
-    if (tab === 'contracts' && contracts.length === 0 && !contractsLoading) {
+    if (tab === 'contracts' && !contractsLoaded && !contractsLoading) {
       setContractsLoading(true);
       Promise.all([
         apiClient.getTechCompanyContracts(companyId, { limit: 50 }),
@@ -121,13 +125,13 @@ export default function TechCompanyScreen() {
           setContractTrends(trendRes.trends || []);
         })
         .catch(() => {})
-        .finally(() => setContractsLoading(false));
+        .finally(() => { setContractsLoading(false); setContractsLoaded(true); });
     }
   }, [tab, companyId]);
 
   // Load lobbying when tab switches
   useEffect(() => {
-    if (tab === 'lobbying' && lobbyingFilings.length === 0 && !lobbyingLoading) {
+    if (tab === 'lobbying' && !lobbyingLoaded && !lobbyingLoading) {
       setLobbyingLoading(true);
       Promise.all([
         apiClient.getTechCompanyLobbying(companyId, { limit: 50 }),
@@ -138,13 +142,13 @@ export default function TechCompanyScreen() {
           setLobbySummary(sumRes);
         })
         .catch(() => {})
-        .finally(() => setLobbyingLoading(false));
+        .finally(() => { setLobbyingLoading(false); setLobbyingLoaded(true); });
     }
   }, [tab, companyId]);
 
   // Load enforcement when tab switches
   useEffect(() => {
-    if (tab === 'enforcement' && enforcementActions.length === 0 && !enforcementLoading) {
+    if (tab === 'enforcement' && !enforcementLoaded && !enforcementLoading) {
       setEnforcementLoading(true);
       apiClient.getTechCompanyEnforcement(companyId, { limit: 50 })
         .then((res) => {
@@ -152,7 +156,7 @@ export default function TechCompanyScreen() {
           setTotalPenalties(res.total_penalties || 0);
         })
         .catch(() => {})
-        .finally(() => setEnforcementLoading(false));
+        .finally(() => { setEnforcementLoading(false); setEnforcementLoaded(true); });
     }
   }, [tab, companyId]);
 

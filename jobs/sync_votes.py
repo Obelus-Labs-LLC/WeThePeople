@@ -126,7 +126,7 @@ def ingest_vote(congress: int, session: int, roll_number: int,
             Vote.roll_number == roll_number,
         ).first()
         if existing:
-            return existing.id
+            return ("existing", existing.id)
 
         # Get vote detail for totals
         vote_data = fetch_vote_detail(congress, session, roll_number)
@@ -168,7 +168,7 @@ def ingest_vote(congress: int, session: int, roll_number: int,
                 related_bill_number = None
 
         # Build source URL
-        source_url = f"https://clerk.house.gov/Votes/{vote_date.year if vote_date else ''}{roll_number}"
+        source_url = f"https://clerk.house.gov/Votes/{vote_date.year}{roll_number}" if vote_date else None
 
         question = (vote_data or {}).get("voteQuestion") or "Roll call vote"
 
@@ -223,7 +223,7 @@ def ingest_vote(congress: int, session: int, roll_number: int,
         db.commit()
         logger.info(f"Ingested vote 119/house/{roll_number} ({member_count} members)",
                      extra={"job": "sync_votes"})
-        return vote.id
+        return ("new", vote.id)
 
     except Exception as e:
         db.rollback()
@@ -241,7 +241,8 @@ def sync_house_votes(congress: int, session: int, limit: int,
     votes = fetch_house_votes_list(congress, session, limit)
     logger.info(f"Found {len(votes)} House votes to process")
 
-    ingested = 0
+    new_count = 0
+    existing_count = 0
     skipped = 0
     failed = 0
 
@@ -253,13 +254,17 @@ def sync_house_votes(congress: int, session: int, limit: int,
 
         result = ingest_vote(congress, session, int(roll_number), v, bioguide_map)
         if result is not None:
-            ingested += 1
+            status, _vote_id = result
+            if status == "new":
+                new_count += 1
+            else:
+                existing_count += 1
         else:
             failed += 1
 
         time.sleep(RATE_LIMIT_DELAY)
 
-    return {"total": len(votes), "ingested": ingested, "skipped": skipped, "failed": failed}
+    return {"total": len(votes), "ingested": new_count, "existing": existing_count, "skipped": skipped, "failed": failed}
 
 
 def main():
