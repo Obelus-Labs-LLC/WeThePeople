@@ -28,6 +28,7 @@ from models.finance_models import TrackedInstitution
 from models.health_models import TrackedCompany
 from models.tech_models import TrackedTechCompany
 from models.energy_models import TrackedEnergyCompany
+from models.transportation_models import TrackedTransportationCompany
 
 
 # ============================================================================
@@ -530,6 +531,102 @@ ENERGY_COMPANIES = [
 
 
 # ============================================================================
+# TRANSPORTATION — 80+ companies
+# ============================================================================
+
+TRANSPORTATION_COMPANIES = [
+    # ── Airlines ──
+    {"company_id": "delta", "display_name": "Delta Air Lines Inc.", "ticker": "DAL", "sector_type": "aviation", "sec_cik": "0000027904", "headquarters": "Atlanta, GA"},
+    {"company_id": "united-airlines", "display_name": "United Airlines Holdings Inc.", "ticker": "UAL", "sector_type": "aviation", "sec_cik": "0000100517", "headquarters": "Chicago, IL"},
+    {"company_id": "american-airlines", "display_name": "American Airlines Group Inc.", "ticker": "AAL", "sector_type": "aviation", "sec_cik": "0000006201", "headquarters": "Fort Worth, TX"},
+    {"company_id": "southwest", "display_name": "Southwest Airlines Co.", "ticker": "LUV", "sector_type": "aviation", "sec_cik": "0000092380", "headquarters": "Dallas, TX"},
+    {"company_id": "jetblue", "display_name": "JetBlue Airways Corporation", "ticker": "JBLU", "sector_type": "aviation", "sec_cik": "0000898293", "headquarters": "Long Island City, NY"},
+    {"company_id": "alaska-air", "display_name": "Alaska Air Group Inc.", "ticker": "ALK", "sector_type": "aviation", "sec_cik": "0000766421", "headquarters": "Seattle, WA"},
+    {"company_id": "spirit-airlines", "display_name": "Spirit Airlines Inc.", "ticker": "SAVE", "sector_type": "aviation", "sec_cik": "0001498710", "headquarters": "Dania Beach, FL"},
+    {"company_id": "frontier-airlines", "display_name": "Frontier Group Holdings Inc.", "ticker": "ULCC", "sector_type": "aviation", "sec_cik": "0001670076", "headquarters": "Denver, CO"},
+    {"company_id": "hawaiian-airlines", "display_name": "Hawaiian Holdings Inc.", "ticker": "HA", "sector_type": "aviation", "sec_cik": "0000046619", "headquarters": "Honolulu, HI"},
+    {"company_id": "skywest", "display_name": "SkyWest Inc.", "ticker": "SKYW", "sector_type": "aviation", "sec_cik": "0000793735", "headquarters": "St. George, UT"},
+    {"company_id": "sun-country", "display_name": "Sun Country Airlines Holdings", "ticker": "SNCY", "sector_type": "aviation", "sec_cik": "0001784535", "headquarters": "Minneapolis, MN"},
+
+    # ── Shipping / Logistics ──
+    {"company_id": "fedex", "display_name": "FedEx Corporation", "ticker": "FDX", "sector_type": "logistics", "sec_cik": "0001048911", "headquarters": "Memphis, TN"},
+    {"company_id": "ups", "display_name": "United Parcel Service Inc.", "ticker": "UPS", "sector_type": "logistics", "sec_cik": "0001090727", "headquarters": "Atlanta, GA"},
+    {"company_id": "xpo-logistics", "display_name": "XPO Inc.", "ticker": "XPO", "sector_type": "logistics", "sec_cik": "0001166003", "headquarters": "Greenwich, CT"},
+    {"company_id": "ch-robinson", "display_name": "C.H. Robinson Worldwide Inc.", "ticker": "CHRW", "sector_type": "logistics", "sec_cik": "0001043277", "headquarters": "Eden Prairie, MN"},
+    {"company_id": "jb-hunt", "display_name": "J.B. Hunt Transport Services Inc.", "ticker": "JBHT", "sector_type": "logistics", "sec_cik": "0000728535", "headquarters": "Lowell, AR"},
+    {"company_id": "old-dominion", "display_name": "Old Dominion Freight Line Inc.", "ticker": "ODFL", "sector_type": "logistics", "sec_cik": "0000878927", "headquarters": "Thomasville, NC"},
+    {"company_id": "expeditors", "display_name": "Expeditors International of Washington", "ticker": "EXPD", "sector_type": "logistics", "sec_cik": "0000746515", "headquarters": "Seattle, WA"},
+    {"company_id": "werner", "display_name": "Werner Enterprises Inc.", "ticker": "WERN", "sector_type": "logistics", "sec_cik": "0000793074", "headquarters": "Omaha, NE"},
+    {"company_id": "ryder", "display_name": "Ryder System Inc.", "ticker": "R", "sector_type": "logistics", "sec_cik": "0000085961", "headquarters": "Coral Gables, FL"},
+    {"company_id": "amerco", "display_name": "AMERCO (U-Haul)", "ticker": "UHAL", "sector_type": "logistics", "sec_cik": "0000004457", "headquarters": "Reno, NV"},
+    {"company_id": "saia", "display_name": "Saia Inc.", "ticker": "SAIA", "sector_type": "logistics", "sec_cik": "0000082811", "headquarters": "Johns Creek, GA"},
+    {"company_id": "landstar", "display_name": "Landstar System Inc.", "ticker": "LSTR", "sector_type": "logistics", "sec_cik": "0000853816", "headquarters": "Jacksonville, FL"},
+
+    # ── Motor Vehicle / Automotive ──
+    {"company_id": "general-motors", "display_name": "General Motors Company", "ticker": "GM", "sector_type": "motor_vehicle", "sec_cik": "0001467858", "headquarters": "Detroit, MI"},
+    {"company_id": "ford", "display_name": "Ford Motor Company", "ticker": "F", "sector_type": "motor_vehicle", "sec_cik": "0000037996", "headquarters": "Dearborn, MI"},
+    {"company_id": "tesla", "display_name": "Tesla Inc.", "ticker": "TSLA", "sector_type": "motor_vehicle", "sec_cik": "0001318605", "headquarters": "Austin, TX"},
+    {"company_id": "stellantis", "display_name": "Stellantis N.V.", "ticker": "STLA", "sector_type": "motor_vehicle", "sec_cik": "0001513153", "headquarters": "Amsterdam, Netherlands"},
+    {"company_id": "toyota", "display_name": "Toyota Motor Corporation", "ticker": "TM", "sector_type": "motor_vehicle", "sec_cik": "0001094517", "headquarters": "Toyota City, Japan"},
+    {"company_id": "honda", "display_name": "Honda Motor Co. Ltd.", "ticker": "HMC", "sector_type": "motor_vehicle", "sec_cik": "0000715153", "headquarters": "Tokyo, Japan"},
+    {"company_id": "rivian", "display_name": "Rivian Automotive Inc.", "ticker": "RIVN", "sector_type": "motor_vehicle", "sec_cik": "0001874178", "headquarters": "Irvine, CA"},
+    {"company_id": "lucid", "display_name": "Lucid Group Inc.", "ticker": "LCID", "sector_type": "motor_vehicle", "sec_cik": "0001811210", "headquarters": "Newark, CA"},
+    {"company_id": "nio", "display_name": "NIO Inc.", "ticker": "NIO", "sector_type": "motor_vehicle", "sec_cik": "0001736541", "headquarters": "Shanghai, China"},
+    {"company_id": "hyundai", "display_name": "Hyundai Motor Company", "ticker": "HYMTF", "sector_type": "motor_vehicle", "sec_cik": "", "headquarters": "Seoul, South Korea"},
+    {"company_id": "volkswagen", "display_name": "Volkswagen AG", "ticker": "VWAGY", "sector_type": "motor_vehicle", "sec_cik": "", "headquarters": "Wolfsburg, Germany"},
+    {"company_id": "bmw", "display_name": "Bayerische Motoren Werke AG", "ticker": "BMWYY", "sector_type": "motor_vehicle", "sec_cik": "", "headquarters": "Munich, Germany"},
+
+    # ── Rail ──
+    {"company_id": "union-pacific", "display_name": "Union Pacific Corporation", "ticker": "UNP", "sector_type": "rail", "sec_cik": "0000100885", "headquarters": "Omaha, NE"},
+    {"company_id": "csx", "display_name": "CSX Corporation", "ticker": "CSX", "sector_type": "rail", "sec_cik": "0000277948", "headquarters": "Jacksonville, FL"},
+    {"company_id": "norfolk-southern", "display_name": "Norfolk Southern Corporation", "ticker": "NSC", "sector_type": "rail", "sec_cik": "0000073309", "headquarters": "Atlanta, GA"},
+    {"company_id": "canadian-pacific", "display_name": "Canadian Pacific Kansas City Ltd.", "ticker": "CP", "sector_type": "rail", "sec_cik": "0000016875", "headquarters": "Calgary, Canada"},
+    {"company_id": "canadian-national", "display_name": "Canadian National Railway Company", "ticker": "CNI", "sector_type": "rail", "sec_cik": "0001001085", "headquarters": "Montreal, Canada"},
+    {"company_id": "wabtec", "display_name": "Westinghouse Air Brake Technologies", "ticker": "WAB", "sector_type": "rail", "sec_cik": "0000943452", "headquarters": "Pittsburgh, PA"},
+    {"company_id": "genesee-wyoming", "display_name": "Genesee & Wyoming Inc.", "ticker": None, "sector_type": "rail", "sec_cik": "", "headquarters": "Darien, CT"},
+
+    # ── Ride-share / Delivery ──
+    {"company_id": "uber", "display_name": "Uber Technologies Inc.", "ticker": "UBER", "sector_type": "ride_share", "sec_cik": "0001543151", "headquarters": "San Francisco, CA"},
+    {"company_id": "lyft", "display_name": "Lyft Inc.", "ticker": "LYFT", "sector_type": "ride_share", "sec_cik": "0001759509", "headquarters": "San Francisco, CA"},
+    {"company_id": "doordash", "display_name": "DoorDash Inc.", "ticker": "DASH", "sector_type": "ride_share", "sec_cik": "0001792789", "headquarters": "San Francisco, CA"},
+    {"company_id": "instacart", "display_name": "Maplebear Inc. (Instacart)", "ticker": "CART", "sector_type": "ride_share", "sec_cik": "0001579091", "headquarters": "San Francisco, CA"},
+    {"company_id": "grab", "display_name": "Grab Holdings Limited", "ticker": "GRAB", "sector_type": "ride_share", "sec_cik": "0001855612", "headquarters": "Singapore"},
+
+    # ── Aerospace / Defense ──
+    {"company_id": "boeing", "display_name": "The Boeing Company", "ticker": "BA", "sector_type": "aerospace", "sec_cik": "0000012927", "headquarters": "Arlington, VA"},
+    {"company_id": "lockheed-martin", "display_name": "Lockheed Martin Corporation", "ticker": "LMT", "sector_type": "aerospace", "sec_cik": "0000936468", "headquarters": "Bethesda, MD"},
+    {"company_id": "rtx", "display_name": "RTX Corporation", "ticker": "RTX", "sector_type": "aerospace", "sec_cik": "0000101829", "headquarters": "Arlington, VA"},
+    {"company_id": "northrop-grumman", "display_name": "Northrop Grumman Corporation", "ticker": "NOC", "sector_type": "aerospace", "sec_cik": "0001133421", "headquarters": "Falls Church, VA"},
+    {"company_id": "general-dynamics", "display_name": "General Dynamics Corporation", "ticker": "GD", "sector_type": "aerospace", "sec_cik": "0000040533", "headquarters": "Reston, VA"},
+    {"company_id": "l3harris", "display_name": "L3Harris Technologies Inc.", "ticker": "LHX", "sector_type": "aerospace", "sec_cik": "0000202058", "headquarters": "Melbourne, FL"},
+    {"company_id": "textron", "display_name": "Textron Inc.", "ticker": "TXT", "sector_type": "aerospace", "sec_cik": "0000217346", "headquarters": "Providence, RI"},
+    {"company_id": "bombardier", "display_name": "Bombardier Inc.", "ticker": "BDRBF", "sector_type": "aerospace", "sec_cik": "", "headquarters": "Montreal, Canada"},
+    {"company_id": "airbus", "display_name": "Airbus SE", "ticker": "EADSY", "sector_type": "aerospace", "sec_cik": "", "headquarters": "Leiden, Netherlands"},
+    {"company_id": "embraer", "display_name": "Embraer S.A.", "ticker": "ERJ", "sector_type": "aerospace", "sec_cik": "0001078752", "headquarters": "Sao Jose dos Campos, Brazil"},
+    {"company_id": "howmet", "display_name": "Howmet Aerospace Inc.", "ticker": "HWM", "sector_type": "aerospace", "sec_cik": "0000004281", "headquarters": "Pittsburgh, PA"},
+    {"company_id": "spirit-aerosystems", "display_name": "Spirit AeroSystems Holdings Inc.", "ticker": "SPR", "sector_type": "aerospace", "sec_cik": "0001364885", "headquarters": "Wichita, KS"},
+    {"company_id": "transdigm", "display_name": "TransDigm Group Incorporated", "ticker": "TDG", "sector_type": "aerospace", "sec_cik": "0001260221", "headquarters": "Cleveland, OH"},
+
+    # ── Truck / Heavy Equipment ──
+    {"company_id": "paccar", "display_name": "PACCAR Inc.", "ticker": "PCAR", "sector_type": "motor_vehicle", "sec_cik": "0000075362", "headquarters": "Bellevue, WA"},
+    {"company_id": "cummins", "display_name": "Cummins Inc.", "ticker": "CMI", "sector_type": "motor_vehicle", "sec_cik": "0000026172", "headquarters": "Columbus, IN"},
+    {"company_id": "caterpillar", "display_name": "Caterpillar Inc.", "ticker": "CAT", "sector_type": "motor_vehicle", "sec_cik": "0000018230", "headquarters": "Irving, TX"},
+    {"company_id": "deere", "display_name": "Deere & Company", "ticker": "DE", "sector_type": "motor_vehicle", "sec_cik": "0000315189", "headquarters": "Moline, IL"},
+    {"company_id": "navistar", "display_name": "Navistar International Corporation", "ticker": None, "sector_type": "motor_vehicle", "sec_cik": "0000808450", "headquarters": "Lisle, IL"},
+    {"company_id": "allison-transmission", "display_name": "Allison Transmission Holdings", "ticker": "ALSN", "sector_type": "motor_vehicle", "sec_cik": "0001411207", "headquarters": "Indianapolis, IN"},
+
+    # ── Maritime ──
+    {"company_id": "carnival", "display_name": "Carnival Corporation", "ticker": "CCL", "sector_type": "maritime", "sec_cik": "0000815097", "headquarters": "Miami, FL"},
+    {"company_id": "royal-caribbean", "display_name": "Royal Caribbean Cruises Ltd.", "ticker": "RCL", "sector_type": "maritime", "sec_cik": "0000884887", "headquarters": "Miami, FL"},
+    {"company_id": "kirby", "display_name": "Kirby Corporation", "ticker": "KEX", "sector_type": "maritime", "sec_cik": "0000049826", "headquarters": "Houston, TX"},
+    {"company_id": "matson", "display_name": "Matson Inc.", "ticker": "MATX", "sector_type": "maritime", "sec_cik": "0000003453", "headquarters": "Honolulu, HI"},
+    {"company_id": "norwegian-cruise", "display_name": "Norwegian Cruise Line Holdings", "ticker": "NCLH", "sector_type": "maritime", "sec_cik": "0001513761", "headquarters": "Miami, FL"},
+    {"company_id": "zim", "display_name": "ZIM Integrated Shipping Services", "ticker": "ZIM", "sector_type": "maritime", "sec_cik": "0001837014", "headquarters": "Haifa, Israel"},
+    {"company_id": "danaos", "display_name": "Danaos Corporation", "ticker": "DAC", "sector_type": "maritime", "sec_cik": "0001372514", "headquarters": "Piraeus, Greece"},
+]
+
+
+# ============================================================================
 # SEED FUNCTIONS
 # ============================================================================
 
@@ -605,9 +702,27 @@ def seed_energy(db, dry_run=False):
     return added
 
 
+def seed_transportation(db, dry_run=False):
+    """Seed transportation tracked companies."""
+    added, skipped = 0, 0
+    for data in TRANSPORTATION_COMPANIES:
+        cid = data["company_id"]
+        existing = db.query(TrackedTransportationCompany).filter_by(company_id=cid).first()
+        if existing:
+            skipped += 1
+            continue
+        if not dry_run:
+            db.add(TrackedTransportationCompany(**data))
+        added += 1
+    if not dry_run:
+        db.commit()
+    print(f"  Transportation: {added} added, {skipped} already existed (total list: {len(TRANSPORTATION_COMPANIES)})")
+    return added
+
+
 def main():
     parser = argparse.ArgumentParser(description="Seed tracked companies across all sectors")
-    parser.add_argument("--sector", type=str, choices=["finance", "health", "tech", "energy"],
+    parser.add_argument("--sector", type=str, choices=["finance", "health", "tech", "energy", "transportation"],
                         help="Seed only this sector (default: all)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be added without writing to DB")
     args = parser.parse_args()
@@ -631,6 +746,8 @@ def main():
             total_added += seed_tech(db, args.dry_run)
         if args.sector is None or args.sector == "energy":
             total_added += seed_energy(db, args.dry_run)
+        if args.sector is None or args.sector == "transportation":
+            total_added += seed_transportation(db, args.dry_run)
 
         print(f"\n{'='*60}")
         print(f"  Total new entries: {total_added}")
@@ -643,6 +760,7 @@ def main():
             print(f"  Health companies:     {db.query(TrackedCompany).count()}")
             print(f"  Tech companies:       {db.query(TrackedTechCompany).count()}")
             print(f"  Energy companies:     {db.query(TrackedEnergyCompany).count()}")
+            print(f"  Transportation:       {db.query(TrackedTransportationCompany).count()}")
             print()
 
     finally:

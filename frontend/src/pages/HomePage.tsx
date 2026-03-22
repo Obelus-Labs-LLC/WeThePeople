@@ -37,6 +37,7 @@ const SECTOR_COLORS: Record<string, string> = {
   health: "text-rose-400",
   tech: "text-violet-400",
   energy: "text-orange-400",
+  transportation: "text-blue-400",
 };
 
 const SECTOR_ROUTES: Record<string, string> = {
@@ -44,6 +45,7 @@ const SECTOR_ROUTES: Record<string, string> = {
   health: "/health",
   tech: "/technology",
   energy: "/energy",
+  transportation: "/transportation",
 };
 
 /** Left-border accent color per sector slug */
@@ -55,6 +57,7 @@ const SECTOR_ACCENT: Record<string, string> = {
   chemicals: "border-l-amber-500",
   energy: "border-l-orange-500",
   technology: "border-l-violet-500",
+  transportation: "border-l-blue-500",
   // Future sectors - not yet implemented
   defense: "border-l-red-500",
   agriculture: "border-l-lime-500",
