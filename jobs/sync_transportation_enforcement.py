@@ -47,6 +47,25 @@ AGENCY_SLUGS = {
     "DOT": "transportation-department",
 }
 
+# Map sub-sectors to relevant agencies (instead of searching all 5 for every company)
+SUBSECTOR_AGENCIES = {
+    "aviation": ["FAA", "DOT"],
+    "aerospace": ["FAA", "DOT"],
+    "motor_vehicle": ["NHTSA", "DOT"],
+    "logistics": ["FMCSA", "DOT"],
+    "rail": ["FMCSA", "DOT"],
+    "ride_share": ["NHTSA", "DOT"],
+    "maritime": ["FMC", "DOT"],
+    "trucking": ["FMCSA", "DOT"],
+}
+
+LEGAL_SUFFIXES = [
+    " Corporation", " Corp.", " Corp", " Incorporated", " Inc.", " Inc",
+    " Company", " Co.", " Co", " Limited", " Ltd.", " Ltd",
+    " Holdings", " Group", " plc", " LP", " LLC", " L.L.C.",
+    " N.V.", " S.A.", " SE", " AG",
+]
+
 
 def md5(text: str) -> str:
     return hashlib.md5(text.encode()).hexdigest()
@@ -117,13 +136,16 @@ def classify_enforcement_type(title: str, abstract: str = "") -> str:
         return "Regulatory Action"
 
 
-def fetch_enforcement_from_fr(company_name: str, agency_slug: str, source_label: str, limit: int = 100):
-    """Fetch enforcement-related documents from Federal Register for a company."""
+def fetch_enforcement_from_fr(company_name: str, agency_slugs: list = None, limit: int = 100):
+    """Fetch enforcement-related documents from Federal Register for a company.
+
+    If agency_slugs is provided, scopes to those agencies.
+    If None, searches across all agencies (broader but noisier).
+    """
     enforcement_terms = [
         f'"{company_name}" enforcement',
         f'"{company_name}" penalty',
         f'"{company_name}" violation',
-        f'"{company_name}" settlement',
         f'"{company_name}" recall',
     ]
 
@@ -135,12 +157,19 @@ def fetch_enforcement_from_fr(company_name: str, agency_slug: str, source_label:
             "per_page": limit,
             "order": "newest",
             "conditions[term]": term,
-            "conditions[agencies][]": agency_slug,
             "fields[]": [
                 "document_number", "title", "abstract", "type",
-                "publication_date", "html_url", "action",
+                "publication_date", "html_url", "action", "agencies",
             ],
         }
+        # Scope to specific agencies if provided
+        if agency_slugs:
+            for slug in agency_slugs:
+                params.setdefault("conditions[agencies][]", [])
+                if isinstance(params["conditions[agencies][]"], list):
+                    params["conditions[agencies][]"].append(slug)
+                else:
+                    params["conditions[agencies][]"] = [params["conditions[agencies][]"], slug]
 
         try:
             time.sleep(1.0)
@@ -148,7 +177,7 @@ def fetch_enforcement_from_fr(company_name: str, agency_slug: str, source_label:
             resp.raise_for_status()
             data = resp.json()
         except Exception as e:
-            log.warning(f"  Federal Register search failed ({source_label}, term='{term[:40]}'): {e}")
+            log.warning(f"  Federal Register search failed (term='{term[:50]}'): {e}")
             continue
 
         for doc in data.get("results", []):
@@ -159,6 +188,15 @@ def fetch_enforcement_from_fr(company_name: str, agency_slug: str, source_label:
 
             title = doc.get("title", "")
             abstract = doc.get("abstract", "") or ""
+            # Determine source label from agencies in the result
+            agencies = doc.get("agencies", [])
+            source_label = "DOT"
+            for a in (agencies or []):
+                slug = a.get("slug", "")
+                for label, s in AGENCY_SLUGS.items():
+                    if slug == s:
+                        source_label = label
+                        break
 
             all_results.append({
                 "case_title": title[:500],
@@ -174,43 +212,64 @@ def fetch_enforcement_from_fr(company_name: str, agency_slug: str, source_label:
     return all_results
 
 
+def _strip_legal_suffixes(name: str) -> str:
+    """Strip legal entity suffixes to get a cleaner search name."""
+    result = name
+    for suffix in LEGAL_SUFFIXES:
+        if result.endswith(suffix):
+            result = result[:-len(suffix)].strip()
+    # Also handle comma-separated (e.g., "Canadian Pacific Kansas City Ltd.")
+    if "," in result:
+        result = result.split(",")[0].strip()
+    return result
+
+
 def sync_company_enforcement(session, company: TrackedTransportationCompany) -> int:
     """Sync enforcement actions for a single transportation company."""
-    search_names = [company.display_name]
-    if "," in company.display_name:
-        search_names.append(company.display_name.split(",")[0].strip())
-    short = company.display_name.replace(" Corporation", "").replace(" Inc.", "").replace(" Inc", "").replace(" Co.", "").replace(" plc", "").replace(" LP", "").replace(" LLC", "").replace(" Holdings", "").strip()
-    if short != company.display_name:
-        search_names.append(short)
+    # Build search names: full name, stripped name, short brand name
+    search_names = set()
+    search_names.add(company.display_name)
+    stripped = _strip_legal_suffixes(company.display_name)
+    if stripped != company.display_name:
+        search_names.add(stripped)
+    # For multi-word names, also try the core brand (e.g., "Delta" from "Delta Air Lines")
+    # But only if it's distinctive enough (>4 chars)
+    words = stripped.split()
+    if len(words) >= 2 and len(words[0]) > 4:
+        search_names.add(words[0])
+
+    # Get relevant agencies for this company's sub-sector
+    sector_type = getattr(company, "sector_type", None) or ""
+    relevant_labels = SUBSECTOR_AGENCIES.get(sector_type, list(AGENCY_SLUGS.keys()))
+    relevant_slugs = [AGENCY_SLUGS[label] for label in relevant_labels if label in AGENCY_SLUGS]
 
     count = 0
     seen_hashes = set()
 
     for search_name in search_names:
-        for source_label, agency_slug in AGENCY_SLUGS.items():
-            results = fetch_enforcement_from_fr(search_name, agency_slug, source_label, limit=100)
+        results = fetch_enforcement_from_fr(search_name, agency_slugs=relevant_slugs, limit=100)
 
-            for r in results:
-                dedupe = md5(f"{company.company_id}:{r['source']}:{r['doc_number']}")
-                if dedupe in seen_hashes:
-                    continue
-                seen_hashes.add(dedupe)
+        for r in results:
+            dedupe = md5(f"{company.company_id}:{r['source']}:{r['doc_number']}")
+            if dedupe in seen_hashes:
+                continue
+            seen_hashes.add(dedupe)
 
-                if session.query(TransportationEnforcement).filter_by(dedupe_hash=dedupe).first():
-                    continue
+            if session.query(TransportationEnforcement).filter_by(dedupe_hash=dedupe).first():
+                continue
 
-                session.add(TransportationEnforcement(
-                    company_id=company.company_id,
-                    case_title=r["case_title"],
-                    case_date=r["case_date"],
-                    case_url=r["case_url"],
-                    enforcement_type=r["enforcement_type"],
-                    penalty_amount=r["penalty_amount"],
-                    description=r["description"],
-                    source=r["source"],
-                    dedupe_hash=dedupe,
-                ))
-                count += 1
+            session.add(TransportationEnforcement(
+                company_id=company.company_id,
+                case_title=r["case_title"],
+                case_date=r["case_date"],
+                case_url=r["case_url"],
+                enforcement_type=r["enforcement_type"],
+                penalty_amount=r["penalty_amount"],
+                description=r["description"],
+                source=r["source"],
+                dedupe_hash=dedupe,
+            ))
+            count += 1
 
     if count:
         session.commit()
