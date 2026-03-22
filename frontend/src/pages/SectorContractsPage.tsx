@@ -145,6 +145,7 @@ export default function SectorContractsPage() {
 
     async function loadData() {
       if (!config.aggregateEndpoint) {
+        setError('No contract data available for this sector.');
         setLoading(false);
         return;
       }

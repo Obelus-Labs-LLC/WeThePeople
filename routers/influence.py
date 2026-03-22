@@ -19,12 +19,21 @@ from models.energy_models import (
     TrackedEnergyCompany, EnergyLobbyingRecord, EnergyGovernmentContract, EnergyEnforcement,
 )
 
+import time as _time
+
 router = APIRouter(prefix="/influence", tags=["influence"])
+
+_freshness_cache: dict = {"ts": 0, "data": None}
+_FRESHNESS_TTL = 60  # seconds
 
 
 @router.get("/data-freshness")
 def data_freshness():
     """Return last-updated timestamps and record counts for each major data type."""
+    now = _time.time()
+    if _freshness_cache["data"] is not None and (now - _freshness_cache["ts"]) < _FRESHNESS_TTL:
+        return _freshness_cache["data"]
+
     db = SessionLocal()
     try:
         def _max_date_and_count(model, date_col):
@@ -89,13 +98,16 @@ def data_freshness():
             SECInsiderTrade, SECInsiderTrade.transaction_date,
         )
 
-        return {
+        result = {
             "lobbying": {"last_updated": lobby_latest, "record_count": lobby_count},
             "contracts": {"last_updated": contract_latest, "record_count": contract_count},
             "enforcement": {"last_updated": enforcement_latest, "record_count": enforcement_count},
             "trades": {"last_updated": trades_latest, "record_count": trades_count},
             "insider_trades": {"last_updated": insider_latest, "record_count": insider_count},
         }
+        _freshness_cache["ts"] = _time.time()
+        _freshness_cache["data"] = result
+        return result
     finally:
         db.close()
 
@@ -287,13 +299,27 @@ def get_spending_by_state(
                     .subquery()
                 )
 
+                # Count how many states each company donates to, so we can
+                # proportionally distribute their lobbying spend across states
+                state_count_sq = (
+                    db.query(
+                        donation_states.c.entity_id.label("entity_id"),
+                        func.count().label("num_states"),
+                    )
+                    .group_by(donation_states.c.entity_id)
+                    .subquery()
+                )
+
                 q = db.query(
                     donation_states.c.state,
-                    func.sum(lobby_agg.c.total_income),
+                    func.sum(lobby_agg.c.total_income / state_count_sq.c.num_states),
                     func.count(func.distinct(lobby_agg.c.entity_id)),
                 ).select_from(lobby_agg).join(
                     donation_states,
                     donation_states.c.entity_id == lobby_agg.c.entity_id,
+                ).join(
+                    state_count_sq,
+                    state_count_sq.c.entity_id == lobby_agg.c.entity_id,
                 )
                 rows = q.group_by(donation_states.c.state).all()
                 for st, total, cnt in rows:
@@ -549,13 +575,18 @@ def get_money_flow(
 
         donations_node = get_node_id("PAC Donations", "channel")
 
+        # Aggregate PAC->channel links to avoid duplicates when a PAC donates to multiple politicians
+        pac_channel_totals: dict = {}
         for pac_name, politician_name, total in donation_rows:
             if not total or total <= 0 or not pac_name:
                 continue
             pac_node = get_node_id(pac_name, "company")
             politician_node = get_node_id(politician_name, "politician")
-            links.append({"source": pac_node, "target": donations_node, "value": float(total)})
+            pac_channel_totals[pac_node] = pac_channel_totals.get(pac_node, 0) + float(total)
             links.append({"source": donations_node, "target": politician_node, "value": float(total)})
+
+        for pac_node, agg_total in pac_channel_totals.items():
+            links.append({"source": pac_node, "target": donations_node, "value": agg_total})
 
         return {"nodes": nodes, "links": links}
     finally:

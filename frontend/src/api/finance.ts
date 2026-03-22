@@ -95,7 +95,6 @@ export interface FDICFinancial {
   efficiency_ratio: number | null;
   noncurrent_loan_ratio: number | null;
   net_charge_off_ratio: number | null;
-  npl_ratio: number | null;
 }
 
 export interface FinancialsResponse {

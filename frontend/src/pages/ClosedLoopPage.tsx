@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
+import { fmtMoney as formatCurrency } from '../utils/format';
 
 const API_BASE = getApiBaseUrl();
 
@@ -35,17 +36,12 @@ interface ClosedLoopResponse {
     unique_bills: number;
     total_lobbying_spend: number;
     total_donations: number;
+    partial?: boolean;
   };
 }
 
 const SECTORS = ['All', 'Finance', 'Health', 'Tech', 'Energy'] as const;
 type SectorFilter = (typeof SECTORS)[number];
-
-function formatCurrency(amount: number): string {
-  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`;
-  if (amount >= 1_000) return `$${(amount / 1_000).toFixed(0)}K`;
-  return `$${amount.toLocaleString()}`;
-}
 
 const fadeIn = {
   initial: { opacity: 0, y: 12 },
@@ -115,6 +111,14 @@ export default function ClosedLoopPage() {
             politicians on those committees receive donations from those same companies.
           </p>
         </motion.div>
+
+        {/* Partial results banner */}
+        {stats?.partial && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2.5">
+            <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+            <span className="text-sm text-yellow-300">Results may be incomplete — showing top matches within time limit.</span>
+          </div>
+        )}
 
         {/* Filters */}
         <motion.div

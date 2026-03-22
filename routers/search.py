@@ -89,7 +89,7 @@ def global_search(q: str = Query(..., min_length=1, max_length=200)):
                 "entity_id": co.company_id,
                 "name": co.display_name,
                 "ticker": co.ticker,
-                "sector": "technology",
+                "sector": "tech",
             })
 
         # Energy

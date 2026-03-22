@@ -17,7 +17,11 @@ Can be run as a systemd service alongside the API (see deploy/wethepeople-schedu
 from __future__ import annotations
 
 import argparse
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    # Windows stub — fcntl is Unix-only; use msvcrt as fallback
+    fcntl = None  # type: ignore[assignment]
 import logging
 import os
 import subprocess
@@ -222,10 +226,18 @@ class SchedulerLock:
     def acquire(self, blocking: bool = True) -> bool:
         self._fd = os.open(str(self.lock_path), os.O_CREAT | os.O_RDWR)
         try:
-            if blocking:
-                fcntl.flock(self._fd, fcntl.LOCK_EX)
+            if fcntl is not None:
+                if blocking:
+                    fcntl.flock(self._fd, fcntl.LOCK_EX)
+                else:
+                    fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             else:
-                fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                # Windows fallback using msvcrt
+                import msvcrt
+                if blocking:
+                    msvcrt.locking(self._fd, msvcrt.LK_LOCK, 1)
+                else:
+                    msvcrt.locking(self._fd, msvcrt.LK_NBLCK, 1)
             return True
         except (OSError, BlockingIOError):
             os.close(self._fd)
@@ -234,7 +246,14 @@ class SchedulerLock:
 
     def release(self) -> None:
         if self._fd is not None:
-            fcntl.flock(self._fd, fcntl.LOCK_UN)
+            if fcntl is not None:
+                fcntl.flock(self._fd, fcntl.LOCK_UN)
+            else:
+                import msvcrt
+                try:
+                    msvcrt.locking(self._fd, msvcrt.LK_UNLCK, 1)
+                except OSError:
+                    pass
             os.close(self._fd)
             self._fd = None
 
@@ -427,6 +446,13 @@ def cmd_list() -> None:
 
 def cmd_run_now(job_name: str, dry_run: bool = False) -> int:
     """Run a specific job (or 'all') immediately."""
+    # Non-blocking check: if the scheduler daemon holds the lock, bail early
+    probe = SchedulerLock()
+    if not probe.acquire(blocking=False):
+        print("Scheduler daemon is currently running a job. Try again later.")
+        return 1
+    probe.release()
+
     if job_name == "all":
         log.info("Running ALL jobs immediately (sequential)...")
         failed = 0

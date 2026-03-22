@@ -69,7 +69,7 @@ export default function RepresentativeLookupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleaned = zip.trim().replace(/\D/g, '');
+    const cleaned = zip.trim().replace(/\D/g, '').slice(0, 5);
     if (cleaned.length < 5) return;
 
     setLoading(true);

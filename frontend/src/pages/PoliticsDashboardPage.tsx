@@ -48,6 +48,7 @@ export default function PoliticsDashboardPage() {
       apiClient.getDashboardStats(),
       apiClient.getPeople({ limit: 6, has_ledger: true }),
       apiClient.getRecentActions(5),
+      // TODO: Use aggregate endpoint for party counts instead of fetching all people
       apiClient.getPeople({ limit: 600 }),
     ])
       .then(([s, p, a, all]) => {

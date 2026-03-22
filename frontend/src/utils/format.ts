@@ -22,7 +22,17 @@ export function fmtNum(n: number | null | undefined): string {
 /** Format an ISO date string as "Mar 16, 2026" */
 export function fmtDate(d: string | null | undefined): string {
   if (!d) return '\u2014';
-  return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return '\u2014';
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+/** Format a number as a compact dollar amount ($1.1B, $5.6M, $123K, $1,234) — for charts/cards */
+export function fmtMoney(n: number): string {
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+  return `$${n.toLocaleString()}`;
 }
 
 /** Format a percentage (0.15 → "15.0%") */

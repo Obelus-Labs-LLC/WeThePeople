@@ -107,16 +107,8 @@ def fetch_trials(
             "query.spons": sponsor_name,
             "pageSize": page_size,
             "sort": "LastUpdatePostDate:desc",
-            "fields": ",".join([
-                "NCTId",
-                "BriefTitle",
-                "OverallStatus",
-                "Phase",
-                "StartDate",
-                "Condition",
-                "InterventionName",
-                "EnrollmentCount",
-            ]),
+            # Note: the v2 API ignores the 'fields' parameter and returns
+            # full study objects.  We parse what we need in _parse_study().
         }
         if page_token:
             params["pageToken"] = page_token

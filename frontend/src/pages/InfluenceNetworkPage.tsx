@@ -91,6 +91,7 @@ export default function InfluenceNetworkPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // Timeline playback
   const [timelineYear, setTimelineYear] = useState<number | null>(null);
@@ -120,6 +121,24 @@ export default function InfluenceNetworkPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Close search dropdown on click outside or Escape
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') setSearchOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
 
   // Compute year range from edge data
   useEffect(() => {
@@ -187,7 +206,10 @@ export default function InfluenceNetworkPage() {
       setSearchQuery('');
       setSearchResults([]);
       setSearchOpen(false);
-      navigate(`/influence/network/${result.type}/${result.id}`);
+      // Map search result types to influence network entity types
+      const typeMap: Record<string, string> = { technology: 'tech' };
+      const mappedType = typeMap[result.type] || result.type;
+      navigate(`/influence/network/${mappedType}/${result.id}`);
     },
     [navigate],
   );
@@ -227,7 +249,7 @@ export default function InfluenceNetworkPage() {
           </div>
 
           {/* Entity search */}
-          <div className="relative ml-auto w-72">
+          <div ref={searchContainerRef} className="relative ml-auto w-72">
             <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
               <Search className="w-4 h-4 text-white/30" />
               <input

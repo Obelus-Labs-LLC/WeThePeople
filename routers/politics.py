@@ -4,11 +4,12 @@ Politics sector routes — Members, ledger, claims, votes, bills, actions.
 
 from fastapi import APIRouter, Query, HTTPException, Request, Depends
 from sqlalchemy import func, desc, case
+from sqlalchemy.exc import IntegrityError
 from typing import Optional, Dict, Any
 from datetime import date
-from functools import lru_cache
 import hashlib
 import re
+import time as _time
 
 from models.database import (
     SessionLocal,
@@ -89,6 +90,14 @@ def _serialize_gold_row(row: GoldLedgerEntry) -> Dict[str, Any]:
     }
 
 
+def _ordinal(n: int) -> str:
+    """Return ordinal suffix for an integer (1st, 2nd, 3rd, 4th, ...)."""
+    if 11 <= (n % 100) <= 13:
+        return f"{n}th"
+    suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 def _bill_type_label(bill_type: str) -> str:
     labels = {
         "hr": "house-bill",
@@ -103,26 +112,45 @@ def _bill_type_label(bill_type: str) -> str:
     return labels.get(bill_type, bill_type)
 
 
-# ── Cached external lookups ──
+# ── Cached external lookups (TTL-based) ──
 
-@lru_cache(maxsize=128)
+_profile_cache: dict = {}
+_PROFILE_TTL = 3600  # 1 hour
+
+
+def _cached_with_ttl(cache_key: str, fetch_fn):
+    now = _time.time()
+    if cache_key in _profile_cache:
+        ts, val = _profile_cache[cache_key]
+        if now - ts < _PROFILE_TTL:
+            return val
+    result = fetch_fn()
+    _profile_cache[cache_key] = (now, result)
+    return result
+
+
 def _cached_wikipedia_profile(display_name: str, state: str = "", chamber: str = ""):
-    try:
-        return build_politician_profile(
-            display_name,
-            state=state or None,
-            chamber=chamber or None,
-        )
-    except Exception:
-        return None
+    key = f"wiki:{display_name}|{state}|{chamber}"
+    def _fetch():
+        try:
+            return build_politician_profile(
+                display_name,
+                state=state or None,
+                chamber=chamber or None,
+            )
+        except Exception:
+            return None
+    return _cached_with_ttl(key, _fetch)
 
 
-@lru_cache(maxsize=128)
 def _cached_fec_profile(display_name: str):
-    try:
-        return build_finance_profile(display_name)
-    except Exception:
-        return None
+    key = f"fec:{display_name}"
+    def _fetch():
+        try:
+            return build_finance_profile(display_name)
+        except Exception:
+            return None
+    return _cached_with_ttl(key, _fetch)
 
 
 # ── Ledger Endpoints ──
@@ -375,7 +403,7 @@ def get_actions(
     try:
         rows = (
             db.query(Action, SourceDocument.url)
-              .join(SourceDocument, Action.source_id == SourceDocument.id)
+              .outerjoin(SourceDocument, Action.source_id == SourceDocument.id)
               .filter(Action.person_id == person_id)
               .order_by(desc(Action.date))
               .offset(offset).limit(limit).all()
@@ -496,7 +524,7 @@ def get_person_activity(
                 "latest_action": bill.latest_action_text if bill else None,
                 "latest_action_date": bill.latest_action_date.isoformat() if bill and bill.latest_action_date else None,
                 "summary": bill.summary_text[:300] if bill and bill.summary_text else None,
-                "congress_url": f"https://www.congress.gov/bill/{bill.congress}th-congress/{_bill_type_label(bill.bill_type)}/{bill.bill_number}" if bill else None,
+                "congress_url": f"https://www.congress.gov/bill/{_ordinal(bill.congress)}-congress/{_bill_type_label(bill.bill_type)}/{bill.bill_number}" if bill else None,
             })
 
         return {
@@ -821,7 +849,7 @@ def search_actions(
     try:
         base = (
             db.query(Action, SourceDocument.url)
-              .join(SourceDocument, Action.source_id == SourceDocument.id)
+              .outerjoin(SourceDocument, Action.source_id == SourceDocument.id)
         )
         if person_id:
             base = base.filter(Action.person_id == person_id)
@@ -970,7 +998,14 @@ def create_claim(
             claim_hash=claim_hash,
         )
         db.add(c)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(status_code=409, detail="Duplicate claim already exists")
+        except Exception:
+            db.rollback()
+            raise
         db.refresh(c)
 
         return {
@@ -1215,7 +1250,12 @@ def get_comparison(
                 "total_actions": total_actions,
             })
 
-        return {"people": results}
+        response = {"people": results}
+        found_ids = {r["person_id"] for r in results}
+        missing_ids = [pid for pid in person_ids if pid not in found_ids]
+        if missing_ids:
+            response["warnings"] = [f"Unknown person_id: {pid}" for pid in missing_ids]
+        return response
     finally:
         db.close()
 
@@ -1638,7 +1678,7 @@ def get_bill(bill_id: str):
             "latest_action_text": bill.latest_action_text,
             "latest_action_date": bill.latest_action_date.isoformat() if bill.latest_action_date else None,
             "introduced_date": bill.introduced_date.isoformat() if bill.introduced_date else None,
-            "congress_url": f"https://www.congress.gov/bill/{bill.congress}th-congress/{_bill_type_label(bill.bill_type)}/{bill.bill_number}",
+            "congress_url": f"https://www.congress.gov/bill/{_ordinal(bill.congress)}-congress/{_bill_type_label(bill.bill_type)}/{bill.bill_number}",
             "timeline": [{
                 "action_date": a.action_date.isoformat() if a.action_date else None,
                 "action_text": a.action_text,

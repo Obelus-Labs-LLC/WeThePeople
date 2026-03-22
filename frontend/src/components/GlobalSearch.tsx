@@ -82,8 +82,8 @@ export default function GlobalSearch() {
       setLoading(false);
       return;
     }
-    setLoading(true);
     debounceRef.current = setTimeout(async () => {
+      setLoading(true);
       try {
         const data = await globalSearch(q.trim());
         setResults(data);
