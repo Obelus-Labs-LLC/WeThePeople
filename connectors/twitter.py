@@ -21,8 +21,8 @@ def _get_client() -> tweepy.Client:
     """Get authenticated tweepy Client for posting (OAuth 1.0a User Context)."""
     return tweepy.Client(
         bearer_token=os.getenv("TWITTER_BEARER_TOKEN"),
-        consumer_key=os.getenv("TWITTER_CLIENT_ID"),
-        consumer_secret=os.getenv("TWITTER_CLIENT_SECRET"),
+        consumer_key=os.getenv("TWITTER_CONSUMER_KEY"),
+        consumer_secret=os.getenv("TWITTER_CONSUMER_SECRET"),
         access_token=os.getenv("TWITTER_ACCESS_TOKEN"),
         access_token_secret=os.getenv("TWITTER_ACCESS_SECRET"),
         wait_on_rate_limit=True,
