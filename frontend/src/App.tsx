@@ -7,6 +7,7 @@ import TechLayout from "./layouts/TechLayout";
 import HealthLayout from "./layouts/HealthLayout";
 import EnergyLayout from "./layouts/EnergyLayout";
 import TransportationLayout from "./layouts/TransportationLayout";
+import DefenseLayout from "./layouts/DefenseLayout";
 import VerifyLayout from "./layouts/VerifyLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -61,6 +62,10 @@ const TransportationDashboardPage = React.lazy(() => import("./pages/Transportat
 const TransportationCompaniesPage = React.lazy(() => import("./pages/TransportationCompaniesPage"));
 const TransportationCompanyProfilePage = React.lazy(() => import("./pages/TransportationCompanyProfilePage"));
 const TransportationComparePage = React.lazy(() => import("./pages/TransportationComparePage"));
+const DefenseDashboardPage = React.lazy(() => import("./pages/DefenseDashboardPage"));
+const DefenseCompaniesPage = React.lazy(() => import("./pages/DefenseCompaniesPage"));
+const DefenseCompanyProfilePage = React.lazy(() => import("./pages/DefenseCompanyProfilePage"));
+const DefenseComparePage = React.lazy(() => import("./pages/DefenseComparePage"));
 const CongressionalTradesPage = React.lazy(() => import("./pages/CongressionalTradesPage"));
 const StateExplorerPage = React.lazy(() => import("./pages/StateExplorerPage"));
 const StateDashboardPage = React.lazy(() => import("./pages/StateDashboardPage"));
@@ -189,6 +194,15 @@ const App: React.FC = () => (
           <Route path="/transportation/contracts" element={<TransportationLayout><SectorContractsPage /></TransportationLayout>} />
           <Route path="/transportation/enforcement" element={<TransportationLayout><SectorEnforcementPage /></TransportationLayout>} />
           <Route path="/transportation/:companyId" element={<TransportationLayout><TransportationCompanyProfilePage /></TransportationLayout>} />
+
+          {/* Defense section — all wrapped in DefenseLayout */}
+          <Route path="/defense" element={<DefenseLayout><DefenseDashboardPage /></DefenseLayout>} />
+          <Route path="/defense/companies" element={<DefenseLayout><DefenseCompaniesPage /></DefenseLayout>} />
+          <Route path="/defense/compare" element={<DefenseLayout><DefenseComparePage /></DefenseLayout>} />
+          <Route path="/defense/lobbying" element={<DefenseLayout><SectorLobbyingPage /></DefenseLayout>} />
+          <Route path="/defense/contracts" element={<DefenseLayout><SectorContractsPage /></DefenseLayout>} />
+          <Route path="/defense/enforcement" element={<DefenseLayout><SectorEnforcementPage /></DefenseLayout>} />
+          <Route path="/defense/:companyId" element={<DefenseLayout><DefenseCompanyProfilePage /></DefenseLayout>} />
 
           {/* Claim Verification section — wrapped in VerifyLayout */}
           <Route path="/verify" element={<VerifyLayout><VerifyDashboardPage /></VerifyLayout>} />

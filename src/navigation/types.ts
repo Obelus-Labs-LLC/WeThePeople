@@ -118,6 +118,18 @@ export type TransportationStackParamList = {
   GlobalSearch: undefined;
 };
 
+// ── Defense Stack ──
+export type DefenseStackParamList = {
+  DefenseDashboard: undefined;
+  DefenseCompaniesDirectory: undefined;
+  DefenseCompanyDetail: { company_id: string };
+  DefenseCompare: undefined;
+  DefenseLobbying: undefined;
+  DefenseContracts: undefined;
+  DefenseEnforcement: undefined;
+  GlobalSearch: undefined;
+};
+
 // ── Bottom Tabs ──
 export type RootTabParamList = {
   HomeTab: undefined;
@@ -127,5 +139,6 @@ export type RootTabParamList = {
   EnergyTab: undefined;
   TechnologyTab: undefined;
   TransportationTab: undefined;
+  DefenseTab: undefined;
   SettingsTab: undefined;
 };

@@ -1165,3 +1165,61 @@ export interface TransportationComparisonItem {
 export interface TransportationComparisonResponse {
   companies: TransportationComparisonItem[];
 }
+
+// ── Defense Sector Types ──
+
+export interface DefenseDashboardStats {
+  total_companies: number;
+  total_contracts: number;
+  total_lobbying: number;
+  total_enforcement: number;
+  by_sector: Record<string, number>;
+}
+
+export interface DefenseCompany {
+  company_id: string;
+  display_name: string;
+  ticker: string | null;
+  sector_type: string;
+  headquarters: string | null;
+  logo_url: string | null;
+  contract_count: number;
+  lobbying_count: number;
+  enforcement_count: number;
+  filing_count: number;
+}
+
+export interface DefenseCompaniesResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  companies: DefenseCompany[];
+}
+
+export interface DefenseCompanyDetail extends DefenseCompany {
+  sec_cik: string | null;
+  total_contract_value: number;
+  total_penalties: number;
+  latest_stock: StockSnapshot | null;
+  ai_profile_summary?: string | null;
+  sanctions_status?: string | null;
+  sanctions_data?: any;
+}
+
+export interface DefenseComparisonItem {
+  company_id: string;
+  display_name: string;
+  ticker: string | null;
+  sector_type: string;
+  contract_count: number;
+  total_contract_value: number;
+  lobbying_total: number;
+  enforcement_count: number;
+  total_penalties: number;
+  market_cap: number | null;
+  profit_margin: number | null;
+}
+
+export interface DefenseComparisonResponse {
+  companies: DefenseComparisonItem[];
+}

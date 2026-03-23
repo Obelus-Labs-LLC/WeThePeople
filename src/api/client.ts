@@ -78,6 +78,11 @@ import type {
   TransportationCompaniesResponse,
   TransportationCompanyDetail,
   TransportationComparisonResponse,
+  // Defense
+  DefenseDashboardStats,
+  DefenseCompaniesResponse,
+  DefenseCompanyDetail,
+  DefenseComparisonResponse,
 } from './types';
 
 // Hardcoded production API URL.
@@ -1227,6 +1232,97 @@ class WTPClient {
   async getTransportationComparison(ids: string[]): Promise<TransportationComparisonResponse> {
     return this.fetchJSON<TransportationComparisonResponse>(
       `${this.baseUrl}/transportation/compare?ids=${ids.join(',')}`
+    );
+  }
+
+  // ── Defense Sector ──
+
+  async getDefenseDashboard(): Promise<DefenseDashboardStats> {
+    return this.fetchJSON<DefenseDashboardStats>(`${this.baseUrl}/defense/dashboard/stats`);
+  }
+
+  async getDefenseCompanies(params?: {
+    limit?: number; offset?: number; q?: string; sector_type?: string;
+  }): Promise<DefenseCompaniesResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    if (params?.q) sp.set('q', params.q);
+    if (params?.sector_type) sp.set('sector_type', params.sector_type);
+    return this.fetchJSON<DefenseCompaniesResponse>(`${this.baseUrl}/defense/companies?${sp}`);
+  }
+
+  async getDefenseCompanyDetail(id: string): Promise<DefenseCompanyDetail> {
+    return this.fetchJSON<DefenseCompanyDetail>(
+      `${this.baseUrl}/defense/companies/${encodeURIComponent(id)}`
+    );
+  }
+
+  async getDefenseRecentActivity(): Promise<RecentActivityResponse> {
+    return this.fetchJSON<RecentActivityResponse>(`${this.baseUrl}/defense/dashboard/recent-activity`);
+  }
+
+  async getDefenseCompanyContracts(
+    id: string, params?: { limit?: number; offset?: number }
+  ): Promise<ContractsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<ContractsResponse>(
+      `${this.baseUrl}/defense/companies/${encodeURIComponent(id)}/contracts?${sp}`
+    );
+  }
+
+  async getDefenseCompanyContractSummary(id: string): Promise<ContractSummary> {
+    return this.fetchJSON<ContractSummary>(
+      `${this.baseUrl}/defense/companies/${encodeURIComponent(id)}/contracts/summary`
+    );
+  }
+
+  async getDefenseCompanyLobbying(
+    id: string, params?: { filing_year?: number; limit?: number; offset?: number }
+  ): Promise<LobbyingResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    if (params?.filing_year !== undefined) sp.set('filing_year', params.filing_year.toString());
+    return this.fetchJSON<LobbyingResponse>(
+      `${this.baseUrl}/defense/companies/${encodeURIComponent(id)}/lobbying?${sp}`
+    );
+  }
+
+  async getDefenseCompanyLobbySummary(id: string): Promise<LobbyingSummary> {
+    return this.fetchJSON<LobbyingSummary>(
+      `${this.baseUrl}/defense/companies/${encodeURIComponent(id)}/lobbying/summary`
+    );
+  }
+
+  async getDefenseCompanyEnforcement(
+    id: string, params?: { limit?: number; offset?: number }
+  ): Promise<EnforcementResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<EnforcementResponse>(
+      `${this.baseUrl}/defense/companies/${encodeURIComponent(id)}/enforcement?${sp}`
+    );
+  }
+
+  async getDefenseCompanyDonations(
+    id: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<any>(
+      `${this.baseUrl}/defense/companies/${encodeURIComponent(id)}/donations?${sp}`
+    );
+  }
+
+  async getDefenseComparison(ids: string[]): Promise<DefenseComparisonResponse> {
+    return this.fetchJSON<DefenseComparisonResponse>(
+      `${this.baseUrl}/defense/compare?ids=${ids.join(',')}`
     );
   }
 

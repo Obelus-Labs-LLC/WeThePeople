@@ -119,6 +119,7 @@ const SECTOR_COLORS: Record<string, string> = {
   tech: "text-violet-400",
   energy: "text-orange-400",
   transportation: "text-blue-400",
+  defense: "text-red-400",
 };
 
 const SECTOR_ROUTES: Record<string, string> = {
@@ -127,6 +128,7 @@ const SECTOR_ROUTES: Record<string, string> = {
   tech: "/technology",
   energy: "/energy",
   transportation: "/transportation",
+  defense: "/defense",
 };
 
 /** Left-border accent color per sector slug */

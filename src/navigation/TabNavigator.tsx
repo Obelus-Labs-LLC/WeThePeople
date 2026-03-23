@@ -61,6 +61,12 @@ import TransportationCompaniesScreen from '../screens/TransportationCompaniesScr
 import TransportationCompanyScreen from '../screens/TransportationCompanyScreen';
 import TransportationCompareScreen from '../screens/TransportationCompareScreen';
 
+// Defense screens
+import DefenseDashboardScreen from '../screens/DefenseDashboardScreen';
+import DefenseCompaniesScreen from '../screens/DefenseCompaniesScreen';
+import DefenseCompanyScreen from '../screens/DefenseCompanyScreen';
+import DefenseCompareScreen from '../screens/DefenseCompareScreen';
+
 // Verify screens
 import VerifyDashboardScreen from '../screens/VerifyDashboardScreen';
 import VerifySubmitScreen from '../screens/VerifySubmitScreen';
@@ -710,6 +716,64 @@ function TransportationStackScreen() {
   );
 }
 
+const DefenseStack = createNativeStackNavigator();
+
+function DefenseStackScreen() {
+  const navigation = useNavigation();
+  return (
+    <DefenseStack.Navigator screenOptions={createStackScreenOptions(navigation)}>
+      <DefenseStack.Screen
+        name="DefenseDashboard"
+        component={DefenseDashboardScreen}
+        options={{ title: 'Defense' }}
+      />
+      <DefenseStack.Screen
+        name="DefenseCompaniesDirectory"
+        component={DefenseCompaniesScreen}
+        options={{ title: 'Companies' }}
+      />
+      <DefenseStack.Screen
+        name="DefenseCompanyDetail"
+        component={DefenseCompanyScreen}
+        options={{ title: '' }}
+      />
+      <DefenseStack.Screen
+        name="DefenseCompare"
+        component={DefenseCompareScreen}
+        options={{ title: 'Compare Companies' }}
+      />
+      <DefenseStack.Screen
+        name="DefenseLobbying"
+        component={SectorLobbyingScreen}
+        options={{ title: 'Defense Lobbying' }}
+        initialParams={{ sector: 'defense' }}
+      />
+      <DefenseStack.Screen
+        name="DefenseContracts"
+        component={SectorContractsScreen}
+        options={{ title: 'Defense Contracts' }}
+        initialParams={{ sector: 'defense' }}
+      />
+      <DefenseStack.Screen
+        name="DefenseEnforcement"
+        component={SectorEnforcementScreen}
+        options={{ title: 'Defense Enforcement' }}
+        initialParams={{ sector: 'defense' }}
+      />
+      <DefenseStack.Screen
+        name="GlobalSearch"
+        component={GlobalSearchScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
+      <DefenseStack.Screen
+        name="ChatAgent"
+        component={ChatAgentScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
+    </DefenseStack.Navigator>
+  );
+}
+
 const SettingsStack = createNativeStackNavigator();
 
 function SettingsStackScreen() {
@@ -732,6 +796,7 @@ const TAB_ICONS: Record<string, { focused: IoniconsName; default: IoniconsName }
   EnergyTab: { focused: 'flame', default: 'flame-outline' },
   TechnologyTab: { focused: 'hardware-chip', default: 'hardware-chip-outline' },
   TransportationTab: { focused: 'airplane', default: 'airplane-outline' },
+  DefenseTab: { focused: 'shield', default: 'shield-outline' },
   SettingsTab: { focused: 'settings', default: 'settings-outline' },
 };
 
@@ -796,6 +861,11 @@ export default function TabNavigator() {
         name="TransportationTab"
         component={TransportationStackScreen}
         options={{ title: 'Transport' }}
+      />
+      <Tab.Screen
+        name="DefenseTab"
+        component={DefenseStackScreen}
+        options={{ title: 'Defense' }}
       />
       <Tab.Screen
         name="SettingsTab"

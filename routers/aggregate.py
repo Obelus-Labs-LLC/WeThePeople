@@ -25,6 +25,10 @@ from models.transportation_models import (
     TrackedTransportationCompany, TransportationEnforcement,
     TransportationLobbyingRecord, TransportationGovernmentContract,
 )
+from models.defense_models import (
+    TrackedDefenseCompany, DefenseEnforcement,
+    DefenseLobbyingRecord, DefenseGovernmentContract,
+)
 
 router = APIRouter(prefix="/aggregate", tags=["aggregate"])
 
@@ -371,6 +375,68 @@ def transportation_contracts_all(limit: int = Query(500, ge=1, le=2000)):
             .all()
         )
         total = db.query(func.count(TransportationGovernmentContract.id)).scalar()
+        return _contracts_response(rows, total, "company_id")
+    finally:
+        db.close()
+
+
+# ── DEFENSE ──
+
+@router.get("/defense/enforcement")
+def defense_enforcement_all(limit: int = Query(500, ge=1, le=2000)):
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(DefenseEnforcement, TrackedDefenseCompany.display_name)
+            .join(TrackedDefenseCompany, DefenseEnforcement.company_id == TrackedDefenseCompany.company_id)
+            .order_by(desc(DefenseEnforcement.case_date))
+            .limit(limit)
+            .all()
+        )
+        return {
+            "total": db.query(func.count(DefenseEnforcement.id)).scalar(),
+            "actions": [{
+                "id": a.id, "case_title": a.case_title,
+                "case_date": _str_date(a.case_date), "case_url": a.case_url,
+                "enforcement_type": a.enforcement_type,
+                "penalty_amount": a.penalty_amount, "description": a.description,
+                "source": a.source, "entity_id": a.company_id,
+                "entity_name": name,
+            } for a, name in rows],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/defense/lobbying")
+def defense_lobbying_all(limit: int = Query(500, ge=1, le=2000)):
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(DefenseLobbyingRecord, TrackedDefenseCompany.display_name)
+            .join(TrackedDefenseCompany, DefenseLobbyingRecord.company_id == TrackedDefenseCompany.company_id)
+            .order_by(desc(DefenseLobbyingRecord.filing_year), DefenseLobbyingRecord.filing_period)
+            .limit(limit)
+            .all()
+        )
+        total = db.query(func.count(DefenseLobbyingRecord.id)).scalar()
+        return _lobbying_response(rows, total, "company_id")
+    finally:
+        db.close()
+
+
+@router.get("/defense/contracts")
+def defense_contracts_all(limit: int = Query(500, ge=1, le=2000)):
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(DefenseGovernmentContract, TrackedDefenseCompany.display_name)
+            .join(TrackedDefenseCompany, DefenseGovernmentContract.company_id == TrackedDefenseCompany.company_id)
+            .order_by(desc(DefenseGovernmentContract.award_amount))
+            .limit(limit)
+            .all()
+        )
+        total = db.query(func.count(DefenseGovernmentContract.id)).scalar()
         return _contracts_response(rows, total, "company_id")
     finally:
         db.close()
