@@ -6,6 +6,7 @@ import { ExternalLink, Heart, Share2 } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import TradeTimeline from '../components/TradeTimeline';
 import SanctionsBadge from '../components/SanctionsBadge';
+import AnomalyBadge from '../components/AnomalyBadge';
 import type { TradeMarker } from '../api/influence';
 import type {
   Person,
@@ -497,6 +498,7 @@ export default function PersonProfilePage() {
                 </span>
               )}
               <SanctionsBadge status={person?.sanctions_status} />
+              <AnomalyBadge entityType="person" entityId={person_id || ''} />
               {/* Contribute to campaign */}
               {displayName && (
                 <a

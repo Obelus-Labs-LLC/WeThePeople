@@ -62,6 +62,7 @@ export interface TechCompanyDetail {
   sanctions_status?: string;
   sanctions_data?: any;
   sanctions_checked_at?: string;
+  patent_policy_summary?: TechPatentPolicySummary;
 }
 
 export interface TechPatentItem {
@@ -224,6 +225,46 @@ export interface TechContractTrendsResponse {
   trends: TechContractTrend[];
 }
 
+export interface TechPatentPolicyBill {
+  bill_id: string;
+  title: string | null;
+  congress: number;
+  bill_type: string;
+  bill_number: number;
+  policy_area: string | null;
+  status_bucket: string | null;
+  latest_action_text: string | null;
+  latest_action_date: string | null;
+}
+
+export interface TechPatentPolicyLobbyingItem {
+  id: number;
+  filing_uuid: string | null;
+  filing_year: number | null;
+  filing_period: string | null;
+  income: number | null;
+  registrant_name: string | null;
+  lobbying_issues: string | null;
+}
+
+export interface TechPatentPolicyResponse {
+  company_id: string;
+  display_name: string;
+  patent_count: number;
+  patent_categories: Record<string, number>;
+  lobbying_on_ip_policy: number;
+  ip_lobbying_spend: number;
+  ip_lobbying_filings: TechPatentPolicyLobbyingItem[];
+  related_bills_count: number;
+  related_bills: TechPatentPolicyBill[];
+}
+
+export interface TechPatentPolicySummary {
+  patent_count: number;
+  lobbying_on_ip_policy: number;
+  related_bills: number;
+}
+
 export interface TechRecentActivityItem {
   type: 'enforcement' | 'patent' | 'contract' | 'lobbying';
   title: string;
@@ -346,4 +387,8 @@ export async function getTechCompanyStock(id: string): Promise<TechStockData> {
 
 export async function getTechComparison(ids: string[]): Promise<TechComparisonResponse> {
   return fetchJSON<TechComparisonResponse>(`${API_BASE}/tech/compare?ids=${ids.map(id => encodeURIComponent(id)).join(',')}`);
+}
+
+export async function getTechCompanyPatentPolicy(id: string): Promise<TechPatentPolicyResponse> {
+  return fetchJSON<TechPatentPolicyResponse>(`${API_BASE}/tech/companies/${encodeURIComponent(id)}/patent-policy`);
 }

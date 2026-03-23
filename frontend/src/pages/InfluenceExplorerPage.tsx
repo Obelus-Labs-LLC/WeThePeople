@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { DollarSign, FileText, Shield, Users, TrendingUp, Map, Share2 } from 'lucide-react';
+import { DollarSign, FileText, Shield, Users, TrendingUp, Map, Share2, AlertTriangle } from 'lucide-react';
 import {
   fetchInfluenceStats,
   fetchTopLobbying,
@@ -110,6 +110,7 @@ export default function InfluenceExplorerPage() {
             { to: '/influence/money-flow', icon: DollarSign, title: 'Money Flow Sankey', desc: 'Follow the money from corporations through lobbying and PAC donations to politicians.' },
             { to: '/influence/story', icon: TrendingUp, title: 'Data Story', desc: 'Animated walkthrough of corporate influence — lobbying spend, contracts, and enforcement gaps.' },
             { to: '/influence/timeline', icon: Users, title: 'Influence Timeline', desc: 'Chronological view of lobbying, trades, donations, and legislation for any entity.' },
+            { to: '/influence/anomalies', icon: AlertTriangle, title: 'Suspicious Patterns', desc: 'Automatically detected anomalies: trades near votes, lobbying spikes, and enforcement gaps.' },
           ].map((cta) => (
             <Link
               key={cta.to}

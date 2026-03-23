@@ -3,8 +3,8 @@ Energy sector routes — Companies, emissions, contracts, lobbying, enforcement,
 """
 
 from fastapi import APIRouter, Query, HTTPException
-from sqlalchemy import func, desc
-from typing import Optional, Dict, Any
+from sqlalchemy import func, desc, or_
+from typing import Optional, Dict, Any, List
 
 from models.database import SessionLocal
 from models.energy_models import (
@@ -269,7 +269,10 @@ def get_energy_company_emissions(
         return {
             "total": total, "total_co2e": total_co2e, "limit": limit, "offset": offset,
             "emissions": [{
-                "id": e.id, "facility_name": e.facility_name, "facility_state": e.facility_state,
+                "id": e.id, "facility_name": e.facility_name,
+                "facility_id_epa": getattr(e, 'facility_id_epa', None),
+                "facility_city": getattr(e, 'facility_city', None),
+                "facility_state": e.facility_state,
                 "reporting_year": e.reporting_year, "total_emissions": e.total_emissions,
                 "emission_type": e.emission_type, "industry_type": e.industry_type,
                 "source_url": e.source_url,
@@ -305,7 +308,39 @@ def get_energy_company_emissions_summary(company_id: str):
             if state:
                 by_state[state] = {"total_emissions": emissions or 0, "facilities": count}
 
-        return {"total_records": total_records, "total_co2e": total_co2e, "by_year": by_year, "by_state": by_state}
+        # Year-over-year trend
+        year_keys = sorted(by_year.keys())
+        yoy_change = None
+        if len(year_keys) >= 2:
+            curr = by_year[year_keys[-1]]["total_emissions"]
+            prev = by_year[year_keys[-2]]["total_emissions"]
+            if prev and prev > 0:
+                yoy_change = round(((curr - prev) / prev) * 100, 1)
+
+        # Climate/emissions lobbying connection
+        climate_keywords = ["climate", "emission", "greenhouse", "carbon", "clean energy",
+                           "renewable", "epa", "environmental", "pollution", "methane"]
+        climate_lobby_filters = []
+        for kw in climate_keywords:
+            pattern = f"%{kw}%"
+            climate_lobby_filters.append(EnergyLobbyingRecord.lobbying_issues.ilike(pattern))
+            climate_lobby_filters.append(EnergyLobbyingRecord.specific_issues.ilike(pattern))
+        climate_lobbying_count = db.query(func.count(EnergyLobbyingRecord.id)).filter(
+            EnergyLobbyingRecord.company_id == company_id,
+            or_(*climate_lobby_filters)
+        ).scalar() or 0
+        climate_lobbying_spend = db.query(func.sum(EnergyLobbyingRecord.income)).filter(
+            EnergyLobbyingRecord.company_id == company_id,
+            or_(*climate_lobby_filters)
+        ).scalar() or 0
+
+        return {
+            "total_records": total_records, "total_co2e": total_co2e,
+            "by_year": by_year, "by_state": by_state,
+            "yoy_change_pct": yoy_change,
+            "climate_lobbying_count": climate_lobbying_count,
+            "climate_lobbying_spend": float(climate_lobbying_spend),
+        }
     finally:
         db.close()
 

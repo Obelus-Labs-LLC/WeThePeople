@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { SECTORS } from "../data/sectors";
 import DecryptedText from "../components/DecryptedText";
@@ -18,8 +18,88 @@ import {
   TrendingUp,
   ArrowRight,
   ShieldCheck,
+  AlertTriangle,
+  MapPin,
+  Search,
 } from "lucide-react";
 import Footer from "../components/Footer";
+import { getApiBaseUrl } from "../api/client";
+
+const ANOMALY_API = getApiBaseUrl();
+
+interface TopAnomaly {
+  id: number;
+  pattern_type: string;
+  entity_type: string;
+  entity_id: string;
+  entity_name: string | null;
+  score: number;
+  title: string;
+}
+
+const ANOMALY_PATTERN_LABELS: Record<string, string> = {
+  trade_near_vote: "Trade Near Vote",
+  lobbying_spike: "Lobbying Spike",
+  enforcement_gap: "Enforcement Gap",
+  revolving_door: "Revolving Door",
+};
+
+function SuspiciousPatternsTeaser() {
+  const [anomalies, setAnomalies] = useState<TopAnomaly[]>([]);
+
+  useEffect(() => {
+    fetch(`${ANOMALY_API}/anomalies/top?limit=3`)
+      .then((r) => r.json())
+      .then((data) => setAnomalies(data.anomalies || []))
+      .catch(() => {});
+  }, []);
+
+  if (anomalies.length === 0) return null;
+
+  return (
+    <div className="pb-12">
+      <div className="max-w-5xl mx-auto px-4">
+        <div className="flex items-center gap-2 mb-4">
+          <AlertTriangle className="w-5 h-5 text-amber-400" />
+          <h3 className="text-xl font-bold text-white">Suspicious Patterns</h3>
+        </div>
+        <div className="space-y-2">
+          {anomalies.map((a) => (
+            <Link
+              key={a.id}
+              to="/influence/anomalies"
+              className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-lg px-4 py-3 hover:bg-white/[0.08] transition-colors no-underline group"
+            >
+              <div
+                className={`w-8 h-8 rounded flex items-center justify-center text-white font-bold text-sm ${
+                  a.score >= 8 ? "bg-red-500" : a.score >= 6 ? "bg-orange-500" : "bg-amber-500"
+                }`}
+              >
+                {a.score.toFixed(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-white font-medium truncate group-hover:text-amber-400 transition-colors">
+                  {a.title}
+                </div>
+                <div className="text-[10px] text-white/30">
+                  {ANOMALY_PATTERN_LABELS[a.pattern_type] || a.pattern_type}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+        <div className="mt-3 text-center">
+          <Link
+            to="/influence/anomalies"
+            className="inline-flex items-center gap-1.5 text-sm text-amber-400 hover:text-amber-300 transition-colors"
+          >
+            View all suspicious patterns <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Free Unsplash images (Unsplash license — free for commercial use)
 const FLAG_BG =
@@ -69,6 +149,8 @@ const HomePage: React.FC = () => {
   const [stats, setStats] = useState<InfluenceStats | null>(null);
   const [topLobbying, setTopLobbying] = useState<InfluenceLeader[]>([]);
   const [topContracts, setTopContracts] = useState<InfluenceLeader[]>([]);
+  const [zipCode, setZipCode] = useState("");
+  const zipInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchInfluenceStats().then(setStats).catch(() => {});
@@ -97,8 +179,8 @@ const HomePage: React.FC = () => {
 
       {/* All content */}
       <div className="relative z-10 flex flex-col min-h-screen">
-        {/* Hero section */}
-        <div className="flex flex-col items-center pt-20 pb-16 px-4">
+        {/* Hero section — Zip Code CTA */}
+        <div className="flex flex-col items-center pt-20 pb-12 px-4">
           {/* Brand */}
           <div className="flex items-center gap-3 mb-6">
             <div className="h-14 w-14 rounded-xl bg-blue-600 flex items-center justify-center text-2xl font-black text-white shadow-lg shadow-blue-600/30">
@@ -109,14 +191,9 @@ const HomePage: React.FC = () => {
             </h1>
           </div>
 
-          <p className="text-lg text-blue-200/80 font-medium tracking-wide uppercase mb-2">
-            Follow the Money from Industry to Politics
-          </p>
-          <div className="w-16 h-0.5 bg-blue-500/50 rounded-full mb-8" />
-
-          <h2 className="text-2xl sm:text-3xl font-semibold text-white text-center mb-3">
+          <h2 className="text-2xl sm:text-4xl font-bold text-white text-center mb-3 leading-tight">
             <DecryptedText
-              text="Track how industries lobby your representatives"
+              text="Who represents you? Follow the money."
               animateOn="view"
               sequential={true}
               speed={100}
@@ -126,9 +203,47 @@ const HomePage: React.FC = () => {
             />
           </h2>
 
-          <p className="text-slate-400 text-center max-w-xl mb-8">
-            Lobbying, government contracts, enforcement actions, and political donations — across every major industry. Pick a sector to start exploring.
+          <p className="text-slate-400 text-center max-w-lg mb-8">
+            Enter your zip code to see your representatives and who's paying them
           </p>
+
+          {/* Zip code form */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const cleaned = zipCode.replace(/\D/g, "").slice(0, 5);
+              if (cleaned.length === 5) {
+                navigate(`/politics/find-rep?zip=${cleaned}`);
+              } else if (zipInputRef.current) {
+                zipInputRef.current.focus();
+              }
+            }}
+            className="flex items-center gap-3 mb-8"
+          >
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400" />
+              <input
+                ref={zipInputRef}
+                type="text"
+                inputMode="numeric"
+                maxLength={5}
+                pattern="[0-9]{5}"
+                placeholder="Enter zip code"
+                value={zipCode}
+                onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                className="pl-10 pr-4 py-3 w-48 sm:w-56 rounded-lg bg-white/10 border border-white/20 text-white text-lg placeholder-white/30 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-all"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={zipCode.replace(/\D/g, "").length !== 5}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Search className="w-5 h-5" />
+              <span className="hidden sm:inline">Find My Representatives</span>
+              <span className="sm:hidden">Find Reps</span>
+            </button>
+          </form>
 
           {/* Aggregate stats bar */}
           {stats && (
@@ -285,6 +400,9 @@ const HomePage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Suspicious Patterns teaser */}
+        <SuspiciousPatternsTeaser />
 
         <Footer />
       </div>

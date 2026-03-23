@@ -12,6 +12,7 @@ import BackButton from '../components/BackButton';
 import { EnergySectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import SanctionsBadge from '../components/SanctionsBadge';
+import AnomalyBadge from '../components/AnomalyBadge';
 import {
   getEnergyCompanyDetail,
   getEnergyCompanyEmissions,
@@ -257,6 +258,7 @@ export default function EnergyCompanyProfilePage() {
                 {detail.sector_type.replace(/_/g, ' ')}
               </span>
               <SanctionsBadge status={detail.sanctions_status} />
+              <AnomalyBadge entityType="company" entityId={companyId || ''} />
               {detail.headquarters && (
                 <span className="font-body text-sm text-white/50">
                   {detail.headquarters}
@@ -361,11 +363,44 @@ export default function EnergyCompanyProfilePage() {
           {activeTab === 'emissions' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
               {emissionSummary && (
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 mb-8">
-                  <MetricCard label="Total Records" value={fmtNum(emissionSummary.total_records)} icon={Flame} color="#F59E0B" />
-                  <MetricCard label="Total CO2e (metric tons)" value={fmtEmissions(emissionSummary.total_co2e)} icon={Flame} color="#EF4444" />
-                  <MetricCard label="States Reported" value={fmtNum(Object.keys(emissionSummary.by_state).length)} icon={Building2} color="#3B82F6" />
-                </div>
+                <>
+                  <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
+                    <MetricCard label="Total Records" value={fmtNum(emissionSummary.total_records)} icon={Flame} color="#F59E0B" />
+                    <MetricCard label="Total CO2e (metric tons)" value={fmtEmissions(emissionSummary.total_co2e)} icon={Flame} color="#EF4444" />
+                    <MetricCard label="States Reported" value={fmtNum(Object.keys(emissionSummary.by_state).length)} icon={Building2} color="#3B82F6" />
+                    {emissionSummary.yoy_change_pct != null && (
+                      <MetricCard
+                        label="Year-over-Year"
+                        value={`${emissionSummary.yoy_change_pct > 0 ? '+' : ''}${emissionSummary.yoy_change_pct}%`}
+                        icon={TrendingUp}
+                        color={emissionSummary.yoy_change_pct > 0 ? '#EF4444' : '#10B981'}
+                      />
+                    )}
+                  </div>
+
+                  {/* Climate lobbying connection */}
+                  {emissionSummary.climate_lobbying_count > 0 && (
+                    <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-6 mb-8">
+                      <h3 className="font-heading text-sm font-bold uppercase text-orange-400 mb-3">Climate Policy Connection</h3>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-3">
+                        <div className="rounded-lg bg-white/[0.03] p-4 border border-white/10">
+                          <p className="font-mono text-xs text-white/40 mb-1">Climate/Emissions Lobbying Filings</p>
+                          <p className="font-mono text-2xl font-bold text-orange-400">{fmtNum(emissionSummary.climate_lobbying_count)}</p>
+                        </div>
+                        <div className="rounded-lg bg-white/[0.03] p-4 border border-white/10">
+                          <p className="font-mono text-xs text-white/40 mb-1">Climate Lobbying Spend</p>
+                          <p className="font-mono text-2xl font-bold text-orange-400">{fmtDollar(emissionSummary.climate_lobbying_spend)}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab('lobbying')}
+                        className="cursor-pointer text-sm text-orange-400 hover:text-white transition-colors"
+                      >
+                        View climate lobbying filings →
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* By Year */}
@@ -418,8 +453,10 @@ export default function EnergyCompanyProfilePage() {
                             {e.total_emissions != null && (
                               <span className="font-mono text-sm font-bold text-[#F59E0B]">{fmtEmissions(e.total_emissions)} CO2e</span>
                             )}
-                            {e.facility_state && (
-                              <span className="font-mono text-xs text-white/40">{e.facility_state}</span>
+                            {(e.facility_city || e.facility_state) && (
+                              <span className="font-mono text-xs text-white/40">
+                                {[e.facility_city, e.facility_state].filter(Boolean).join(', ')}
+                              </span>
                             )}
                             {e.reporting_year && (
                               <span className="font-mono text-xs text-white/40">{e.reporting_year}</span>
