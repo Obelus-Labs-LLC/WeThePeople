@@ -153,7 +153,7 @@ def generate_data_tweet() -> tuple:
             ))
 
     # Try: congressional trades — irony/conflict angle
-    data = api_get("/politics/congressional-trades", {"limit": 20})
+    data = api_get("/congressional-trades", {"limit": 20})
     trades = data.get("trades", data.get("items", []))
     if trades:
         trade = random.choice(trades[:10])
