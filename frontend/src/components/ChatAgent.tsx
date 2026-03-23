@@ -277,10 +277,20 @@ export default function ChatAgent() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
-            onClick={() => setOpen(true)}
+            drag
+            dragMomentum={false}
+            dragElastic={0.1}
+            dragConstraints={{ top: -window.innerHeight + 80, left: -window.innerWidth + 80, right: 0, bottom: 0 }}
+            whileDrag={{ scale: 1.1, cursor: "grabbing" }}
+            onDragEnd={(_, info) => {
+              // Only open chat if it was a click (not a drag)
+              if (Math.abs(info.offset.x) < 5 && Math.abs(info.offset.y) < 5) {
+                setOpen(true);
+              }
+            }}
             className="fixed bottom-6 right-6 z-[9998] flex items-center justify-center w-14 h-14 rounded-full
                        bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30
-                       transition-colors cursor-pointer"
+                       transition-colors cursor-grab active:cursor-grabbing"
             aria-label="Open chat assistant"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
