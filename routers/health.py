@@ -586,3 +586,84 @@ def get_health_company_donations(
         }
     finally:
         db.close()
+
+
+# ── Trend Data ──────────────────────────────────────────────────────────
+
+
+@router.get("/companies/{company_id}/trends")
+def get_health_company_trends(company_id: str):
+    """Yearly trend data for a health company: lobbying, contracts, enforcement, clinical trials."""
+    import datetime
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Health company not found")
+
+        current_year = datetime.date.today().year
+        min_year = 2018
+
+        # Lobbying by filing_year
+        lobby_rows = (
+            db.query(HealthLobbyingRecord.filing_year, func.count(HealthLobbyingRecord.id))
+            .filter_by(company_id=company_id)
+            .filter(HealthLobbyingRecord.filing_year.isnot(None))
+            .group_by(HealthLobbyingRecord.filing_year).all()
+        )
+        lobby_by_year = {int(r[0]): r[1] for r in lobby_rows if r[0]}
+
+        # Contracts by start_date year
+        contract_rows = (
+            db.query(
+                func.strftime('%Y', HealthGovernmentContract.start_date).label("yr"),
+                func.count(HealthGovernmentContract.id),
+            )
+            .filter_by(company_id=company_id)
+            .filter(HealthGovernmentContract.start_date.isnot(None))
+            .group_by("yr").all()
+        )
+        contracts_by_year = {int(r[0]): r[1] for r in contract_rows if r[0]}
+
+        # Enforcement by case_date year
+        enforcement_rows = (
+            db.query(
+                func.strftime('%Y', HealthEnforcement.case_date).label("yr"),
+                func.count(HealthEnforcement.id),
+            )
+            .filter_by(company_id=company_id)
+            .filter(HealthEnforcement.case_date.isnot(None))
+            .group_by("yr").all()
+        )
+        enforcement_by_year = {int(r[0]): r[1] for r in enforcement_rows if r[0]}
+
+        # Clinical trials by start_date year
+        trial_rows = (
+            db.query(
+                func.strftime('%Y', ClinicalTrial.start_date).label("yr"),
+                func.count(ClinicalTrial.id),
+            )
+            .filter_by(company_id=company_id)
+            .filter(ClinicalTrial.start_date.isnot(None))
+            .group_by("yr").all()
+        )
+        trials_by_year = {int(r[0]): r[1] for r in trial_rows if r[0]}
+
+        # Build year range
+        all_years_set = set(lobby_by_year) | set(contracts_by_year) | set(enforcement_by_year) | set(trials_by_year)
+        all_years_set = {y for y in all_years_set if min_year <= y <= current_year}
+        if not all_years_set:
+            all_years_set = set(range(min_year, current_year + 1))
+        years = sorted(all_years_set)
+
+        return {
+            "years": years,
+            "series": {
+                "lobbying": [lobby_by_year.get(y, 0) for y in years],
+                "contracts": [contracts_by_year.get(y, 0) for y in years],
+                "enforcement": [enforcement_by_year.get(y, 0) for y in years],
+                "trials": [trials_by_year.get(y, 0) for y in years],
+            },
+        }
+    finally:
+        db.close()

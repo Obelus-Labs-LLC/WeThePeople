@@ -32,6 +32,7 @@ fastscheduler>=0.1.0
 
 # PDF parsing
 pdfplumber>=0.10.0
+cairosvg>=2.7.0  # OG image generation (SVG to PNG)
 # docling>=2.0.0  # Optional: OCR for scanned PDFs. Requires PyTorch (~15GB). Install separately if needed.
 
 # Twitter/X API

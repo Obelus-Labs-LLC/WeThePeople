@@ -245,6 +245,14 @@ const HomePage: React.FC = () => {
             </button>
           </form>
 
+          {/* Digest CTA */}
+          <Link
+            to="/digest"
+            className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors mb-6 no-underline"
+          >
+            Get weekly updates in your inbox <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+
           {/* Aggregate stats bar */}
           {stats && (
             <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-6 mb-4">

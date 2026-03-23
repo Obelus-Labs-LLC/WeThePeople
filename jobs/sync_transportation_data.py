@@ -229,7 +229,7 @@ def fetch_lobbying(session, company: TrackedTransportationCompany):
             }
 
             try:
-                time.sleep(1)  # polite delay
+                time.sleep(2)  # 2s delay to avoid Senate LDA rate limiting
                 if page_num == 0:
                     resp = requests.get(page_url, params=params, headers=headers, timeout=30)
                 else:

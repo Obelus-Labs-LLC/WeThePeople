@@ -370,6 +370,39 @@ export async function getTransportationCompanyComplaints(
   return fetchJSON<TransportationComplaintsResponse>(`${API_BASE}/transportation/companies/${encodeURIComponent(id)}/complaints?${sp}`);
 }
 
+// ── Safety Ratings ──
+
+export interface TransportationSafetyRatingItem {
+  id: number;
+  vehicle_id: string | null;
+  make: string | null;
+  model: string | null;
+  model_year: number | null;
+  overall_rating: number | null;
+  frontal_crash_rating: number | null;
+  side_crash_rating: number | null;
+  rollover_rating: number | null;
+}
+
+export interface TransportationSafetyRatingsResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  avg_overall_rating: number | null;
+  ratings: TransportationSafetyRatingItem[];
+}
+
+export async function getTransportationCompanySafetyRatings(
+  id: string,
+  params?: { limit?: number; offset?: number; model_year?: number }
+): Promise<TransportationSafetyRatingsResponse> {
+  const sp = new URLSearchParams();
+  if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+  if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+  if (params?.model_year !== undefined) sp.set('model_year', params.model_year.toString());
+  return fetchJSON<TransportationSafetyRatingsResponse>(`${API_BASE}/transportation/companies/${encodeURIComponent(id)}/safety-ratings?${sp}`);
+}
+
 // ── Fuel Economy ──
 
 export interface TransportationFuelEconomyItem {

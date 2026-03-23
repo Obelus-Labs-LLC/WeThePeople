@@ -34,8 +34,11 @@ import {
   type HealthEnforcementAction,
 } from '../api/health';
 import { fmtDollar, fmtDate } from '../utils/format';
+import { getApiBaseUrl } from '../api/client';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
+import TrendChart from '../components/TrendChart';
+import ShareButton from '../components/ShareButton';
 import { LOCAL_LOGOS } from '../data/healthLogos';
 import { getLogoUrl } from '../utils/logos';
 import CompanyLogo from '../components/CompanyLogo';
@@ -999,6 +1002,7 @@ export default function HealthCompanyProfilePage() {
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>('lobbying');
+  const [trends, setTrends] = useState<{ years: number[]; series: Record<string, number[]> } | null>(null);
 
   useEffect(() => {
     if (!companyId) return;
@@ -1007,6 +1011,11 @@ export default function HealthCompanyProfilePage() {
       .then((d) => { if (!cancelled) setCompany(d); })
       .catch(console.error)
       .finally(() => { if (!cancelled) setLoading(false); });
+    // Fetch trends
+    fetch(`${getApiBaseUrl()}/health/companies/${encodeURIComponent(companyId)}/trends`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (!cancelled && d) setTrends(d); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [companyId]);
 
@@ -1048,7 +1057,10 @@ export default function HealthCompanyProfilePage() {
             </span>
           ))}
         </div>
-        <Activity size={24} className="text-white animate-pulse" />
+        <div className="flex items-center gap-3">
+          <ShareButton url={window.location.href} title={`${company.display_name} — WeThePeople`} />
+          <Activity size={24} className="text-white animate-pulse" />
+        </div>
       </div>
 
       {/* Main Content: Sidebar + Data */}
@@ -1127,6 +1139,16 @@ export default function HealthCompanyProfilePage() {
               </p>
             </div>
           </div>
+
+          {/* Activity Over Time */}
+          {trends && (
+            <div className="mt-6">
+              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
+                Activity Over Time
+              </p>
+              <TrendChart data={trends} height={100} />
+            </div>
+          )}
         </div>
 
         {/* Right Panel */}

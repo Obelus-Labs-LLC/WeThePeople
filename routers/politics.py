@@ -748,6 +748,93 @@ def representative_lookup(zip: str = Query(..., min_length=5, max_length=10)):
         db.close()
 
 
+# ── Trend Data ──────────────────────────────────────────────────────────
+
+from models.database import PersonBill
+
+@router.get("/people/{person_id}/trends")
+def get_person_trends(person_id: str):
+    """Yearly trend data for a politician: trades, votes, bills sponsored, donations received."""
+    import datetime
+    db = SessionLocal()
+    try:
+        member = db.query(TrackedMember).filter(TrackedMember.person_id == person_id).first()
+        if not member:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+        current_year = datetime.date.today().year
+        min_year = 2018
+
+        # Trades by year (transaction_date)
+        trade_rows = (
+            db.query(
+                func.strftime('%Y', CongressionalTrade.transaction_date).label("yr"),
+                func.count(CongressionalTrade.id),
+            )
+            .filter(CongressionalTrade.person_id == person_id)
+            .filter(CongressionalTrade.transaction_date.isnot(None))
+            .group_by("yr").all()
+        )
+        trades_by_year = {int(r[0]): r[1] for r in trade_rows if r[0]}
+
+        # Votes by year (via MemberVote → Vote.vote_date)
+        vote_rows = (
+            db.query(
+                func.strftime('%Y', Vote.vote_date).label("yr"),
+                func.count(MemberVote.id),
+            )
+            .join(Vote, Vote.id == MemberVote.vote_id)
+            .filter(MemberVote.person_id == person_id)
+            .filter(Vote.vote_date.isnot(None))
+            .group_by("yr").all()
+        )
+        votes_by_year = {int(r[0]): r[1] for r in vote_rows if r[0]}
+
+        # Bills sponsored by year (via PersonBill → Bill.introduced_date)
+        bill_rows = (
+            db.query(
+                func.strftime('%Y', Bill.introduced_date).label("yr"),
+                func.count(PersonBill.id),
+            )
+            .join(Bill, Bill.bill_id == PersonBill.bill_id)
+            .filter(PersonBill.person_id == person_id)
+            .filter(Bill.introduced_date.isnot(None))
+            .group_by("yr").all()
+        )
+        bills_by_year = {int(r[0]): r[1] for r in bill_rows if r[0]}
+
+        # Donations received by year
+        donation_rows = (
+            db.query(
+                func.strftime('%Y', CompanyDonation.donation_date).label("yr"),
+                func.count(CompanyDonation.id),
+            )
+            .filter(CompanyDonation.person_id == person_id)
+            .filter(CompanyDonation.donation_date.isnot(None))
+            .group_by("yr").all()
+        )
+        donations_by_year = {int(r[0]): r[1] for r in donation_rows if r[0]}
+
+        # Build year range
+        all_years_set = set(trades_by_year) | set(votes_by_year) | set(bills_by_year) | set(donations_by_year)
+        all_years_set = {y for y in all_years_set if min_year <= y <= current_year}
+        if not all_years_set:
+            all_years_set = set(range(min_year, current_year + 1))
+        years = sorted(all_years_set)
+
+        return {
+            "years": years,
+            "series": {
+                "trades": [trades_by_year.get(y, 0) for y in years],
+                "votes": [votes_by_year.get(y, 0) for y in years],
+                "bills_sponsored": [bills_by_year.get(y, 0) for y in years],
+                "donations_received": [donations_by_year.get(y, 0) for y in years],
+            },
+        }
+    finally:
+        db.close()
+
+
 # ── Actions ──
 
 @router.get("/actions/recent")

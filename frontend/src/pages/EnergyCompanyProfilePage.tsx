@@ -11,8 +11,11 @@ import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
 import { EnergySectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
+import { getApiBaseUrl } from '../api/client';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
+import TrendChart from '../components/TrendChart';
+import ShareButton from '../components/ShareButton';
 import {
   getEnergyCompanyDetail,
   getEnergyCompanyEmissions,
@@ -125,9 +128,13 @@ export default function EnergyCompanyProfilePage() {
   const [filingTotal, setFilingTotal] = useState(0);
   const [filingsLoaded, setFilingsLoaded] = useState(false);
 
+  // Trends
+  const [trends, setTrends] = useState<{ years: number[]; series: Record<string, number[]> } | null>(null);
+
   // Load overview on mount
   useEffect(() => {
     if (!companyId) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
     Promise.all([
@@ -135,11 +142,18 @@ export default function EnergyCompanyProfilePage() {
       getEnergyCompanyStock(companyId).catch(() => ({ latest_stock: null })),
     ])
       .then(([d, s]) => {
+        if (cancelled) return;
         setDetail(d);
         setStock(s.latest_stock || null);
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e) => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    // Fetch trends
+    fetch(`${getApiBaseUrl()}/energy/companies/${encodeURIComponent(companyId)}/trends`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (!cancelled && d) setTrends(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [companyId]);
 
   // Lazy load tab data
@@ -259,6 +273,7 @@ export default function EnergyCompanyProfilePage() {
               </span>
               <SanctionsBadge status={detail.sanctions_status} />
               <AnomalyBadge entityType="company" entityId={companyId || ''} />
+              <ShareButton url={window.location.href} title={`${detail.display_name} — WeThePeople`} />
               {detail.headquarters && (
                 <span className="font-body text-sm text-white/50">
                   {detail.headquarters}
@@ -356,6 +371,14 @@ export default function EnergyCompanyProfilePage() {
                   </button>
                 )}
               </div>
+
+              {/* Activity Over Time */}
+              {trends && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
+                  <SectionHeader title="Activity Over Time" icon={TrendingUp} />
+                  <TrendChart data={trends} />
+                </div>
+              )}
             </motion.div>
           )}
 

@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import {
   Building2, FileText, Landmark, Shield, Scale, TrendingUp,
   Calendar, Hash, ExternalLink, AlertTriangle, Car, Newspaper,
-  DollarSign, Fuel,
+  DollarSign, Fuel, Star,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -26,6 +26,7 @@ import {
   getTransportationCompanyRecalls,
   getTransportationCompanyComplaints,
   getTransportationCompanyFuelEconomy,
+  getTransportationCompanySafetyRatings,
   getTransportationCompanyDonations,
   getTransportationCompanyNews,
   type TransportationCompanyDetail,
@@ -39,6 +40,7 @@ import {
   type TransportationRecallItem,
   type TransportationComplaintItem,
   type TransportationFuelEconomyItem,
+  type TransportationSafetyRatingItem,
   type TransportationDonationItem,
   type TransportationNewsItem,
 } from '../api/transportation';
@@ -78,7 +80,7 @@ function SectionHeader({ title, icon: Icon, count }: { title: string; icon: Luci
 
 // ── Tab config ──
 
-type TabKey = 'overview' | 'contracts' | 'lobbying' | 'enforcement' | 'donations' | 'recalls' | 'complaints' | 'filings';
+type TabKey = 'overview' | 'contracts' | 'lobbying' | 'enforcement' | 'donations' | 'recalls' | 'complaints' | 'safety_ratings' | 'filings';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -88,6 +90,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'donations', label: 'Donations' },
   { key: 'recalls', label: 'Recalls' },
   { key: 'complaints', label: 'Safety Complaints' },
+  { key: 'safety_ratings', label: 'Safety Ratings' },
   // { key: 'fuel_economy', label: 'Fuel Economy' },  // Hidden from UI — data kept in backend
   { key: 'filings', label: 'SEC Filings' },
 ];
@@ -137,6 +140,11 @@ export default function TransportationCompanyProfilePage() {
   const [fuelEconomyTotal, setFuelEconomyTotal] = useState(0);
   const [fuelEconomyLoaded, setFuelEconomyLoaded] = useState(false);
   const [fuelEconomyOffset, setFuelEconomyOffset] = useState(0);
+
+  const [safetyRatings, setSafetyRatings] = useState<TransportationSafetyRatingItem[]>([]);
+  const [safetyRatingsTotal, setSafetyRatingsTotal] = useState(0);
+  const [safetyRatingsLoaded, setSafetyRatingsLoaded] = useState(false);
+  const [avgOverallRating, setAvgOverallRating] = useState<number | null>(null);
 
   const [donations, setDonations] = useState<TransportationDonationItem[]>([]);
   const [donationTotal, setDonationTotal] = useState(0);
@@ -216,6 +224,16 @@ export default function TransportationCompanyProfilePage() {
     if (activeTab === 'complaints' && !complaintsLoaded) {
       getTransportationCompanyComplaints(companyId, { limit: 50 })
         .then((r) => { setComplaints(r.complaints || []); setComplaintTotal(r.total); setComplaintsLoaded(true); setComplaintOffset(50); })
+        .catch(console.error);
+    }
+    if (activeTab === 'safety_ratings' && !safetyRatingsLoaded) {
+      getTransportationCompanySafetyRatings(companyId, { limit: 100 })
+        .then((r) => {
+          setSafetyRatings(r.ratings || []);
+          setSafetyRatingsTotal(r.total);
+          setAvgOverallRating(r.avg_overall_rating);
+          setSafetyRatingsLoaded(true);
+        })
         .catch(console.error);
     }
     // Fuel economy tab hidden from UI — lazy load removed
@@ -537,6 +555,86 @@ export default function TransportationCompanyProfilePage() {
                     Load more ({complaints.length} of {complaintTotal})
                   </button>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'safety_ratings' && (
+            <div>
+              <SectionHeader title="Safety Ratings" icon={Star} count={safetyRatingsTotal} />
+              {avgOverallRating != null && (
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <MetricCard label="Total Rated Vehicles" value={fmtNum(safetyRatingsTotal)} icon={Car} color="#F59E0B" />
+                  <MetricCard label="Avg Overall Rating" value={`${avgOverallRating.toFixed(1)} / 5`} icon={Star} color="#F59E0B" />
+                </div>
+              )}
+              <div className="space-y-3">
+                {safetyRatings.map((r) => (
+                  <div key={r.id} className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="font-mono text-xs text-white/80">{r.make} {r.model} ({r.model_year})</span>
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                      {r.overall_rating != null && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-white/40">Overall:</span>
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                size={14}
+                                className={i < (r.overall_rating ?? 0) ? 'text-amber-400 fill-amber-400' : 'text-white/10'}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {r.frontal_crash_rating != null && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-white/40">Frontal:</span>
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                size={12}
+                                className={i < (r.frontal_crash_rating ?? 0) ? 'text-blue-400 fill-blue-400' : 'text-white/10'}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {r.side_crash_rating != null && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-white/40">Side:</span>
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                size={12}
+                                className={i < (r.side_crash_rating ?? 0) ? 'text-blue-400 fill-blue-400' : 'text-white/10'}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {r.rollover_rating != null && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-white/40">Rollover:</span>
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                size={12}
+                                className={i < (r.rollover_rating ?? 0) ? 'text-blue-400 fill-blue-400' : 'text-white/10'}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {safetyRatings.length === 0 && <p className="font-body text-sm text-white/30 text-center py-8">No safety ratings found</p>}
               </div>
             </div>
           )}

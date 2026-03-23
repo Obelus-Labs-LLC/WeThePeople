@@ -821,3 +821,71 @@ def get_institution_donations(
         }
     finally:
         db.close()
+
+
+# ── Trend Data ──────────────────────────────────────────────────────────
+
+
+@router.get("/institutions/{institution_id}/trends")
+def get_institution_trends(institution_id: str):
+    """Yearly trend data for a finance institution: lobbying, contracts, enforcement."""
+    import datetime
+    db = SessionLocal()
+    try:
+        inst = db.query(TrackedInstitution).filter_by(institution_id=institution_id).first()
+        if not inst:
+            raise HTTPException(status_code=404, detail="Institution not found")
+
+        current_year = datetime.date.today().year
+        min_year = 2018
+
+        # Lobbying by filing_year (already an integer column)
+        lobby_rows = (
+            db.query(FinanceLobbyingRecord.filing_year, func.count(FinanceLobbyingRecord.id))
+            .filter_by(institution_id=institution_id)
+            .filter(FinanceLobbyingRecord.filing_year.isnot(None))
+            .group_by(FinanceLobbyingRecord.filing_year).all()
+        )
+        lobby_by_year = {int(r[0]): r[1] for r in lobby_rows if r[0]}
+
+        # Contracts by start_date year
+        contract_rows = (
+            db.query(
+                func.strftime('%Y', FinanceGovernmentContract.start_date).label("yr"),
+                func.count(FinanceGovernmentContract.id),
+            )
+            .filter_by(institution_id=institution_id)
+            .filter(FinanceGovernmentContract.start_date.isnot(None))
+            .group_by("yr").all()
+        )
+        contracts_by_year = {int(r[0]): r[1] for r in contract_rows if r[0]}
+
+        # Enforcement by case_date year
+        enforcement_rows = (
+            db.query(
+                func.strftime('%Y', FinanceEnforcement.case_date).label("yr"),
+                func.count(FinanceEnforcement.id),
+            )
+            .filter_by(institution_id=institution_id)
+            .filter(FinanceEnforcement.case_date.isnot(None))
+            .group_by("yr").all()
+        )
+        enforcement_by_year = {int(r[0]): r[1] for r in enforcement_rows if r[0]}
+
+        # Build year range
+        all_years_set = set(lobby_by_year) | set(contracts_by_year) | set(enforcement_by_year)
+        all_years_set = {y for y in all_years_set if min_year <= y <= current_year}
+        if not all_years_set:
+            all_years_set = set(range(min_year, current_year + 1))
+        years = sorted(all_years_set)
+
+        return {
+            "years": years,
+            "series": {
+                "lobbying": [lobby_by_year.get(y, 0) for y in years],
+                "contracts": [contracts_by_year.get(y, 0) for y in years],
+                "enforcement": [enforcement_by_year.get(y, 0) for y in years],
+            },
+        }
+    finally:
+        db.close()

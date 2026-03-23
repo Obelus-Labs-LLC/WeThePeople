@@ -278,3 +278,34 @@ class FuelEconomyVehicle(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     company = relationship("TrackedTransportationCompany", backref="fuel_economy_vehicles")
+
+
+class NHTSASafetyRating(Base):
+    """
+    NHTSA NCAP safety ratings for tracked transportation companies.
+    Data from api.nhtsa.gov SafetyRatings endpoint.
+    Star ratings (1-5) for overall, frontal crash, side crash, and rollover.
+    """
+    __tablename__ = "nhtsa_safety_ratings"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_nhtsa_safety_ratings_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(String, ForeignKey("tracked_transportation_companies.company_id"), nullable=False, index=True)
+
+    vehicle_id = Column(String(50), nullable=True)  # NHTSA VehicleId
+    make = Column(String(100), nullable=True, index=True)
+    model = Column(String(200), nullable=True, index=True)
+    model_year = Column(Integer, nullable=True, index=True)
+    overall_rating = Column(Integer, nullable=True)  # 1-5 stars (or "Not Rated")
+    frontal_crash_rating = Column(Integer, nullable=True)
+    side_crash_rating = Column(Integer, nullable=True)
+    rollover_rating = Column(Integer, nullable=True)
+
+    dedupe_hash = Column(String(64), nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    company = relationship("TrackedTransportationCompany", backref="safety_ratings")

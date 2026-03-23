@@ -15,6 +15,7 @@ from models.transportation_models import (
     TransportationEnforcement,
     NHTSARecall,
     NHTSAComplaint,
+    NHTSASafetyRating,
     FuelEconomyVehicle,
 )
 from models.market_models import StockFundamentals
@@ -42,6 +43,7 @@ def get_transportation_dashboard_stats():
         total_recalls = db.query(func.count(NHTSARecall.id)).scalar() or 0
         total_complaints = db.query(func.count(NHTSAComplaint.id)).scalar() or 0
         total_fuel_economy_vehicles = db.query(func.count(FuelEconomyVehicle.id)).scalar() or 0
+        total_safety_ratings = db.query(func.count(NHTSASafetyRating.id)).scalar() or 0
 
         by_sector = {}
         rows = db.query(TrackedTransportationCompany.sector_type, func.count()).filter(
@@ -58,6 +60,7 @@ def get_transportation_dashboard_stats():
             "total_contract_value": total_contract_value, "total_penalties": total_penalties,
             "total_recalls": total_recalls, "total_complaints": total_complaints,
             "total_fuel_economy_vehicles": total_fuel_economy_vehicles,
+            "total_safety_ratings": total_safety_ratings,
             "by_sector": by_sector,
         }
     finally:
@@ -564,6 +567,45 @@ def get_transportation_company_complaints(
                 "fire": c.fire, "injuries": c.injuries, "deaths": c.deaths,
                 "component": c.component, "summary": c.summary,
             } for c in complaints],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/safety-ratings")
+def get_transportation_company_safety_ratings(
+    company_id: str, model_year: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    """NHTSA NCAP safety ratings for a transportation company."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTransportationCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Transportation company not found")
+        query = db.query(NHTSASafetyRating).filter_by(company_id=company_id)
+        if model_year:
+            query = query.filter(NHTSASafetyRating.model_year == model_year)
+        total = query.count()
+        ratings = query.order_by(desc(NHTSASafetyRating.model_year), NHTSASafetyRating.model).offset(offset).limit(limit).all()
+
+        # Aggregate: average overall rating
+        avg_overall = db.query(func.avg(NHTSASafetyRating.overall_rating)).filter(
+            NHTSASafetyRating.company_id == company_id,
+            NHTSASafetyRating.overall_rating.isnot(None),
+        ).scalar()
+
+        return {
+            "total": total, "limit": limit, "offset": offset,
+            "avg_overall_rating": round(float(avg_overall), 1) if avg_overall else None,
+            "ratings": [{
+                "id": r.id, "vehicle_id": r.vehicle_id, "make": r.make,
+                "model": r.model, "model_year": r.model_year,
+                "overall_rating": r.overall_rating,
+                "frontal_crash_rating": r.frontal_crash_rating,
+                "side_crash_rating": r.side_crash_rating,
+                "rollover_rating": r.rollover_rating,
+            } for r in ratings],
         }
     finally:
         db.close()
