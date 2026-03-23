@@ -87,13 +87,24 @@ def already_posted(session, text: str) -> bool:
 
 
 def log_tweet(session, tweet_id: str, category: str, text: str):
-    session.add(TweetLog(
-        tweet_id=tweet_id,
-        category=category,
-        content_hash=content_hash(text),
-        text=text,
-    ))
-    session.commit()
+    """Log a posted tweet. Retries on DB lock since syncs may be writing."""
+    for attempt in range(3):
+        try:
+            session.add(TweetLog(
+                tweet_id=tweet_id,
+                category=category,
+                content_hash=content_hash(text),
+                text=text,
+            ))
+            session.commit()
+            return
+        except Exception as e:
+            session.rollback()
+            if attempt < 2:
+                log.warning("DB locked on log_tweet, retry %d/3: %s", attempt + 1, e)
+                time.sleep(2)
+            else:
+                log.error("Failed to log tweet after 3 attempts: %s", e)
 
 
 def posts_today(session) -> int:
