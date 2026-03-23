@@ -36,11 +36,13 @@ export default function VerifyDashboardPage() {
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        // Use entity_id filter as rough search — backend doesn't have q param yet
-        const res = await getVerifications({ limit: 20 });
+        // Fetch a larger batch and filter client-side since backend doesn't have full-text q param
+        const res = await getVerifications({ limit: 100 });
+        const lowerQuery = searchQuery.toLowerCase();
         const filtered = res.items.filter((item) =>
-          item.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (item.person_id || '').toLowerCase().includes(searchQuery.toLowerCase())
+          item.text.toLowerCase().includes(lowerQuery) ||
+          (item.person_id || '').toLowerCase().includes(lowerQuery) ||
+          (item.category || '').toLowerCase().includes(lowerQuery)
         );
         setSearchResults(filtered);
       } catch {

@@ -80,7 +80,7 @@ export default function VerifySubmitPage() {
         </div>
 
         {/* Results */}
-        {result && result.claims && result.claims.length > 0 && (
+        {result && result.verifications && result.verifications.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -90,12 +90,12 @@ export default function VerifySubmitPage() {
               Verification Results
             </h2>
             <p className="text-sm text-slate-400 mb-6">
-              {result.total_claims} claim{result.total_claims !== 1 ? 's' : ''} extracted and verified
+              {result.claims_extracted} claim{result.claims_extracted !== 1 ? 's' : ''} extracted and verified
               {result.auth_tier === 'free' && ' (free tier)'}
             </p>
 
             <div className="space-y-6">
-              {result.claims.map((claim, i) => (
+              {result.verifications.map((claim, i) => (
                 <div
                   key={claim.id || i}
                   className="rounded-2xl border border-white/10 bg-white/[0.03] p-5"
@@ -121,14 +121,18 @@ export default function VerifySubmitPage() {
                   )}
 
                   {/* Why */}
-                  {claim.evaluation?.why && claim.evaluation.why.length > 0 && (
+                  {claim.evaluation?.why && (
                     <div className="mt-4 pl-4 border-l-2 border-emerald-500/30">
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                         Analysis
                       </p>
-                      {claim.evaluation.why.map((reason, j) => (
-                        <p key={j} className="text-xs text-slate-300 leading-relaxed">{reason}</p>
-                      ))}
+                      {Array.isArray(claim.evaluation.why) ? (
+                        claim.evaluation.why.map((reason: string, j: number) => (
+                          <p key={j} className="text-xs text-slate-300 leading-relaxed">{reason}</p>
+                        ))
+                      ) : typeof claim.evaluation.why === 'object' && claim.evaluation.why !== null && 'summary' in claim.evaluation.why ? (
+                        <p className="text-xs text-slate-300 leading-relaxed">{(claim.evaluation.why as any).summary}</p>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -138,7 +142,7 @@ export default function VerifySubmitPage() {
         )}
 
         {/* No results */}
-        {result && (!result.claims || result.claims.length === 0) && (
+        {result && (!result.verifications || result.verifications.length === 0) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

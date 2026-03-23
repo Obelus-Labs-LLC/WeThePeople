@@ -127,9 +127,9 @@ export default function VerifyResultPage() {
           {data.evaluation && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               {[
-                { label: 'Relevance', value: data.evaluation.relevance != null ? `${Math.round(data.evaluation.relevance * 100)}%` : '-' },
-                { label: 'Progress', value: data.evaluation.progress != null ? `${Math.round(data.evaluation.progress * 100)}%` : '-' },
-                { label: 'Timing', value: data.evaluation.timing != null ? `${Math.round(data.evaluation.timing * 100)}%` : '-' },
+                { label: 'Relevance', value: data.evaluation.relevance != null ? (typeof data.evaluation.relevance === 'string' ? data.evaluation.relevance : `${Math.round(Number(data.evaluation.relevance) * 100)}%`) : '-' },
+                { label: 'Progress', value: data.evaluation.progress != null ? String(data.evaluation.progress) : '-' },
+                { label: 'Timing', value: data.evaluation.timing != null ? String(data.evaluation.timing) : '-' },
                 { label: 'Overall', value: data.evaluation.score != null ? `${Math.round(data.evaluation.score * 100)}%` : '-' },
               ].map((m) => (
                 <div key={m.label} className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-center">
@@ -141,12 +141,16 @@ export default function VerifyResultPage() {
           )}
 
           {/* Why */}
-          {data.evaluation?.why && data.evaluation.why.length > 0 && (
+          {data.evaluation?.why && (
             <div className="mb-6 pl-4 border-l-2 border-emerald-500/30">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Analysis</p>
-              {data.evaluation.why.map((reason, j) => (
-                <p key={j} className="text-sm text-slate-300 leading-relaxed mb-1">{reason}</p>
-              ))}
+              {Array.isArray(data.evaluation.why) ? (
+                data.evaluation.why.map((reason: string, j: number) => (
+                  <p key={j} className="text-sm text-slate-300 leading-relaxed mb-1">{reason}</p>
+                ))
+              ) : typeof data.evaluation.why === 'object' && data.evaluation.why !== null && 'summary' in data.evaluation.why ? (
+                <p className="text-sm text-slate-300 leading-relaxed mb-1">{(data.evaluation.why as any).summary}</p>
+              ) : null}
             </div>
           )}
 

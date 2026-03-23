@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Building2, FileText, Landmark, Shield, Scale, TrendingUp,
-  Calendar, Hash, ExternalLink, AlertTriangle,
+  Calendar, Hash, ExternalLink, AlertTriangle, Car, Newspaper,
+  DollarSign, Fuel,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -21,6 +22,11 @@ import {
   getTransportationCompanyEnforcement,
   getTransportationCompanyFilings,
   getTransportationCompanyStock,
+  getTransportationCompanyRecalls,
+  getTransportationCompanyComplaints,
+  getTransportationCompanyFuelEconomy,
+  getTransportationCompanyDonations,
+  getTransportationCompanyNews,
   type TransportationCompanyDetail,
   type TransportationContractItem,
   type TransportationContractSummary,
@@ -29,6 +35,11 @@ import {
   type TransportationEnforcementItem,
   type TransportationFilingItem,
   type TransportationStockData,
+  type TransportationRecallItem,
+  type TransportationComplaintItem,
+  type TransportationFuelEconomyItem,
+  type TransportationDonationItem,
+  type TransportationNewsItem,
 } from '../api/transportation';
 
 function fmtPct(n: number | null | undefined): string {
@@ -66,13 +77,17 @@ function SectionHeader({ title, icon: Icon, count }: { title: string; icon: Luci
 
 // ── Tab config ──
 
-type TabKey = 'overview' | 'contracts' | 'lobbying' | 'enforcement' | 'filings';
+type TabKey = 'overview' | 'contracts' | 'lobbying' | 'enforcement' | 'donations' | 'recalls' | 'complaints' | 'fuel_economy' | 'filings';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'contracts', label: 'Contracts' },
   { key: 'lobbying', label: 'Lobbying' },
   { key: 'enforcement', label: 'Enforcement' },
+  { key: 'donations', label: 'Donations' },
+  { key: 'recalls', label: 'Recalls' },
+  { key: 'complaints', label: 'Safety Complaints' },
+  { key: 'fuel_economy', label: 'Fuel Economy' },
   { key: 'filings', label: 'SEC Filings' },
 ];
 
@@ -107,6 +122,28 @@ export default function TransportationCompanyProfilePage() {
   const [filingTotal, setFilingTotal] = useState(0);
   const [filingsLoaded, setFilingsLoaded] = useState(false);
 
+  const [recalls, setRecalls] = useState<TransportationRecallItem[]>([]);
+  const [recallTotal, setRecallTotal] = useState(0);
+  const [recallsLoaded, setRecallsLoaded] = useState(false);
+  const [recallOffset, setRecallOffset] = useState(0);
+
+  const [complaints, setComplaints] = useState<TransportationComplaintItem[]>([]);
+  const [complaintTotal, setComplaintTotal] = useState(0);
+  const [complaintsLoaded, setComplaintsLoaded] = useState(false);
+  const [complaintOffset, setComplaintOffset] = useState(0);
+
+  const [fuelEconomy, setFuelEconomy] = useState<TransportationFuelEconomyItem[]>([]);
+  const [fuelEconomyTotal, setFuelEconomyTotal] = useState(0);
+  const [fuelEconomyLoaded, setFuelEconomyLoaded] = useState(false);
+  const [fuelEconomyOffset, setFuelEconomyOffset] = useState(0);
+
+  const [donations, setDonations] = useState<TransportationDonationItem[]>([]);
+  const [donationTotal, setDonationTotal] = useState(0);
+  const [donationTotalAmount, setDonationTotalAmount] = useState(0);
+  const [donationsLoaded, setDonationsLoaded] = useState(false);
+
+  const [news, setNews] = useState<TransportationNewsItem[]>([]);
+
   // Load overview on mount
   useEffect(() => {
     if (!companyId) return;
@@ -119,6 +156,10 @@ export default function TransportationCompanyProfilePage() {
       .then(([d, s]) => {
         setDetail(d);
         setStock(s.latest_stock || null);
+        // Load news in background
+        getTransportationCompanyNews(d.display_name, 5)
+          .then((r) => setNews(r.articles || []))
+          .catch(() => {});
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -166,8 +207,48 @@ export default function TransportationCompanyProfilePage() {
         .then((r) => { setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true); })
         .catch(console.error);
     }
+    if (activeTab === 'recalls' && !recallsLoaded) {
+      getTransportationCompanyRecalls(companyId, { limit: 50 })
+        .then((r) => { setRecalls(r.recalls || []); setRecallTotal(r.total); setRecallsLoaded(true); setRecallOffset(50); })
+        .catch(console.error);
+    }
+    if (activeTab === 'complaints' && !complaintsLoaded) {
+      getTransportationCompanyComplaints(companyId, { limit: 50 })
+        .then((r) => { setComplaints(r.complaints || []); setComplaintTotal(r.total); setComplaintsLoaded(true); setComplaintOffset(50); })
+        .catch(console.error);
+    }
+    if (activeTab === 'fuel_economy' && !fuelEconomyLoaded) {
+      getTransportationCompanyFuelEconomy(companyId, { limit: 50 })
+        .then((r) => { setFuelEconomy(r.vehicles || []); setFuelEconomyTotal(r.total); setFuelEconomyLoaded(true); setFuelEconomyOffset(50); })
+        .catch(console.error);
+    }
+    if (activeTab === 'donations' && !donationsLoaded) {
+      getTransportationCompanyDonations(companyId, { limit: 100 })
+        .then((r) => { setDonations(r.donations || []); setDonationTotal(r.total); setDonationTotalAmount(r.total_amount || 0); setDonationsLoaded(true); })
+        .catch(console.error);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, companyId]);
+
+  // Load more helpers
+  const loadMoreRecalls = () => {
+    if (!companyId) return;
+    getTransportationCompanyRecalls(companyId, { limit: 50, offset: recallOffset })
+      .then((r) => { setRecalls((prev) => [...prev, ...(r.recalls || [])]); setRecallOffset((o) => o + 50); })
+      .catch(console.error);
+  };
+  const loadMoreComplaints = () => {
+    if (!companyId) return;
+    getTransportationCompanyComplaints(companyId, { limit: 50, offset: complaintOffset })
+      .then((r) => { setComplaints((prev) => [...prev, ...(r.complaints || [])]); setComplaintOffset((o) => o + 50); })
+      .catch(console.error);
+  };
+  const loadMoreFuelEconomy = () => {
+    if (!companyId) return;
+    getTransportationCompanyFuelEconomy(companyId, { limit: 50, offset: fuelEconomyOffset })
+      .then((r) => { setFuelEconomy((prev) => [...prev, ...(r.vehicles || [])]); setFuelEconomyOffset((o) => o + 50); })
+      .catch(console.error);
+  };
 
   if (loading) {
     return (
@@ -238,6 +319,22 @@ export default function TransportationCompanyProfilePage() {
                 </div>
               )}
 
+              {/* Recent News */}
+              {news.length > 0 && (
+                <div>
+                  <SectionHeader title="Recent News" icon={Newspaper} />
+                  <div className="space-y-3">
+                    {news.map((n, idx) => (
+                      <a key={idx} href={n.link} target="_blank" rel="noopener noreferrer"
+                        className="block rounded-lg border border-white/5 bg-white/[0.02] p-4 no-underline transition-colors hover:bg-white/[0.04]">
+                        <p className="font-body text-sm text-white/80 mb-1">{n.title}</p>
+                        <p className="font-mono text-[10px] text-white/30">{n.source} &middot; {n.published}</p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Stock data */}
               {stk && (
                 <div>
@@ -277,6 +374,7 @@ export default function TransportationCompanyProfilePage() {
                 {contracts.map((ct) => (
                   <div key={ct.id} className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
                     <p className="font-body text-sm text-white/80 mb-2">{ct.description || 'No description'}</p>
+                    {ct.ai_summary && <p className="font-body text-xs text-white/50 mb-2 italic">{ct.ai_summary}</p>}
                     <div className="flex flex-wrap gap-4 font-mono text-xs text-white/40">
                       {ct.award_amount != null && <span>Award: {fmtDollar(ct.award_amount)}</span>}
                       {ct.awarding_agency && <span>Agency: {ct.awarding_agency}</span>}
@@ -305,6 +403,7 @@ export default function TransportationCompanyProfilePage() {
                       <p className="font-body text-sm font-medium text-white/80">{r.client_name || r.registrant_name || 'Unknown'}</p>
                       <span className="font-mono text-xs text-white/40">{r.filing_year} {r.filing_period || ''}</span>
                     </div>
+                    {r.ai_summary && <p className="font-body text-xs text-white/50 mb-1 italic">{r.ai_summary}</p>}
                     {r.lobbying_issues && <p className="font-body text-xs text-white/50 mb-1">Issues: {r.lobbying_issues}</p>}
                     <div className="flex gap-4 font-mono text-xs text-white/40">
                       {r.income != null && <span>Income: {fmtDollar(r.income)}</span>}
@@ -333,6 +432,7 @@ export default function TransportationCompanyProfilePage() {
                 {enforcement.map((a) => (
                   <div key={a.id} className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
                     <p className="font-body text-sm font-medium text-white/80 mb-2">{a.case_title}</p>
+                    {a.ai_summary && <p className="font-body text-xs text-blue-400/70 mb-2 italic">{a.ai_summary}</p>}
                     {a.description && <p className="font-body text-xs text-white/50 mb-2">{a.description}</p>}
                     <div className="flex flex-wrap gap-4 font-mono text-xs text-white/40">
                       {a.case_date && <span>{fmtDate(a.case_date)}</span>}
@@ -347,6 +447,132 @@ export default function TransportationCompanyProfilePage() {
                   </div>
                 ))}
                 {enforcement.length === 0 && <p className="font-body text-sm text-white/30 text-center py-8">No enforcement actions found</p>}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'donations' && (
+            <div>
+              <SectionHeader title="PAC Donations" icon={DollarSign} count={donationTotal} />
+              {donationTotalAmount > 0 && (
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <MetricCard label="Total Donations" value={fmtNum(donationTotal)} icon={DollarSign} color="#F59E0B" />
+                  <MetricCard label="Total Amount" value={fmtDollar(donationTotalAmount)} icon={DollarSign} color="#F59E0B" />
+                </div>
+              )}
+              <div className="space-y-3">
+                {donations.map((d) => (
+                  <div key={d.id} className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-body text-sm font-medium text-white/80">{d.candidate_name || d.committee_name || 'Unknown'}</p>
+                      {d.amount != null && <span className="font-mono text-sm font-bold text-amber-400">{fmtDollar(d.amount)}</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-4 font-mono text-xs text-white/40">
+                      {d.committee_name && <span>Committee: {d.committee_name}</span>}
+                      {d.cycle && <span>Cycle: {d.cycle}</span>}
+                      {d.donation_date && <span>{fmtDate(d.donation_date)}</span>}
+                    </div>
+                    {d.person_id && (
+                      <Link to={`/politics/person/${d.person_id}`}
+                        className="inline-block mt-2 font-mono text-[10px] text-blue-400 hover:text-blue-300 no-underline">View politician &rarr;</Link>
+                    )}
+                  </div>
+                ))}
+                {donations.length === 0 && <p className="font-body text-sm text-white/30 text-center py-8">No donation records found</p>}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'recalls' && (
+            <div>
+              <SectionHeader title="NHTSA Recalls" icon={Car} count={recallTotal} />
+              <div className="space-y-3">
+                {recalls.map((r) => (
+                  <div key={r.id} className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="rounded bg-red-500/20 px-2 py-0.5 font-mono text-xs font-bold text-red-400">{r.recall_number}</span>
+                      <span className="font-mono text-xs text-white/40">{r.make} {r.model} ({r.model_year})</span>
+                    </div>
+                    {r.component && <p className="font-mono text-xs text-white/50 mb-1">Component: {r.component}</p>}
+                    {r.summary && <p className="font-body text-xs text-white/60 mb-2">{r.summary}</p>}
+                    {r.consequence && <p className="font-body text-xs text-red-400/70 mb-1">Consequence: {r.consequence}</p>}
+                    {r.remedy && <p className="font-body text-xs text-green-400/70">Remedy: {r.remedy}</p>}
+                    <div className="flex gap-4 font-mono text-[10px] text-white/30 mt-2">
+                      {r.recall_date && <span>Date: {r.recall_date}</span>}
+                      {r.manufacturer && <span>Mfr: {r.manufacturer}</span>}
+                    </div>
+                  </div>
+                ))}
+                {recalls.length === 0 && <p className="font-body text-sm text-white/30 text-center py-8">No recall campaigns found</p>}
+                {recalls.length < recallTotal && (
+                  <button onClick={loadMoreRecalls} className="w-full rounded-lg border border-white/10 py-3 font-body text-sm text-white/50 hover:text-white hover:border-white/20 transition-colors">
+                    Load more ({recalls.length} of {recallTotal})
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'complaints' && (
+            <div>
+              <SectionHeader title="Safety Complaints" icon={AlertTriangle} count={complaintTotal} />
+              <div className="space-y-3">
+                {complaints.map((c) => (
+                  <div key={c.id} className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="font-mono text-xs text-white/40">{c.make} {c.model} ({c.model_year})</span>
+                      <span className="font-mono text-xs text-white/30">ODI#{c.odi_number}</span>
+                      {c.crash && <span className="rounded bg-red-500/20 px-1.5 py-0.5 font-mono text-[10px] text-red-400">CRASH</span>}
+                      {c.fire && <span className="rounded bg-orange-500/20 px-1.5 py-0.5 font-mono text-[10px] text-orange-400">FIRE</span>}
+                    </div>
+                    {c.component && <p className="font-mono text-xs text-white/50 mb-1">Component: {c.component}</p>}
+                    {c.summary && <p className="font-body text-xs text-white/60 mb-2">{c.summary}</p>}
+                    <div className="flex gap-4 font-mono text-[10px] text-white/30">
+                      {c.date_of_complaint && <span>Date: {c.date_of_complaint}</span>}
+                      {c.injuries > 0 && <span className="text-red-400">{c.injuries} injuries</span>}
+                      {c.deaths > 0 && <span className="text-red-500 font-bold">{c.deaths} deaths</span>}
+                    </div>
+                  </div>
+                ))}
+                {complaints.length === 0 && <p className="font-body text-sm text-white/30 text-center py-8">No safety complaints found</p>}
+                {complaints.length < complaintTotal && (
+                  <button onClick={loadMoreComplaints} className="w-full rounded-lg border border-white/10 py-3 font-body text-sm text-white/50 hover:text-white hover:border-white/20 transition-colors">
+                    Load more ({complaints.length} of {complaintTotal})
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'fuel_economy' && (
+            <div>
+              <SectionHeader title="Fuel Economy Data" icon={Fuel} count={fuelEconomyTotal} />
+              <div className="space-y-3">
+                {fuelEconomy.map((v) => (
+                  <div key={v.id} className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-body text-sm font-medium text-white/80">{v.year} {v.make} {v.model}</p>
+                      {v.mpg_combined != null && (
+                        <span className="font-mono text-sm font-bold text-emerald-400">{v.mpg_combined} MPG</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-4 font-mono text-xs text-white/40">
+                      {v.mpg_city != null && <span>City: {v.mpg_city} MPG</span>}
+                      {v.mpg_highway != null && <span>Hwy: {v.mpg_highway} MPG</span>}
+                      {v.co2_tailpipe != null && <span>CO2: {v.co2_tailpipe} g/mi</span>}
+                      {v.fuel_type && <span>Fuel: {v.fuel_type}</span>}
+                      {v.vehicle_class && <span>Class: {v.vehicle_class}</span>}
+                      {v.ghg_score != null && <span>GHG: {v.ghg_score}/10</span>}
+                      {v.smog_rating != null && <span>Smog: {v.smog_rating}/10</span>}
+                    </div>
+                  </div>
+                ))}
+                {fuelEconomy.length === 0 && <p className="font-body text-sm text-white/30 text-center py-8">No fuel economy data found</p>}
+                {fuelEconomy.length < fuelEconomyTotal && (
+                  <button onClick={loadMoreFuelEconomy} className="w-full rounded-lg border border-white/10 py-3 font-body text-sm text-white/50 hover:text-white hover:border-white/20 transition-colors">
+                    Load more ({fuelEconomy.length} of {fuelEconomyTotal})
+                  </button>
+                )}
               </div>
             </div>
           )}

@@ -24,20 +24,64 @@ export interface VerifyUrlRequest {
 export interface ClaimEvaluation {
   tier: 'strong' | 'moderate' | 'weak' | 'none';
   score: number;
-  relevance: number;
-  progress?: number;
-  timing?: number;
-  matched_bill_id?: string;
+  relevance?: string | number;
+  progress?: string | number | null;
+  timing?: string | number | null;
+  matched_bill_id?: string | null;
   evidence?: EvidenceItem[] | null;
-  why?: string[] | null;
+  why?: string[] | { summary: string } | null;
 }
 
 export interface EvidenceItem {
-  type: string; // bill, vote, trade, contract, enforcement, donation
+  type: string; // legislative_action, vote_record, trade_record, lobbying_record, contract_record, enforcement_record, donation_record, committee_record, sec_filing_record
+  tier?: string;
+  score?: number;
+  // legislative_action fields
   title?: string;
+  bill_type?: string;
+  bill_number?: string;
+  source_url?: string;
+  // vote_record fields
+  question?: string;
+  position?: string;
+  result?: string;
+  vote_date?: string;
+  // trade_record fields
+  ticker?: string;
+  transaction_type?: string;
+  transaction_date?: string;
+  amount_range?: string;
+  // lobbying_record fields
+  client_name?: string;
+  registrant_name?: string;
+  filing_year?: string;
+  specific_issues?: string;
+  // contract_record fields
+  award_amount?: number;
+  awarding_agency?: string;
+  start_date?: string;
+  // enforcement_record fields
+  case_title?: string;
+  enforcement_type?: string;
+  penalty_amount?: number;
+  case_date?: string;
+  case_url?: string;
+  // donation_record fields
+  committee_name?: string;
+  amount?: number;
+  cycle?: string;
+  donation_date?: string;
+  // committee_record fields
+  committee_name_display?: string;
+  role?: string;
+  chamber?: string;
+  // sec_filing_record fields
+  // uses description, date, source_url above
+  // shared fields
   description?: string;
   date?: string;
-  amount?: number;
+  overlap?: string[];
+  // legacy compat
   url?: string;
   bill_id?: string;
   vote_id?: string;
@@ -96,11 +140,15 @@ export interface EntityVerificationsResponse {
 }
 
 export interface VerificationResult {
-  claims: VerificationItem[];
+  verifications: VerificationItem[];
   entity_id: string;
   entity_type: string;
+  entity_name?: string;
   auth_tier: string;
-  total_claims: number;
+  claims_extracted: number;
+  tier_counts?: Record<string, number>;
+  summary?: string;
+  source_url?: string;
 }
 
 // ── API Functions ──

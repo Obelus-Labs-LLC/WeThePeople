@@ -16,11 +16,12 @@ import DataFreshness from '../components/DataFreshness';
 const SECTOR_COLORS: Record<string, string> = {
   aviation: '#3B82F6',
   shipping: '#0EA5E9',
-  auto: '#6366F1',
+  motor_vehicle: '#6366F1',
   rail: '#8B5CF6',
   aerospace: '#2563EB',
   logistics: '#14B8A6',
-  trucking: '#F59E0B',
+  ride_share: '#EC4899',
+  maritime: '#06B6D4',
 };
 
 const ACCENT = '#3B82F6';

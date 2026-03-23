@@ -50,6 +50,7 @@ import SpendingMapScreen from '../screens/SpendingMapScreen';
 import MethodologyScreen from '../screens/MethodologyScreen';
 import AboutScreen from '../screens/AboutScreen';
 import GlobalSearchScreen from '../screens/GlobalSearchScreen';
+import ChatAgentScreen from '../screens/ChatAgentScreen';
 import SectorLobbyingScreen from '../screens/SectorLobbyingScreen';
 import SectorContractsScreen from '../screens/SectorContractsScreen';
 import SectorEnforcementScreen from '../screens/SectorEnforcementScreen';
@@ -140,10 +141,10 @@ function createStackScreenOptions(navigation: any) {
     headerBackTitleVisible: false,
     headerRight: () => (
       <TouchableOpacity
-        onPress={() => navigation.navigate('GlobalSearch' as never)}
+        onPress={() => navigation.navigate('ChatAgent' as never)}
         style={{ marginRight: 12 }}
       >
-        <Ionicons name="search" size={22} color={UI_COLORS.TEXT_PRIMARY} />
+        <Ionicons name="chatbubble-ellipses-outline" size={22} color={UI_COLORS.TEXT_PRIMARY} />
       </TouchableOpacity>
     ),
   };
@@ -267,6 +268,11 @@ function HomeStackScreen() {
         component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
+      <HomeStack.Screen
+        name="ChatAgent"
+        component={ChatAgentScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
     </HomeStack.Navigator>
   );
 }
@@ -373,6 +379,11 @@ function PoliticsStackScreen() {
         component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
+      <PoliticsStack.Screen
+        name="ChatAgent"
+        component={ChatAgentScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
     </PoliticsStack.Navigator>
   );
 }
@@ -444,6 +455,11 @@ function FinanceStackScreen() {
         component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
+      <FinanceStack.Screen
+        name="ChatAgent"
+        component={ChatAgentScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
     </FinanceStack.Navigator>
   );
 }
@@ -510,6 +526,11 @@ function HealthStackScreen() {
         component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
+      <HealthStack.Screen
+        name="ChatAgent"
+        component={ChatAgentScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
     </HealthStack.Navigator>
   );
 }
@@ -559,6 +580,11 @@ function EnergyStackScreen() {
       <EnergyStack.Screen
         name="GlobalSearch"
         component={GlobalSearchScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
+      <EnergyStack.Screen
+        name="ChatAgent"
+        component={ChatAgentScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
     </EnergyStack.Navigator>
@@ -617,6 +643,11 @@ function TechnologyStackScreen() {
         component={GlobalSearchScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
+      <TechnologyStack.Screen
+        name="ChatAgent"
+        component={ChatAgentScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
     </TechnologyStack.Navigator>
   );
 }
@@ -668,6 +699,11 @@ function TransportationStackScreen() {
       <TransportationStack.Screen
         name="GlobalSearch"
         component={GlobalSearchScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
+      <TransportationStack.Screen
+        name="ChatAgent"
+        component={ChatAgentScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
     </TransportationStack.Navigator>

@@ -1269,7 +1269,7 @@ def match_against_votes(claim_text: str, person_id: str, db, limit: int = 20) ->
     scored = []
     for member_vote, vote in results:
         vote_text = f"{vote.question or ''} {vote.related_bill_type or ''} {vote.related_bill_number or ''}"
-        if vote.description:
+        if hasattr(vote, 'description') and vote.description:
             vote_text += f" {vote.description}"
         vote_tokens = set(tokenize(vote_text, STOPWORDS_BASE))
         overlap = claim_tokens.intersection(vote_tokens)

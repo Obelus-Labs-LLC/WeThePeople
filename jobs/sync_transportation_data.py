@@ -16,7 +16,7 @@ import time
 import hashlib
 import argparse
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List, Dict, Any
 
 import requests
@@ -81,7 +81,8 @@ def fetch_sec_filings(session, company: TrackedTransportationCompany, limit: int
         log.info(f"  [{company.company_id}] No SEC CIK — skipping filings")
         return 0
 
-    cik = company.sec_cik.lstrip("0")
+    # cik stripped of leading zeros — reserved for future use (e.g. EDGAR full-text search)
+    cik = company.sec_cik.lstrip("0")  # noqa: F841
     url = f"https://data.sec.gov/submissions/CIK{company.sec_cik}.json"
     headers = {"User-Agent": SEC_USER_AGENT, "Accept": "application/json"}
 
@@ -336,7 +337,7 @@ def main():
 
                 # Mark as synced
                 co.needs_ingest = 0
-                co.last_full_refresh_at = datetime.utcnow()
+                co.last_full_refresh_at = datetime.now(timezone.utc)
                 session.commit()
             except Exception as e:
                 log.error(f"FAILED {cid}: {e}")

@@ -46,10 +46,13 @@ except ImportError:
     try:
         import msvcrt
         def _lock_file(f):
-            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+            # Lock the entire file, not just 1 byte
+            lock_size = max(os.fstat(f.fileno()).st_size, 1)
+            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, lock_size)
         def _unlock_file(f):
             try:
-                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+                lock_size = max(os.fstat(f.fileno()).st_size, 1)
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, lock_size)
             except OSError:
                 pass
     except ImportError:
@@ -228,6 +231,9 @@ def call_claude(system_prompt: str, user_prompt: str,
            (output_tokens * pricing["output"] / 1_000_000)
 
     record_spend(cost)
+    # NOTE: model.split('-')[1] extracts a short label (e.g., "sonnet" from
+    # "claude-sonnet-4-..."). Works for current naming convention; may need
+    # updating if Anthropic changes model ID format.
     logger.info(
         f"Claude ({model.split('-')[1]}): {elapsed:.1f}s, "
         f"{input_tokens} in / {output_tokens} out, ${cost:.4f}"
@@ -240,9 +246,11 @@ def parse_json_response(text: str) -> Any:
     """Parse JSON from Claude response, stripping markdown code fences if present."""
     text = text.strip()
     # Strip ```json ... ``` or ``` ... ```
+    # NOTE: This filter removes ALL lines starting with ```, which works for
+    # typical Claude responses but could theoretically strip content if the JSON
+    # itself contained triple backticks (extremely unlikely for our use case).
     if text.startswith("```"):
         lines = text.split("\n")
-        # Remove first line (```json) and last line (```)
         lines = [l for l in lines if not l.strip().startswith("```")]
         text = "\n".join(lines).strip()
     return json.loads(text)

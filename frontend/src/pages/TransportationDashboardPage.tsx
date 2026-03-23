@@ -17,15 +17,18 @@ import {
 
 // ── Helpers ──
 
-function fmtNum(n: number): string {
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
+function fmtCount(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
   return n.toLocaleString();
 }
 
+/** Format as a compact dollar amount — uses fmtDollar from utils/format for consistency */
 function fmtMoney(n: number): string {
-  return `$${fmtNum(n).replace('$', '')}`;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+  return `$${n.toLocaleString()}`;
 }
 
 // ── Sector colors ──
@@ -155,8 +158,8 @@ export default function TransportationDashboardPage() {
   const statCards = [
     { label: 'Lobbying Spend', value: stats?.total_lobbying_spend ? fmtMoney(stats.total_lobbying_spend) : '$0', icon: DollarSign, color: '#3B82F6', to: '/transportation/lobbying' },
     { label: 'Gov Contracts', value: stats?.total_contract_value ? fmtMoney(stats.total_contract_value) : fmtMoney(stats?.total_contracts || 0), icon: Landmark, color: '#10B981', to: '/transportation/contracts' },
-    { label: 'Enforcement Actions', value: fmtNum(stats?.total_enforcement || 0), icon: Shield, color: '#EF4444', to: '/transportation/enforcement' },
-    { label: 'Tracked Companies', value: fmtNum(stats?.total_companies || 0), icon: Truck, color: '#3B82F6', to: '/transportation/companies' },
+    { label: 'Enforcement Actions', value: fmtCount(stats?.total_enforcement || 0), icon: Shield, color: '#EF4444', to: '/transportation/enforcement' },
+    { label: 'Tracked Companies', value: fmtCount(stats?.total_companies || 0), icon: Truck, color: '#3B82F6', to: '/transportation/companies' },
   ];
 
   return (

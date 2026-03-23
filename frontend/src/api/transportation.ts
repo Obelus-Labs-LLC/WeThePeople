@@ -13,6 +13,9 @@ export interface TransportationDashboardStats {
   total_lobbying_spend?: number;
   total_contract_value?: number;
   total_penalties?: number;
+  total_recalls?: number;
+  total_complaints?: number;
+  total_fuel_economy_vehicles?: number;
   by_sector: Record<string, number>;
 }
 
@@ -103,6 +106,7 @@ export interface TransportationContractItem {
   start_date: string | null;
   end_date: string | null;
   contract_type: string | null;
+  ai_summary: string | null;
 }
 
 export interface TransportationContractsResponse {
@@ -129,6 +133,7 @@ export interface TransportationLobbyingItem {
   client_name: string | null;
   lobbying_issues: string | null;
   government_entities: string | null;
+  ai_summary: string | null;
 }
 
 export interface TransportationLobbyingResponse {
@@ -154,6 +159,7 @@ export interface TransportationEnforcementItem {
   penalty_amount: number | null;
   description: string | null;
   source: string | null;
+  ai_summary: string | null;
 }
 
 export interface TransportationEnforcementResponse {
@@ -295,4 +301,160 @@ export async function getTransportationCompanyStock(id: string): Promise<Transpo
 
 export async function getTransportationComparison(ids: string[]): Promise<TransportationComparisonResponse> {
   return fetchJSON<TransportationComparisonResponse>(`${API_BASE}/transportation/compare?ids=${ids.map(id => encodeURIComponent(id)).join(',')}`);
+}
+
+// ── NHTSA Recalls ──
+
+export interface TransportationRecallItem {
+  id: number;
+  recall_number: string | null;
+  make: string | null;
+  model: string | null;
+  model_year: number | null;
+  recall_date: string | null;
+  component: string | null;
+  summary: string | null;
+  consequence: string | null;
+  remedy: string | null;
+  manufacturer: string | null;
+}
+
+export interface TransportationRecallsResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  recalls: TransportationRecallItem[];
+}
+
+export async function getTransportationCompanyRecalls(
+  id: string,
+  params?: { limit?: number; offset?: number }
+): Promise<TransportationRecallsResponse> {
+  const sp = new URLSearchParams();
+  if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+  if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+  return fetchJSON<TransportationRecallsResponse>(`${API_BASE}/transportation/companies/${encodeURIComponent(id)}/recalls?${sp}`);
+}
+
+// ── NHTSA Complaints ──
+
+export interface TransportationComplaintItem {
+  id: number;
+  odi_number: string | null;
+  make: string | null;
+  model: string | null;
+  model_year: number | null;
+  date_of_complaint: string | null;
+  crash: boolean;
+  fire: boolean;
+  injuries: number;
+  deaths: number;
+  component: string | null;
+  summary: string | null;
+}
+
+export interface TransportationComplaintsResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  complaints: TransportationComplaintItem[];
+}
+
+export async function getTransportationCompanyComplaints(
+  id: string,
+  params?: { limit?: number; offset?: number }
+): Promise<TransportationComplaintsResponse> {
+  const sp = new URLSearchParams();
+  if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+  if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+  return fetchJSON<TransportationComplaintsResponse>(`${API_BASE}/transportation/companies/${encodeURIComponent(id)}/complaints?${sp}`);
+}
+
+// ── Fuel Economy ──
+
+export interface TransportationFuelEconomyItem {
+  id: number;
+  vehicle_id: string | null;
+  year: number | null;
+  make: string | null;
+  model: string | null;
+  mpg_city: number | null;
+  mpg_highway: number | null;
+  mpg_combined: number | null;
+  co2_tailpipe: number | null;
+  fuel_type: string | null;
+  vehicle_class: string | null;
+  ghg_score: number | null;
+  smog_rating: number | null;
+}
+
+export interface TransportationFuelEconomyResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  vehicles: TransportationFuelEconomyItem[];
+}
+
+export async function getTransportationCompanyFuelEconomy(
+  id: string,
+  params?: { limit?: number; offset?: number }
+): Promise<TransportationFuelEconomyResponse> {
+  const sp = new URLSearchParams();
+  if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+  if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+  return fetchJSON<TransportationFuelEconomyResponse>(`${API_BASE}/transportation/companies/${encodeURIComponent(id)}/fuel-economy?${sp}`);
+}
+
+// ── Donations ──
+
+export interface TransportationDonationItem {
+  id: number;
+  committee_name: string | null;
+  committee_id: string | null;
+  candidate_name: string | null;
+  candidate_id: string | null;
+  person_id: string | null;
+  amount: number | null;
+  cycle: number | null;
+  donation_date: string | null;
+  source_url: string | null;
+}
+
+export interface TransportationDonationsResponse {
+  total: number;
+  total_amount: number;
+  limit: number;
+  offset: number;
+  donations: TransportationDonationItem[];
+}
+
+export async function getTransportationCompanyDonations(
+  id: string,
+  params?: { limit?: number; offset?: number }
+): Promise<TransportationDonationsResponse> {
+  const sp = new URLSearchParams();
+  if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+  if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+  return fetchJSON<TransportationDonationsResponse>(`${API_BASE}/transportation/companies/${encodeURIComponent(id)}/donations?${sp}`);
+}
+
+// ── News ──
+
+export interface TransportationNewsItem {
+  title: string;
+  link: string;
+  source: string;
+  published: string;
+}
+
+export interface TransportationNewsResponse {
+  query: string;
+  articles: TransportationNewsItem[];
+}
+
+export async function getTransportationCompanyNews(
+  companyName: string,
+  limit = 5
+): Promise<TransportationNewsResponse> {
+  return fetchJSON<TransportationNewsResponse>(`${API_BASE}/common/news/${encodeURIComponent(companyName)}?limit=${limit}`);
 }

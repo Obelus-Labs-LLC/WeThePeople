@@ -1288,6 +1288,28 @@ class WTPClient {
     if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
     return this.fetchJSON<any>(`${this.baseUrl}/claims/entity/${entityType}/${entityId}?${sp}`);
   }
+
+  // ── Chat Assistant ──
+
+  async chatAsk(
+    question: string,
+    context?: { page: string; entity_id?: string },
+  ): Promise<{ answer: string; action?: { type: string; path?: string; query?: string } | null; cached: boolean }> {
+    const res = await fetch(`${this.baseUrl}/chat/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, context }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async chatRemaining(): Promise<{ remaining: number; limit: number }> {
+    return this.fetchJSON<{ remaining: number; limit: number }>(`${this.baseUrl}/chat/remaining`);
+  }
 }
 
 export const apiClient = new WTPClient(BASE_URL);

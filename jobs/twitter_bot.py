@@ -21,7 +21,7 @@ import random
 import hashlib
 import argparse
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 import requests
 from dotenv import load_dotenv
@@ -52,7 +52,7 @@ class TweetLog(_Base):
     category = Column(String(50))
     content_hash = Column(String(64), unique=True)
     text = Column(Text)
-    posted_at = Column(DateTime, default=datetime.utcnow)
+    posted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # ── API Helpers ──
@@ -97,8 +97,10 @@ def log_tweet(session, tweet_id: str, category: str, text: str):
 
 
 def posts_today(session) -> int:
-    """Count tweets posted today."""
-    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    """Count tweets posted today.
+    NOTE: Uses UTC midnight as the boundary. If the bot runs near midnight UTC,
+    some tweets may count toward the next day's total."""
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     return session.query(TweetLog).filter(TweetLog.posted_at >= today).count()
 
 
@@ -124,11 +126,11 @@ def generate_data_tweet() -> tuple:
 
     # Try: top lobbying — name names
     data = api_get("/influence/top-lobbying", {"limit": 10})
-    items = data if isinstance(data, list) else data.get("items", [])
+    items = data if isinstance(data, list) else data.get("leaders", [])
     if items:
         item = random.choice(items[:5])
-        name = item.get("name", "A company")
-        total = item.get("total_income", 0) or item.get("total", 0)
+        name = item.get("display_name", item.get("name", "A company"))
+        total = item.get("total_lobbying", 0)
         if total > 0:
             options.append((
                 f"{name} spent {_fmt_money(total)} lobbying Congress.\n\n"
@@ -138,11 +140,11 @@ def generate_data_tweet() -> tuple:
 
     # Try: top contracts — taxpayer angle
     data = api_get("/influence/top-contracts", {"limit": 10})
-    items = data if isinstance(data, list) else data.get("items", [])
+    items = data if isinstance(data, list) else data.get("leaders", [])
     if items:
         item = random.choice(items[:5])
-        name = item.get("name", "A company")
-        total = item.get("total_value", 0) or item.get("total", 0)
+        name = item.get("display_name", item.get("name", "A company"))
+        total = item.get("total_contracts", 0)
         if total > 0:
             options.append((
                 f"{name} received {_fmt_money(total)} in government contracts.\n\n"
@@ -151,7 +153,7 @@ def generate_data_tweet() -> tuple:
             ))
 
     # Try: congressional trades — irony/conflict angle
-    data = api_get("/congressional-trades", {"limit": 20})
+    data = api_get("/politics/congressional-trades", {"limit": 20})
     trades = data.get("trades", data.get("items", []))
     if trades:
         trade = random.choice(trades[:10])
@@ -168,16 +170,18 @@ def generate_data_tweet() -> tuple:
         ))
 
     # Try: influence stats — big numbers
+    # API returns: total_lobbying_spend, total_contract_value, total_enforcement_actions, politicians_connected
     stats = api_get("/influence/stats")
     if stats:
-        total_lobbying = stats.get("total_lobbying_filings", 0)
-        total_contracts = stats.get("total_contracts", 0)
-        total_trades = stats.get("total_trades", 0)
-        if total_lobbying > 1000:
+        lobbying_spend = stats.get("total_lobbying_spend", 0)
+        contract_value = stats.get("total_contract_value", 0)
+        enforcement = stats.get("total_enforcement_actions", 0)
+        politicians = stats.get("politicians_connected", 0)
+        if lobbying_spend > 0 and contract_value > 0:
             options.append((
-                f"{total_lobbying:,} lobbying filings.\n"
-                f"{total_contracts:,} government contracts.\n"
-                f"{total_trades:,} stock trades by Congress.\n\n"
+                f"{_fmt_money(lobbying_spend)} in lobbying.\n"
+                f"{_fmt_money(contract_value)} in government contracts.\n"
+                f"{enforcement:,} enforcement actions.\n\n"
                 f"All searchable. All free.",
                 SITE
             ))
@@ -248,14 +252,14 @@ def generate_thread() -> tuple:
     """Generate a short 'Follow the Money' thread (2-3 tweets max)."""
     # Pull data to build a real thread
     lobbying = api_get("/influence/top-lobbying", {"limit": 5})
-    items = lobbying if isinstance(lobbying, list) else lobbying.get("items", [])
+    items = lobbying if isinstance(lobbying, list) else lobbying.get("leaders", [])
 
     if not items:
         return None, "thread"
 
     company = random.choice(items[:3])
-    name = company.get("name", "A major corporation")
-    lobby_total = company.get("total_income", 0) or company.get("total", 0)
+    name = company.get("display_name", company.get("name", "A major corporation"))
+    lobby_total = company.get("total_lobbying", 0)
 
     if lobby_total <= 0:
         return None, "thread"
@@ -347,7 +351,8 @@ def run(category: str = None, dry_run: bool = False):
         session.close()
         return
 
-    # Check for duplicates
+    # Check for duplicates — only retries once by design. If both attempts
+    # produce duplicates, we skip this cycle rather than looping indefinitely.
     check_text = result[0] if is_thread else tweet_text
     if already_posted(session, check_text):
         log.info("Already posted similar content. Regenerating...")

@@ -22,7 +22,12 @@ Conservative by default:
 
 import os
 from typing import Optional, Dict, Any
-from rapidfuzz import fuzz
+
+try:
+    from rapidfuzz import fuzz
+    _RAPIDFUZZ_AVAILABLE = True
+except ImportError:
+    _RAPIDFUZZ_AVAILABLE = False
 
 
 # Environment flag gate (default: disabled)
@@ -70,6 +75,18 @@ def fuzzy_title_match(
         >>> result["score"] > 0.80
         True
     """
+    if not _RAPIDFUZZ_AVAILABLE:
+        return {
+            "matched": False,
+            "score": 0.0,
+            "threshold": threshold,
+            "method": method,
+            "evidence": "fuzzy_title_match:unavailable",
+            "claim_text": claim_text,
+            "bill_title": bill_title,
+            "decision": "no_match"
+        }
+
     # Normalize inputs
     claim_lower = claim_text.lower().strip()
     title_lower = bill_title.lower().strip()

@@ -42,26 +42,26 @@ const TIER_DEFINITIONS = [
   {
     tier: 'strong' as const,
     title: 'Strong Evidence',
-    description: 'Multiple data sources confirm the claim with high relevance and consistent voting/action record.',
-    threshold: 'Score >= 0.7',
+    description: 'Direct legislative action match with high relevance, follow-through timing, and significant legislative progress (e.g., bill passed committee or chamber). Or a strong match boosted by corroborating cross-data evidence.',
+    threshold: 'Categorical: direct match + progress + timing',
   },
   {
     tier: 'moderate' as const,
     title: 'Moderate Evidence',
-    description: 'Some supporting evidence found, but with gaps in consistency or limited data coverage.',
-    threshold: 'Score 0.4 - 0.69',
+    description: 'Related legislative activity found with partial overlap, or a weak legislative match strengthened by cross-data evidence from votes, trades, lobbying, contracts, enforcement, donations, committees, or SEC filings.',
+    threshold: 'Categorical: related activity or cross-data boost',
   },
   {
     tier: 'weak' as const,
     title: 'Weak Evidence',
-    description: 'Minimal supporting evidence. The claim may be technically accurate but misleading in context.',
-    threshold: 'Score 0.2 - 0.39',
+    description: 'Tangential connection found — low overlap, retroactive timing, or only boilerplate civic terms match. Alternatively, no legislative match but at least one cross-data source provides supporting evidence.',
+    threshold: 'Categorical: tangential connection or single cross-data match',
   },
   {
     tier: 'none' as const,
     title: 'Unverified',
-    description: 'No matching records found in our database, or the claim cannot be verified against public records.',
-    threshold: 'Score < 0.2',
+    description: 'No matching records found across any of the 9 data sources. The claim cannot be verified against public records in our database.',
+    threshold: 'No matching evidence found',
   },
 ];
 

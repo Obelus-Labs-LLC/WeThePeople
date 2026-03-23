@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { globalSearch, type SearchResults, type PoliticianResult, type CompanyResult } from "../api/search";
+import { openChatAgent } from "./ChatAgent";
 
 const SECTOR_COLORS: Record<string, string> = {
   finance: "bg-blue-500/20 text-blue-300",
@@ -52,17 +53,7 @@ export default function GlobalSearch() {
     return arr;
   }, [results]);
 
-  // Keyboard shortcut: Cmd+K / Ctrl+K
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setOpen((prev) => !prev);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  // Ctrl+K is handled by ChatAgent — no duplicate listener here
 
   // Auto-focus input when opened
   useEffect(() => {
@@ -138,17 +129,16 @@ export default function GlobalSearch() {
 
   return (
     <>
-      {/* Search trigger button */}
+      {/* Search trigger button — opens ChatAgent */}
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => openChatAgent()}
         className="fixed top-4 right-4 z-[9998] flex items-center gap-2 px-3 py-2 rounded-xl
                    bg-white/[0.07] border border-white/10 text-white/60 hover:text-white hover:bg-white/[0.12]
                    backdrop-blur-sm transition-all text-sm cursor-pointer"
-        aria-label="Open search"
+        aria-label="Open chat assistant"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.3-4.3" />
+          <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
         </svg>
         <span className="hidden sm:inline font-mono text-xs text-white/40">
           {navigator.platform?.includes("Mac") ? "\u2318K" : "Ctrl+K"}

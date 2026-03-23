@@ -47,16 +47,19 @@ AGENCY_SLUGS = {
     "DOT": "transportation-department",
 }
 
-# Map sub-sectors to relevant agencies (instead of searching all 5 for every company)
+# Map sub-sectors to relevant agencies (instead of searching all 5 for every company).
+# FMCSA covers trucks/buses (motor carriers), not rail.
+# FRA (Federal Railroad Administration) covers rail but is not in AGENCY_SLUGS (no Federal Register slug found);
+# rail companies fall through to DOT which covers FRA actions.
 SUBSECTOR_AGENCIES = {
     "aviation": ["FAA", "DOT"],
     "aerospace": ["FAA", "DOT"],
     "motor_vehicle": ["NHTSA", "DOT"],
     "logistics": ["FMCSA", "DOT"],
-    "rail": ["FMCSA", "DOT"],
+    "rail": ["DOT"],  # FRA is under DOT; no separate slug in Federal Register API
     "ride_share": ["NHTSA", "DOT"],
     "maritime": ["FMC", "DOT"],
-    "trucking": ["FMCSA", "DOT"],
+    "shipping": ["FMC", "DOT"],
 }
 
 LEGAL_SUFFIXES = [
@@ -83,13 +86,14 @@ def parse_date(val):
         return None
 
 
-def _safe_float(val) -> float:
+def _safe_float(val):
+    """Safely convert to float, returning None on failure (not 0.0, to distinguish missing from zero)."""
     if val is None:
-        return 0.0
+        return None
     try:
         return float(val)
     except (ValueError, TypeError):
-        return 0.0
+        return None
 
 
 def extract_penalty(title: str, abstract: str = "") -> float:

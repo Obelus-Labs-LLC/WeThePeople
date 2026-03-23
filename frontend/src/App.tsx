@@ -10,6 +10,7 @@ import VerifyLayout from "./layouts/VerifyLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import GlobalSearch from "./components/GlobalSearch";
+import ChatAgent from "./components/ChatAgent";
 
 // ── Lazy-loaded pages ──
 
@@ -89,6 +90,7 @@ const App: React.FC = () => (
   <ErrorBoundary>
     <BrowserRouter>
       <GlobalSearch />
+      <ChatAgent />
       <Suspense fallback={
         <div className="flex h-screen items-center justify-center bg-slate-950">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
