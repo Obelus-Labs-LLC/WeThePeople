@@ -483,6 +483,7 @@ def get_tech_company_enforcement(
 
 @router.get("/companies/{company_id}/contracts/trends")
 def get_tech_company_contract_trends(company_id: str):
+    # NOTE: func.strftime is SQLite-specific. PostgreSQL equivalent: func.extract('year', col)
     db = SessionLocal()
     try:
         co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
@@ -681,7 +682,11 @@ def get_tech_company_donations(
 
 @router.get("/companies/{company_id}/trends")
 def get_tech_company_trends(company_id: str):
-    """Yearly trend data for a tech company: lobbying, contracts, enforcement, patents."""
+    """Yearly trend data for a tech company: lobbying, contracts, enforcement, patents.
+
+    NOTE: func.strftime is SQLite-specific. PostgreSQL equivalent: func.extract('year', col)
+    or func.to_char(col, 'YYYY'). If migrating to PostgreSQL, update these queries.
+    """
     import datetime
     db = SessionLocal()
     try:

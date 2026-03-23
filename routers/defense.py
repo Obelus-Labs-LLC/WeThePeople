@@ -213,6 +213,8 @@ def get_defense_company(company_id: str):
             "latest_stock": latest_stock,
             "ai_profile_summary": co.ai_profile_summary,
             "sanctions_status": co.sanctions_status,
+            "sanctions_data": co.sanctions_data,
+            "sanctions_checked_at": str(co.sanctions_checked_at) if co.sanctions_checked_at else None,
         }
     finally:
         db.close()

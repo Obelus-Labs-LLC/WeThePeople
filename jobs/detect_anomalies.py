@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT))
 from dotenv import load_dotenv
 load_dotenv(ROOT / ".env")
 
-from sqlalchemy import func, extract
+from sqlalchemy import func, extract, or_
 from models.database import (
     SessionLocal, Base, engine, Anomaly,
     CongressionalTrade, Vote, MemberVote, TrackedMember,
@@ -102,7 +102,9 @@ def detect_trade_near_vote(db) -> List[Dict[str, Any]]:
             continue
 
         member = members.get(trade.person_id)
-        if not member or not member.bioguide_id:
+        if not member:
+            continue
+        if not member.bioguide_id and not trade.person_id:
             continue
 
         trade_date = trade.transaction_date
@@ -110,11 +112,21 @@ def detect_trade_near_vote(db) -> List[Dict[str, Any]]:
         vote_window_end = trade_date + timedelta(days=30)
 
         # Find votes by this member within 30 days AFTER the trade
+        # Match on bioguide_id OR person_id to catch members without bioguide_id
+        member_filter = []
+        if member.bioguide_id:
+            member_filter.append(MemberVote.bioguide_id == member.bioguide_id)
+        if trade.person_id:
+            member_filter.append(MemberVote.person_id == trade.person_id)
+
+        if not member_filter:
+            continue
+
         nearby_votes = (
             db.query(MemberVote, Vote)
             .join(Vote, Vote.id == MemberVote.vote_id)
             .filter(
-                MemberVote.bioguide_id == member.bioguide_id,
+                or_(*member_filter),
                 Vote.vote_date >= vote_window_start,
                 Vote.vote_date <= vote_window_end,
             )

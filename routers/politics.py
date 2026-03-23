@@ -754,7 +754,11 @@ from models.database import PersonBill
 
 @router.get("/people/{person_id}/trends")
 def get_person_trends(person_id: str):
-    """Yearly trend data for a politician: trades, votes, bills sponsored, donations received."""
+    """Yearly trend data for a politician: trades, votes, bills sponsored, donations received.
+
+    NOTE: func.strftime is SQLite-specific. PostgreSQL equivalent: func.extract('year', col)
+    or func.to_char(col, 'YYYY'). If migrating to PostgreSQL, update these queries.
+    """
     import datetime
     db = SessionLocal()
     try:
