@@ -3,10 +3,10 @@ Technology sector routes — Companies, filings, patents, contracts, lobbying, e
 """
 
 from fastapi import APIRouter, Query, HTTPException
-from sqlalchemy import func, desc
-from typing import Optional, Dict, Any
+from sqlalchemy import func, desc, or_
+from typing import Optional, Dict, Any, List
 
-from models.database import SessionLocal
+from models.database import SessionLocal, Bill
 from models.tech_models import (
     TrackedTechCompany,
     SECTechFiling,
@@ -211,6 +211,35 @@ def get_tech_company(company_id: str):
                 "profit_margin": latest.profit_margin,
             }
 
+        # Patent-policy summary: count IP-related lobbying
+        ip_keywords = ["patent", "intellectual property", "copyright", "innovation", "technology transfer"]
+        ip_lobby_filters = []
+        for kw in ip_keywords:
+            pattern = f"%{kw}%"
+            ip_lobby_filters.append(LobbyingRecord.lobbying_issues.ilike(pattern))
+            ip_lobby_filters.append(LobbyingRecord.specific_issues.ilike(pattern))
+        lobbying_on_ip = db.query(func.count(LobbyingRecord.id)).filter(
+            LobbyingRecord.company_id == company_id,
+            or_(*ip_lobby_filters)
+        ).scalar() or 0
+
+        related_bills_count = 0
+        try:
+            bill_filters = []
+            for kw in ip_keywords:
+                pattern = f"%{kw}%"
+                bill_filters.append(Bill.title.ilike(pattern))
+                bill_filters.append(Bill.policy_area.ilike(pattern))
+            related_bills_count = db.query(func.count(Bill.bill_id)).filter(or_(*bill_filters)).scalar() or 0
+        except Exception:
+            pass  # Bill table may not exist locally
+
+        patent_policy_summary = {
+            "patent_count": patent_count,
+            "lobbying_on_ip_policy": lobbying_on_ip,
+            "related_bills": related_bills_count,
+        }
+
         return {
             "company_id": co.company_id, "display_name": co.display_name,
             "ticker": co.ticker, "sector_type": co.sector_type,
@@ -220,6 +249,7 @@ def get_tech_company(company_id: str):
             "latest_stock": latest_stock,
             "ai_profile_summary": co.ai_profile_summary,
             "sanctions_status": co.sanctions_status,
+            "patent_policy_summary": patent_policy_summary,
         }
     finally:
         db.close()
@@ -536,6 +566,84 @@ def get_tech_comparison(ids: str = Query(..., description="Comma-separated compa
             })
 
         return {"companies": results}
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/patent-policy")
+def get_tech_company_patent_policy(company_id: str):
+    """Link a company's patents to lobbying filings and IP/tech policy bills in Congress."""
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        # 1. Patents grouped by CPC category prefix (first 3 chars)
+        patents = db.query(TechPatent).filter_by(company_id=company_id).all()
+        patent_categories: Dict[str, int] = {}
+        for p in patents:
+            if p.cpc_codes:
+                for code in p.cpc_codes.split(","):
+                    prefix = code.strip()[:3] if len(code.strip()) >= 3 else code.strip()
+                    if prefix:
+                        patent_categories[prefix] = patent_categories.get(prefix, 0) + 1
+
+        # 2. Lobbying filings mentioning IP-related topics
+        ip_keywords = ["patent", "intellectual property", "copyright", "innovation",
+                        "technology transfer", "trade secret", "trademark", "IP rights"]
+        ip_lobby_filters = []
+        for kw in ip_keywords:
+            pattern = f"%{kw}%"
+            ip_lobby_filters.append(LobbyingRecord.lobbying_issues.ilike(pattern))
+            ip_lobby_filters.append(LobbyingRecord.specific_issues.ilike(pattern))
+
+        ip_lobbying = db.query(LobbyingRecord).filter(
+            LobbyingRecord.company_id == company_id,
+            or_(*ip_lobby_filters)
+        ).order_by(desc(LobbyingRecord.filing_year)).all()
+
+        total_lobbying_on_ip = len(ip_lobbying)
+        total_ip_lobbying_spend = sum(r.income or 0 for r in ip_lobbying)
+
+        ip_lobbying_items = [{
+            "id": r.id, "filing_uuid": r.filing_uuid, "filing_year": r.filing_year,
+            "filing_period": r.filing_period, "income": r.income,
+            "registrant_name": r.registrant_name, "lobbying_issues": r.lobbying_issues,
+        } for r in ip_lobbying[:20]]
+
+        # 3. Bills related to IP/tech policy
+        bill_keywords = ["patent", "intellectual property", "copyright",
+                         "innovation", "technology transfer"]
+        bill_filters = []
+        for kw in bill_keywords:
+            pattern = f"%{kw}%"
+            bill_filters.append(Bill.title.ilike(pattern))
+            bill_filters.append(Bill.policy_area.ilike(pattern))
+
+        related_bills = db.query(Bill).filter(
+            or_(*bill_filters)
+        ).order_by(desc(Bill.latest_action_date)).limit(25).all()
+
+        bill_items = [{
+            "bill_id": b.bill_id, "title": b.title, "congress": b.congress,
+            "bill_type": b.bill_type, "bill_number": b.bill_number,
+            "policy_area": b.policy_area, "status_bucket": b.status_bucket,
+            "latest_action_text": b.latest_action_text,
+            "latest_action_date": str(b.latest_action_date) if b.latest_action_date else None,
+        } for b in related_bills]
+
+        return {
+            "company_id": company_id,
+            "display_name": co.display_name,
+            "patent_count": len(patents),
+            "patent_categories": patent_categories,
+            "lobbying_on_ip_policy": total_lobbying_on_ip,
+            "ip_lobbying_spend": total_ip_lobbying_spend,
+            "ip_lobbying_filings": ip_lobbying_items,
+            "related_bills_count": len(related_bills),
+            "related_bills": bill_items,
+        }
     finally:
         db.close()
 

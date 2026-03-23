@@ -11,6 +11,7 @@ import BackButton from '../components/BackButton';
 import { TechSectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import SanctionsBadge from '../components/SanctionsBadge';
+import AnomalyBadge from '../components/AnomalyBadge';
 import {
   getTechCompanyDetail,
   getTechCompanyPatents,
@@ -22,6 +23,7 @@ import {
   getTechCompanyEnforcement,
   getTechCompanyFilings,
   getTechCompanyStock,
+  getTechCompanyPatentPolicy,
   type TechCompanyDetail,
   type TechPatentItem,
   type TechContractItem,
@@ -32,6 +34,7 @@ import {
   type TechEnforcementItem,
   type TechFilingItem,
   type TechStockData,
+  type TechPatentPolicyResponse,
 } from '../api/tech';
 
 import { LOCAL_LOGOS } from '../data/techLogos';
@@ -125,6 +128,9 @@ export default function TechCompanyProfilePage() {
   const [filingTotal, setFilingTotal] = useState(0);
   const [filingsLoaded, setFilingsLoaded] = useState(false);
 
+  const [patentPolicy, setPatentPolicy] = useState<TechPatentPolicyResponse | null>(null);
+  const [patentPolicyLoaded, setPatentPolicyLoaded] = useState(false);
+
   // Load overview on mount
   useEffect(() => {
     if (!companyId) return;
@@ -147,8 +153,14 @@ export default function TechCompanyProfilePage() {
     if (!companyId) return;
 
     if (activeTab === 'patents' && !patentsLoaded) {
-      getTechCompanyPatents(companyId, { limit: 100 })
-        .then((r) => { setPatents(r.patents || []); setPatentTotal(r.total); setPatentsLoaded(true); })
+      Promise.all([
+        getTechCompanyPatents(companyId, { limit: 100 }),
+        getTechCompanyPatentPolicy(companyId).catch(() => null),
+      ])
+        .then(([r, pp]) => {
+          setPatents(r.patents || []); setPatentTotal(r.total); setPatentsLoaded(true);
+          if (pp) { setPatentPolicy(pp); setPatentPolicyLoaded(true); }
+        })
         .catch(console.error);
     }
     if (activeTab === 'contracts' && !contractsLoaded) {
@@ -259,6 +271,7 @@ export default function TechCompanyProfilePage() {
                 {detail.sector_type.replace(/_/g, ' ')}
               </span>
               <SanctionsBadge status={detail.sanctions_status} />
+              <AnomalyBadge entityType="company" entityId={companyId || ''} />
               {detail.headquarters && (
                 <span className="font-body text-sm text-white/50">
                   {detail.headquarters}
@@ -370,6 +383,64 @@ export default function TechCompanyProfilePage() {
           {/* PATENTS */}
           {activeTab === 'patents' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+              {/* Policy Connection */}
+              {patentPolicyLoaded && patentPolicy && (patentPolicy.lobbying_on_ip_policy > 0 || patentPolicy.related_bills_count > 0) && (
+                <div className="rounded-xl border border-[#8B5CF6]/30 bg-[#8B5CF6]/5 p-6 mb-8">
+                  <h3 className="font-heading text-sm font-bold uppercase text-[#A78BFA] mb-4">Policy Connection</h3>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3 mb-4">
+                    <div className="rounded-lg bg-white/[0.03] p-4 border border-white/10">
+                      <p className="font-mono text-xs text-white/40 mb-1">Patents Filed</p>
+                      <p className="font-mono text-2xl font-bold text-white">{fmtNum(patentPolicy.patent_count)}</p>
+                    </div>
+                    <div className="rounded-lg bg-white/[0.03] p-4 border border-white/10">
+                      <p className="font-mono text-xs text-white/40 mb-1">IP Policy Lobbying Filings</p>
+                      <p className="font-mono text-2xl font-bold text-[#A78BFA]">{fmtNum(patentPolicy.lobbying_on_ip_policy)}</p>
+                      {patentPolicy.ip_lobbying_spend > 0 && (
+                        <p className="font-mono text-xs text-white/50 mt-1">{fmtDollar(patentPolicy.ip_lobbying_spend)} spent</p>
+                      )}
+                    </div>
+                    <div className="rounded-lg bg-white/[0.03] p-4 border border-white/10">
+                      <p className="font-mono text-xs text-white/40 mb-1">Related Bills in Congress</p>
+                      <p className="font-mono text-2xl font-bold text-[#3B82F6]">{fmtNum(patentPolicy.related_bills_count)}</p>
+                    </div>
+                  </div>
+                  {patentPolicy.lobbying_on_ip_policy > 0 && (
+                    <button
+                      onClick={() => setActiveTab('lobbying')}
+                      className="cursor-pointer text-sm text-[#A78BFA] hover:text-white transition-colors mr-4"
+                    >
+                      View IP lobbying filings →
+                    </button>
+                  )}
+                  {patentPolicy.related_bills.length > 0 && (
+                    <div className="mt-4">
+                      <p className="font-mono text-xs text-white/40 uppercase tracking-wider mb-2">Related IP/Tech Bills</p>
+                      <div className="flex flex-col gap-2">
+                        {patentPolicy.related_bills.slice(0, 5).map((b) => (
+                          <Link
+                            key={b.bill_id}
+                            to={`/politics/bills/${b.bill_id}`}
+                            className="flex items-center gap-3 rounded-lg bg-white/[0.03] px-4 py-3 border border-white/5 hover:border-white/15 transition-colors no-underline"
+                          >
+                            <span className="rounded bg-[#3B82F6]/20 px-2 py-0.5 font-mono text-[10px] font-bold text-[#3B82F6] uppercase shrink-0">
+                              {b.bill_type}{b.bill_number}
+                            </span>
+                            <span className="font-body text-sm text-white/70 truncate flex-1">
+                              {b.title || 'Untitled Bill'}
+                            </span>
+                            {b.status_bucket && (
+                              <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-[10px] text-white/40 shrink-0">
+                                {b.status_bucket.replace(/_/g, ' ')}
+                              </span>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <SectionHeader title="Patents" icon={FileText} count={patentTotal} />
               {!patentsLoaded ? (
                 <div className="flex items-center justify-center py-20">

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Landmark, TrendingUp, Building2, Calendar, ExternalLink } from 'lucide-react';
+import CSVExport from '../components/CSVExport';
 import {
   PoliticsSectorHeader,
   FinanceSectorHeader,
@@ -286,9 +287,24 @@ export default function SectorContractsPage() {
             <h1 className="font-heading text-4xl font-bold tracking-tight text-zinc-50 leading-tight xl:text-5xl">
               {config.label} Contract Timeline
             </h1>
-            <p className="font-body text-base text-zinc-400 leading-relaxed max-w-2xl">
-              Government contract awards over time across all tracked {config.label.toLowerCase()} {config.entityKey === 'institutions' ? 'institutions' : 'companies'}.
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="font-body text-base text-zinc-400 leading-relaxed max-w-2xl">
+                Government contract awards over time across all tracked {config.label.toLowerCase()} {config.entityKey === 'institutions' ? 'institutions' : 'companies'}.
+              </p>
+              <CSVExport
+                data={allContracts}
+                filename={`${config.key}-contracts`}
+                columns={[
+                  { key: 'entity_name', label: 'Company' },
+                  { key: 'award_amount', label: 'Award Amount' },
+                  { key: 'awarding_agency', label: 'Agency' },
+                  { key: 'description', label: 'Description' },
+                  { key: 'start_date', label: 'Start Date' },
+                  { key: 'end_date', label: 'End Date' },
+                  { key: 'contract_type', label: 'Type' },
+                ]}
+              />
+            </div>
           </motion.div>
 
           {/* Stat cards */}

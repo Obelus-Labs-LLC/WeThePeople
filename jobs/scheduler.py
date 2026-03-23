@@ -236,6 +236,14 @@ JOB_REGISTRY: List[JobDef] = [
         description="Congressional trades from House financial disclosure PDFs",
     ),
 
+    JobDef(
+        name="detect_anomalies",
+        script="jobs/detect_anomalies.py",
+        interval_hours=24,
+        timeout_sec=3600,
+        description="Scan for suspicious patterns: trades near votes, lobbying spikes, enforcement gaps",
+    ),
+
     # NOTE: twitter_bot.py is NOT in the scheduler — it runs via cron at specific times
     # (4x/day at fixed hours for optimal engagement, not on an interval).
 

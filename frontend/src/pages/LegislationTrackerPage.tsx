@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Filter, ChevronDown, FileText, Users } from 'lucide-react';
+import CSVExport from '../components/CSVExport';
 import { motion } from 'framer-motion';
 import { getApiBaseUrl } from '../api/client';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
@@ -395,14 +396,44 @@ export default function LegislationTrackerPage() {
           </motion.div>
         )}
 
-        {/* Results count */}
+        {/* Results count + CSV export */}
         {!loading && !error && (
-          <p className="mb-4 font-mono text-xs text-white/30">
-            {filteredBills.length !== bills.length
-              ? `${filteredBills.length} of ${total.toLocaleString()} bill${total !== 1 ? 's' : ''} shown`
-              : `${total.toLocaleString()} bill${total !== 1 ? 's' : ''} found`
-            }
-          </p>
+          <div className="mb-4 flex items-center justify-between">
+            <p className="font-mono text-xs text-white/30">
+              {filteredBills.length !== bills.length
+                ? `${filteredBills.length} of ${total.toLocaleString()} bill${total !== 1 ? 's' : ''} shown`
+                : `${total.toLocaleString()} bill${total !== 1 ? 's' : ''} found`
+              }
+            </p>
+            <CSVExport
+              data={filteredBills.map((b) => ({
+                bill_id: b.bill_id,
+                title: b.title,
+                congress: b.congress,
+                bill_type: b.bill_type,
+                bill_number: b.bill_number,
+                policy_area: b.policy_area,
+                status: b.status_bucket,
+                introduced_date: b.introduced_date,
+                latest_action: b.latest_action_text,
+                latest_action_date: b.latest_action_date,
+                sponsor: b.sponsors?.[0]?.display_name || '',
+              }))}
+              filename="legislation"
+              columns={[
+                { key: 'bill_id', label: 'Bill ID' },
+                { key: 'title', label: 'Title' },
+                { key: 'congress', label: 'Congress' },
+                { key: 'bill_type', label: 'Type' },
+                { key: 'policy_area', label: 'Policy Area' },
+                { key: 'status', label: 'Status' },
+                { key: 'introduced_date', label: 'Introduced' },
+                { key: 'latest_action', label: 'Latest Action' },
+                { key: 'latest_action_date', label: 'Latest Action Date' },
+                { key: 'sponsor', label: 'Sponsor' },
+              ]}
+            />
+          </div>
         )}
 
         {/* Error state */}

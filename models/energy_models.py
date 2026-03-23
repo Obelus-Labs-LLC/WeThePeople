@@ -96,6 +96,8 @@ class EnergyEmission(Base):
     company_id = Column(String, ForeignKey("tracked_energy_companies.company_id"), nullable=False, index=True)
 
     facility_name = Column(String, nullable=True)
+    facility_id_epa = Column(String, nullable=True, index=True)  # EPA GHGRP facility ID
+    facility_city = Column(String, nullable=True)
     facility_state = Column(String, nullable=True, index=True)
     reporting_year = Column(Integer, nullable=False, index=True)
     total_emissions = Column(Float, nullable=True)  # metric tons CO2e

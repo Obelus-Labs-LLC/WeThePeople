@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Scale, Building2, TrendingUp } from 'lucide-react';
+import CSVExport from '../components/CSVExport';
 import {
   PoliticsSectorHeader,
   FinanceSectorHeader,
@@ -283,9 +284,25 @@ export default function SectorLobbyingPage() {
             <h1 className="font-heading text-4xl font-bold tracking-tight text-zinc-50 leading-tight xl:text-5xl">
               {config.label} Lobbying Breakdown
             </h1>
-            <p className="font-body text-base text-zinc-400 leading-relaxed max-w-2xl">
-              Lobbying spending by issue area across all tracked {config.label.toLowerCase()} {config.entityKey === 'institutions' ? 'institutions' : 'companies'}.
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="font-body text-base text-zinc-400 leading-relaxed max-w-2xl">
+                Lobbying spending by issue area across all tracked {config.label.toLowerCase()} {config.entityKey === 'institutions' ? 'institutions' : 'companies'}.
+              </p>
+              <CSVExport
+                data={allFilings}
+                filename={`${config.key}-lobbying`}
+                columns={[
+                  { key: 'entity_name', label: 'Company' },
+                  { key: 'registrant_name', label: 'Registrant' },
+                  { key: 'client_name', label: 'Client' },
+                  { key: 'filing_year', label: 'Year' },
+                  { key: 'filing_period', label: 'Period' },
+                  { key: 'income', label: 'Income' },
+                  { key: 'lobbying_issues', label: 'Issues' },
+                  { key: 'government_entities', label: 'Gov Entities' },
+                ]}
+              />
+            </div>
           </motion.div>
 
           {/* Stat cards */}

@@ -524,6 +524,30 @@ class CongressionalTrade(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class Anomaly(Base):
+    """
+    Anomalies detected by the nightly anomaly detection job.
+    Each row represents a suspicious pattern found in the data.
+    """
+    __tablename__ = "anomalies"
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_hash", name="uq_anomalies_hash"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    pattern_type = Column(String(50), nullable=False, index=True)  # trade_near_vote, lobbying_spike, enforcement_gap, revolving_door
+    entity_type = Column(String(50), nullable=False, index=True)   # person, company
+    entity_id = Column(String(100), nullable=False, index=True)
+    entity_name = Column(String(200), nullable=True)
+    score = Column(Float, nullable=False, index=True)              # 1-10 suspicion score
+    title = Column(String(500), nullable=False)                    # Human-readable headline
+    description = Column(Text, nullable=True)                      # Detailed explanation
+    evidence = Column(Text, nullable=True)                         # JSON: related records
+    detected_at = Column(DateTime, server_default=func.now(), nullable=False)
+    dedupe_hash = Column(String(64), nullable=False, index=True)
+
+
 import models.finance_models  # noqa: F401 — register finance tables for Alembic
 import models.health_models  # noqa: F401 — register health tables for Alembic
 import models.market_models  # noqa: F401 — register market/stock tables for Alembic

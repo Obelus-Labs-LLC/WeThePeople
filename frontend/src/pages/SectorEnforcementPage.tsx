@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Shield, Building2, Calendar, ExternalLink, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import CSVExport from '../components/CSVExport';
 import {
   PoliticsSectorHeader,
   FinanceSectorHeader,
@@ -301,9 +302,24 @@ export default function SectorEnforcementPage() {
             <h1 className="font-heading text-4xl font-bold tracking-tight text-zinc-50 leading-tight xl:text-5xl">
               {config.label} Enforcement Tracker
             </h1>
-            <p className="font-body text-base text-zinc-400 leading-relaxed max-w-2xl">
-              Regulatory enforcement actions and penalties across all tracked {config.label.toLowerCase()} {config.entityKey === 'institutions' ? 'institutions' : 'companies'}, color-coded by severity.
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="font-body text-base text-zinc-400 leading-relaxed max-w-2xl">
+                Regulatory enforcement actions and penalties across all tracked {config.label.toLowerCase()} {config.entityKey === 'institutions' ? 'institutions' : 'companies'}, color-coded by severity.
+              </p>
+              <CSVExport
+                data={filtered}
+                filename={`${config.key}-enforcement`}
+                columns={[
+                  { key: 'entity_name', label: 'Company' },
+                  { key: 'case_title', label: 'Case Title' },
+                  { key: 'case_date', label: 'Date' },
+                  { key: 'enforcement_type', label: 'Type' },
+                  { key: 'penalty_amount', label: 'Penalty Amount' },
+                  { key: 'description', label: 'Description' },
+                  { key: 'source', label: 'Source' },
+                ]}
+              />
+            </div>
           </motion.div>
 
           {/* Stat cards */}

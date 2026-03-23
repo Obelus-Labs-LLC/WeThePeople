@@ -1,5 +1,6 @@
 import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import PoliticsLayout from "./layouts/PoliticsLayout";
 import FinanceLayout from "./layouts/FinanceLayout";
 import TechLayout from "./layouts/TechLayout";
@@ -48,7 +49,8 @@ const HealthDashboardPage = React.lazy(() => import("./pages/HealthDashboardPage
 const HealthCompaniesPage = React.lazy(() => import("./pages/HealthCompaniesPage"));
 const HealthComparePage = React.lazy(() => import("./pages/HealthComparePage"));
 const HealthCompanyProfilePage = React.lazy(() => import("./pages/HealthCompanyProfilePage"));
-const DrugLookupPage = React.lazy(() => import("./pages/DrugLookupPage"));
+// DrugLookupPage hidden from UI (data kept in backend)
+// const DrugLookupPage = React.lazy(() => import("./pages/DrugLookupPage"));
 const ClinicalTrialPipelinePage = React.lazy(() => import("./pages/ClinicalTrialPipelinePage"));
 const FDAApprovalsPage = React.lazy(() => import("./pages/FDAApprovalsPage"));
 const EnergyDashboardPage = React.lazy(() => import("./pages/EnergyDashboardPage"));
@@ -74,6 +76,7 @@ const MoneyFlowPage = React.lazy(() => import("./pages/MoneyFlowPage"));
 const DataExplorerPage = React.lazy(() => import("./pages/DataExplorerPage"));
 const DataStoryPage = React.lazy(() => import("./pages/DataStoryPage"));
 const InfluenceTimelinePage = React.lazy(() => import("./pages/InfluenceTimelinePage"));
+const AnomaliesPage = React.lazy(() => import("./pages/AnomaliesPage"));
 const VerifyDashboardPage = React.lazy(() => import("./pages/VerifyDashboardPage"));
 const VerifySubmitPage = React.lazy(() => import("./pages/VerifySubmitPage"));
 const VerifyResultPage = React.lazy(() => import("./pages/VerifyResultPage"));
@@ -131,6 +134,7 @@ const App: React.FC = () => (
           <Route path="/influence/explorer" element={<DataExplorerPage />} />
           <Route path="/influence/story" element={<DataStoryPage />} />
           <Route path="/influence/timeline" element={<InfluenceTimelinePage />} />
+          <Route path="/influence/anomalies" element={<AnomaliesPage />} />
 
           {/* Finance section — all wrapped in FinanceLayout (Waves bg) */}
           <Route path="/finance" element={<FinanceLayout><FinanceDashboardPage /></FinanceLayout>} />
@@ -159,7 +163,7 @@ const App: React.FC = () => (
           <Route path="/health" element={<HealthLayout><HealthDashboardPage /></HealthLayout>} />
           <Route path="/health/companies" element={<HealthLayout><HealthCompaniesPage /></HealthLayout>} />
           <Route path="/health/compare" element={<HealthLayout><HealthComparePage /></HealthLayout>} />
-          <Route path="/health/drugs" element={<HealthLayout><DrugLookupPage /></HealthLayout>} />
+          {/* Drug Lookup hidden from UI (data kept in backend) */}
           <Route path="/health/pipeline" element={<HealthLayout><ClinicalTrialPipelinePage /></HealthLayout>} />
           <Route path="/health/fda-approvals" element={<HealthLayout><FDAApprovalsPage /></HealthLayout>} />
           <Route path="/health/lobbying" element={<HealthLayout><SectorLobbyingPage /></HealthLayout>} />
@@ -206,6 +210,7 @@ const App: React.FC = () => (
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
+      <Analytics />
     </BrowserRouter>
   </ErrorBoundary>
 );

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, SearchX, MapPin } from 'lucide-react';
+import CSVExport from '../components/CSVExport';
 import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { Person } from '../api/types';
@@ -382,6 +383,21 @@ export default function PeoplePage() {
             ))}
           </select>
         </motion.div>
+
+        {/* CSV Export */}
+        <div className="flex justify-end mb-2">
+          <CSVExport
+            data={filtered}
+            filename="politicians"
+            columns={[
+              { key: 'display_name', label: 'Name' },
+              { key: 'party', label: 'Party' },
+              { key: 'chamber', label: 'Chamber' },
+              { key: 'state', label: 'State' },
+              { key: 'person_id', label: 'ID' },
+            ]}
+          />
+        </div>
 
         {/* Cards grid */}
         <div>

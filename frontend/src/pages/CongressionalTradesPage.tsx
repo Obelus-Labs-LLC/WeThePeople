@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { TrendingUp, TrendingDown, ArrowUpDown, Search, ExternalLink, User, ChevronUp, ChevronDown } from 'lucide-react';
+import CSVExport from '../components/CSVExport';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import TradeTimeline from '../components/TradeTimeline';
@@ -274,6 +275,21 @@ export default function CongressionalTradesPage() {
           <span className="text-white/30 text-sm ml-auto">
             {filteredData.length.toLocaleString()} of {total.toLocaleString()} trades
           </span>
+          <CSVExport
+            data={filteredData}
+            filename="congressional-trades"
+            columns={[
+              { key: 'member_name', label: 'Politician' },
+              { key: 'ticker', label: 'Ticker' },
+              { key: 'asset_name', label: 'Asset' },
+              { key: 'transaction_type', label: 'Type' },
+              { key: 'amount_range', label: 'Amount Range' },
+              { key: 'transaction_date', label: 'Transaction Date' },
+              { key: 'disclosure_date', label: 'Disclosure Date' },
+              { key: 'owner', label: 'Owner' },
+              { key: 'reporting_gap', label: 'Reporting Gap' },
+            ]}
+          />
         </div>
 
         {/* Trade Timeline (visible when ticker is searched) */}

@@ -35,6 +35,7 @@ import {
 } from '../api/health';
 import { fmtDollar, fmtDate } from '../utils/format';
 import SanctionsBadge from '../components/SanctionsBadge';
+import AnomalyBadge from '../components/AnomalyBadge';
 import { LOCAL_LOGOS } from '../data/healthLogos';
 import { getLogoUrl } from '../utils/logos';
 import CompanyLogo from '../components/CompanyLogo';
@@ -82,7 +83,7 @@ const TABS = [
   { key: 'enforcement', label: 'Enforcement' },
   { key: 'trials', label: 'Drug Pipeline' },
   { key: 'payments', label: 'Payments & Filings' },
-  { key: 'adverse', label: 'Safety Data' },
+  // { key: 'adverse', label: 'Safety Data' },  // Hidden from UI — data kept in backend
   { key: 'recalls', label: 'Recalls' },
 ] as const;
 
@@ -498,6 +499,7 @@ function PaymentsFilingsTab({ companyId, company }: { companyId: string; company
                 FINANCIAL PULSE
               </span>
               <SanctionsBadge status={company.sanctions_status} />
+              <AnomalyBadge entityType="company" entityId={companyId || ''} />
             </div>
           </div>
         </div>
@@ -1185,7 +1187,8 @@ export default function HealthCompanyProfilePage() {
                 {activeTab === 'lobbying' && <LobbyingTab companyId={company.company_id} />}
                 {activeTab === 'contracts' && <ContractsTab companyId={company.company_id} />}
                 {activeTab === 'enforcement' && <EnforcementTab companyId={company.company_id} />}
-                {activeTab === 'adverse' && <AdverseEventsTab companyId={company.company_id} />}
+                {/* Adverse Events tab hidden from UI — data kept in backend */}
+                {/* {activeTab === 'adverse' && <AdverseEventsTab companyId={company.company_id} />} */}
                 {activeTab === 'recalls' && <RecallsTab companyId={company.company_id} />}
                 {activeTab === 'trials' && <TrialsTab companyId={company.company_id} />}
                 {activeTab === 'payments' && <PaymentsFilingsTab companyId={company.company_id} company={company} />}

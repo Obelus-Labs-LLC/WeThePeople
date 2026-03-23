@@ -13,6 +13,7 @@ import BackButton from '../components/BackButton';
 import { TransportationSectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import SanctionsBadge from '../components/SanctionsBadge';
+import AnomalyBadge from '../components/AnomalyBadge';
 import {
   getTransportationCompanyDetail,
   getTransportationCompanyContracts,
@@ -77,7 +78,7 @@ function SectionHeader({ title, icon: Icon, count }: { title: string; icon: Luci
 
 // ── Tab config ──
 
-type TabKey = 'overview' | 'contracts' | 'lobbying' | 'enforcement' | 'donations' | 'recalls' | 'complaints' | 'fuel_economy' | 'filings';
+type TabKey = 'overview' | 'contracts' | 'lobbying' | 'enforcement' | 'donations' | 'recalls' | 'complaints' | 'filings';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -87,7 +88,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'donations', label: 'Donations' },
   { key: 'recalls', label: 'Recalls' },
   { key: 'complaints', label: 'Safety Complaints' },
-  { key: 'fuel_economy', label: 'Fuel Economy' },
+  // { key: 'fuel_economy', label: 'Fuel Economy' },  // Hidden from UI — data kept in backend
   { key: 'filings', label: 'SEC Filings' },
 ];
 
@@ -217,11 +218,7 @@ export default function TransportationCompanyProfilePage() {
         .then((r) => { setComplaints(r.complaints || []); setComplaintTotal(r.total); setComplaintsLoaded(true); setComplaintOffset(50); })
         .catch(console.error);
     }
-    if (activeTab === 'fuel_economy' && !fuelEconomyLoaded) {
-      getTransportationCompanyFuelEconomy(companyId, { limit: 50 })
-        .then((r) => { setFuelEconomy(r.vehicles || []); setFuelEconomyTotal(r.total); setFuelEconomyLoaded(true); setFuelEconomyOffset(50); })
-        .catch(console.error);
-    }
+    // Fuel economy tab hidden from UI — lazy load removed
     if (activeTab === 'donations' && !donationsLoaded) {
       getTransportationCompanyDonations(companyId, { limit: 100 })
         .then((r) => { setDonations(r.donations || []); setDonationTotal(r.total); setDonationTotalAmount(r.total_amount || 0); setDonationsLoaded(true); })
@@ -544,38 +541,7 @@ export default function TransportationCompanyProfilePage() {
             </div>
           )}
 
-          {activeTab === 'fuel_economy' && (
-            <div>
-              <SectionHeader title="Fuel Economy Data" icon={Fuel} count={fuelEconomyTotal} />
-              <div className="space-y-3">
-                {fuelEconomy.map((v) => (
-                  <div key={v.id} className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-body text-sm font-medium text-white/80">{v.year} {v.make} {v.model}</p>
-                      {v.mpg_combined != null && (
-                        <span className="font-mono text-sm font-bold text-emerald-400">{v.mpg_combined} MPG</span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-4 font-mono text-xs text-white/40">
-                      {v.mpg_city != null && <span>City: {v.mpg_city} MPG</span>}
-                      {v.mpg_highway != null && <span>Hwy: {v.mpg_highway} MPG</span>}
-                      {v.co2_tailpipe != null && <span>CO2: {v.co2_tailpipe} g/mi</span>}
-                      {v.fuel_type && <span>Fuel: {v.fuel_type}</span>}
-                      {v.vehicle_class && <span>Class: {v.vehicle_class}</span>}
-                      {v.ghg_score != null && <span>GHG: {v.ghg_score}/10</span>}
-                      {v.smog_rating != null && <span>Smog: {v.smog_rating}/10</span>}
-                    </div>
-                  </div>
-                ))}
-                {fuelEconomy.length === 0 && <p className="font-body text-sm text-white/30 text-center py-8">No fuel economy data found</p>}
-                {fuelEconomy.length < fuelEconomyTotal && (
-                  <button onClick={loadMoreFuelEconomy} className="w-full rounded-lg border border-white/10 py-3 font-body text-sm text-white/50 hover:text-white hover:border-white/20 transition-colors">
-                    Load more ({fuelEconomy.length} of {fuelEconomyTotal})
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Fuel Economy tab hidden from UI — data kept in backend */}
 
           {activeTab === 'filings' && (
             <div>

@@ -99,6 +99,8 @@ export interface EnergyFilingsResponse {
 export interface EnergyEmissionItem {
   id: number;
   facility_name: string | null;
+  facility_id_epa: string | null;
+  facility_city: string | null;
   facility_state: string | null;
   reporting_year: number | null;
   total_emissions: number | null;
@@ -120,6 +122,9 @@ export interface EnergyEmissionsSummary {
   total_co2e: number;
   by_year: Record<string, { total_emissions: number; facilities: number }>;
   by_state: Record<string, { total_emissions: number; facilities: number }>;
+  yoy_change_pct: number | null;
+  climate_lobbying_count: number;
+  climate_lobbying_spend: number;
 }
 
 export interface EnergyContractItem {
