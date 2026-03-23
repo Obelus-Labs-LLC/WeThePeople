@@ -10,24 +10,26 @@ import { LoadingSpinner, EmptyState } from '../components/ui';
 const SECTOR_COLORS: Record<string, string> = {
   aviation: '#3B82F6',
   shipping: '#0EA5E9',
-  auto: '#6366F1',
+  motor_vehicle: '#6366F1',
   rail: '#8B5CF6',
   aerospace: '#2563EB',
   logistics: '#14B8A6',
-  trucking: '#F59E0B',
+  ride_share: '#EC4899',
+  maritime: '#06B6D4',
 };
 
-type SectorFilter = 'all' | 'aviation' | 'shipping' | 'auto' | 'rail' | 'aerospace' | 'logistics' | 'trucking';
+type SectorFilter = 'all' | 'aviation' | 'shipping' | 'motor_vehicle' | 'rail' | 'aerospace' | 'logistics' | 'ride_share' | 'maritime';
 
 const SECTOR_OPTIONS: { key: SectorFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'aviation', label: 'Aviation' },
   { key: 'shipping', label: 'Shipping' },
-  { key: 'auto', label: 'Auto' },
+  { key: 'motor_vehicle', label: 'Auto' },
   { key: 'rail', label: 'Rail' },
   { key: 'aerospace', label: 'Aerospace' },
   { key: 'logistics', label: 'Logistics' },
-  { key: 'trucking', label: 'Trucking' },
+  { key: 'ride_share', label: 'Ride Share' },
+  { key: 'maritime', label: 'Maritime' },
 ];
 
 export default function TransportationCompaniesScreen() {

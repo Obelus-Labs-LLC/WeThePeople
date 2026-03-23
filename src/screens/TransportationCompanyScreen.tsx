@@ -20,11 +20,12 @@ import { DonationsTab } from '../components/company';
 const SECTOR_COLORS: Record<string, string> = {
   aviation: '#3B82F6',
   shipping: '#0EA5E9',
-  auto: '#6366F1',
+  motor_vehicle: '#6366F1',
   rail: '#8B5CF6',
   aerospace: '#2563EB',
   logistics: '#14B8A6',
-  trucking: '#F59E0B',
+  ride_share: '#EC4899',
+  maritime: '#06B6D4',
 };
 
 const ENFORCEMENT_SOURCE_COLORS: Record<string, string> = {
@@ -356,7 +357,7 @@ export default function TransportationCompanyScreen() {
           renderItem={({ item: f }) => (
             <TouchableOpacity
               style={styles.listCard}
-              onPress={() => f.filing_uuid ? Linking.openURL(`https://lda.senate.gov/filings/filing/${f.filing_uuid}/`) : null}
+              onPress={() => f.filing_uuid ? Linking.openURL(`https://lda.senate.gov/filings/public/filing/${f.filing_uuid}/`) : null}
               accessibilityRole="link"
               accessibilityLabel={`Lobbying filing by ${f.registrant_name || 'unknown'}`}
             >
@@ -497,10 +498,8 @@ export default function TransportationCompanyScreen() {
         ))}
       </ScrollView>
 
-      {/* Sanctions Badge */}
-      {company?.sanctions_status && (
-        <SanctionsBadge status={company.sanctions_status} />
-      )}
+      {/* Sanctions Badge — always render, let component handle null */}
+      <SanctionsBadge status={company?.sanctions_status} />
 
       {/* Tab content */}
       <View style={styles.tabContent}>

@@ -6,6 +6,10 @@ Fetch vehicle recalls, complaints, and safety ratings from NHTSA.
 API docs: https://api.nhtsa.gov/
 Rate limit: No published limit (use polite delays)
 Auth: None required (free public API)
+
+Known limitation: No exponential backoff/retry on transient failures.
+Polite delay between requests reduces risk, but a retry strategy would be ideal
+for production use with large company sets.
 """
 
 import hashlib
@@ -14,13 +18,32 @@ import requests
 from datetime import datetime
 from typing import List, Dict, Any
 
-from utils.logging import get_logger
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 NHTSA_BASE = "https://api.nhtsa.gov"
 
 POLITE_DELAY = 0.5
+
+
+def _parse_nhtsa_date(date_str: str) -> str:
+    """Parse NHTSA date strings (MM/DD/YYYY) to ISO format (YYYY-MM-DD) for correct sorting.
+    Falls back to original string if parsing fails."""
+    if not date_str:
+        return date_str
+    try:
+        dt = datetime.strptime(date_str.strip(), "%m/%d/%Y")
+        return dt.strftime("%Y-%m-%d")
+    except (ValueError, TypeError):
+        # Try other common formats
+        for fmt in ("%Y-%m-%d", "%m-%d-%Y", "%d/%m/%Y"):
+            try:
+                dt = datetime.strptime(date_str.strip(), fmt)
+                return dt.strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                continue
+        return date_str
 
 
 def _compute_hash(*parts: str) -> str:
@@ -101,7 +124,7 @@ def fetch_recalls(make: str, model_year_start: int = 2015) -> List[Dict[str, Any
                     "make": recall.get("Make", make),
                     "model": recall.get("Model", model),
                     "model_year": year,
-                    "recall_date": recall.get("ReportReceivedDate"),
+                    "recall_date": _parse_nhtsa_date(recall.get("ReportReceivedDate", "")),
                     "component": recall.get("Component", ""),
                     "summary": (recall.get("Summary", "") or "")[:2000],
                     "consequence": (recall.get("Consequence", "") or "")[:1000],
@@ -169,7 +192,7 @@ def fetch_complaints(make: str, model_year_start: int = 2015) -> List[Dict[str, 
                     "make": complaint.get("make", make),
                     "model": complaint.get("model", model),
                     "model_year": year,
-                    "date_of_complaint": complaint.get("dateOfComplaint"),
+                    "date_of_complaint": _parse_nhtsa_date(complaint.get("dateOfComplaint", "")),
                     "crash": complaint.get("crash", "N") == "Y",
                     "fire": complaint.get("fire", "N") == "Y",
                     "injuries": int(complaint.get("numberOfInjuries", 0) or 0),
@@ -249,8 +272,7 @@ def fetch_safety_ratings(make: str, model_year: int) -> List[Dict[str, Any]]:
 
 
 if __name__ == "__main__":
-    from utils.logging import setup_logging
-    setup_logging()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
     print("=== Testing NHTSA Connector ===\n")
 

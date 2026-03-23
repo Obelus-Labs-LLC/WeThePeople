@@ -52,11 +52,36 @@ export default function VerifySubmitScreen({ navigation }: VerifySubmitScreenPro
       setSearching(true);
       try {
         const res = await apiClient.globalSearch(entityQuery);
-        const options = (res.results || []).map((r: any) => ({
-          id: r.id || r.person_id || r.entity_id,
-          name: r.name || r.display_name || r.title,
-          type: r.entity_type || r.type || 'politician',
-        }));
+        // Search API returns {politicians: [], companies: []} — merge both
+        const options: EntityOption[] = [];
+        if (Array.isArray(res.politicians)) {
+          for (const p of res.politicians) {
+            options.push({
+              id: p.person_id || p.id,
+              name: p.display_name || p.name || p.title,
+              type: 'politician',
+            });
+          }
+        }
+        if (Array.isArray(res.companies)) {
+          for (const c of res.companies) {
+            options.push({
+              id: c.entity_id || c.id || c.company_id || c.institution_id,
+              name: c.display_name || c.name,
+              type: c.sector || c.entity_type || 'tech',
+            });
+          }
+        }
+        // Fallback: if backend returns flat results array
+        if (!res.politicians && !res.companies && Array.isArray(res.results)) {
+          for (const r of res.results) {
+            options.push({
+              id: r.id || r.person_id || r.entity_id,
+              name: r.name || r.display_name || r.title,
+              type: r.entity_type || r.type || 'politician',
+            });
+          }
+        }
         setEntityResults(options);
       } catch {
         // silently fail
@@ -182,12 +207,12 @@ export default function VerifySubmitScreen({ navigation }: VerifySubmitScreenPro
         </TouchableOpacity>
 
         {/* Results */}
-        {result && result.claims && result.claims.length > 0 && (
+        {result && result.verifications && result.verifications.length > 0 && (
           <View style={styles.resultsSection}>
             <Text style={styles.resultsTitle}>
-              {result.total_claims} claim{result.total_claims !== 1 ? 's' : ''} verified
+              {result.claims_extracted} claim{result.claims_extracted !== 1 ? 's' : ''} verified
             </Text>
-            {result.claims.map((claim: any, i: number) => {
+            {result.verifications.map((claim: any, i: number) => {
               const tier = claim.evaluation?.tier || 'none';
               const color = TIER_COLORS[tier] || TIER_COLORS.none;
               return (

@@ -111,6 +111,13 @@ JOB_REGISTRY: List[JobDef] = [
         description="House roll-call votes from Congress.gov API",
     ),
     JobDef(
+        name="sync_senate_votes",
+        script="jobs/sync_senate_votes.py",
+        interval_hours=24,
+        timeout_sec=1800,
+        description="Senate roll-call votes from senate.gov XML",
+    ),
+    JobDef(
         name="sync_congressional_trades",
         script="jobs/sync_congressional_trades.py",
         interval_hours=24,
@@ -132,6 +139,13 @@ JOB_REGISTRY: List[JobDef] = [
         interval_hours=48,
         timeout_sec=3600,
         description="Health sector lobbying, contracts, donations",
+    ),
+    JobDef(
+        name="sync_transportation_data",
+        script="jobs/sync_transportation_data.py",
+        interval_hours=48,
+        timeout_sec=3600,
+        description="Transportation sector lobbying, contracts, donations",
     ),
 
     # ── Every 72 hours ───────────────────────────────────────────
@@ -155,6 +169,13 @@ JOB_REGISTRY: List[JobDef] = [
         interval_hours=72,
         timeout_sec=3600,
         description="Health enforcement actions from Federal Register",
+    ),
+    JobDef(
+        name="sync_transportation_enforcement",
+        script="jobs/sync_transportation_enforcement.py",
+        interval_hours=72,
+        timeout_sec=3600,
+        description="Transportation enforcement actions from Federal Register",
     ),
 
     # ── Weekly (168h) ────────────────────────────────────────────
@@ -193,17 +214,35 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=3600,
         description="FEC PAC donation data",
     ),
-
-    # ── Every 6 hours — Twitter Bot ──────────────────────────────
     JobDef(
-        name="twitter_bot",
-        script="jobs/twitter_bot.py",
-        interval_hours=6,
-        timeout_sec=120,
-        description="Post automated tweet to @WTPForUs (4x/day max)",
+        name="sync_nhtsa_data",
+        script="jobs/sync_nhtsa_data.py",
+        interval_hours=168,
+        timeout_sec=3600,
+        description="NHTSA recalls and complaints data",
+    ),
+    JobDef(
+        name="sync_fuel_economy",
+        script="jobs/sync_fuel_economy.py",
+        interval_hours=168,
+        timeout_sec=3600,
+        description="EPA fuel economy data",
+    ),
+    JobDef(
+        name="sync_trades_from_disclosures",
+        script="jobs/sync_trades_from_disclosures.py",
+        interval_hours=168,
+        timeout_sec=3600,
+        description="Congressional trades from House financial disclosure PDFs",
     ),
 
+    # NOTE: twitter_bot.py is NOT in the scheduler — it runs via cron at specific times
+    # (4x/day at fixed hours for optimal engagement, not on an interval).
+
     # ── Monthly (720h) ───────────────────────────────────────────
+    # NOTE: OpenStates API has a 250/day rate limit on free tier. For bulk imports,
+    # prefer the openstates/people YAML import (import_openstates_people.py) which
+    # bypasses the API entirely. This sync job is kept for incremental updates.
     JobDef(
         name="sync_state_data",
         script="jobs/sync_state_data.py",
@@ -241,12 +280,13 @@ class SchedulerLock:
                 else:
                     fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             else:
-                # Windows fallback using msvcrt
+                # Windows fallback using msvcrt — lock the entire file
                 import msvcrt
+                lock_size = max(os.fstat(self._fd).st_size, 1)
                 if blocking:
-                    msvcrt.locking(self._fd, msvcrt.LK_LOCK, 1)
+                    msvcrt.locking(self._fd, msvcrt.LK_LOCK, lock_size)
                 else:
-                    msvcrt.locking(self._fd, msvcrt.LK_NBLCK, 1)
+                    msvcrt.locking(self._fd, msvcrt.LK_NBLCK, lock_size)
             return True
         except (OSError, BlockingIOError):
             os.close(self._fd)
@@ -260,7 +300,8 @@ class SchedulerLock:
             else:
                 import msvcrt
                 try:
-                    msvcrt.locking(self._fd, msvcrt.LK_UNLCK, 1)
+                    lock_size = max(os.fstat(self._fd).st_size, 1)
+                    msvcrt.locking(self._fd, msvcrt.LK_UNLCK, lock_size)
                 except OSError:
                     pass
             os.close(self._fd)
@@ -285,6 +326,9 @@ def _run_job(job: JobDef, dry_run: bool = False) -> Dict[str, Any]:
     """Execute a single sync job under the global lock.
 
     Returns a result dict with status, duration, stdout/stderr excerpts.
+
+    TODO: Add retry logic (e.g., 1 automatic retry with backoff) for transient
+    failures like network timeouts or temporary API errors.
     """
     result: Dict[str, Any] = {
         "job": job.name,
@@ -372,9 +416,13 @@ def _run_state_sync(job: JobDef, result: Dict[str, Any], dry_run: bool = False) 
             failures.append(state)
             log.warning("║  State %s error: %s", state, exc)
 
-    if failures:
+    if len(failures) == len(US_STATES):
+        # All 50 states failed — this is a full failure, not partial
+        result["status"] = "failed"
+        result["error"] = f"All {len(US_STATES)} states failed"
+    elif failures:
         result["status"] = "partial"
-        result["error"] = f"Failed states: {', '.join(failures)}"
+        result["error"] = f"Failed states ({len(failures)}/{len(US_STATES)}): {', '.join(failures)}"
     else:
         result["status"] = "success"
 
@@ -409,10 +457,12 @@ def _build_scheduler(dry_run: bool = False) -> Any:
         handler = _make_handler(job)
         hours = job.interval_hours
 
+        # NOTE: hours == 168 falls into the weekly branch (7 days).
+        # Anything < 168 uses raw hours; > 168 uses 30-day monthly.
         if hours < 168:
             # Use hours for daily / 48h / 72h intervals
             decorator = scheduler.every(int(hours)).hours
-        elif hours <= 168:
+        elif hours == 168:
             # Weekly
             decorator = scheduler.every(7).days
         else:
@@ -455,7 +505,9 @@ def cmd_list() -> None:
 
 def cmd_run_now(job_name: str, dry_run: bool = False) -> int:
     """Run a specific job (or 'all') immediately."""
-    # Non-blocking check: if the scheduler daemon holds the lock, bail early
+    # Non-blocking check: if the scheduler daemon holds the lock, bail early.
+    # NOTE: This is a TOCTOU race — the lock could be acquired between the probe
+    # and the actual job run. Acceptable because _run_job acquires its own lock.
     probe = SchedulerLock()
     if not probe.acquire(blocking=False):
         print("Scheduler daemon is currently running a job. Try again later.")

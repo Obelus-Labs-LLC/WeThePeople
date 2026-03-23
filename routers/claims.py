@@ -211,11 +211,55 @@ def get_verification(verification_id: int):
         else:
             result["evaluation"] = None
 
-        # Resolve entity name
+        # Resolve entity name — check politicians first, then companies
+        entity_name = claim.person_id
         member = db.query(TrackedMember).filter(
             TrackedMember.person_id == claim.person_id
         ).first()
-        result["entity_name"] = member.display_name if member else claim.person_id
+        if member:
+            entity_name = member.display_name
+        else:
+            # Try company lookups across all sectors
+            try:
+                from models.tech_models import TrackedTechCompany
+                company = db.query(TrackedTechCompany).filter(
+                    TrackedTechCompany.company_id == claim.person_id
+                ).first()
+                if company:
+                    entity_name = company.display_name
+            except Exception:
+                pass
+            if entity_name == claim.person_id:
+                try:
+                    from models.finance_models import TrackedInstitution
+                    inst = db.query(TrackedInstitution).filter(
+                        TrackedInstitution.institution_id == claim.person_id
+                    ).first()
+                    if inst:
+                        entity_name = inst.display_name
+                except Exception:
+                    pass
+            if entity_name == claim.person_id:
+                try:
+                    from models.health_models import TrackedCompany
+                    company = db.query(TrackedCompany).filter(
+                        TrackedCompany.company_id == claim.person_id
+                    ).first()
+                    if company:
+                        entity_name = company.display_name
+                except Exception:
+                    pass
+            if entity_name == claim.person_id:
+                try:
+                    from models.energy_models import TrackedEnergyCompany
+                    company = db.query(TrackedEnergyCompany).filter(
+                        TrackedEnergyCompany.company_id == claim.person_id
+                    ).first()
+                    if company:
+                        entity_name = company.display_name
+                except Exception:
+                    pass
+        result["entity_name"] = entity_name
 
         return result
     finally:
@@ -281,7 +325,7 @@ def get_dashboard_stats():
 
 @router.get("/entity/{entity_type}/{entity_id}")
 def get_entity_verifications(
-    entity_type: str,
+    entity_type: str,  # Intentionally pass-through only — used for URL structure, not filtering
     entity_id: str,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),

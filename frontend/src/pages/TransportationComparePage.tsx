@@ -175,6 +175,7 @@ export default function TransportationComparePage() {
       .finally(() => setComparing(false));
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps — intentional: auto-compare on first load only
   useEffect(() => {
     if (idA && idB && idA !== idB && compared.length === 0 && !comparing) handleCompare();
   }, [idA, idB]);

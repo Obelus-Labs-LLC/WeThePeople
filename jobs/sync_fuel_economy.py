@@ -23,10 +23,10 @@ from models.transportation_models import (
     FuelEconomyVehicle,
 )
 from connectors.fueleconomy import fetch_vehicles_by_make
-from utils.logging import get_logger, setup_logging
+import logging
 
-setup_logging()
-logger = get_logger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
 
 
 # Map company_id to FuelEconomy.gov make name

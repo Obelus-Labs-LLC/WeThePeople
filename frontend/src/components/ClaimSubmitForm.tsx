@@ -44,12 +44,39 @@ export default function ClaimSubmitForm({ onSubmit, loading = false, error }: Cl
         const res = await fetch(`${base}/search?q=${encodeURIComponent(entityQuery)}&limit=10`);
         if (res.ok) {
           const data = await res.json();
-          const options: EntityOption[] = (data.results || []).map((r: any) => ({
-            id: r.id || r.person_id || r.entity_id,
-            name: r.name || r.display_name || r.title,
-            type: r.entity_type || r.type || 'politician',
-            subtype: r.subtype || r.party || r.sector,
-          }));
+          // Search API returns {politicians: [], companies: []} — merge both
+          const options: EntityOption[] = [];
+          if (Array.isArray(data.politicians)) {
+            for (const p of data.politicians) {
+              options.push({
+                id: p.person_id || p.id,
+                name: p.display_name || p.name || p.title,
+                type: 'politician',
+                subtype: p.party || p.state,
+              });
+            }
+          }
+          if (Array.isArray(data.companies)) {
+            for (const c of data.companies) {
+              options.push({
+                id: c.entity_id || c.id || c.company_id || c.institution_id,
+                name: c.display_name || c.name,
+                type: c.sector || c.entity_type || 'tech',
+                subtype: c.sector,
+              });
+            }
+          }
+          // Fallback: if backend returns flat results array
+          if (!data.politicians && !data.companies && Array.isArray(data.results)) {
+            for (const r of data.results) {
+              options.push({
+                id: r.id || r.person_id || r.entity_id,
+                name: r.name || r.display_name || r.title,
+                type: r.entity_type || r.type || 'politician',
+                subtype: r.subtype || r.party || r.sector,
+              });
+            }
+          }
           setEntityResults(options);
           setShowDropdown(true);
         }

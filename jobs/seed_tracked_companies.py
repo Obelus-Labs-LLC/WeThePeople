@@ -130,7 +130,7 @@ FINANCE_INSTITUTIONS = [
     {"institution_id": "lazard", "display_name": "Lazard Inc.", "ticker": "LAZ", "sector_type": "investment", "sec_cik": "0001311370"},
     {"institution_id": "ameriprise", "display_name": "Ameriprise Financial Inc.", "ticker": "AMP", "sector_type": "investment", "sec_cik": "0000820081"},
     {"institution_id": "lpl-financial", "display_name": "LPL Financial Holdings Inc.", "ticker": "LPLA", "sector_type": "investment", "sec_cik": "0001397187"},
-    {"institution_id": "stifel-financial", "display_name": "Stifel Financial Corp.", "ticker": "SF", "sector_type": "investment", "sec_cik": "0000720005"},
+    {"institution_id": "stifel-financial", "display_name": "Stifel Financial Corp.", "ticker": "SF", "sector_type": "investment", "sec_cik": "0000885530"},
 
     # ── Fintech ──
     {"institution_id": "paypal", "display_name": "PayPal Holdings Inc.", "ticker": "PYPL", "sector_type": "fintech", "sec_cik": "0001633917"},

@@ -266,6 +266,7 @@ def get_transportation_company_contracts(
             raise HTTPException(status_code=404, detail="Transportation company not found")
         query = db.query(TransportationGovernmentContract).filter_by(company_id=company_id)
         total = query.count()
+        # Sort by award_amount desc — matches energy sector pattern (biggest contracts first)
         contracts = query.order_by(desc(TransportationGovernmentContract.award_amount)).offset(offset).limit(limit).all()
         return {
             "total": total, "limit": limit, "offset": offset,

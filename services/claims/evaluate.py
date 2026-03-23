@@ -36,6 +36,23 @@ def compute_tier(scores: Dict[str, Any]) -> str:
     has_vote_evidence = scores.get("has_vote_evidence", False)
     has_trade_evidence = scores.get("has_trade_evidence", False)
     has_lobbying_evidence = scores.get("has_lobbying_evidence", False)
+    has_contract_evidence = scores.get("has_contract_evidence", False)
+    has_enforcement_evidence = scores.get("has_enforcement_evidence", False)
+    has_donation_evidence = scores.get("has_donation_evidence", False)
+    has_committee_evidence = scores.get("has_committee_evidence", False)
+    has_sec_filing_evidence = scores.get("has_sec_filing_evidence", False)
+
+    # Collect all cross-data evidence flags
+    has_any_cross_evidence = (
+        has_vote_evidence or has_trade_evidence or has_lobbying_evidence
+        or has_contract_evidence or has_enforcement_evidence
+        or has_donation_evidence or has_committee_evidence or has_sec_filing_evidence
+    )
+    cross_evidence_count = sum([
+        has_vote_evidence, has_trade_evidence, has_lobbying_evidence,
+        has_contract_evidence, has_enforcement_evidence,
+        has_donation_evidence, has_committee_evidence, has_sec_filing_evidence,
+    ])
 
     # Direct legislative match with strong evidence
     if best_tier == "strong":
@@ -45,16 +62,20 @@ def compute_tier(scores: Dict[str, Any]) -> str:
     if best_tier == "moderate":
         return "moderate"
 
-    # Vote/trade/lobbying evidence boosts weak legislative matches
-    if best_tier == "weak" and (has_vote_evidence or has_trade_evidence or has_lobbying_evidence):
+    # Cross-data evidence boosts weak legislative matches
+    if best_tier == "weak" and has_any_cross_evidence:
         return "moderate"
 
     # Some legislative match but weak
     if best_tier == "weak":
         return "weak"
 
+    # No legislative match but multiple cross-data evidence types
+    if match_count == 0 and cross_evidence_count >= 2:
+        return "moderate"
+
     # No legislative match but cross-data evidence exists
-    if match_count == 0 and (has_vote_evidence or has_trade_evidence or has_lobbying_evidence):
+    if match_count == 0 and has_any_cross_evidence:
         return "weak"
 
     return "unverified"
@@ -71,6 +92,11 @@ def evaluate_claim(
     vote_matches: Optional[List[Dict]] = None,
     trade_matches: Optional[List[Dict]] = None,
     lobbying_matches: Optional[List[Dict]] = None,
+    contract_matches: Optional[List[Dict]] = None,
+    enforcement_matches: Optional[List[Dict]] = None,
+    donation_matches: Optional[List[Dict]] = None,
+    committee_matches: Optional[List[Dict]] = None,
+    sec_filing_matches: Optional[List[Dict]] = None,
 ) -> Dict[str, Any]:
     """
     Score matches for relevance, progress, and timing.
@@ -82,6 +108,11 @@ def evaluate_claim(
         vote_matches: Optional list from match_against_votes
         trade_matches: Optional list from match_against_trades
         lobbying_matches: Optional list from match_against_lobbying
+        contract_matches: Optional list from match_against_contracts
+        enforcement_matches: Optional list from match_against_enforcement
+        donation_matches: Optional list from match_against_donations
+        committee_matches: Optional list from match_against_committee_positions
+        sec_filing_matches: Optional list from match_against_sec_filings
 
     Returns:
         {
@@ -94,6 +125,11 @@ def evaluate_claim(
     vote_matches = vote_matches or []
     trade_matches = trade_matches or []
     lobbying_matches = lobbying_matches or []
+    contract_matches = contract_matches or []
+    enforcement_matches = enforcement_matches or []
+    donation_matches = donation_matches or []
+    committee_matches = committee_matches or []
+    sec_filing_matches = sec_filing_matches or []
 
     evidence = []
     best_match_tier = "none"
@@ -183,6 +219,85 @@ def evaluate_claim(
                 "overlap": lm.get("overlap", []),
             })
 
+    # Process contract evidence
+    has_contract_evidence = False
+    for cm in contract_matches[:5]:
+        if cm.get("relevance_score", cm.get("score", 0)) >= 1.0:
+            has_contract_evidence = True
+            data = cm.get("data", {})
+            evidence.append({
+                "type": "contract_record",
+                "score": cm.get("relevance_score", cm.get("score", 0)),
+                "award_amount": data.get("award_amount"),
+                "awarding_agency": data.get("awarding_agency", ""),
+                "description": data.get("description", ""),
+                "start_date": data.get("start_date", ""),
+                "overlap": cm.get("overlap", []),
+            })
+
+    # Process enforcement evidence
+    has_enforcement_evidence = False
+    for em in enforcement_matches[:5]:
+        if em.get("relevance_score", em.get("score", 0)) >= 1.0:
+            has_enforcement_evidence = True
+            data = em.get("data", {})
+            evidence.append({
+                "type": "enforcement_record",
+                "score": em.get("relevance_score", em.get("score", 0)),
+                "case_title": data.get("case_title", ""),
+                "enforcement_type": data.get("enforcement_type", ""),
+                "penalty_amount": data.get("penalty_amount"),
+                "case_date": data.get("case_date", ""),
+                "case_url": data.get("case_url", ""),
+                "overlap": em.get("overlap", []),
+            })
+
+    # Process donation evidence
+    has_donation_evidence = False
+    for dm in donation_matches[:5]:
+        if dm.get("relevance_score", dm.get("score", 0)) >= 1.0:
+            has_donation_evidence = True
+            data = dm.get("data", {})
+            evidence.append({
+                "type": "donation_record",
+                "score": dm.get("relevance_score", dm.get("score", 0)),
+                "committee_name": data.get("committee_name", ""),
+                "amount": data.get("amount"),
+                "cycle": data.get("cycle", ""),
+                "donation_date": data.get("donation_date", ""),
+                "overlap": dm.get("overlap", []),
+            })
+
+    # Process committee evidence
+    has_committee_evidence = False
+    for cm in committee_matches[:5]:
+        if cm.get("relevance_score", cm.get("score", 0)) >= 1.0:
+            has_committee_evidence = True
+            data = cm.get("data", {})
+            evidence.append({
+                "type": "committee_record",
+                "score": cm.get("relevance_score", cm.get("score", 0)),
+                "committee_name": data.get("committee_name", ""),
+                "role": data.get("role", ""),
+                "chamber": data.get("chamber", ""),
+                "overlap": cm.get("overlap", []),
+            })
+
+    # Process SEC filing evidence
+    has_sec_filing_evidence = False
+    for sf in sec_filing_matches[:5]:
+        if sf.get("relevance_score", sf.get("score", 0)) >= 1.0:
+            has_sec_filing_evidence = True
+            data = sf.get("data", {})
+            evidence.append({
+                "type": "sec_filing_record",
+                "score": sf.get("relevance_score", sf.get("score", 0)),
+                "description": sf.get("description", ""),
+                "date": sf.get("date", ""),
+                "source_url": sf.get("source_url", ""),
+                "overlap": sf.get("overlap", []),
+            })
+
     # Compute final tier
     scores_summary = {
         "best_match_tier": best_match_tier,
@@ -191,6 +306,11 @@ def evaluate_claim(
         "has_vote_evidence": has_vote_evidence,
         "has_trade_evidence": has_trade_evidence,
         "has_lobbying_evidence": has_lobbying_evidence,
+        "has_contract_evidence": has_contract_evidence,
+        "has_enforcement_evidence": has_enforcement_evidence,
+        "has_donation_evidence": has_donation_evidence,
+        "has_committee_evidence": has_committee_evidence,
+        "has_sec_filing_evidence": has_sec_filing_evidence,
     }
 
     tier = compute_tier(scores_summary)
@@ -210,6 +330,11 @@ def evaluate_claim(
         "vote_evidence_count": len([e for e in evidence if e["type"] == "vote_record"]),
         "trade_evidence_count": len([e for e in evidence if e["type"] == "trade_record"]),
         "lobbying_evidence_count": len([e for e in evidence if e["type"] == "lobbying_record"]),
+        "contract_evidence_count": len([e for e in evidence if e["type"] == "contract_record"]),
+        "enforcement_evidence_count": len([e for e in evidence if e["type"] == "enforcement_record"]),
+        "donation_evidence_count": len([e for e in evidence if e["type"] == "donation_record"]),
+        "committee_evidence_count": len([e for e in evidence if e["type"] == "committee_record"]),
+        "sec_filing_evidence_count": len([e for e in evidence if e["type"] == "sec_filing_record"]),
     }
 
 

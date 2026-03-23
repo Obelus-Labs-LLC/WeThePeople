@@ -6,6 +6,10 @@ Fetch vehicle fuel economy, emissions, and efficiency data.
 API docs: https://www.fueleconomy.gov/feg/ws/index.shtml
 Rate limit: No published limit (use polite delays)
 Auth: None required (free public API)
+
+Note: The 4-level nesting (years -> models -> options -> vehicle detail) can generate
+thousands of API calls for a popular make. Consider using --year-start to limit scope,
+or adding a max_models_per_year cap if needed.
 """
 
 import hashlib
@@ -13,9 +17,9 @@ import time
 import requests
 from typing import List, Dict, Any, Optional
 
-from utils.logging import get_logger
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 FUELECONOMY_BASE = "https://www.fueleconomy.gov/ws/rest"
 
@@ -278,8 +282,7 @@ def fetch_emissions_by_make(make: str, year: int) -> List[Dict[str, Any]]:
 
 
 if __name__ == "__main__":
-    from utils.logging import setup_logging
-    setup_logging()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
     print("=== Testing FuelEconomy.gov Connector ===\n")
 

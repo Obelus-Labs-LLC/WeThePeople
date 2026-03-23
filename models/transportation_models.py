@@ -27,10 +27,12 @@ class TrackedTransportationCompany(Base):
     ticker = Column(String, nullable=True, index=True)  # 'DAL'
     sector_type = Column(String, nullable=False, index=True)  # 'aviation', 'shipping', 'motor_vehicle', 'rail', 'logistics', 'aerospace', 'ride_share', 'maritime'
 
-    # Cross-reference names/IDs for API lookups
+    # Cross-reference names/IDs for API lookups.
+    # NHTSA/FAA cross-ref: no direct fields here — uses COMPANY_TO_MAKE dict
+    # in sync_nhtsa_data.py and sync_fuel_economy.py to map company_id -> make names.
     sec_cik = Column(String, nullable=True, index=True)
     usaspending_recipient_name = Column(String, nullable=True)
-    website = Column(String, nullable=True)
+    website = Column(String, nullable=True)  # Reserved for future use (company profile links, logo fallback)
 
     # Metadata
     logo_url = Column(String, nullable=True)

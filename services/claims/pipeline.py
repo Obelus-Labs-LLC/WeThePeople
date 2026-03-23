@@ -20,6 +20,11 @@ from services.claims.match import (
     match_against_votes,
     match_against_trades,
     match_against_lobbying,
+    match_against_contracts,
+    match_against_enforcement,
+    match_against_donations,
+    match_against_committee_positions,
+    match_against_sec_filings,
     detect_intent,
 )
 from services.claims.evaluate import evaluate_claim
@@ -262,24 +267,49 @@ def _persist_evaluation(db, claim: Claim, evaluation: Dict) -> None:
     if tier == "unverified":
         tier = "none"
 
+    # Map tier to relevance: strong->high, moderate->medium, weak->low, unverified/none->none
+    tier_to_relevance = {"strong": "high", "moderate": "medium", "weak": "low", "none": "none", "unverified": "none"}
+    relevance = tier_to_relevance.get(evaluation.get("tier", "none"), "none")
+
+    # Extract progress and timing from evidence if available (Bug #14)
+    progress = evaluation.get("progress")
+    timing = evaluation.get("timing")
+
+    # Extract matched_bill_id from the best evidence match (Bug #15)
+    matched_bill_id = evaluation.get("matched_bill_id")
+    if not matched_bill_id:
+        for ev_item in evaluation.get("evidence", []):
+            if isinstance(ev_item, dict) and ev_item.get("type") == "legislative_action":
+                bill_type = ev_item.get("bill_type", "")
+                bill_number = ev_item.get("bill_number", "")
+                if bill_type and bill_number:
+                    matched_bill_id = f"{bill_type}{bill_number}"
+                    break
+
     evidence_json = json.dumps(evaluation.get("evidence", []))
     why_json = json.dumps({"summary": evaluation.get("summary", "")})
 
     if existing:
         existing.tier = tier
         existing.score = evaluation.get("score", 0.0)
-        existing.relevance = evaluation.get("tier", "none")
+        existing.relevance = relevance
         existing.evidence_json = evidence_json
         existing.why_json = why_json
+        existing.progress = progress
+        existing.timing = timing
+        existing.matched_bill_id = matched_bill_id
     else:
         ev = ClaimEvaluation(
             claim_id=claim.id,
             person_id=claim.person_id,
             tier=tier,
             score=evaluation.get("score", 0.0),
-            relevance=evaluation.get("tier", "none"),
+            relevance=relevance,
             evidence_json=evidence_json,
             why_json=why_json,
+            progress=progress,
+            timing=timing,
+            matched_bill_id=matched_bill_id,
         )
         db.add(ev)
 

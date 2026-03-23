@@ -16,10 +16,21 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Module-level cached client (lazy initialization via _get_client())
+_cached_client: Optional[tweepy.Client] = None
+
 
 def _get_client() -> tweepy.Client:
-    """Get authenticated tweepy Client for posting (OAuth 1.0a User Context)."""
-    return tweepy.Client(
+    """Get authenticated tweepy Client for posting (OAuth 1.0a User Context).
+
+    Caches the client at module level to avoid creating a new instance per call.
+    NOTE: wait_on_rate_limit=True means the client will block (up to ~15 min)
+    if a rate limit is hit, rather than raising an error immediately.
+    """
+    global _cached_client
+    if _cached_client is not None:
+        return _cached_client
+    _cached_client = tweepy.Client(
         bearer_token=os.getenv("TWITTER_BEARER_TOKEN"),
         consumer_key=os.getenv("TWITTER_CONSUMER_KEY"),
         consumer_secret=os.getenv("TWITTER_CONSUMER_SECRET"),
@@ -27,6 +38,7 @@ def _get_client() -> tweepy.Client:
         access_token_secret=os.getenv("TWITTER_ACCESS_SECRET"),
         wait_on_rate_limit=True,
     )
+    return _cached_client
 
 
 def post_tweet(text: str, reply_to: Optional[str] = None) -> Optional[str]:
@@ -39,7 +51,12 @@ def post_tweet(text: str, reply_to: Optional[str] = None) -> Optional[str]:
     """
     if len(text) > 280:
         logger.warning("Tweet too long (%d chars), truncating", len(text))
-        text = text[:277] + "..."
+        # Truncate at last space before 277 chars to avoid cutting mid-word
+        truncated = text[:277]
+        last_space = truncated.rfind(" ")
+        if last_space > 200:  # Only use word boundary if it doesn't lose too much
+            truncated = truncated[:last_space]
+        text = truncated + "..."
 
     try:
         client = _get_client()
@@ -86,6 +103,9 @@ def get_mentions(since_id: Optional[str] = None, max_results: int = 20) -> list:
     """
     Get recent @mentions of the bot account.
 
+    NOTE: Requires Basic tier ($100/month). Free tier does not support
+    get_users_mentions. This function will work when/if we upgrade.
+
     Args:
         since_id: Only return mentions after this tweet ID
         max_results: Max mentions to return (5-100)
@@ -109,6 +129,9 @@ def get_mentions(since_id: Optional[str] = None, max_results: int = 20) -> list:
 def send_dm(user_id: str, text: str) -> bool:
     """
     Send a direct message to a user.
+
+    NOTE: Requires Basic tier ($100/month). Free tier does not support
+    create_direct_message. This function will work when/if we upgrade.
 
     Args:
         user_id: Twitter user ID to DM

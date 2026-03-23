@@ -191,34 +191,37 @@ def persist_claims(
         List of persisted (or existing) Claim objects
     """
     persisted = []
-    for c in claims:
-        claim_hash = _compute_claim_hash(person_id, c["text"], source_url)
+    try:
+        for c in claims:
+            claim_hash = _compute_claim_hash(person_id, c["text"], source_url)
 
-        # Check for existing
-        existing = db.query(Claim).filter(Claim.claim_hash == claim_hash).first()
-        if existing:
-            persisted.append(existing)
-            continue
+            # Check for existing
+            existing = db.query(Claim).filter(Claim.claim_hash == claim_hash).first()
+            if existing:
+                persisted.append(existing)
+                continue
 
-        claim = Claim(
-            person_id=person_id,
-            text=c["text"],
-            category=c.get("category", "general"),
-            intent=c.get("intent_type", "unknown"),
-            claim_date=datetime.now(timezone.utc).date(),
-            claim_source_url=source_url or None,
-            claim_hash=claim_hash,
-        )
-        db.add(claim)
-        try:
-            db.flush()
+            claim = Claim(
+                person_id=person_id,
+                text=c["text"],
+                category=c.get("category", "general"),
+                intent=c.get("intent_type", "unknown"),
+                claim_date=datetime.now(timezone.utc).date(),
+                claim_source_url=source_url or None,
+                claim_hash=claim_hash,
+            )
+            db.add(claim)
             persisted.append(claim)
-        except Exception:
-            db.rollback()
-            # Probably a duplicate race condition — fetch existing
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        # Re-fetch any that were persisted via dedup hash
+        persisted = []
+        for c in claims:
+            claim_hash = _compute_claim_hash(person_id, c["text"], source_url)
             existing = db.query(Claim).filter(Claim.claim_hash == claim_hash).first()
             if existing:
                 persisted.append(existing)
 
-    db.commit()
     return persisted
