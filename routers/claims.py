@@ -51,7 +51,10 @@ def verify_text(
 
     Rate limited: 5/day for free tier, unlimited with enterprise API key.
     """
-    valid_types = {"politician", "tech", "finance", "health", "energy"}
+    # Normalize entity_type — accept common aliases
+    type_aliases = {"person": "politician", "company": "tech", "institution": "finance", "transportation": "transportation"}
+    body.entity_type = type_aliases.get(body.entity_type, body.entity_type)
+    valid_types = {"politician", "tech", "finance", "health", "energy", "transportation"}
     if body.entity_type not in valid_types:
         raise HTTPException(status_code=400, detail=f"entity_type must be one of: {', '.join(valid_types)}")
 
@@ -84,7 +87,10 @@ def verify_url(
 
     Rate limited: 5/day for free tier, unlimited with enterprise API key.
     """
-    valid_types = {"politician", "tech", "finance", "health", "energy"}
+    # Normalize entity_type — accept common aliases
+    type_aliases = {"person": "politician", "company": "tech", "institution": "finance", "transportation": "transportation"}
+    body.entity_type = type_aliases.get(body.entity_type, body.entity_type)
+    valid_types = {"politician", "tech", "finance", "health", "energy", "transportation"}
     if body.entity_type not in valid_types:
         raise HTTPException(status_code=400, detail=f"entity_type must be one of: {', '.join(valid_types)}")
 
