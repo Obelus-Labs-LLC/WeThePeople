@@ -4,6 +4,7 @@ OG (Open Graph) image generation — dynamic preview cards for social sharing.
 Generates 1200x630 PNG images with entity stats for Twitter/Reddit/Slack unfurling.
 """
 
+import logging
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from functools import lru_cache
@@ -105,20 +106,44 @@ def _build_svg(
     return svg
 
 
-def _svg_to_png(svg_str: str) -> bytes:
-    """Convert SVG string to PNG bytes. Falls back to returning SVG if cairosvg unavailable."""
+_cairosvg_available: bool | None = None
+
+def _check_cairosvg() -> bool:
+    """Check if cairosvg can actually render (needs libcairo2-dev system lib)."""
+    global _cairosvg_available
+    if _cairosvg_available is not None:
+        return _cairosvg_available
     try:
         import cairosvg
-        return cairosvg.svg2png(bytestring=svg_str.encode("utf-8"), output_width=1200, output_height=630)
-    except ImportError:
-        raise HTTPException(
-            status_code=501,
-            detail="PNG generation requires cairosvg. Install with: pip install cairosvg"
-        )
+        # Test render to verify system library is present
+        cairosvg.svg2png(bytestring=b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>', output_width=1, output_height=1)
+        _cairosvg_available = True
+    except Exception:
+        logging.getLogger("og").warning("cairosvg unavailable — PNG OG images will fall back to SVG. Install libcairo2-dev and cairosvg.")
+        _cairosvg_available = False
+    return _cairosvg_available
+
+
+# Startup check — logs a warning at import time if cairosvg can't render (non-blocking)
+_check_cairosvg()
+
+
+def _svg_to_png(svg_str: str) -> tuple[bytes, str]:
+    """Convert SVG string to PNG bytes. Falls back to returning SVG if cairosvg unavailable or crashes.
+    Returns (content_bytes, media_type)."""
+    try:
+        import cairosvg
+        png = cairosvg.svg2png(bytestring=svg_str.encode("utf-8"), output_width=1200, output_height=630)
+        return png, "image/png"
+    except Exception:
+        # ImportError (not installed), OSError (libcairo2-dev missing), or any render error
+        # Fall back to SVG instead of crashing
+        logging.getLogger("og").warning("cairosvg render failed — returning SVG fallback for OG image")
+        return svg_str.encode("utf-8"), "image/svg+xml"
 
 
 @lru_cache(maxsize=100)
-def _cached_og_image(entity_type: str, entity_id: str) -> bytes:
+def _cached_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
     """Generate and cache OG image bytes."""
     db = SessionLocal()
     try:
@@ -208,8 +233,8 @@ def _cached_og_image(entity_type: str, entity_id: str) -> bytes:
 @router.get("/{entity_type}/{entity_id}.png")
 def get_og_image(entity_type: str, entity_id: str):
     """Generate an Open Graph preview image for any entity."""
-    png_bytes = _cached_og_image(entity_type, entity_id)
-    return Response(content=png_bytes, media_type="image/png", headers={
+    content, media_type = _cached_og_image(entity_type, entity_id)
+    return Response(content=content, media_type=media_type, headers={
         "Cache-Control": "public, max-age=3600",
     })
 

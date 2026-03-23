@@ -280,11 +280,10 @@ export default function ChatAgent() {
             drag
             dragMomentum={false}
             dragElastic={0.1}
-            dragConstraints={{ top: -window.innerHeight + 80, left: -window.innerWidth + 80, right: 0, bottom: 0 }}
             whileDrag={{ scale: 1.1, cursor: "grabbing" }}
             onDragEnd={(_, info) => {
-              // Only open chat if it was a click (not a drag)
-              if (Math.abs(info.offset.x) < 5 && Math.abs(info.offset.y) < 5) {
+              // Only open chat if it was a click (not a drag) — 12px threshold for mobile touch
+              if (Math.abs(info.offset.x) < 12 && Math.abs(info.offset.y) < 12) {
                 setOpen(true);
               }
             }}

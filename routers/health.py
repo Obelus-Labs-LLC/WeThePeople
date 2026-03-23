@@ -593,7 +593,11 @@ def get_health_company_donations(
 
 @router.get("/companies/{company_id}/trends")
 def get_health_company_trends(company_id: str):
-    """Yearly trend data for a health company: lobbying, contracts, enforcement, clinical trials."""
+    """Yearly trend data for a health company: lobbying, contracts, enforcement, clinical trials.
+
+    NOTE: func.strftime is SQLite-specific. PostgreSQL equivalent: func.extract('year', col)
+    or func.to_char(col, 'YYYY'). If migrating to PostgreSQL, update these queries.
+    """
     import datetime
     db = SessionLocal()
     try:
