@@ -1135,8 +1135,7 @@ export default function HealthCompanyProfilePage() {
           <div className="relative flex gap-8 border-b px-8 pt-4 shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
             {TABS.map((tab) => {
               const isActive = activeTab === tab.key;
-              const count = tab.key === 'adverse' ? company.adverse_event_count
-                : tab.key === 'recalls' ? company.recall_count
+              const count = tab.key === 'recalls' ? company.recall_count
                 : tab.key === 'trials' ? company.trial_count
                 : tab.key === 'payments' ? company.payment_count + company.filing_count
                 : 0; // lobbying/contracts/enforcement counts loaded lazily
