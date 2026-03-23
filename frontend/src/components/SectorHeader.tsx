@@ -18,6 +18,7 @@ const SECTOR_COLORS: Record<string, { bg: string; activeBg: string; activeText: 
   technology: { bg: 'bg-violet-500', activeBg: 'bg-violet-500/20', activeText: 'text-violet-400' },
   energy: { bg: 'bg-orange-500', activeBg: 'bg-orange-500/20', activeText: 'text-orange-400' },
   transportation: { bg: 'bg-blue-500', activeBg: 'bg-blue-500/20', activeText: 'text-blue-400' },
+  defense: { bg: 'bg-red-600', activeBg: 'bg-red-600/20', activeText: 'text-red-400' },
   verify: { bg: 'bg-emerald-500', activeBg: 'bg-emerald-500/20', activeText: 'text-emerald-400' },
 };
 
@@ -153,6 +154,20 @@ const TRANSPORTATION_LINKS: NavLink[] = [
 
 export function TransportationSectorHeader() {
   return <SectorHeader sector="transportation" links={TRANSPORTATION_LINKS} />;
+}
+
+const DEFENSE_LINKS: NavLink[] = [
+  { label: 'Sectors', to: '/' },
+  { label: 'Dashboard', to: '/defense' },
+  { label: 'Companies', to: '/defense/companies' },
+  { label: 'Lobbying', to: '/defense/lobbying' },
+  { label: 'Contracts', to: '/defense/contracts' },
+  { label: 'Enforcement', to: '/defense/enforcement' },
+  { label: 'Compare', to: '/defense/compare' },
+];
+
+export function DefenseSectorHeader() {
+  return <SectorHeader sector="defense" links={DEFENSE_LINKS} />;
 }
 
 const VERIFY_LINKS: NavLink[] = [

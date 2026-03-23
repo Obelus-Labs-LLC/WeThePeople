@@ -29,6 +29,7 @@ from models.health_models import TrackedCompany
 from models.tech_models import TrackedTechCompany
 from models.energy_models import TrackedEnergyCompany
 from models.transportation_models import TrackedTransportationCompany
+from models.defense_models import TrackedDefenseCompany
 
 
 # ============================================================================
@@ -627,6 +628,87 @@ TRANSPORTATION_COMPANIES = [
 
 
 # ============================================================================
+# DEFENSE — 60+ companies
+# ============================================================================
+
+DEFENSE_COMPANIES = [
+    # ── Defense Primes ──
+    {"company_id": "lockheed-martin", "display_name": "Lockheed Martin Corporation", "ticker": "LMT", "sector_type": "defense_prime", "sec_cik": "0000936468", "headquarters": "Bethesda, MD", "usaspending_recipient_name": "LOCKHEED MARTIN"},
+    {"company_id": "rtx", "display_name": "RTX Corporation", "ticker": "RTX", "sector_type": "defense_prime", "sec_cik": "0000101829", "headquarters": "Arlington, VA", "usaspending_recipient_name": "RTX CORPORATION"},
+    {"company_id": "boeing-defense", "display_name": "The Boeing Company", "ticker": "BA", "sector_type": "defense_prime", "sec_cik": "0000012927", "headquarters": "Arlington, VA", "usaspending_recipient_name": "BOEING COMPANY"},
+    {"company_id": "northrop-grumman", "display_name": "Northrop Grumman Corporation", "ticker": "NOC", "sector_type": "defense_prime", "sec_cik": "0001133421", "headquarters": "Falls Church, VA", "usaspending_recipient_name": "NORTHROP GRUMMAN"},
+    {"company_id": "general-dynamics", "display_name": "General Dynamics Corporation", "ticker": "GD", "sector_type": "defense_prime", "sec_cik": "0000040533", "headquarters": "Reston, VA", "usaspending_recipient_name": "GENERAL DYNAMICS"},
+    {"company_id": "l3harris", "display_name": "L3Harris Technologies Inc.", "ticker": "LHX", "sector_type": "defense_prime", "sec_cik": "0000202058", "headquarters": "Melbourne, FL", "usaspending_recipient_name": "L3HARRIS TECHNOLOGIES"},
+    {"company_id": "bae-systems", "display_name": "BAE Systems plc", "ticker": "BAESY", "sector_type": "defense_prime", "sec_cik": None, "headquarters": "London, UK", "usaspending_recipient_name": "BAE SYSTEMS"},
+    {"company_id": "leidos", "display_name": "Leidos Holdings Inc.", "ticker": "LDOS", "sector_type": "defense_prime", "sec_cik": "0001336920", "headquarters": "Reston, VA", "usaspending_recipient_name": "LEIDOS"},
+    {"company_id": "huntington-ingalls", "display_name": "Huntington Ingalls Industries Inc.", "ticker": "HII", "sector_type": "defense_prime", "sec_cik": "0001501585", "headquarters": "Newport News, VA", "usaspending_recipient_name": "HUNTINGTON INGALLS"},
+    {"company_id": "textron", "display_name": "Textron Inc.", "ticker": "TXT", "sector_type": "defense_prime", "sec_cik": "0000217346", "headquarters": "Providence, RI", "usaspending_recipient_name": "TEXTRON"},
+
+    # ── Defense Subs / Specialists ──
+    {"company_id": "caci", "display_name": "CACI International Inc.", "ticker": "CACI", "sector_type": "defense_sub", "sec_cik": "0000016058", "headquarters": "Reston, VA", "usaspending_recipient_name": "CACI INTERNATIONAL"},
+    {"company_id": "booz-allen", "display_name": "Booz Allen Hamilton Holding Corp.", "ticker": "BAH", "sector_type": "defense_sub", "sec_cik": "0001443646", "headquarters": "McLean, VA", "usaspending_recipient_name": "BOOZ ALLEN HAMILTON"},
+    {"company_id": "mantech", "display_name": "ManTech International Corporation", "ticker": None, "sector_type": "defense_sub", "sec_cik": "0001058290", "headquarters": "Herndon, VA", "usaspending_recipient_name": "MANTECH INTERNATIONAL"},
+    {"company_id": "saic", "display_name": "Science Applications International Corp.", "ticker": "SAIC", "sector_type": "defense_sub", "sec_cik": "0001571123", "headquarters": "Reston, VA", "usaspending_recipient_name": "SCIENCE APPLICATIONS INTERNATIONAL"},
+    {"company_id": "parsons", "display_name": "Parsons Corporation", "ticker": "PSN", "sector_type": "defense_sub", "sec_cik": "0001665650", "headquarters": "Chantilly, VA", "usaspending_recipient_name": "PARSONS CORPORATION"},
+    {"company_id": "kbr", "display_name": "KBR Inc.", "ticker": "KBR", "sector_type": "defense_sub", "sec_cik": "0001357615", "headquarters": "Houston, TX", "usaspending_recipient_name": "KBR"},
+    {"company_id": "amentum", "display_name": "Amentum Holdings Inc.", "ticker": "AMTM", "sector_type": "defense_sub", "sec_cik": "0001989548", "headquarters": "Chantilly, VA", "usaspending_recipient_name": "AMENTUM"},
+    {"company_id": "vectrus", "display_name": "V2X Inc.", "ticker": "VVX", "sector_type": "defense_sub", "sec_cik": "0001601548", "headquarters": "Colorado Springs, CO", "usaspending_recipient_name": "V2X"},
+    {"company_id": "bwx-technologies", "display_name": "BWX Technologies Inc.", "ticker": "BWXT", "sector_type": "defense_sub", "sec_cik": "0000071328", "headquarters": "Lynchburg, VA", "usaspending_recipient_name": "BWX TECHNOLOGIES"},
+    {"company_id": "maxar", "display_name": "Maxar Technologies", "ticker": None, "sector_type": "defense_sub", "sec_cik": "0001121142", "headquarters": "Westminster, CO", "usaspending_recipient_name": "MAXAR TECHNOLOGIES"},
+
+    # ── Cybersecurity / Intelligence ──
+    {"company_id": "palantir", "display_name": "Palantir Technologies Inc.", "ticker": "PLTR", "sector_type": "cybersecurity", "sec_cik": "0001321655", "headquarters": "Denver, CO", "usaspending_recipient_name": "PALANTIR TECHNOLOGIES"},
+    {"company_id": "anduril", "display_name": "Anduril Industries Inc.", "ticker": None, "sector_type": "cybersecurity", "sec_cik": None, "headquarters": "Costa Mesa, CA", "usaspending_recipient_name": "ANDURIL INDUSTRIES"},
+    {"company_id": "shield-ai", "display_name": "Shield AI Inc.", "ticker": None, "sector_type": "cybersecurity", "sec_cik": None, "headquarters": "San Diego, CA", "usaspending_recipient_name": "SHIELD AI"},
+    {"company_id": "bigbear-ai", "display_name": "BigBear.ai Holdings Inc.", "ticker": "BBAI", "sector_type": "intelligence", "sec_cik": "0001836981", "headquarters": "Columbia, MD", "usaspending_recipient_name": "BIGBEAR.AI"},
+    {"company_id": "spire-global", "display_name": "Spire Global Inc.", "ticker": "SPIR", "sector_type": "intelligence", "sec_cik": "0001815317", "headquarters": "Vienna, VA", "usaspending_recipient_name": "SPIRE GLOBAL"},
+
+    # ── Munitions / Weapons ──
+    {"company_id": "general-atomics", "display_name": "General Atomics", "ticker": None, "sector_type": "munitions", "sec_cik": None, "headquarters": "San Diego, CA", "usaspending_recipient_name": "GENERAL ATOMICS"},
+    {"company_id": "olin-corp", "display_name": "Olin Corporation", "ticker": "OLN", "sector_type": "munitions", "sec_cik": "0000074303", "headquarters": "Clayton, MO", "usaspending_recipient_name": "OLIN CORPORATION"},
+    {"company_id": "vista-outdoor", "display_name": "Vista Outdoor Inc.", "ticker": "VSTO", "sector_type": "munitions", "sec_cik": "0001616318", "headquarters": "Anoka, MN", "usaspending_recipient_name": "VISTA OUTDOOR"},
+    {"company_id": "nammo", "display_name": "Nammo AS", "ticker": None, "sector_type": "munitions", "sec_cik": None, "headquarters": "Raufoss, Norway", "usaspending_recipient_name": "NAMMO"},
+    {"company_id": "orbital-atk", "display_name": "Northrop Grumman Innovation Systems", "ticker": None, "sector_type": "munitions", "sec_cik": None, "headquarters": "Chandler, AZ", "usaspending_recipient_name": "NORTHROP GRUMMAN INNOVATION SYSTEMS"},
+
+    # ── Shipbuilding ──
+    {"company_id": "austal-usa", "display_name": "Austal USA LLC", "ticker": None, "sector_type": "shipbuilding", "sec_cik": None, "headquarters": "Mobile, AL", "usaspending_recipient_name": "AUSTAL USA"},
+    {"company_id": "philly-shipyard", "display_name": "Philly Shipyard ASA", "ticker": None, "sector_type": "shipbuilding", "sec_cik": None, "headquarters": "Philadelphia, PA", "usaspending_recipient_name": "PHILLY SHIPYARD"},
+    {"company_id": "bollinger-shipyards", "display_name": "Bollinger Shipyards LLC", "ticker": None, "sector_type": "shipbuilding", "sec_cik": None, "headquarters": "Lockport, LA", "usaspending_recipient_name": "BOLLINGER SHIPYARDS"},
+
+    # ── Aerospace Defense ──
+    {"company_id": "kratos", "display_name": "Kratos Defense & Security Solutions", "ticker": "KTOS", "sector_type": "aerospace_defense", "sec_cik": "0001069974", "headquarters": "San Diego, CA", "usaspending_recipient_name": "KRATOS DEFENSE"},
+    {"company_id": "mercury-systems", "display_name": "Mercury Systems Inc.", "ticker": "MRCY", "sector_type": "aerospace_defense", "sec_cik": "0000867840", "headquarters": "Andover, MA", "usaspending_recipient_name": "MERCURY SYSTEMS"},
+    {"company_id": "curtiss-wright", "display_name": "Curtiss-Wright Corporation", "ticker": "CW", "sector_type": "aerospace_defense", "sec_cik": "0000026535", "headquarters": "Davidson, NC", "usaspending_recipient_name": "CURTISS-WRIGHT"},
+    {"company_id": "heico", "display_name": "HEICO Corporation", "ticker": "HEI", "sector_type": "aerospace_defense", "sec_cik": "0000046619", "headquarters": "Hollywood, FL", "usaspending_recipient_name": "HEICO CORPORATION"},
+    {"company_id": "howmet-aerospace", "display_name": "Howmet Aerospace Inc.", "ticker": "HWM", "sector_type": "aerospace_defense", "sec_cik": "0000004281", "headquarters": "Pittsburgh, PA", "usaspending_recipient_name": "HOWMET AEROSPACE"},
+    {"company_id": "transdigm", "display_name": "TransDigm Group Inc.", "ticker": "TDG", "sector_type": "aerospace_defense", "sec_cik": "0001260221", "headquarters": "Cleveland, OH", "usaspending_recipient_name": "TRANSDIGM"},
+    {"company_id": "woodward", "display_name": "Woodward Inc.", "ticker": "WWD", "sector_type": "aerospace_defense", "sec_cik": "0000880984", "headquarters": "Fort Collins, CO", "usaspending_recipient_name": "WOODWARD"},
+    {"company_id": "spirit-aerosystems", "display_name": "Spirit AeroSystems Holdings", "ticker": "SPR", "sector_type": "aerospace_defense", "sec_cik": "0001364885", "headquarters": "Wichita, KS", "usaspending_recipient_name": "SPIRIT AEROSYSTEMS"},
+    {"company_id": "aerojet-rocketdyne", "display_name": "Aerojet Rocketdyne Holdings", "ticker": None, "sector_type": "aerospace_defense", "sec_cik": "0000040888", "headquarters": "El Segundo, CA", "usaspending_recipient_name": "AEROJET ROCKETDYNE"},
+    {"company_id": "triumph-group", "display_name": "Triumph Group Inc.", "ticker": "TGI", "sector_type": "aerospace_defense", "sec_cik": "0001021162", "headquarters": "Radnor, PA", "usaspending_recipient_name": "TRIUMPH GROUP"},
+    {"company_id": "ducommun", "display_name": "Ducommun Incorporated", "ticker": "DCO", "sector_type": "aerospace_defense", "sec_cik": "0000030305", "headquarters": "Santa Ana, CA", "usaspending_recipient_name": "DUCOMMUN"},
+
+    # ── Logistics / Defense IT ──
+    {"company_id": "dxc-technology", "display_name": "DXC Technology Company", "ticker": "DXC", "sector_type": "logistics_defense", "sec_cik": "0001688568", "headquarters": "Ashburn, VA", "usaspending_recipient_name": "DXC TECHNOLOGY"},
+    {"company_id": "accenture-federal", "display_name": "Accenture Federal Services LLC", "ticker": None, "sector_type": "logistics_defense", "sec_cik": None, "headquarters": "Arlington, VA", "usaspending_recipient_name": "ACCENTURE FEDERAL SERVICES"},
+    {"company_id": "ibm-federal", "display_name": "IBM Corporation", "ticker": "IBM", "sector_type": "logistics_defense", "sec_cik": "0000051143", "headquarters": "Armonk, NY", "usaspending_recipient_name": "IBM"},
+    {"company_id": "peraton", "display_name": "Peraton Inc.", "ticker": None, "sector_type": "logistics_defense", "sec_cik": None, "headquarters": "Herndon, VA", "usaspending_recipient_name": "PERATON"},
+    {"company_id": "serco-na", "display_name": "Serco Inc.", "ticker": None, "sector_type": "logistics_defense", "sec_cik": None, "headquarters": "Herndon, VA", "usaspending_recipient_name": "SERCO"},
+    {"company_id": "fluor-corp", "display_name": "Fluor Corporation", "ticker": "FLR", "sector_type": "logistics_defense", "sec_cik": "0001124198", "headquarters": "Irving, TX", "usaspending_recipient_name": "FLUOR CORPORATION"},
+    {"company_id": "jacobs-engineering", "display_name": "Jacobs Solutions Inc.", "ticker": "J", "sector_type": "logistics_defense", "sec_cik": "0000049826", "headquarters": "Dallas, TX", "usaspending_recipient_name": "JACOBS"},
+    {"company_id": "cognosante", "display_name": "Cognosante LLC", "ticker": None, "sector_type": "logistics_defense", "sec_cik": None, "headquarters": "Falls Church, VA", "usaspending_recipient_name": "COGNOSANTE"},
+
+    # ── Missiles / Space Defense ──
+    {"company_id": "rocket-lab", "display_name": "Rocket Lab USA Inc.", "ticker": "RKLB", "sector_type": "aerospace_defense", "sec_cik": "0001819994", "headquarters": "Long Beach, CA", "usaspending_recipient_name": "ROCKET LAB"},
+    {"company_id": "aerovironment", "display_name": "AeroVironment Inc.", "ticker": "AVAV", "sector_type": "aerospace_defense", "sec_cik": "0000091142", "headquarters": "Arlington, VA", "usaspending_recipient_name": "AEROVIRONMENT"},
+    {"company_id": "joby-aviation", "display_name": "Joby Aviation Inc.", "ticker": "JOBY", "sector_type": "aerospace_defense", "sec_cik": "0001819848", "headquarters": "Santa Cruz, CA", "usaspending_recipient_name": "JOBY AVIATION"},
+    {"company_id": "v2x-defense", "display_name": "Saab Inc.", "ticker": None, "sector_type": "defense_sub", "sec_cik": None, "headquarters": "East Syracuse, NY", "usaspending_recipient_name": "SAAB INC"},
+    {"company_id": "elbit-america", "display_name": "Elbit Systems of America LLC", "ticker": None, "sector_type": "defense_sub", "sec_cik": None, "headquarters": "Fort Worth, TX", "usaspending_recipient_name": "ELBIT SYSTEMS OF AMERICA"},
+    {"company_id": "rafael-usa", "display_name": "RAFAEL Advanced Defense Systems", "ticker": None, "sector_type": "defense_sub", "sec_cik": None, "headquarters": "New York, NY", "usaspending_recipient_name": "RAFAEL ADVANCED DEFENSE SYSTEMS"},
+]
+
+
+# ============================================================================
 # SEED FUNCTIONS
 # ============================================================================
 
@@ -720,9 +802,27 @@ def seed_transportation(db, dry_run=False):
     return added
 
 
+def seed_defense(db, dry_run=False):
+    """Seed defense tracked companies."""
+    added, skipped = 0, 0
+    for data in DEFENSE_COMPANIES:
+        cid = data["company_id"]
+        existing = db.query(TrackedDefenseCompany).filter_by(company_id=cid).first()
+        if existing:
+            skipped += 1
+            continue
+        if not dry_run:
+            db.add(TrackedDefenseCompany(**data))
+        added += 1
+    if not dry_run:
+        db.commit()
+    print(f"  Defense: {added} added, {skipped} already existed (total list: {len(DEFENSE_COMPANIES)})")
+    return added
+
+
 def main():
     parser = argparse.ArgumentParser(description="Seed tracked companies across all sectors")
-    parser.add_argument("--sector", type=str, choices=["finance", "health", "tech", "energy", "transportation"],
+    parser.add_argument("--sector", type=str, choices=["finance", "health", "tech", "energy", "transportation", "defense"],
                         help="Seed only this sector (default: all)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be added without writing to DB")
     args = parser.parse_args()
@@ -748,6 +848,8 @@ def main():
             total_added += seed_energy(db, args.dry_run)
         if args.sector is None or args.sector == "transportation":
             total_added += seed_transportation(db, args.dry_run)
+        if args.sector is None or args.sector == "defense":
+            total_added += seed_defense(db, args.dry_run)
 
         print(f"\n{'='*60}")
         print(f"  Total new entries: {total_added}")
@@ -761,6 +863,7 @@ def main():
             print(f"  Tech companies:       {db.query(TrackedTechCompany).count()}")
             print(f"  Energy companies:     {db.query(TrackedEnergyCompany).count()}")
             print(f"  Transportation:       {db.query(TrackedTransportationCompany).count()}")
+            print(f"  Defense:              {db.query(TrackedDefenseCompany).count()}")
             print()
 
     finally:

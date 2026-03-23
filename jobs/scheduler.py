@@ -147,6 +147,13 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=3600,
         description="Transportation sector lobbying, contracts, donations",
     ),
+    JobDef(
+        name="sync_defense_data",
+        script="jobs/sync_defense_data.py",
+        interval_hours=48,
+        timeout_sec=3600,
+        description="Defense sector lobbying, contracts, SEC filings",
+    ),
 
     # ── Every 72 hours ───────────────────────────────────────────
     JobDef(
@@ -176,6 +183,13 @@ JOB_REGISTRY: List[JobDef] = [
         interval_hours=72,
         timeout_sec=3600,
         description="Transportation enforcement actions from Federal Register",
+    ),
+    JobDef(
+        name="sync_defense_enforcement",
+        script="jobs/sync_defense_enforcement.py",
+        interval_hours=72,
+        timeout_sec=3600,
+        description="Defense enforcement actions from Federal Register",
     ),
 
     # ── Weekly (168h) ────────────────────────────────────────────

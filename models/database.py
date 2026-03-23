@@ -554,6 +554,7 @@ import models.market_models  # noqa: F401 — register market/stock tables for A
 import models.tech_models  # noqa: F401 — register tech tables for Alembic
 import models.energy_models  # noqa: F401 — register energy tables for Alembic
 import models.transportation_models  # noqa: F401 — register transportation tables for Alembic
+import models.defense_models  # noqa: F401 — register defense tables for Alembic
 import models.state_models  # noqa: F401 — register state legislature tables
 import models.committee_models  # noqa: F401 — register committee tables
 import models.digest_models  # noqa: F401 — register digest subscriber table

@@ -11,6 +11,7 @@ from models.health_models import TrackedCompany
 from models.tech_models import TrackedTechCompany
 from models.energy_models import TrackedEnergyCompany
 from models.transportation_models import TrackedTransportationCompany
+from models.defense_models import TrackedDefenseCompany
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -119,6 +120,20 @@ def global_search(q: str = Query(..., min_length=1, max_length=200)):
                 "name": co.display_name,
                 "ticker": co.ticker,
                 "sector": "transportation",
+            })
+
+        # Defense
+        for co in (
+            db.query(TrackedDefenseCompany)
+            .filter(or_(TrackedDefenseCompany.display_name.ilike(pattern), TrackedDefenseCompany.ticker.ilike(pattern)))
+            .limit(5)
+            .all()
+        ):
+            companies.append({
+                "entity_id": co.company_id,
+                "name": co.display_name,
+                "ticker": co.ticker,
+                "sector": "defense",
             })
 
         return {
