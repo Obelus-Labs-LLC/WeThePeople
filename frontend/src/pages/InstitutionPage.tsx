@@ -37,8 +37,11 @@ import {
   type DonationItem,
 } from '../api/finance';
 import { fmtDollar } from '../utils/format';
+import { getApiBaseUrl } from '../api/client';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
+import TrendChart from '../components/TrendChart';
+import ShareButton from '../components/ShareButton';
 
 // ── Helpers ──
 
@@ -179,6 +182,9 @@ export default function InstitutionPage() {
   // Narrative expansion
   const [expandedNarratives, setExpandedNarratives] = useState<Set<number>>(new Set());
 
+  // Trends
+  const [trends, setTrends] = useState<{ years: number[]; series: Record<string, number[]> } | null>(null);
+
   // Load overview data on mount
   useEffect(() => {
     if (!institution_id) return;
@@ -199,6 +205,11 @@ export default function InstitutionPage() {
       })
       .catch(console.error)
       .finally(() => { if (!cancelled) setLoading(false); });
+    // Fetch trends separately (non-blocking)
+    fetch(`${getApiBaseUrl()}/finance/institutions/${encodeURIComponent(institution_id)}/trends`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (!cancelled && d) setTrends(d); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [institution_id]);
 
@@ -293,6 +304,7 @@ export default function InstitutionPage() {
               {detail.ticker && <span className="rounded bg-white/10 px-3 py-1 font-mono text-sm text-white">{detail.ticker}</span>}
               <span className="font-mono text-xs uppercase tracking-wider text-white/40">{detail.sector_type.replace(/_/g, ' ')}</span>
               <SanctionsBadge status={detail.sanctions_status} />
+              <ShareButton url={window.location.href} title={`${detail.display_name} — WeThePeople`} />
               {detail.headquarters && (
                 <span className="flex items-center gap-1 font-body text-sm text-white/50">
                   <span className="text-white/30">·</span> {detail.headquarters}
@@ -422,6 +434,14 @@ export default function InstitutionPage() {
                   <p className="font-mono text-sm text-white/50">
                     <span className="font-bold text-white/70">{detail.complaint_count.toLocaleString()}</span> CFPB complaints on file
                   </p>
+                </div>
+              )}
+
+              {/* Activity Over Time */}
+              {trends && (
+                <div className="xl:col-span-3 rounded-xl border border-white/10 bg-white/[0.03] p-6 animate-fade-up" style={{ animationDelay: '500ms' }}>
+                  <h2 className="font-heading text-xl font-bold uppercase text-white mb-4">Activity Over Time</h2>
+                  <TrendChart data={trends} />
                 </div>
               )}
             </div>

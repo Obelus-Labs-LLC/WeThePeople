@@ -674,3 +674,84 @@ def get_tech_company_donations(
         }
     finally:
         db.close()
+
+
+# ── Trend Data ──────────────────────────────────────────────────────────
+
+
+@router.get("/companies/{company_id}/trends")
+def get_tech_company_trends(company_id: str):
+    """Yearly trend data for a tech company: lobbying, contracts, enforcement, patents."""
+    import datetime
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Tech company not found")
+
+        current_year = datetime.date.today().year
+        min_year = 2018
+
+        # Lobbying by filing_year
+        lobby_rows = (
+            db.query(LobbyingRecord.filing_year, func.count(LobbyingRecord.id))
+            .filter_by(company_id=company_id)
+            .filter(LobbyingRecord.filing_year.isnot(None))
+            .group_by(LobbyingRecord.filing_year).all()
+        )
+        lobby_by_year = {int(r[0]): r[1] for r in lobby_rows if r[0]}
+
+        # Contracts by start_date year
+        contract_rows = (
+            db.query(
+                func.strftime('%Y', GovernmentContract.start_date).label("yr"),
+                func.count(GovernmentContract.id),
+            )
+            .filter_by(company_id=company_id)
+            .filter(GovernmentContract.start_date.isnot(None))
+            .group_by("yr").all()
+        )
+        contracts_by_year = {int(r[0]): r[1] for r in contract_rows if r[0]}
+
+        # Enforcement by case_date year
+        enforcement_rows = (
+            db.query(
+                func.strftime('%Y', FTCEnforcement.case_date).label("yr"),
+                func.count(FTCEnforcement.id),
+            )
+            .filter_by(company_id=company_id)
+            .filter(FTCEnforcement.case_date.isnot(None))
+            .group_by("yr").all()
+        )
+        enforcement_by_year = {int(r[0]): r[1] for r in enforcement_rows if r[0]}
+
+        # Patents by filing_date year
+        patent_rows = (
+            db.query(
+                func.strftime('%Y', TechPatent.filing_date).label("yr"),
+                func.count(TechPatent.id),
+            )
+            .filter_by(company_id=company_id)
+            .filter(TechPatent.filing_date.isnot(None))
+            .group_by("yr").all()
+        )
+        patents_by_year = {int(r[0]): r[1] for r in patent_rows if r[0]}
+
+        # Build year range
+        all_years_set = set(lobby_by_year) | set(contracts_by_year) | set(enforcement_by_year) | set(patents_by_year)
+        all_years_set = {y for y in all_years_set if min_year <= y <= current_year}
+        if not all_years_set:
+            all_years_set = set(range(min_year, current_year + 1))
+        years = sorted(all_years_set)
+
+        return {
+            "years": years,
+            "series": {
+                "lobbying": [lobby_by_year.get(y, 0) for y in years],
+                "contracts": [contracts_by_year.get(y, 0) for y in years],
+                "enforcement": [enforcement_by_year.get(y, 0) for y in years],
+                "patents": [patents_by_year.get(y, 0) for y in years],
+            },
+        }
+    finally:
+        db.close()

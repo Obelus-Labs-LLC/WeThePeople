@@ -83,6 +83,8 @@ from routers.aggregate import router as aggregate_router
 from routers.claims import router as claims_router
 from routers.chat import router as chat_router
 from routers.anomalies import router as anomalies_router
+from routers.digest import router as digest_router
+from routers.og import router as og_router
 
 app.include_router(common_router)
 app.include_router(politics_router)
@@ -103,3 +105,5 @@ app.include_router(aggregate_router)
 app.include_router(claims_router, prefix="/claims", tags=["claims"])
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
 app.include_router(anomalies_router)
+app.include_router(digest_router)
+app.include_router(og_router)

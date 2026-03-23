@@ -7,6 +7,8 @@ import { PoliticsSectorHeader } from '../components/SectorHeader';
 import TradeTimeline from '../components/TradeTimeline';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
+import TrendChart from '../components/TrendChart';
+import ShareButton from '../components/ShareButton';
 import type { TradeMarker } from '../api/influence';
 import type {
   Person,
@@ -192,6 +194,9 @@ export default function PersonProfilePage() {
   const [trades, setTrades] = useState<any[]>([]);
   const [tradesLoading, setTradesLoading] = useState(false);
 
+  // ── State: trends (overview) ──
+  const [trends, setTrends] = useState<{ years: number[]; series: Record<string, number[]> } | null>(null);
+
   // ── Tabs ──
   const [tab, setTab] = useState<TabKey>('overview');
   const [loadedTabs, setLoadedTabs] = useState<Set<TabKey>>(new Set(['overview']));
@@ -270,7 +275,13 @@ export default function PersonProfilePage() {
       })
       .catch(() => {});
 
-    Promise.all([profileP, perfP, statsP, graphP, committeesP, actP, votesP]).finally(() => { if (!cancelled) setOverviewLoading(false); });
+    // Fetch trends
+    const trendsP = fetch(`${getApiBaseUrl()}/people/${person_id}/trends`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (!cancelled && d) setTrends(d); })
+      .catch(() => {});
+
+    Promise.all([profileP, perfP, statsP, graphP, committeesP, actP, votesP, trendsP]).finally(() => { if (!cancelled) setOverviewLoading(false); });
     return () => { cancelled = true; };
   }, [person_id]);
 
@@ -499,6 +510,7 @@ export default function PersonProfilePage() {
               )}
               <SanctionsBadge status={person?.sanctions_status} />
               <AnomalyBadge entityType="person" entityId={person_id || ''} />
+              <ShareButton url={window.location.href} title={`${displayName} — WeThePeople`} />
               {/* Contribute to campaign */}
               {displayName && (
                 <a
@@ -593,6 +605,7 @@ export default function PersonProfilePage() {
             accountabilityTier={accountabilityTier}
             matchRate={matchRate}
             committees={committees}
+            trends={trends}
           />
         )}
         {tab === 'legislation' && (
@@ -669,6 +682,7 @@ function OverviewTab({
   accountabilityTier,
   matchRate,
   committees,
+  trends,
 }: {
   loading: boolean;
   profile: PersonProfile | null;
@@ -682,6 +696,7 @@ function OverviewTab({
   accountabilityTier: string | null;
   matchRate: number | null;
   committees: any[];
+  trends: { years: number[]; series: Record<string, number[]> } | null;
 }) {
   if (loading) return <Spinner />;
 
@@ -754,6 +769,14 @@ function OverviewTab({
                 );
               })}
             </div>
+          </Card>
+        )}
+
+        {/* ACTIVITY OVER TIME */}
+        {trends && (
+          <Card>
+            <CardTitle>Activity Over Time</CardTitle>
+            <TrendChart data={trends} />
           </Card>
         )}
       </div>

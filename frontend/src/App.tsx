@@ -82,6 +82,7 @@ const VerifySubmitPage = React.lazy(() => import("./pages/VerifySubmitPage"));
 const VerifyResultPage = React.lazy(() => import("./pages/VerifyResultPage"));
 const VerifyEntityPage = React.lazy(() => import("./pages/VerifyEntityPage"));
 const VerifyMethodologyPage = React.lazy(() => import("./pages/VerifyMethodologyPage"));
+const DigestSignupPage = React.lazy(() => import("./pages/DigestSignupPage"));
 const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage"));
 const PrivacyPolicyPage = React.lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfUsePage = React.lazy(() => import("./pages/TermsOfUsePage"));
@@ -195,6 +196,9 @@ const App: React.FC = () => (
           <Route path="/verify/results/:id" element={<VerifyLayout><VerifyResultPage /></VerifyLayout>} />
           <Route path="/verify/entity/:type/:id" element={<VerifyLayout><VerifyEntityPage /></VerifyLayout>} />
           <Route path="/verify/methodology" element={<VerifyLayout><VerifyMethodologyPage /></VerifyLayout>} />
+
+          {/* Digest signup */}
+          <Route path="/digest" element={<DigestSignupPage />} />
 
           {/* Legal / Info pages */}
           <Route path="/privacy" element={<PrivacyPolicyPage />} />

@@ -24,8 +24,9 @@ from models.transportation_models import (
     TrackedTransportationCompany,
     NHTSARecall,
     NHTSAComplaint,
+    NHTSASafetyRating,
 )
-from connectors.nhtsa import fetch_recalls, fetch_complaints
+from connectors.nhtsa import fetch_recalls, fetch_complaints, fetch_safety_ratings
 import logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -52,6 +53,12 @@ COMPANY_TO_MAKE = {
     "volvo": "Volvo",
     "rivian": "Rivian",
     "lucid": "Lucid",
+    "nio": "NIO",
+    "paccar": "Peterbilt",  # PACCAR brands: Peterbilt, Kenworth, DAF
+    "cummins": "Cummins",  # Engine manufacturer — limited NHTSA results expected
+    "caterpillar": "Caterpillar",  # Heavy equipment — limited NHTSA results expected
+    "navistar": "International",  # Navistar's truck brand is International
+    "deere": "John Deere",  # Limited NHTSA results (mostly off-road)
 }
 
 # Additional makes for multi-brand companies (Stellantis, GM, etc.)
@@ -64,6 +71,7 @@ COMPANY_EXTRA_MAKES = {
     "hyundai": ["Genesis"],
     "nissan": ["Infiniti"],
     "volkswagen": ["Audi", "Porsche"],
+    "paccar": ["Kenworth", "DAF"],
 }
 
 
@@ -71,6 +79,10 @@ def _get_makes_for_company(company_id: str) -> list[str]:
     """Return list of NHTSA make names for a company."""
     primary = COMPANY_TO_MAKE.get(company_id)
     if not primary:
+        logger.warning(
+            "No NHTSA make mapping for company '%s' — add it to COMPANY_TO_MAKE in sync_nhtsa_data.py",
+            company_id,
+        )
         return []
     makes = [primary]
     extras = COMPANY_EXTRA_MAKES.get(company_id, [])
@@ -171,11 +183,84 @@ def sync_complaints(company: TrackedTransportationCompany, db) -> int:
     return inserted
 
 
+def _compute_rating_hash(make: str, model: str, model_year: int) -> str:
+    """Compute a dedupe hash for a safety rating record."""
+    import hashlib
+    raw = f"{make}|{model}|{model_year}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _parse_rating(val) -> int | None:
+    """Parse NHTSA rating value — can be int, string int, or 'Not Rated'."""
+    if val is None:
+        return None
+    if isinstance(val, int):
+        return val
+    s = str(val).strip()
+    if s.isdigit():
+        return int(s)
+    return None  # "Not Rated" or other non-numeric
+
+
+def sync_safety_ratings(company: TrackedTransportationCompany, db) -> int:
+    """Sync NHTSA NCAP safety ratings for a company."""
+    makes = _get_makes_for_company(company.company_id)
+    if not makes:
+        logger.info("Skipping NHTSA safety ratings for %s (no make mapping)", company.company_id)
+        return 0
+
+    from datetime import datetime
+    current_year = datetime.now().year
+    inserted = 0
+
+    for make in makes:
+        # Fetch ratings for recent model years (last 5 years)
+        for year in range(current_year, current_year - 6, -1):
+            ratings = fetch_safety_ratings(make, year)
+
+            for rating_data in ratings:
+                make_name = rating_data.get("make", make)
+                model_name = rating_data.get("model", "")
+                h = _compute_rating_hash(make_name, model_name, year)
+
+                # Dedupe check
+                exists = db.query(NHTSASafetyRating).filter_by(dedupe_hash=h).first()
+                if exists:
+                    continue
+
+                try:
+                    record = NHTSASafetyRating(
+                        company_id=company.company_id,
+                        make=make_name,
+                        model=model_name,
+                        model_year=year,
+                        overall_rating=_parse_rating(rating_data.get("overall_rating")),
+                        frontal_crash_rating=_parse_rating(rating_data.get("front_crash")),
+                        side_crash_rating=_parse_rating(rating_data.get("side_crash")),
+                        rollover_rating=_parse_rating(rating_data.get("rollover")),
+                        dedupe_hash=h,
+                    )
+                    db.add(record)
+                    db.flush()
+                    inserted += 1
+                except Exception as e:
+                    db.rollback()
+                    logger.error("Failed to insert safety rating for %s %s %d: %s",
+                                 make_name, model_name, year, e)
+                    continue
+
+    if inserted > 0:
+        db.commit()
+    logger.info("NHTSA safety ratings for %s: %d new records", company.company_id, inserted)
+    return inserted
+
+
 def main():
     parser = argparse.ArgumentParser(description="Sync NHTSA data for transportation companies")
     parser.add_argument("--company-id", type=str, help="Sync only this company (by company_id)")
     parser.add_argument("--skip-recalls", action="store_true", help="Skip recall sync")
     parser.add_argument("--skip-complaints", action="store_true", help="Skip complaint sync")
+    parser.add_argument("--skip-ratings", action="store_true", help="Skip safety ratings sync")
     args = parser.parse_args()
 
     db = SessionLocal()
@@ -193,6 +278,7 @@ def main():
 
         total_recalls = 0
         total_complaints = 0
+        total_ratings = 0
 
         for i, company in enumerate(companies, 1):
             logger.info("Processing %d/%d: %s", i, len(companies), company.display_name)
@@ -203,9 +289,12 @@ def main():
             if not args.skip_complaints:
                 total_complaints += sync_complaints(company, db)
 
+            if not args.skip_ratings:
+                total_ratings += sync_safety_ratings(company, db)
+
         logger.info(
-            "NHTSA sync complete: %d recalls, %d complaints inserted across %d companies",
-            total_recalls, total_complaints, len(companies),
+            "NHTSA sync complete: %d recalls, %d complaints, %d safety ratings inserted across %d companies",
+            total_recalls, total_complaints, total_ratings, len(companies),
         )
     except Exception as e:
         logger.error("NHTSA sync failed: %s", e, exc_info=True)

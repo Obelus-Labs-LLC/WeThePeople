@@ -556,6 +556,7 @@ import models.energy_models  # noqa: F401 — register energy tables for Alembic
 import models.transportation_models  # noqa: F401 — register transportation tables for Alembic
 import models.state_models  # noqa: F401 — register state legislature tables
 import models.committee_models  # noqa: F401 — register committee tables
+import models.digest_models  # noqa: F401 — register digest subscriber table
 
 
 if __name__ == "__main__":
