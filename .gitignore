@@ -86,6 +86,7 @@ frontend/src/api/README.md
 
 # Seed/reference data (local only, too large or too volatile for git)
 data/
+!frontend/src/data/
 audit/
 
 # Logos (local only — not code)
