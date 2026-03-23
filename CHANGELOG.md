@@ -9,15 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (Major Features)
 - **Claim Verification pipeline** — top-level `/verify` section. Submit text or URLs, Claude extracts claims, matches against 9 data sources (bills, votes, trades, lobbying, contracts, enforcement, donations, committees, SEC filings), scores as Strong/Moderate/Weak/Unverified. Free tier: 5/day. Enterprise: unlimited.
-- **Transportation sector** — 6th sector with 80 seed companies (airlines, logistics, auto, rail, aerospace, maritime). Full stack: models, router, sync jobs, 4 web pages, 4 mobile screens, blue (#3B82F6) accent.
+- **Transportation sector** — 6th sector with 80 seed companies (airlines, logistics, auto, rail, aerospace, maritime). Full stack: models, router, sync jobs, NHTSA recalls/complaints, 4 web pages, 4 mobile screens, blue (#3B82F6) accent.
+- **AI Chat Agent** — floating chat bubble on every page. 3-tier intent resolution: client-side FAQ/navigation (free), cached answers (free), Claude Haiku fallback (10/day per IP). Backend: `routers/chat.py`. Web: `ChatAgent.tsx`. Mobile: `ChatAgentScreen.tsx`. Ctrl+K opens chat.
+- **Anomaly Detection** — nightly job scanning for suspicious patterns: trades near committee votes, lobbying spikes before contract awards, enforcement gaps, revolving door indicators. Anomalies page at `/influence/anomalies`.
+- **EPA Emissions** — connector for EPA GHGRP data, sync job, emissions tab on energy company profiles with year-over-year trends and climate lobbying connection.
+- **Patent-to-Policy Connection** — patents linked to IP lobbying filings and tech policy bills in Congress. New `/tech/companies/{id}/patent-policy` endpoint.
+- **CSV Export** — reusable `CSVExport.tsx` component on all major data tables (trades, lobbying, contracts, enforcement, people, bills).
+- **Twitter Bot** — automated posting 4x/day from live API data. Link-in-reply strategy for reach. API health check skips data tweets during syncs. Cron scheduled on VM.
+- **Oracle Cloud integration** — Autonomous Database provisioned, Object Storage backups (daily, 7-day retention), VM retry script for 3 ARM instances.
+- **Vercel Analytics** — `@vercel/analytics` integrated in App.tsx.
 - Verify web pages: Dashboard, Submit, Result, Entity, Methodology
 - Verify components: TierBadge, VerificationCard, ClaimSubmitForm, EvidenceList
 - Verify mobile screens: Dashboard, Submit, Result, Entity
-- Transportation web pages: Dashboard, Companies, Profile, Compare
+- Transportation web pages: Dashboard, Companies, Profile (8 tabs including NHTSA recalls/complaints), Compare
 - Transportation mobile screens: Dashboard, Companies, Profile, Compare
+- Transportation connectors: NHTSA (recalls, complaints, safety ratings), FuelEconomy.gov
 - Enterprise auth tier in `services/auth.py` with rate limiting
+- Homepage zip code hero CTA ("Enter your zip code to see who represents you")
 - Homepage "Verify Claims" CTA card with emerald accent
 - Transportation tab in mobile bottom navigation
+- TrendChart SVG sparkline component for profile pages
+- AnomalyBadge component on all profile pages
+- Anomalies page with pattern type filtering and score thresholds
+
+### Removed (Features — data kept in backend)
+- Drug Lookup page removed from navigation (tangential to mission, 90 API calls per search)
+- Health adverse events tab hidden (data dump with no political story)
+- CFPB complaints tab replaced with one-line summary on institution overview
+- Fuel economy tab hidden from transportation profiles (irrelevant to mission)
 
 ### Removed (V1 Cleanup)
 - ~150 V1 dead files deleted (~20,000 lines): scripts/ (68), tests/ (62), cli/ (5), 13 V1 jobs, 3 V1 utils
