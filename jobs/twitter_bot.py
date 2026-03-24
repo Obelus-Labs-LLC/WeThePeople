@@ -132,7 +132,8 @@ def generate_data_tweet() -> tuple:
         if total > 0:
             options.append((
                 f"{name} spent {_fmt_money(total)} lobbying Congress.\n\n"
-                f"Wonder what they asked for.",
+                f"Wonder what they asked for.\n\n"
+                f"#CorporateLobbying",
                 f"{SITE}/influence"
             ))
 
@@ -146,7 +147,8 @@ def generate_data_tweet() -> tuple:
         if total > 0:
             options.append((
                 f"{name} received {_fmt_money(total)} in government contracts.\n\n"
-                f"Your tax dollars. Their bottom line.",
+                f"Your tax dollars. Their bottom line.\n\n"
+                f"#FollowTheMoney",
                 f"{SITE}/influence"
             ))
 
@@ -155,15 +157,24 @@ def generate_data_tweet() -> tuple:
     trades = data.get("trades", data.get("items", []))
     if trades:
         trade = random.choice(trades[:10])
-        person = trade.get("member_name", trade.get("person_name", "A member of Congress"))
+        person = trade.get("member_name", trade.get("person_name", ""))
+        if not person or person == "N/A":
+            person = "A member of Congress"
         ticker = trade.get("ticker", "???")
         raw_type = (trade.get("transaction_type", "") or "").lower()
-        tx_type = {"purchase": "bought", "sale": "sold", "sale (partial)": "sold", "purchase (partial)": "bought", "exchange": "exchanged"}.get(raw_type, "traded")
+        tx_type = {
+            "purchase": "bought", "purchased": "bought",
+            "sale": "sold", "sold": "sold",
+            "sale (partial)": "sold", "sale_partial": "sold",
+            "purchase (partial)": "bought", "purchase_partial": "bought",
+            "exchange": "exchanged",
+        }.get(raw_type, "traded")
         amount = trade.get("amount_range", "")
         amount_str = f" ({amount})" if amount and amount != "N/A" else ""
         options.append((
             f"{person} {tx_type} ${ticker}{amount_str}.\n\n"
-            f"Disclosed days later. As required by law. Barely.",
+            f"Disclosed days later. As required by law. Barely.\n\n"
+            f"#CongressTrades",
             f"{SITE}/politics/trades"
         ))
 
@@ -180,7 +191,8 @@ def generate_data_tweet() -> tuple:
                 f"{_fmt_money(lobbying_spend)} in lobbying.\n"
                 f"{_fmt_money(contract_value)} in government contracts.\n"
                 f"{enforcement:,} enforcement actions.\n\n"
-                f"All searchable. All free.",
+                f"All searchable. All free.\n\n"
+                f"#FollowTheMoney",
                 SITE
             ))
 
@@ -194,21 +206,21 @@ def generate_data_tweet() -> tuple:
 def generate_product_tweet() -> tuple:
     """Generate a punchy product awareness tweet. Link goes in reply."""
     templates = [
-        ("Your senator bought pharma stocks while sitting on the Health Committee.\n\nWe track every trade.", f"{SITE}/politics/trades"),
-        ("One search. Every lobbying dollar, every contract, every enforcement action.\n\nSix sectors. Open source.", SITE),
-        ("We cross-reference congressional trades with committee assignments.\n\nThe overlap is... something.", f"{SITE}/politics/trades"),
-        ("Want to know who's lobbying your state's politicians?\n\nWe mapped it.", f"{SITE}/influence/map"),
-        ("6 sectors. 26 data sources. 600K+ records. No paywall.", SITE),
-        ("Politicians write the rules. Corporations fund the politicians.\n\nWe track both sides.", SITE),
-        ("Every government contract. Every lobbying filing. Every stock trade by Congress.\n\nOne platform.", SITE),
-        ("Think your representative works for you?\n\nCheck who's actually paying them.", f"{SITE}/politics"),
-        ("We built what Congress hoped nobody would build — a searchable record of who pays them.", SITE),
-        ("The influence network shows you exactly how money flows from corporations to politicians.", f"{SITE}/influence/network"),
-        ("FDA enforcement. SEC filings. Lobbying spend. All connected for every major health company.", f"{SITE}/health"),
-        ("CFPB complaints, insider trades, lobbying filings — the full picture on every major bank.", f"{SITE}/finance"),
-        ("Follow the money from industry to politics.\n\nThat's literally all we do.", SITE),
-        ("Open source. Because transparency shouldn't have a paywall.", SITE),
-        ("\"I don't take corporate money.\"\n\nCool. We checked the FEC filings.\n\nYou do.", f"{SITE}/verify"),
+        ("Your senator bought pharma stocks while sitting on the Health Committee.\n\nWe track every trade.\n\n#CivicTech #OpenData", f"{SITE}/politics/trades"),
+        ("One search. Every lobbying dollar, every contract, every enforcement action.\n\nEight sectors. Open source.\n\n#CivicTech #OpenData", SITE),
+        ("We cross-reference congressional trades with committee assignments.\n\nThe overlap is... something.\n\n#CivicTech", f"{SITE}/politics/trades"),
+        ("Want to know who's lobbying your state's politicians?\n\nWe mapped it.\n\n#CivicTech #OpenData", f"{SITE}/influence/map"),
+        ("8 sectors. 35+ data sources. 1M+ records. No paywall.\n\n#CivicTech #OpenData", SITE),
+        ("Politicians write the rules. Corporations fund the politicians.\n\nWe track both sides.\n\n#CivicTech", SITE),
+        ("Every government contract. Every lobbying filing. Every stock trade by Congress.\n\nOne platform.\n\n#CivicTech #OpenData", SITE),
+        ("Think your representative works for you?\n\nCheck who's actually paying them.\n\n#CivicTech", f"{SITE}/politics"),
+        ("We built what Congress hoped nobody would build — a searchable record of who pays them.\n\n#CivicTech #OpenData", SITE),
+        ("The influence network shows you exactly how money flows from corporations to politicians.\n\n#CivicTech", f"{SITE}/influence/network"),
+        ("FDA enforcement. SEC filings. Lobbying spend. All connected for every major health company.\n\n#CivicTech #OpenData", f"{SITE}/health"),
+        ("Insider trades, lobbying filings, enforcement actions — the full picture on every major bank.\n\n#CivicTech #OpenData", f"{SITE}/finance"),
+        ("Follow the money from industry to politics.\n\nThat's literally all we do.\n\n#CivicTech", SITE),
+        ("Open source. Because transparency shouldn't have a paywall.\n\n#CivicTech #OpenData", SITE),
+        ("\"I don't take corporate money.\"\n\nCool. We checked the FEC filings.\n\nYou do.\n\n#CivicTech", f"{SITE}/verify"),
     ]
 
     tweet_text, link = random.choice(templates)
@@ -218,12 +230,12 @@ def generate_product_tweet() -> tuple:
 def generate_verify_tweet() -> tuple:
     """Generate a claim verification promo tweet. Link in reply."""
     templates = [
-        ("Politicians talk. We check receipts.", f"{SITE}/verify"),
-        ("They said they'd never take corporate money.\n\nThe FEC data says otherwise.", f"{SITE}/verify"),
-        ("Submit any political claim. We match it against votes, trades, lobbying, contracts, and donations.\n\nAutomatically.", f"{SITE}/verify"),
-        ("\"I've always fought for the working class.\"\n\nCool. Let's see the lobbying disclosures.", f"{SITE}/verify"),
-        ("Campaign promises vs. legislative record.\n\nWe automate that comparison.", f"{SITE}/verify"),
-        ("9 data sources. One verdict.\n\nStrong. Moderate. Weak. Unverified.\n\nEvery claim, fact-checked against the record.", f"{SITE}/verify"),
+        ("Politicians talk. We check receipts.\n\n#FactCheck", f"{SITE}/verify"),
+        ("They said they'd never take corporate money.\n\nThe FEC data says otherwise.\n\n#FactCheck", f"{SITE}/verify"),
+        ("Submit any political claim. We match it against votes, trades, lobbying, contracts, and donations.\n\nAutomatically.\n\n#FactCheck", f"{SITE}/verify"),
+        ("\"I've always fought for the working class.\"\n\nCool. Let's see the lobbying disclosures.\n\n#FactCheck", f"{SITE}/verify"),
+        ("Campaign promises vs. legislative record.\n\nWe automate that comparison.\n\n#FactCheck", f"{SITE}/verify"),
+        ("9 data sources. One verdict.\n\nStrong. Moderate. Weak. Unverified.\n\nEvery claim, fact-checked against the record.\n\n#FactCheck", f"{SITE}/verify"),
     ]
 
     tweet_text, link = random.choice(templates)
@@ -263,11 +275,11 @@ def generate_thread() -> tuple:
         return None, "thread"
 
     tweets = [
-        f"{name} spent {_fmt_money(lobby_total)} lobbying Congress. Where'd that money go?",
-        f"We track every dollar — from lobbying filings to government contracts to stock trades by the politicians they target. {SITE}/influence/network",
+        f"{name} spent {_fmt_money(lobby_total)} lobbying Congress. Where'd that money go?\n\n#FollowTheMoney",
+        f"We track every dollar — from lobbying filings to government contracts to stock trades by the politicians they target.",
     ]
 
-    return tweets, "thread"
+    return (tweets, f"{SITE}/influence/network"), "thread"
 
 
 # ── Category Rotation ──
@@ -288,13 +300,89 @@ def generate_story_tweet():
         return generate_product_tweet()
 
     text = f"{title}\n\n{summary}" if summary else title
+    text += "\n\n#FollowTheMoney"
     link = f"{SITE}/stories/{slug}" if slug else SITE
     return (text, link), "story"
 
 
+def generate_anomaly_tweet() -> tuple:
+    """Generate a tweet from detected anomalies (trade-committee overlaps, lobbying spikes, etc.)."""
+    data = api_get("/influence/anomalies", {"limit": 10})
+    anomalies = data.get("anomalies", data.get("items", []))
+    if not anomalies:
+        return None, "anomaly"
+
+    anomaly = random.choice(anomalies[:5])
+    a_type = anomaly.get("type", anomaly.get("anomaly_type", ""))
+    description = anomaly.get("description", anomaly.get("summary", ""))
+    entity = anomaly.get("entity_name", anomaly.get("name", ""))
+
+    if a_type in ("trade_committee_overlap", "trade-committee"):
+        ticker = anomaly.get("ticker", anomaly.get("details", {}).get("ticker", ""))
+        committee = anomaly.get("committee", anomaly.get("details", {}).get("committee", ""))
+        person = entity or "A member of Congress"
+        if ticker and committee:
+            text = (
+                f"{person} traded ${ticker} while sitting on the committee overseeing that industry.\n\n"
+                f"Coincidence?\n\n#CongressTrades"
+            )
+        elif ticker:
+            text = (
+                f"{person} traded ${ticker} stock — then voted on legislation affecting that company.\n\n"
+                f"Timing is everything.\n\n#CongressTrades"
+            )
+        else:
+            text = (
+                f"{person}'s stock trades overlap with their committee assignments.\n\n"
+                f"We mapped it.\n\n#CongressTrades"
+            )
+        return (text, f"{SITE}/politics/trades"), "anomaly"
+
+    elif a_type in ("lobbying_contract_correlation", "lobbying-contract"):
+        company = entity or "A major corporation"
+        lobby_amt = anomaly.get("lobbying_amount", anomaly.get("details", {}).get("lobbying_amount", 0))
+        contract_amt = anomaly.get("contract_amount", anomaly.get("details", {}).get("contract_amount", 0))
+        if lobby_amt and contract_amt:
+            text = (
+                f"{company} spent {_fmt_money(lobby_amt)} lobbying Congress, "
+                f"then landed {_fmt_money(contract_amt)} in government contracts.\n\n"
+                f"Totally unrelated, surely.\n\n#FollowTheMoney"
+            )
+        else:
+            text = (
+                f"{company}'s lobbying spend spiked right before they won a major government contract.\n\n"
+                f"Just good timing, right?\n\n#FollowTheMoney"
+            )
+        return (text, f"{SITE}/influence"), "anomaly"
+
+    elif a_type in ("enforcement_anomaly", "enforcement"):
+        company = entity or "A company"
+        text = (
+            f"{company} racked up enforcement actions while increasing lobbying spend.\n\n"
+            f"Paying fines. Paying lobbyists. Paying politicians.\n\n#FollowTheMoney"
+        )
+        return (text, f"{SITE}/influence"), "anomaly"
+
+    elif a_type in ("donation_timing", "donation-timing"):
+        person = entity or "A politician"
+        text = (
+            f"Donations to {person} spiked right around a key vote.\n\n"
+            f"The money always arrives on time.\n\n#FollowTheMoney"
+        )
+        return (text, f"{SITE}/politics"), "anomaly"
+
+    # Generic fallback for any anomaly type
+    if description:
+        text = f"{description}\n\n#FollowTheMoney"
+        return (text, f"{SITE}/influence"), "anomaly"
+
+    return None, "anomaly"
+
+
 CATEGORIES = {
     "data": (generate_data_tweet, 25),
-    "product": (generate_product_tweet, 20),
+    "anomaly": (generate_anomaly_tweet, 10),
+    "product": (generate_product_tweet, 10),
     "story": (generate_story_tweet, 25),
     "thread": (generate_thread, 15),
     "verify": (generate_verify_tweet, 8),
@@ -337,7 +425,7 @@ def run(category: str = None, dry_run: bool = False):
     cat = category or pick_category()
 
     # If API is down, only allow categories that don't need live data
-    if not api_up and cat in ("data", "thread"):
+    if not api_up and cat in ("data", "thread", "anomaly"):
         cat = random.choice(["product", "verify", "engagement"])
 
     generator, _ = CATEGORIES.get(cat, (generate_product_tweet, 0))
@@ -349,19 +437,22 @@ def run(category: str = None, dry_run: bool = False):
         result, actual_cat = generate_product_tweet()
 
     # Handle thread vs single tweet
-    is_thread = isinstance(result, list)
+    # Threads return (tweets_list, link) where tweets_list is a list
+    is_thread = isinstance(result, tuple) and isinstance(result[0], list)
 
     if is_thread:
-        tweet_text = result[0]
-        link = None
+        thread_tweets, link = result
+        tweet_text = thread_tweets[0]
     else:
         tweet_text, link = result
 
     if dry_run:
         if is_thread:
             print(f"\n[DRY RUN] Thread ({actual_cat}):")
-            for i, t in enumerate(result):
+            for i, t in enumerate(thread_tweets):
                 print(f"  [{i+1}] {t}")
+            if link:
+                print(f"  [REPLY] {link}")
         else:
             print(f"\n[DRY RUN] Tweet ({actual_cat}):")
             print(f"  {tweet_text}")
@@ -372,19 +463,19 @@ def run(category: str = None, dry_run: bool = False):
 
     # Check for duplicates — only retries once by design. If both attempts
     # produce duplicates, we skip this cycle rather than looping indefinitely.
-    check_text = result[0] if is_thread else tweet_text
+    check_text = thread_tweets[0] if is_thread else tweet_text
     if already_posted(session, check_text):
         log.info("Already posted similar content. Regenerating...")
         result, actual_cat = generator()
         if result is None:
             result, actual_cat = generate_product_tweet()
-        is_thread = isinstance(result, list)
+        is_thread = isinstance(result, tuple) and isinstance(result[0], list)
         if is_thread:
-            tweet_text = result[0]
-            link = None
+            thread_tweets, link = result
+            tweet_text = thread_tweets[0]
         else:
             tweet_text, link = result
-        check_text = result[0] if is_thread else tweet_text
+        check_text = thread_tweets[0] if is_thread else tweet_text
         if already_posted(session, check_text):
             log.warning("Still a duplicate. Skipping this cycle.")
             session.close()
@@ -392,10 +483,15 @@ def run(category: str = None, dry_run: bool = False):
 
     # Post
     if is_thread:
-        ids = post_thread(result)
+        ids = post_thread(thread_tweets)
         if ids:
-            log_tweet(session, ids[0], actual_cat, result[0])
+            log_tweet(session, ids[0], actual_cat, thread_tweets[0])
             log.info("Thread posted: %d tweets", len(ids))
+            # Reply with link after the last tweet in thread
+            if link and ids:
+                reply_id = post_tweet(link, reply_to=ids[-1])
+                if reply_id:
+                    log.info("Thread link reply posted: %s", reply_id)
     else:
         tweet_id = post_tweet(tweet_text)
         if tweet_id:

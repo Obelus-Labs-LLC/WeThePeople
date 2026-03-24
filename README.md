@@ -1,295 +1,222 @@
-# WeThePeople
+<p align="center">
+  <img src="https://wethepeopleforus.com/favicon.svg" alt="WeThePeople" width="80" />
+</p>
 
-**Follow the money from industry to politics.**
+<h1 align="center">WeThePeople</h1>
 
-A civic transparency platform that tracks how corporations lobby Congress, win government contracts, face enforcement actions, and donate to politicians — across Finance, Health, Technology, and Energy. Every data point links back to its public source.
+<p align="center">
+  <strong>Follow the money from industry to politics.</strong>
+</p>
 
-**Live at [wethepeopleforus.com](https://wethepeopleforus.com)**
+<p align="center">
+  <a href="https://wethepeopleforus.com">wethepeopleforus.com</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="https://twitter.com/WTPForUs">@WTPForUs</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="https://github.com/sponsors/Obelus-Labs-LLC">Sponsor</a>
+</p>
 
----
-
-## What Makes This Different
-
-Most political data tools show you one thing — campaign donations, or votes, or lobbying. WeThePeople connects all of them across industries. Pick a politician and see which companies fund them, what those companies lobby for, what government contracts they receive, and how that politician votes on related legislation. Pick a company and see every politician they donate to, every lobbying filing, every enforcement action against them.
-
-No spin. No editorials. Just the public record — structured, searchable, and linked back to its source.
-
----
-
-## Five Sectors, One Platform
-
-### Politics
-547 tracked members of Congress. Voting records (House + Senate), sponsored legislation, bill progress tracking, co-sponsorship networks, 49 committees with 3,900+ memberships, 4,600+ congressional stock trades parsed from official disclosure PDFs, and 7,300+ state legislators across all 50 states. Find your representative by ZIP code.
-
-### Finance
-144 financial institutions — banks, insurers, asset managers, fintech. SEC filings, FDIC financials, CFPB consumer complaints, insider trades, lobbying disclosures, government contracts, and enforcement actions.
-
-### Health
-134 pharmaceutical, biotech, medical device, and healthcare companies. FDA adverse events, product recalls, clinical trial pipelines, CMS Open Payments, lobbying, government contracts, and enforcement actions.
-
-### Technology
-139 tech companies — platforms, enterprise SaaS, semiconductors, cybersecurity. Patent portfolios, federal government contracts, lobbying by issue, FTC enforcement actions, and SEC filings.
-
-### Oil, Gas & Energy
-89 energy companies — oil & gas producers, utilities, renewables, pipelines, oilfield services. EPA emissions data, lobbying disclosures, government contracts, and enforcement actions.
+<p align="center">
+  <img alt="Vercel" src="https://img.shields.io/badge/frontend-Vercel-black?logo=vercel" />
+  <img alt="FastAPI" src="https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white" />
+  <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" />
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" />
+  <img alt="Data Sources" src="https://img.shields.io/badge/data%20sources-35%2B%20APIs-orange" />
+</p>
 
 ---
 
-## Cross-Sector Features
+## What is this?
 
-| Feature | Description |
-|---------|-------------|
-| **Influence Network Graph** | Interactive force-directed graph showing connections between politicians, companies, donations, lobbying, and legislation. Search any entity, explore 1-2 hops of relationships. |
-| **Spending Map** | Choropleth map of the US showing lobbying spend, donations, and political activity by state with interactive hover and top-10 ranking. |
-| **Global Search** | Cmd+K overlay searching across all politicians, companies, and bills in one place. |
-| **Compare Pages** | Side-by-side comparison of politicians or companies within any sector — lobbying spend, contracts, enforcement, financial metrics. |
-| **Congressional Trades** | 4,600+ trades parsed from official House financial disclosure PDFs + Quiver API data. Filing delay indicators, trade timelines, and links to Capitol Trades for deep dives. |
-| **Campaign Contributions** | Direct links to ActBlue (D) or WinRed (R) for any politician — contribute to your representative's campaign directly from their profile. |
-| **State-Level Data** | 7,300+ state legislators across all 50 states (bulk imported from OpenStates). Explore by state from the spending map or Find Rep page. |
-| **Bill Pipeline** | Visual 6-stage funnel showing legislation progress from introduction through enactment, with sponsor filtering. |
-| **Data Freshness** | Every dashboard shows when data was last synced and record counts, so you know how current the information is. |
-| **Money Flow Sankey** | Interactive Sankey diagrams showing how money flows from companies through lobbying and PAC donations to politicians, with sector filtering. |
-| **Data Explorer** | Coordinated cross-sector dashboard with sector toggle buttons filtering all charts simultaneously. |
-| **Data Story** | 5-step animated narrative walking through the landscape of political influence — lobbying, contracts, comparisons, and enforcement gaps. |
-| **Influence Timeline** | Chronological event timeline for any entity, built from influence network relationship data with category filters. |
-| **Closed-Loop Detection** | Automated detection of influence loops: company lobbies on bill → bill goes to committee → company donates to committee members. |
-| **Sanctions Badges** | Real-time sanctions/PEP/watchlist status badges on all entity profiles — checks against OFAC, EU, and UN databases via OpenSanctions. |
-| **AI Summaries** | Claude-powered plain-English summaries of votes, enforcement actions, and politician profiles — making dense government data readable. |
-| **Methodology Page** | Full documentation of every data source, update frequency, and known limitations. |
+WeThePeople is an open-source civic transparency platform that tracks how corporations lobby Congress, win government contracts, face enforcement actions, trade stocks alongside legislators, and donate to politicians. It pulls from 35+ government APIs and covers 8 sectors: Politics, Finance, Health, Technology, Energy, Transportation, Defense, and all 50 states. Every data point links back to its authoritative public source.
 
 ---
 
-## Data Sources (35+)
+## The Ecosystem
 
-| Source | Data | Sectors |
-|--------|------|---------|
-| Congress.gov API | House votes, bills, sponsors, actions | Politics |
-| Senate LDA | Lobbying filings (2020-present) | All sectors |
-| USASpending.gov | Federal government contracts | All sectors |
-| Federal Register | Enforcement actions, rules, notices | All sectors |
-| FEC | Campaign donations, PAC disbursements | All sectors |
-| Quiver Quantitative | Congressional stock trades | Politics |
-| SEC EDGAR | Corporate filings (10-K, 10-Q, 8-K, Form 4) | Finance, Health, Tech, Energy |
-| FDIC BankFind | Bank quarterly financials | Finance |
-| CFPB | Consumer complaints | Finance |
-| FRED | Federal Reserve economic indicators | Finance |
-| OpenFDA | Adverse events, product recalls | Health |
-| ClinicalTrials.gov | Clinical trial pipelines | Health |
-| CMS Open Payments | Industry payments to physicians | Health |
-| USPTO PatentsView | Patent filings and claims | Tech |
-| FTC | Enforcement actions | Tech |
-| EPA GHGRP | Greenhouse gas emissions | Energy |
-| OpenStates | State legislators and bills | Politics (state-level) |
-| Alpha Vantage | Stock fundamentals and quotes | All sectors |
-| Wikipedia | Politician profiles and photos | Politics |
-| Google Civic | Representative lookup by address | Politics |
-| Senate.gov XML | Senate roll call votes (scraped directly) | Politics |
-| House Clerk Disclosures | Congressional financial disclosure PDFs | Politics |
-| AInvest | Congressional trade enrichment (filing delays) | Politics |
-| unitedstates/congress-legislators | Committee and membership data (CC0) | Politics |
-| openstates/people | State legislator data for all 50 states (CC0) | Politics |
-| OpenSanctions | Sanctions, PEP, and watchlist checks (OFAC/EU/UN) | All sectors |
-| Federal Reserve (Fed Press) | Fed press releases and statements | Finance |
-| FTC Cases | FTC enforcement case data | Tech |
-| Data.gov / GovInfo | Government open data and publications | All sectors |
+| Platform | Status | Description |
+|----------|--------|-------------|
+| **[WeThePeople](https://wethepeopleforus.com)** | Live | The core lobbying and influence tracker. Congressional trades, money flows, enforcement actions, lobbying filings, government contracts. 1,000+ tracked entities across 8 sectors. |
+| **WTP Research** | Coming soon | Deep-dive research tools. Patent explorer, drug lookup, clinical trial pipelines, insider trade analysis, company financials, and SEC filing search. |
+| **The Influence Journal** | Coming soon | Data-driven stories and investigations. Weekly newsletter. Anomaly-detected leads. Every claim cited against the public record. |
 
 ---
 
-## Tech Stack
+## Key Features
 
-| Layer | Technology |
-|-------|-----------|
-| Web frontend | React 19, Vite, TypeScript, Tailwind CSS 4, Framer Motion |
-| Visualizations | react-force-graph-2d, React-Leaflet, Plotly.js (Sankey), TanStack Table/Virtual, TradingView Lightweight Charts |
-| Backend | Python 3.11, FastAPI, SQLAlchemy, SQLite (WAL mode) |
-| Mobile app | React Native, Expo SDK 54 (full parity with web — 52+ screens) |
-| Hosting | GCP Compute Engine (API), Vercel (frontend) |
-| Data pipeline | 26 Python connectors + 39 sync/migration jobs with rate limiting, pagination, and deduplication |
-| Search | Cross-sector entity search via `/search` endpoint |
-| Performance | React.lazy() code splitting, 75% bundle reduction |
-
----
-
-## Project Structure
-
-```
-WeThePeople/
-├── main.py                     # FastAPI entry point + middleware
-├── routers/                    # 13 API route handlers
-│   ├── politics.py              # 30+ endpoints: members, votes, bills, claims
-│   ├── finance.py               # Institutions, filings, complaints, insider trades
-│   ├── health.py                # Companies, adverse events, recalls, trials
-│   ├── tech.py                  # Companies, patents, contracts, enforcement
-│   ├── energy.py                # Companies, emissions, contracts, lobbying
-│   ├── influence.py             # Cross-sector: network graph, spending map, trade timeline
-│   ├── search.py                # Global search across all entities
-│   ├── state.py                 # State-level legislators and bills
-│   ├── aggregate.py             # Sector-level aggregate queries (N+1 elimination)
-│   ├── common.py                # Health check, ops, news proxy
-│   ├── defense.py               # Placeholder: future Defense sector
-│   ├── education.py             # Placeholder: future Education sector
-│   └── infrastructure.py        # Placeholder: future Infrastructure sector
-├── models/                     # 9 SQLAlchemy model files
-│   ├── database.py              # Core models (members, bills, votes, donations, trades)
-│   ├── finance_models.py        # Finance-specific models
-│   ├── health_models.py         # Health-specific models
-│   ├── tech_models.py           # Tech-specific models
-│   ├── energy_models.py         # Energy-specific models
-│   ├── committee_models.py      # Committee and membership models
-│   ├── state_models.py          # State legislator and bill models
-│   ├── market_models.py         # Market/stock data models
-│   └── schemas.py               # Pydantic response schemas
-├── services/                   # Business logic (25 files across 7 subdirectories)
-│   ├── influence_network.py     # Cross-sector relationship graph builder
-│   ├── closed_loop_detection.py # Lobbying → bill → committee → donations detection
-│   ├── bill_text.py, auth.py, rate_limit.py, change_detection.py, coverage.py
-│   ├── power_map/               # Claim-to-legislation power mapping
-│   ├── enrichment/              # Bill timeline enrichment
-│   ├── evidence/                # Evidence validation
-│   ├── extraction/              # Text extraction from web pages
-│   ├── llm/                     # Claude LLM client and prompts
-│   ├── matching/                # Entity matching and similarity
-│   └── ops/                     # Pilot cohort, run manifests, no-network mode
-├── connectors/                 # 26 data source API wrappers
-│   ├── congress.py, congress_votes.py  # Congress.gov
-│   ├── senate_lda.py            # Lobbying disclosures
-│   ├── sec_edgar.py             # SEC filings
-│   ├── fdic_bankfind.py         # FDIC bank data
-│   ├── openfda.py               # FDA adverse events + recalls
-│   ├── clinicaltrials.py        # ClinicalTrials.gov
-│   ├── patentsview.py           # USPTO patents
-│   ├── usaspending.py           # Government contracts
-│   ├── federal_register.py      # Enforcement actions
-│   ├── openstates.py            # State-level political data
-│   ├── fec.py                   # Campaign finance
-│   ├── alpha_vantage.py         # Stock data
-│   └── ...                      # CFPB, FRED, CMS, FTC, etc.
-├── jobs/                       # Data sync scripts
-│   ├── seed_tracked_companies.py # Seed 500+ entities across all sectors
-│   ├── sync_votes.py            # House roll call votes
-│   ├── sync_congressional_trades.py  # Quiver API trades
-│   ├── sync_donations.py        # FEC donation data
-│   ├── sync_state_data.py       # OpenStates legislators + bills
-│   ├── sync_{sector}_data.py    # Per-sector data syncs
-│   ├── sync_{sector}_enforcement.py  # Per-sector enforcement
-│   ├── sync_{sector}_political_data.py  # Lobbying + contracts
-│   ├── sync_senate_votes.py        # Senate roll call votes from senate.gov XML
-│   ├── sync_trades_from_disclosures.py  # House financial disclosure PDF parser
-│   ├── import_congress_legislators.py   # Committee/membership import (CC0 data)
-│   ├── import_openstates_people.py      # Bulk state legislator import (CC0 data)
-│   └── scheduler.py                # Automated sync scheduling (14 jobs)
-├── frontend/                   # React web app (Vite)
-│   └── src/
-│       ├── pages/               # 62 page components
-│       ├── components/          # Shared UI (InfluenceGraph, ChoroplethMap, etc.)
-│       ├── api/                 # TypeScript API clients per sector
-│       ├── layouts/             # Per-sector layout wrappers
-│       └── utils/               # Logo utility, formatters
-├── mobile/                     # React Native / Expo (full parity with web)
-├── src/                        # Expo app source (screens, components, navigation)
-└── deploy/                     # systemd service templates (API + scheduler)
-```
-
----
-
-## API Endpoints (Selected)
-
-### Politics
-| Endpoint | Description |
-|----------|-------------|
-| `GET /people` | All Congress members with search, filter by state/party/chamber |
-| `GET /people/{id}` | Member profile with stats, activity, votes |
-| `GET /people/{id}/votes` | Roll call vote history with position breakdown |
-| `GET /people/{id}/industry-donors` | Cross-sector corporate donations |
-| `GET /people/{id}/trades` | Congressional stock trades |
-| `GET /bills/{id}` | Bill detail with sponsors, timeline, full text links |
-| `GET /votes` | All roll call votes (House + Senate) |
-| `GET /committees` | All congressional committees and subcommittees |
-| `GET /bills` | Legislation tracker with status/chamber filters |
-| `GET /congressional-trades` | All congressional stock trades |
-| `GET /representatives?zip=` | Find reps by ZIP code |
-| `GET /compare?ids=` | Side-by-side member comparison |
-
-### Per-Sector (Finance, Health, Tech, Energy)
-| Endpoint | Description |
-|----------|-------------|
-| `GET /{sector}/dashboard/stats` | Dashboard aggregate stats |
-| `GET /{sector}/companies` | All tracked companies/institutions |
-| `GET /{sector}/companies/{id}` | Company detail with all data |
-| `GET /{sector}/companies/{id}/lobbying` | Lobbying filings |
-| `GET /{sector}/companies/{id}/contracts` | Government contracts |
-| `GET /{sector}/companies/{id}/enforcement` | Enforcement actions |
-| `GET /{sector}/companies/{id}/donations` | PAC donations to politicians |
-| `GET /{sector}/compare` | Side-by-side company comparison |
-
-### Cross-Sector
-| Endpoint | Description |
-|----------|-------------|
-| `GET /influence/stats` | Aggregate lobbying, contracts, enforcement across all sectors |
-| `GET /influence/network` | Relationship graph (nodes + edges) for any entity |
-| `GET /influence/spending-by-state` | Lobbying/donations aggregated by state |
-| `GET /influence/trade-timeline` | Stock price + congressional trade markers |
-| `GET /influence/money-flow` | Sankey diagram data: company → lobbying/PAC → politician flows |
-| `GET /influence/closed-loops` | Detected influence loops: lobbying → bill → committee → donations |
-| `GET /influence/data-freshness` | Sync timestamps and record counts |
-| `GET /search?q=` | Global search across all entities |
-| `GET /states` | States with data counts |
-| `GET /states/{code}` | State dashboard (legislators, bills) |
-
----
-
-## Getting Started
-
-### Backend
-```bash
-pip install -r requirements.txt
-cp .env.example .env   # Add API keys (Quiver, Alpha Vantage, OpenStates, etc.)
-uvicorn main:app --host 0.0.0.0 --port 8006
-```
-
-### Web Frontend
-```bash
-cd frontend
-npm install
-npm run dev    # http://localhost:5173
-```
-
-### Seed Data
-```bash
-python jobs/seed_tracked_companies.py                              # 500+ entities across all sectors
-python jobs/sync_votes.py                                           # House roll call votes
-python jobs/sync_senate_votes.py                                    # Senate roll call votes (from senate.gov XML)
-python jobs/sync_congressional_trades.py                            # Congressional stock trades (Quiver API)
-python jobs/sync_trades_from_disclosures.py                         # Congressional trades (House disclosure PDFs)
-python jobs/import_congress_legislators.py --data-dir /tmp/congress-legislators  # Committees + memberships
-python jobs/import_openstates_people.py --data-dir /tmp/openstates-people        # All 50 states legislators
-```
-
-### Mobile App (Expo)
-```bash
-cd mobile
-npm install
-npx expo start
-```
+- **8 Sectors** — Politics, Finance, Health, Technology, Energy, Transportation, Defense, and State-level data across all 50 states
+- **Influence Network Graph** — Interactive force-directed visualization mapping connections between politicians, companies, donations, lobbying, and legislation
+- **Congressional Trade Tracker** — 4,600+ stock trades parsed from official House disclosure PDFs and the Quiver API, with filing delay indicators and virtual scrolling
+- **Spending Choropleth Map** — Interactive US map showing lobbying spend, donations, and political activity by state
+- **Money Flow Sankey Diagrams** — Trace how money flows from companies through lobbying and PAC donations to specific politicians
+- **Claim Verification Pipeline** — Submit any political claim; the system extracts assertions and matches them against 9 data sources (votes, trades, lobbying, contracts, enforcement, donations, committees, SEC filings, legislative actions). Enterprise-gated.
+- **AI Chat Agent** — 3-tier resolution: client-side FAQ, response cache, then Claude Haiku for complex questions
+- **Anomaly Detection** — Flags unusual patterns: trades near committee votes, lobbying spend spikes before contract awards, enforcement timing gaps, donation surges
+- **Closed-Loop Influence Detection** — Identifies complete influence cycles: company lobbies on bill, bill goes to committee, company donates to committee members
+- **Weekly Digest** — Subscribe by ZIP code. Get a preview of your representatives' trades, votes, and flagged anomalies.
+- **Twitter Bot** — [@WTPForUs](https://twitter.com/WTPForUs) posts 4x/day with data-driven insights on congressional trades, lobbying patterns, and enforcement actions
+- **CSV Export** — Export any data table (lobbying, contracts, enforcement, trades) for your own analysis
+- **AI Summaries** — Claude-powered plain-English summaries of votes, enforcement actions, and politician profiles
 
 ---
 
 ## Architecture
 
-- **Politics-first:** Every sector is recontextualized through political influence — lobbying, contracts, enforcement, and donations are the primary lens.
-- **Source-linked data:** Every data point links back to its authoritative public source (Congress.gov, SEC EDGAR, FDA, EPA, etc.).
-- **Cross-sector influence mapping:** CompanyDonation and CongressionalTrade models link companies to politicians across all sectors.
-- **Modular routers:** One FastAPI router per sector + cross-sector influence router. New sectors plug in by adding a router file.
-- **Full pagination:** All connectors paginate through complete API results — no artificial caps.
-- **Deduplication:** Every sync job uses `dedupe_hash` with unique constraints to prevent duplicate records.
-- **SQLite WAL mode:** Single-writer, many-reader concurrency. Run sync jobs sequentially to avoid lock contention.
-- **Code-split frontend:** React.lazy() on all 62 pages — users only load the sector they visit.
+```
+Backend:    FastAPI + SQLite (WAL mode)
+            22 routers, 34 connectors, 43 jobs
+            Versioned API (/v1/), rate limiting, structured logging
+            JWT auth, RBAC, request tracing, security headers
+
+Frontend:   React 19 + Vite + TypeScript + Tailwind CSS 4
+            78 pages (all code-split via React.lazy)
+            Framer Motion animations, mobile-responsive
+
+Mobile:     Expo SDK 54 + React Native
+            Full parity with web
+
+Infra:      Docker + Terraform (GCP + Oracle Cloud)
+            GitHub Actions CI, Vercel auto-deploy
+            Prometheus metrics endpoint
+```
+
+### Monorepo Layout
+
+```
+WeThePeople/
+├── main.py                  # FastAPI app + middleware + router mounting
+├── routers/                 # 22 API routers (one per sector + cross-cutting)
+├── connectors/              # 34 API wrappers (Congress.gov, SEC, FDA, EPA, ...)
+├── jobs/                    # 43 sync scripts, migrations, scheduler, Twitter bot
+├── models/                  # SQLAlchemy models (12 files, per-sector pattern)
+├── services/                # Business logic (claims pipeline, influence graph, auth)
+├── middleware/               # Request tracing, security headers
+├── frontend/                # React 19 + Vite web app
+│   └── src/
+│       ├── pages/           # 78 page components
+│       ├── components/      # Shared UI (InfluenceGraph, ChoroplethMap, ChatAgent, ...)
+│       ├── api/             # TypeScript API clients per sector
+│       └── layouts/         # Per-sector layout wrappers
+├── mobile/                  # React Native / Expo (full web parity)
+├── deploy/                  # Docker, Terraform, deploy scripts, TLS docs
+│   └── terraform/           # GCP + Oracle Cloud infrastructure
+└── tests/                   # Backend test suite
+```
 
 ---
 
-## Companion Project: Veritas
+## Data Sources (35+)
 
-[Veritas](https://github.com/Obelus-Labs-LLC/Veritas) is a deterministic fact-verification engine built alongside WeThePeople. It extracts claims from audio and text, then cross-references them against public evidence databases without relying on LLMs.
+All data is sourced from official government APIs and open-source datasets. No scraped or paywalled data.
+
+| Source | Data | Link |
+|--------|------|------|
+| Congress.gov API | Bills, votes, sponsors, legislative actions | [api.congress.gov](https://api.congress.gov) |
+| Senate LDA | Lobbying disclosures (2020-present) | [lda.senate.gov](https://lda.senate.gov/api/) |
+| USASpending.gov | Federal government contracts | [usaspending.gov](https://www.usaspending.gov) |
+| Federal Register | Enforcement actions, rules, presidential documents | [federalregister.gov](https://www.federalregister.gov/developers) |
+| FEC | Campaign donations, PAC disbursements | [fec.gov](https://api.open.fec.gov) |
+| SEC EDGAR | Corporate filings (10-K, 10-Q, 8-K, Form 4) | [sec.gov/edgar](https://www.sec.gov/edgar) |
+| Quiver Quantitative | Congressional stock trades | [quiverquant.com](https://www.quiverquant.com) |
+| OpenFDA | Product recalls, drug data | [open.fda.gov](https://open.fda.gov) |
+| ClinicalTrials.gov | Clinical trial pipelines | [clinicaltrials.gov](https://clinicaltrials.gov) |
+| CMS Open Payments | Industry payments to physicians | [openpaymentsdata.cms.gov](https://openpaymentsdata.cms.gov) |
+| USPTO PatentsView | Patent filings and claims | [patentsview.org](https://patentsview.org) |
+| EPA GHGRP | Greenhouse gas emissions by facility | [epa.gov/ghgreporting](https://www.epa.gov/ghgreporting) |
+| NHTSA | Vehicle recalls, complaints, safety ratings | [nhtsa.gov](https://www.nhtsa.gov) |
+| FuelEconomy.gov | MPG and emissions data | [fueleconomy.gov](https://www.fueleconomy.gov) |
+| FDIC BankFind | Bank quarterly financials | [banks.data.fdic.gov](https://banks.data.fdic.gov) |
+| FRED | Federal Reserve economic indicators | [fred.stlouisfed.org](https://fred.stlouisfed.org) |
+| Alpha Vantage | Stock fundamentals and quotes | [alphavantage.co](https://www.alphavantage.co) |
+| OpenStates | State legislators and bills | [openstates.org](https://openstates.org) |
+| OpenSanctions | Sanctions, PEP, watchlist checks (OFAC/EU/UN) | [opensanctions.org](https://www.opensanctions.org) |
+| SAM.gov | Federal contract registrations, exclusions | [sam.gov](https://sam.gov) |
+| Regulations.gov | Public comments on federal rules | [regulations.gov](https://www.regulations.gov) |
+| IT Dashboard | Federal IT spending | [itdashboard.gov](https://itdashboard.gov) |
+| GSA Site Scanning | Government website analytics | [digital.gov](https://digital.gov/guides/site-scanning/) |
+| Google Civic | Representative lookup by address | [developers.google.com](https://developers.google.com/civic-information) |
+| Senate.gov XML | Senate roll call votes | [senate.gov](https://www.senate.gov/legislative/votes.htm) |
+| House Clerk | Congressional financial disclosure PDFs | [disclosures-clerk.house.gov](https://disclosures-clerk.house.gov) |
+| AInvest | Congressional trade enrichment (filing delays) | [openapi.ainvest.com](https://openapi.ainvest.com) |
+| FTC | Enforcement case data | [ftc.gov](https://www.ftc.gov) |
+| Data.gov | Government open data | [data.gov](https://data.gov) |
+| GovInfo | Government publications | [govinfo.gov](https://www.govinfo.gov) |
+
+**Open-source datasets (CC0):**
+- [unitedstates/congress-legislators](https://github.com/unitedstates/congress-legislators) — Committee and membership data
+- [unitedstates/congress](https://github.com/unitedstates/congress) — Senate vote scraping approach
+- [openstates/people](https://github.com/openstates/people) — State legislator data for all 50 states
+
+---
+
+## Quick Start
+
+### Backend
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env          # Add your API keys
+uvicorn main:app --port 8006  # API at http://localhost:8006/docs
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev                   # http://localhost:5173
+```
+
+### Seed Data
+
+```bash
+python jobs/seed_tracked_companies.py    # 1,000+ entities across all sectors
+python jobs/sync_votes.py                # House roll call votes
+python jobs/sync_senate_votes.py         # Senate roll call votes
+python jobs/sync_congressional_trades.py # Congressional stock trades
+```
+
+### Mobile (Expo)
+
+```bash
+cd mobile && npm install && npx expo start
+```
+
+---
+
+## API
+
+Interactive docs at [`/docs`](https://api.wethepeopleforus.com/docs) (Swagger) and [`/redoc`](https://api.wethepeopleforus.com/redoc) (ReDoc).
+
+The API is versioned under `/v1/` with backward-compatible unprefixed routes. Rate limited at 60 req/min per IP.
+
+**Selected endpoints:**
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /people` | Congress members with search, filter by state/party/chamber |
+| `GET /people/{id}` | Full member profile with votes, trades, donors |
+| `GET /influence/network` | Relationship graph for any entity |
+| `GET /influence/spending-by-state` | Lobbying and donations aggregated by state |
+| `GET /influence/money-flow` | Sankey diagram data: company to politician flows |
+| `GET /influence/closed-loops` | Detected influence cycles |
+| `GET /congressional-trades` | All 4,600+ congressional stock trades |
+| `GET /{sector}/companies` | Tracked companies for any sector |
+| `GET /{sector}/companies/{id}` | Company detail with lobbying, contracts, enforcement |
+| `GET /search?q=` | Global search across all entities |
+| `GET /claims/submit` | Submit text for claim verification |
+| `GET /representatives?zip=` | Find your reps by ZIP code |
+
+---
+
+## Contributing
+
+Contributions are welcome. Here are some areas where help would be especially valuable:
+
+- **New data source integrations** — More government APIs, FOIA databases, state-level data
+- **State legislative data enrichment** — Bill tracking, committee votes, campaign finance at the state level
+- **District-level data** — Census overlays, district-specific lobbying and spending analysis
+- **Visualization improvements** — New ways to surface patterns in influence data
+- **Testing** — Backend and frontend test coverage
+
+Check the [issues page](https://github.com/Obelus-Labs-LLC/WeThePeople/issues) for open tasks, or open a new issue to discuss your idea.
 
 ---
 
@@ -305,8 +232,6 @@ WeThePeople is free and open source. If you find it useful:
 
 ## Acknowledgments
 
-This project builds on data and tools from several open-source projects:
-
 | Project | License | What We Use |
 |---------|---------|-------------|
 | [unitedstates/congress-legislators](https://github.com/unitedstates/congress-legislators) | CC0 (public domain) | Congressional committee and membership data |
@@ -314,18 +239,20 @@ This project builds on data and tools from several open-source projects:
 | [openstates/people](https://github.com/openstates/people) | CC0 (public domain) | State legislator data for all 50 states |
 | [FastScheduler](https://github.com/itsthejoker/fastscheduler) | MIT | Automated sync job scheduling |
 
-All integration code is original — we wrote our own importers, parsers, and sync jobs that consume these datasets and tools.
-
----
-
-## Built By
-
-**[Obelus Labs LLC](https://github.com/Obelus-Labs-LLC)**
-
-The public record belongs to the public. This platform just makes it easier to read.
+All integration code is original.
 
 ---
 
 ## License
 
-All rights reserved. Contact Obelus Labs LLC for licensing inquiries.
+All rights reserved. Contact [Obelus Labs LLC](https://github.com/Obelus-Labs-LLC) for licensing inquiries.
+
+---
+
+<p align="center">
+  <strong><a href="https://wethepeopleforus.com">wethepeopleforus.com</a></strong>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="https://twitter.com/WTPForUs">Twitter</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="https://github.com/sponsors/Obelus-Labs-LLC">GitHub Sponsors</a>
+</p>
+
+<p align="center">
+  <em>The public record belongs to the public. This platform just makes it easier to read.</em>
+</p>

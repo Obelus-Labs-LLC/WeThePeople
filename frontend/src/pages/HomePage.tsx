@@ -325,10 +325,23 @@ const HomePage: React.FC = () => {
           {/* Digest CTA */}
           <Link
             to="/digest"
-            className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors mb-6 no-underline"
+            className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors mb-3 no-underline"
           >
             Get weekly updates in your inbox <ArrowRight className="w-3.5 h-3.5" />
           </Link>
+
+          {/* Follow on X */}
+          <a
+            href="https://x.com/WTPForUs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-300 transition-colors mb-6 no-underline"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+            </svg>
+            Follow @WTPForUs on X
+          </a>
 
           {/* Aggregate stats bar */}
           {stats && (
