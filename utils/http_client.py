@@ -24,7 +24,26 @@ from tenacity import (
 )
 from diskcache import Cache
 
-from utils.config import config
+import os
+
+
+class _Config:
+    """Minimal config replacement using environment variables."""
+    HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "30"))
+    HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
+    CACHE_ENABLED = os.getenv("CACHE_ENABLED", "1") == "1"
+    CACHE_TTL = int(os.getenv("CACHE_TTL", "3600"))
+    CACHE_DIR = os.getenv("CACHE_DIR", ".cache/http")
+    CONGRESS_API_KEY = os.getenv("CONGRESS_API_KEY", "")
+    CONGRESS_API_BASE = "https://api.congress.gov/v3"
+    GOVINFO_API_KEY = os.getenv("GOVINFO_API_KEY", "")
+    GOVINFO_API_BASE = "https://api.govinfo.gov"
+    FEC_API_KEY = os.getenv("FEC_API_KEY", "DEMO_KEY")
+    FEC_API_BASE = "https://api.open.fec.gov/v1"
+    DATAGOV_API_KEY = os.getenv("DATAGOV_API_KEY", "DEMO_KEY")
+
+
+config = _Config()
 
 
 class HTTPError(Exception):
