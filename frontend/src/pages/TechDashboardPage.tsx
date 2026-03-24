@@ -177,9 +177,9 @@ export default function TechDashboardPage() {
               <Link to="/technology/companies" className="inline-flex items-center gap-2 rounded-lg bg-violet-500 px-5 py-2.5 font-body text-sm font-semibold text-white transition-colors hover:bg-violet-600 no-underline">
                 Browse Companies <ArrowRight size={16} />
               </Link>
-              <Link to="/technology/patents" className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 font-body text-sm font-semibold text-white/70 transition-colors hover:border-white/20 hover:text-white no-underline">
-                Patent Search
-              </Link>
+              <a href="https://research.wethepeopleforus.com/patents" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 font-body text-sm font-semibold text-white/70 transition-colors hover:border-white/20 hover:text-white no-underline">
+                Patent Search <span className="text-[10px] text-white/30">Research</span>
+              </a>
             </div>
           </motion.div>
 
@@ -218,14 +218,21 @@ export default function TechDashboardPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.7 }} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-12">
           {[
             { to: '/technology/companies', label: 'Companies', desc: 'Full company directory', color: '#8B5CF6' },
-            { to: '/technology/patents', label: 'Patents', desc: 'Search patent filings', color: '#F59E0B' },
+            { to: 'https://research.wethepeopleforus.com/patents', label: 'Patents', desc: 'Search patent filings (WTP Research)', color: '#F59E0B', external: true },
             { to: '/technology/lobbying', label: 'Lobbying', desc: 'Lobbying expenditure breakdown', color: '#2563EB' },
             { to: '/technology/compare', label: 'Compare', desc: 'Side-by-side company analysis', color: '#10B981' },
           ].map((link) => (
-            <Link key={link.to} to={link.to} className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 no-underline">
-              <p className="font-heading text-sm font-bold uppercase tracking-wider" style={{ color: link.color }}>{link.label}</p>
-              <p className="font-body text-xs text-white/30 mt-1">{link.desc}</p>
-            </Link>
+            'external' in link && link.external ? (
+              <a key={link.to} href={link.to} target="_blank" rel="noopener noreferrer" className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 no-underline">
+                <p className="font-heading text-sm font-bold uppercase tracking-wider" style={{ color: link.color }}>{link.label} <span className="text-[9px] text-white/30 normal-case tracking-normal">&#8599;</span></p>
+                <p className="font-body text-xs text-white/30 mt-1">{link.desc}</p>
+              </a>
+            ) : (
+              <Link key={link.to} to={link.to} className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 no-underline">
+                <p className="font-heading text-sm font-bold uppercase tracking-wider" style={{ color: link.color }}>{link.label}</p>
+                <p className="font-body text-xs text-white/30 mt-1">{link.desc}</p>
+              </Link>
+            )
           ))}
         </motion.div>
 

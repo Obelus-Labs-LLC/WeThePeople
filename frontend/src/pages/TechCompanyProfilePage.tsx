@@ -406,6 +406,15 @@ export default function TechCompanyProfilePage() {
           {/* PATENTS */}
           {activeTab === 'patents' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+              {/* WTP Research CTA */}
+              <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 mb-6 flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-body text-sm text-white/70">Deep dive into patent analytics, search, and IP-to-policy connections.</p>
+                </div>
+                <a href="https://research.wethepeopleforus.com/patents" target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 font-body text-xs font-semibold text-white hover:bg-blue-500 transition-colors no-underline">
+                  Open in WTP Research &#8599;
+                </a>
+              </div>
               {/* Policy Connection */}
               {patentPolicyLoaded && patentPolicy && (patentPolicy.lobbying_on_ip_policy > 0 || patentPolicy.related_bills_count > 0) && (
                 <div className="rounded-xl border border-[#8B5CF6]/30 bg-[#8B5CF6]/5 p-6 mb-8">

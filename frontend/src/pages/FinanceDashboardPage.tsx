@@ -215,7 +215,7 @@ export default function FinanceDashboardPage() {
     { label: 'Lobbying Spend', value: formatMoney(stats?.total_lobbying_spend || 0), icon: DollarSign, color: '#60A5FA', to: '/finance/lobbying' },
     { label: 'Gov Contracts', value: formatMoney(stats?.total_contract_value || 0), icon: FileText, color: '#34D399', to: '/finance/contracts' },
     { label: 'Enforcement Actions', value: formatNum(stats?.total_enforcement || 0), icon: Shield, color: '#FF3366', to: '/finance/enforcement' },
-    { label: 'Insider Trade Alerts', value: formatNum(stats?.total_insider_trades || 0), icon: TrendingUp, color: '#FBBF24', to: '/finance/insider-trades' },
+    { label: 'Insider Trade Alerts', value: formatNum(stats?.total_insider_trades || 0), icon: TrendingUp, color: '#FBBF24', to: '/finance/institutions' },
   ];
 
   return (
@@ -261,12 +261,14 @@ export default function FinanceDashboardPage() {
                 Browse Institutions
                 <ArrowRight size={16} />
               </Link>
-              <Link
-                to="/finance/insider-trades"
+              <a
+                href="https://research.wethepeopleforus.com/insider-trades"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 font-body text-sm font-semibold text-white/70 transition-colors hover:border-white/20 hover:text-white no-underline"
               >
-                Insider Trades
-              </Link>
+                Insider Trades <span className="text-[10px] text-white/30">Research</span>
+              </a>
             </div>
           </motion.div>
 
@@ -330,20 +332,35 @@ export default function FinanceDashboardPage() {
         >
           {[
             { to: '/finance/institutions', label: 'Institutions', desc: 'Full institution directory', color: '#34D399' },
-            { to: '/finance/insider-trades', label: 'Insider Trades', desc: 'Congressional & corporate trades', color: '#FBBF24' },
-            { to: '/finance/news', label: 'News & Regulatory', desc: 'Latest sector developments', color: '#60A5FA' },
+            { to: 'https://research.wethepeopleforus.com/insider-trades', label: 'Insider Trades', desc: 'Corporate insider trading (WTP Research)', color: '#FBBF24', external: true },
+            { to: 'https://research.wethepeopleforus.com/news', label: 'News & Regulatory', desc: 'Latest sector developments (WTP Research)', color: '#60A5FA', external: true },
             { to: '/finance/compare', label: 'Compare', desc: 'Side-by-side institution analysis', color: '#C084FC' },
           ].map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 no-underline"
-            >
-              <p className="font-heading text-sm font-bold uppercase tracking-wider" style={{ color: link.color }}>
-                {link.label}
-              </p>
-              <p className="font-body text-xs text-white/30 mt-1">{link.desc}</p>
-            </Link>
+            'external' in link && link.external ? (
+              <a
+                key={link.to}
+                href={link.to}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 no-underline"
+              >
+                <p className="font-heading text-sm font-bold uppercase tracking-wider" style={{ color: link.color }}>
+                  {link.label} <span className="text-[9px] text-white/30 normal-case tracking-normal">&#8599;</span>
+                </p>
+                <p className="font-body text-xs text-white/30 mt-1">{link.desc}</p>
+              </a>
+            ) : (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 no-underline"
+              >
+                <p className="font-heading text-sm font-bold uppercase tracking-wider" style={{ color: link.color }}>
+                  {link.label}
+                </p>
+                <p className="font-body text-xs text-white/30 mt-1">{link.desc}</p>
+              </Link>
+            )
           ))}
         </motion.div>
 
@@ -429,12 +446,14 @@ export default function FinanceDashboardPage() {
               <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white">
                 Recent Activity
               </h2>
-              <Link
-                to="/finance/insider-trades"
+              <a
+                href="https://research.wethepeopleforus.com/insider-trades"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="font-body text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors no-underline"
               >
-                Full feed &rarr;
-              </Link>
+                Full feed &#8599;
+              </a>
             </div>
             <SpotlightCard
               className="rounded-xl border border-white/10 bg-white/[0.03]"
