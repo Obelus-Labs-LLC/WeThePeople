@@ -95,7 +95,7 @@ const tools: ToolCard[] = [
     description: 'Federal Reserve press releases, regulatory actions, and consumer complaints. Filter by institution.',
     icon: Newspaper,
     path: '/regulatory-news',
-    color: '#60A5FA',
+    iconClass: 'text-blue-400', bgClass: 'bg-blue-400/15',
     available: false,
   },
 ]
@@ -138,10 +138,9 @@ function HomePage() {
                 >
                   {/* Icon */}
                   <div
-                    className="flex h-10 w-10 items-center justify-center rounded-lg mb-4"
-                    style={{ background: `${tool.color}15` }}
+                    className={`flex h-10 w-10 items-center justify-center rounded-lg mb-4 ${tool.bgClass}`}
                   >
-                    <Icon size={20} className="text-emerald-400" />
+                    <Icon size={20} className={tool.iconClass} />
                   </div>
 
                   {/* Title */}
