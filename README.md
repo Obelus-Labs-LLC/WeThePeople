@@ -257,3 +257,9 @@ All rights reserved. Contact [Obelus Labs LLC](https://github.com/Obelus-Labs-LL
 <p align="center">
   <em>The public record belongs to the public. This platform just makes it easier to read.</em>
 </p>
+
+---
+
+<p align="center">
+  If this project helped you understand money in politics, consider giving it a star — it helps others find it.
+</p>
