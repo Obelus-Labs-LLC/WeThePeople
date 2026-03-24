@@ -170,7 +170,7 @@ export default function EnergyCompanyProfilePage() {
           if (s) setEmissionSummary(s);
           setEmissionsLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'contracts' && !contractsLoaded) {
       Promise.all([
@@ -182,7 +182,7 @@ export default function EnergyCompanyProfilePage() {
           if (s) setContractSummary(s);
           setContractsLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'lobbying' && !lobbyingLoaded) {
       Promise.all([
@@ -194,7 +194,7 @@ export default function EnergyCompanyProfilePage() {
           if (s) setLobbySummary(s);
           setLobbyingLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getEnergyCompanyEnforcement(companyId, { limit: 100 })
@@ -203,12 +203,12 @@ export default function EnergyCompanyProfilePage() {
           setTotalPenalties(r.total_penalties || 0);
           setEnforcementLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getEnergyCompanyFilings(companyId, { limit: 100 })
         .then((r) => { setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true); })
-        .catch(console.error);
+        .catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, companyId]);

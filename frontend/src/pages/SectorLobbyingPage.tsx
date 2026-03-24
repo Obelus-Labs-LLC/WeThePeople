@@ -149,11 +149,11 @@ export default function SectorLobbyingPage() {
       }
 
       try {
-        const data = await fetchJSON<any>(config.aggregateEndpoint);
+        const data = await fetchJSON<{ filings: typeof allFilings }>(config.aggregateEndpoint);
         if (cancelled) return;
         setAllFilings(data.filings || []);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || 'Failed to load lobbying data');
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load lobbying data');
       } finally {
         if (!cancelled) setLoading(false);
       }

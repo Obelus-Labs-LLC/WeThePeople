@@ -420,8 +420,8 @@ export default function SectorContractsPage() {
         // Sort by award_amount descending (already sorted by backend, but ensure)
         contracts.sort((a, b) => (b.award_amount || 0) - (a.award_amount || 0));
         setAllContracts(contracts);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || 'Failed to load contracts');
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load contracts');
       } finally {
         if (!cancelled) setLoading(false);
       }

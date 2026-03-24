@@ -65,7 +65,7 @@ export default function StateDashboardPage() {
         setLegislators(legs.legislators);
         setLegTotal(legs.total);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => { setLoading(false); initialLoadedRef.current = true; });
   }, [code]);
 
@@ -84,7 +84,7 @@ export default function StateDashboardPage() {
         setLegislators(data.legislators);
         setLegTotal(data.total);
       })
-      .catch(console.error);
+      .catch(() => {});
   }, [code, chamberFilter, partyFilter, legSearch, legOffset]);
 
   if (loading) {
@@ -597,7 +597,7 @@ function BillsTab({ stateCode, recentBills, totalBills }: { stateCode: string; r
         setBills(data.bills);
         setTotal(data.total);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setSearching(false));
   }, [stateCode, search, offset]);
 

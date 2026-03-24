@@ -385,7 +385,7 @@ def sync_all(
                 inst.last_full_refresh_at = datetime.utcnow()
                 db.commit()
             except Exception as e:
-                logger.error("FAILED %s: %s", iid, e)
+                logger.error("FAILED %s: %s", iid, e, exc_info=True)
                 db.rollback()
 
         logger.info("=== SYNC COMPLETE ===")

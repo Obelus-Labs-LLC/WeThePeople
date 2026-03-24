@@ -180,8 +180,8 @@ export default function SectorEnforcementPage() {
         const actions: EnforcementAction[] = (data.actions || []);
         actions.sort((a, b) => (b.penalty_amount || 0) - (a.penalty_amount || 0));
         setAllActions(actions);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || 'Failed to load enforcement data');
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load enforcement data');
       } finally {
         if (!cancelled) setLoading(false);
       }

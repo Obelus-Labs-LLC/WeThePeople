@@ -176,7 +176,7 @@ export default function CongressionalTradesPage() {
         setTrades(data.trades || []);
         setTotal(data.total || 0);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [filter, search]);
 

@@ -306,8 +306,26 @@ JOB_REGISTRY: List[JobDef] = [
         description="Government website tech footprint from GSA Site Scanning CSV",
     ),
 
+    # ── Pipeline monitoring (daily) ──────────────────────────────────
+    JobDef(
+        name="monitor_pipeline",
+        script="jobs/monitor_pipeline.py",
+        interval_hours=24,
+        timeout_sec=120,
+        description="Pipeline health check: overdue jobs, stuck DLQ items, disk usage",
+    ),
+
     # NOTE: twitter_bot.py is NOT in the scheduler — it runs via cron at specific times
     # (4x/day at fixed hours for optimal engagement, not on an interval).
+
+    # ── Compliance / Maintenance (weekly) ─────────────────────────
+    JobDef(
+        name="data_retention",
+        script="jobs/enforce_retention.py",
+        interval_hours=168,  # weekly
+        timeout_sec=600,     # 10 minutes — deletion queries are fast
+        description="SOC2 data retention: delete expired audit logs, rate limit records, tweet logs, pipeline runs",
+    ),
 
     # ── Monthly (720h) ───────────────────────────────────────────
     # NOTE: OpenStates API has a 250/day rate limit on free tier. For bulk imports,

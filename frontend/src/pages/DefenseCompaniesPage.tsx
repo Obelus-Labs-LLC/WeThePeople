@@ -117,7 +117,7 @@ export default function DefenseCompaniesPage() {
         if (!Array.isArray(res.companies)) throw new Error('Defense sector data is not yet available.');
         setCompanies(res.companies);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

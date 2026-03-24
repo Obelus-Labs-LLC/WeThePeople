@@ -216,7 +216,7 @@ export default function TechComparePage() {
           setIdB(list[1].company_id);
         }
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -225,7 +225,7 @@ export default function TechComparePage() {
     setComparing(true);
     getTechComparison([idA, idB])
       .then((res) => setCompared(res.companies || []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setComparing(false));
   }
 

@@ -61,7 +61,7 @@ export interface InstitutionDetail {
     profit_margin: number | null;
   } | null;
   sanctions_status?: string;
-  sanctions_data?: any;
+  sanctions_data?: Record<string, unknown>;
   sanctions_checked_at?: string;
 }
 

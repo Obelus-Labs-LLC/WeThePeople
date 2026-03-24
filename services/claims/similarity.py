@@ -20,8 +20,11 @@ Conservative by default:
 - Evidence must document the decision, score, threshold, and method
 """
 
+import logging
 import os
 from typing import Optional, Dict, Any
+
+log = logging.getLogger(__name__)
 
 try:
     from rapidfuzz import fuzz
@@ -134,50 +137,48 @@ def is_fuzzy_matching_enabled() -> bool:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
     # Self-test
-    print("Testing fuzzy title matching...")
-    print(f"Fuzzy matching enabled: {is_fuzzy_matching_enabled()}")
-    print()
-    
+    log.info("Testing fuzzy title matching...")
+    log.info("Fuzzy matching enabled: %s", is_fuzzy_matching_enabled())
+
     # Test 1: High similarity (should match)
     result = fuzzy_title_match(
         "I voted for the Affordable Care Act",
         "Patient Protection and Affordable Care Act",
         threshold=0.65
     )
-    print(f"Test 1 - High similarity:")
-    print(f"  Matched: {result['matched']}")
-    print(f"  Score: {result['score']:.2f}")
-    print(f"  Evidence: {result['evidence']}")
+    log.info("Test 1 - High similarity:")
+    log.info("  Matched: %s", result['matched'])
+    log.info("  Score: %.2f", result['score'])
+    log.info("  Evidence: %s", result['evidence'])
     assert result['matched'], "Should match with score > 0.65"
-    print()
-    
+
     # Test 2: Low similarity (should not match)
     result = fuzzy_title_match(
         "I opposed the tax cuts",
         "Infrastructure Investment and Jobs Act",
         threshold=0.85
     )
-    print(f"Test 2 - Low similarity:")
-    print(f"  Matched: {result['matched']}")
-    print(f"  Score: {result['score']:.2f}")
-    print(f"  Evidence: {result['evidence']}")
+    log.info("Test 2 - Low similarity:")
+    log.info("  Matched: %s", result['matched'])
+    log.info("  Score: %.2f", result['score'])
+    log.info("  Evidence: %s", result['evidence'])
     assert not result['matched'], "Should not match with low score"
-    print()
-    
+
     # Test 3: Exact match (should score 1.0)
     result = fuzzy_title_match(
         "Infrastructure Investment and Jobs Act",
         "Infrastructure Investment and Jobs Act",
         threshold=0.99
     )
-    print(f"Test 3 - Exact match:")
-    print(f"  Matched: {result['matched']}")
-    print(f"  Score: {result['score']:.2f}")
-    print(f"  Evidence: {result['evidence']}")
+    log.info("Test 3 - Exact match:")
+    log.info("  Matched: %s", result['matched'])
+    log.info("  Score: %.2f", result['score'])
+    log.info("  Evidence: %s", result['evidence'])
     assert result['matched'] and result['score'] == 1.0, "Exact match should score 1.0"
-    print()
-    
+
     # Test 4: Word order variation (token_sort_ratio handles this)
     result = fuzzy_title_match(
         "Care Act Affordable the",
@@ -185,10 +186,9 @@ if __name__ == "__main__":
         threshold=0.80,
         method="token_sort_ratio"
     )
-    print(f"Test 4 - Word order variation:")
-    print(f"  Matched: {result['matched']}")
-    print(f"  Score: {result['score']:.2f}")
-    print(f"  Method: {result['method']}")
-    print()
-    
-    print("✓ All fuzzy matching tests passed")
+    log.info("Test 4 - Word order variation:")
+    log.info("  Matched: %s", result['matched'])
+    log.info("  Score: %.2f", result['score'])
+    log.info("  Method: %s", result['method'])
+
+    log.info("All fuzzy matching tests passed")

@@ -34,6 +34,7 @@ export default function MoneyFlowPage() {
   const [loading, setLoading] = useState(true);
   const [sector, setSector] = useState<string>('');
   const plotRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Plotly is dynamically imported and has complex typing
   const plotlyRef = useRef<any>(null);
   const [plotlyLoaded, setPlotlyLoaded] = useState(false);
 
@@ -44,7 +45,7 @@ export default function MoneyFlowPage() {
     fetch(`${API_BASE}/influence/money-flow?${params}`)
       .then((r) => r.json())
       .then((d) => setData(d))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [sector]);
 
@@ -52,6 +53,7 @@ export default function MoneyFlowPage() {
     if (!data || !plotRef.current || data.nodes.length === 0) return;
 
     // Dynamically import Plotly to reduce initial bundle
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Plotly dynamic import lacks proper typing
     import('plotly.js').then((Plotly: any) => {
       const P = Plotly.default || Plotly;
       plotlyRef.current = P;
@@ -95,8 +97,8 @@ export default function MoneyFlowPage() {
         displayModeBar: false,
         responsive: true,
       });
-    }).catch((err: any) => {
-      console.warn('Plotly dynamic import failed:', err);
+    }).catch(() => {
+      // Plotly failed to load — non-critical, chart simply won't render
     });
 
     const node = plotRef.current;

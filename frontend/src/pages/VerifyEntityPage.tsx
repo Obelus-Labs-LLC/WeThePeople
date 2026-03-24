@@ -20,7 +20,7 @@ export default function VerifyEntityPage() {
     setLoading(true);
     getEntityVerifications(type, id, { limit: PAGE_SIZE, offset: page * PAGE_SIZE })
       .then(setData)
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [type, id, page]);
 

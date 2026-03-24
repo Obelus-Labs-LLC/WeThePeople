@@ -1,4 +1,5 @@
 import os
+import time
 
 from sqlalchemy import create_engine, event, Column, String, Integer, DateTime, ForeignKey, Text, Table, JSON, Date, Float, UniqueConstraint
 from sqlalchemy.orm import declarative_base
@@ -7,7 +8,12 @@ from sqlalchemy.sql import func
 
 DATABASE_URL = os.getenv("WTP_DB_URL") or "sqlite:///./wethepeople.db"
 
-print(f"Database: {DATABASE_URL}")
+from utils.logging import get_logger as _get_logger
+_db_logger = _get_logger(__name__)
+_db_logger.info("Database: %s", DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else DATABASE_URL)
+
+# Slow query threshold (ms)
+_SLOW_QUERY_THRESHOLD_MS = 500
 
 # SQLite needs check_same_thread=False; PostgreSQL doesn't accept that arg
 _engine_kwargs = {}
@@ -30,9 +36,64 @@ if DATABASE_URL.startswith("sqlite"):
         cursor.execute("PRAGMA busy_timeout=60000")
         cursor.close()
 
+
+# --- Slow Query Logging ---
+# Uses SQLAlchemy core events to time every query and log slow ones as WARNING.
+# Also feeds query counts into the metrics system.
+
+@event.listens_for(engine, "before_cursor_execute")
+def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    conn.info.setdefault("query_start_time", []).append(time.monotonic())
+
+
+@event.listens_for(engine, "after_cursor_execute")
+def _after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    start_times = conn.info.get("query_start_time", [])
+    if not start_times:
+        return
+    start = start_times.pop()
+    duration_ms = (time.monotonic() - start) * 1000
+
+    # Record in metrics
+    is_slow = duration_ms > _SLOW_QUERY_THRESHOLD_MS
+    try:
+        from routers.metrics import record_db_query
+        record_db_query(slow=is_slow)
+    except (ImportError, Exception):
+        pass
+
+    if is_slow:
+        # Truncate SQL for logging (avoid dumping huge INSERTs)
+        sql_preview = statement[:500] + "..." if len(statement) > 500 else statement
+        trace_id = None
+        try:
+            from middleware.tracing import get_trace_id
+            trace_id = get_trace_id()
+        except (ImportError, Exception):
+            pass
+        _db_logger.warning(
+            "Slow query: %.1fms | %s",
+            duration_ms, sql_preview,
+            extra={
+                "duration_ms": round(duration_ms, 1),
+                "sql": sql_preview,
+                "trace_id": trace_id,
+            },
+        )
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+
+def get_db():
+    """FastAPI dependency: yields a SQLAlchemy session and ensures cleanup."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # Many-to-many association table for action tags
 action_tags = Table(
@@ -559,7 +620,10 @@ import models.state_models  # noqa: F401 — register state legislature tables
 import models.committee_models  # noqa: F401 — register committee tables
 import models.digest_models  # noqa: F401 — register digest subscriber table
 import models.stories_models  # noqa: F401 — register stories table
+import models.twitter_models  # noqa: F401 — register tweet log table
 import models.government_data_models  # noqa: F401 — register SAM, Regulations.gov, IT Dashboard, Site Scanning tables
+import models.auth_models  # noqa: F401 — register User, APIKeyRecord, AuditLog tables
+import services.pipeline_reliability  # noqa: F401 — register DLQ, processed_records, data_quality_checks tables
 
 
 if __name__ == "__main__":

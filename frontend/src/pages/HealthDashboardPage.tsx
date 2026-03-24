@@ -184,7 +184,7 @@ export default function HealthDashboardPage() {
         setStats(statsRes);
         setCompanies(compRes.companies || []);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

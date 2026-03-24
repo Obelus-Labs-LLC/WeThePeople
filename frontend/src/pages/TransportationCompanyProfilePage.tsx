@@ -196,7 +196,7 @@ export default function TransportationCompanyProfilePage() {
           if (s) setContractSummary(s);
           setContractsLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'lobbying' && !lobbyingLoaded) {
       Promise.all([
@@ -208,7 +208,7 @@ export default function TransportationCompanyProfilePage() {
           if (s) setLobbySummary(s);
           setLobbyingLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getTransportationCompanyEnforcement(companyId, { limit: 100 })
@@ -217,22 +217,22 @@ export default function TransportationCompanyProfilePage() {
           setTotalPenalties(r.total_penalties || 0);
           setEnforcementLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getTransportationCompanyFilings(companyId, { limit: 100 })
         .then((r) => { setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true); })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'recalls' && !recallsLoaded) {
       getTransportationCompanyRecalls(companyId, { limit: 50 })
         .then((r) => { setRecalls(r.recalls || []); setRecallTotal(r.total); setRecallsLoaded(true); setRecallOffset(50); })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'complaints' && !complaintsLoaded) {
       getTransportationCompanyComplaints(companyId, { limit: 50 })
         .then((r) => { setComplaints(r.complaints || []); setComplaintTotal(r.total); setComplaintsLoaded(true); setComplaintOffset(50); })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'safety_ratings' && !safetyRatingsLoaded) {
       getTransportationCompanySafetyRatings(companyId, { limit: 100 })
@@ -242,13 +242,13 @@ export default function TransportationCompanyProfilePage() {
           setAvgOverallRating(r.avg_overall_rating);
           setSafetyRatingsLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     // Fuel economy tab hidden from UI — lazy load removed
     if (activeTab === 'donations' && !donationsLoaded) {
       getTransportationCompanyDonations(companyId, { limit: 100 })
         .then((r) => { setDonations(r.donations || []); setDonationTotal(r.total); setDonationTotalAmount(r.total_amount || 0); setDonationsLoaded(true); })
-        .catch(console.error);
+        .catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, companyId]);
@@ -258,19 +258,19 @@ export default function TransportationCompanyProfilePage() {
     if (!companyId) return;
     getTransportationCompanyRecalls(companyId, { limit: 50, offset: recallOffset })
       .then((r) => { setRecalls((prev) => [...prev, ...(r.recalls || [])]); setRecallOffset((o) => o + 50); })
-      .catch(console.error);
+      .catch(() => {});
   };
   const loadMoreComplaints = () => {
     if (!companyId) return;
     getTransportationCompanyComplaints(companyId, { limit: 50, offset: complaintOffset })
       .then((r) => { setComplaints((prev) => [...prev, ...(r.complaints || [])]); setComplaintOffset((o) => o + 50); })
-      .catch(console.error);
+      .catch(() => {});
   };
   const loadMoreFuelEconomy = () => {
     if (!companyId) return;
     getTransportationCompanyFuelEconomy(companyId, { limit: 50, offset: fuelEconomyOffset })
       .then((r) => { setFuelEconomy((prev) => [...prev, ...(r.vehicles || [])]); setFuelEconomyOffset((o) => o + 50); })
-      .catch(console.error);
+      .catch(() => {});
   };
 
   if (loading) {

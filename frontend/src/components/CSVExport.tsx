@@ -7,12 +7,13 @@ interface CSVColumn {
 }
 
 interface CSVExportProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts rows from any sector data table
   data: Record<string, any>[];
   filename: string;
   columns?: CSVColumn[];
 }
 
-function escapeCSV(value: any): string {
+function escapeCSV(value: unknown): string {
   if (value == null) return '';
   const str = String(value);
   if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {

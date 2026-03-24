@@ -138,8 +138,8 @@ def ingest_vote(congress: int, session: int, roll_number: int,
         if start_date:
             try:
                 vote_date = datetime.fromisoformat(start_date).date()
-            except Exception:
-                pass
+            except (ValueError, TypeError) as e:
+                logger.warning("Failed to parse vote date '%s' for roll %s: %s", start_date, roll_number, e)
 
         # Parse totals from votePartyTotal
         yea_count = 0

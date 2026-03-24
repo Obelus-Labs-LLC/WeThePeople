@@ -188,7 +188,7 @@ export default function EnergyCompaniesPage() {
         }
         setCompanies(res.companies);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

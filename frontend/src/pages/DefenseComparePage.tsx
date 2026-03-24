@@ -128,7 +128,7 @@ export default function DefenseComparePage() {
   useEffect(() => {
     getDefenseCompanies({ limit: 200 })
       .then((res) => setAllCompanies(res.companies || []))
-      .catch(console.error);
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -137,7 +137,7 @@ export default function DefenseComparePage() {
     setLoading(true);
     getDefenseComparison(ids)
       .then((res) => setComparison(res.companies || []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [selectedIds]);
 

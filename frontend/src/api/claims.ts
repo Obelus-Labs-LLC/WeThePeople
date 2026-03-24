@@ -98,7 +98,7 @@ export interface VerificationItem {
   source_url?: string;
   created_at?: string;
   entity_name?: string;
-  bill_refs?: any;
+  bill_refs?: Record<string, unknown>;
   evaluation: ClaimEvaluation | null;
 }
 
@@ -111,7 +111,7 @@ export interface VerificationsResponse {
 
 export interface VerificationDetailResponse extends VerificationItem {
   entity_name: string;
-  bill_refs?: any;
+  bill_refs?: Record<string, unknown>;
 }
 
 export interface DashboardStatsResponse {

@@ -58,7 +58,7 @@ export default function InsiderTradesDashboardPage() {
         setIndicators(macroRes.indicators || []);
         setNews(newsRes.news || []);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [filter]);
 

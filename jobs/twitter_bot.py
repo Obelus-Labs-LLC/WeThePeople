@@ -30,8 +30,8 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from connectors.twitter import post_tweet, post_thread
-from models.database import SessionLocal, Base
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, event as sa_event
+from models.database import SessionLocal
+from models.twitter_models import TweetLog
 
 load_dotenv()
 
@@ -40,20 +40,6 @@ log = logging.getLogger(__name__)
 
 API_BASE = os.getenv("WTP_API_URL", "http://localhost:8006")
 SITE = "wethepeopleforus.com"
-
-# ── Tweet Log (tracks what we've posted to avoid repeats) ──
-
-from models.database import Base as _Base
-
-
-class TweetLog(_Base):
-    __tablename__ = "tweet_log"
-    id = Column(Integer, primary_key=True)
-    tweet_id = Column(String(50))
-    category = Column(String(50))
-    content_hash = Column(String(64), unique=True)
-    text = Column(Text)
-    posted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # ── API Helpers ──

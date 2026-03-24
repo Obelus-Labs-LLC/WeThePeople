@@ -274,7 +274,7 @@ export default function FinanceComparePage() {
           setIdB(list[1].institution_id);
         }
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -283,7 +283,7 @@ export default function FinanceComparePage() {
     setComparing(true);
     getFinanceComparison([idA, idB])
       .then((res) => setCompared(res.institutions || []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setComparing(false));
   }
 

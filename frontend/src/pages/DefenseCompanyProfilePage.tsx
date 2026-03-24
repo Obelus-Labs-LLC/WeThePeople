@@ -162,7 +162,7 @@ export default function DefenseCompanyProfilePage() {
           if (s) setContractSummary(s);
           setContractsLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'lobbying' && !lobbyingLoaded) {
       Promise.all([
@@ -174,7 +174,7 @@ export default function DefenseCompanyProfilePage() {
           if (s) setLobbySummary(s);
           setLobbyingLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getDefenseCompanyEnforcement(companyId, { limit: 100 })
@@ -183,17 +183,17 @@ export default function DefenseCompanyProfilePage() {
           setTotalPenalties(r.total_penalties || 0);
           setEnforcementLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getDefenseCompanyFilings(companyId, { limit: 100 })
         .then((r) => { setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true); })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'donations' && !donationsLoaded) {
       getDefenseCompanyDonations(companyId, { limit: 100 })
         .then((r) => { setDonations(r.donations || []); setDonationTotal(r.total); setDonationTotalAmount(r.total_amount || 0); setDonationsLoaded(true); })
-        .catch(console.error);
+        .catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, companyId]);

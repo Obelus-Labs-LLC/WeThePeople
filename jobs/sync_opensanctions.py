@@ -125,8 +125,9 @@ def sync_sector(config: dict, dry_run: bool = False, limit: int = 0):
         logger.info("=== %s complete: %d checked, %d flagged ===", config["name"], checked, flagged)
 
     except Exception as e:
-        logger.error("Error syncing %s: %s", config["name"], e)
+        logger.error("Error syncing %s: %s", config["name"], e, exc_info=True)
         db.rollback()
+        raise
     finally:
         db.close()
 

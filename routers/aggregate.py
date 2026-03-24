@@ -3,12 +3,20 @@ Aggregate sector-level endpoints for enforcement, lobbying, and contracts.
 
 Returns all records for an entire sector in a single query instead of
 requiring N individual per-company API calls from the frontend.
+
+Refactored: uses a SECTOR_MODELS dispatch table so each endpoint is a
+thin wrapper around a generic query helper.
 """
 
-from fastapi import APIRouter, Query
-from sqlalchemy import desc, func, case
+import logging
 
-from models.database import SessionLocal
+from fastapi import APIRouter, Query, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import desc, func
+
+logger = logging.getLogger(__name__)
+
+from models.database import get_db
 from models.finance_models import (
     TrackedInstitution, FinanceEnforcement, FinanceLobbyingRecord, FinanceGovernmentContract,
 )
@@ -33,121 +41,111 @@ from models.defense_models import (
 router = APIRouter(prefix="/aggregate", tags=["aggregate"])
 
 
+# ── Sector dispatch table ──
+# Each sector maps to its entity (tracked) model, the FK column name on
+# child tables, and the enforcement/lobbying/contracts model classes.
+
+SECTOR_MODELS = {
+    "finance": {
+        "entity": TrackedInstitution,
+        "entity_id_col": "institution_id",
+        "enforcement": FinanceEnforcement,
+        "lobbying": FinanceLobbyingRecord,
+        "contracts": FinanceGovernmentContract,
+    },
+    "health": {
+        "entity": TrackedCompany,
+        "entity_id_col": "company_id",
+        "enforcement": HealthEnforcement,
+        "lobbying": HealthLobbyingRecord,
+        "contracts": HealthGovernmentContract,
+    },
+    "tech": {
+        "entity": TrackedTechCompany,
+        "entity_id_col": "company_id",
+        "enforcement": FTCEnforcement,
+        "lobbying": LobbyingRecord,
+        "contracts": GovernmentContract,
+    },
+    "energy": {
+        "entity": TrackedEnergyCompany,
+        "entity_id_col": "company_id",
+        "enforcement": EnergyEnforcement,
+        "lobbying": EnergyLobbyingRecord,
+        "contracts": EnergyGovernmentContract,
+    },
+    "transportation": {
+        "entity": TrackedTransportationCompany,
+        "entity_id_col": "company_id",
+        "enforcement": TransportationEnforcement,
+        "lobbying": TransportationLobbyingRecord,
+        "contracts": TransportationGovernmentContract,
+    },
+    "defense": {
+        "entity": TrackedDefenseCompany,
+        "entity_id_col": "company_id",
+        "enforcement": DefenseEnforcement,
+        "lobbying": DefenseLobbyingRecord,
+        "contracts": DefenseGovernmentContract,
+    },
+}
+
+
 # ── Helpers ──
 
 def _str_date(d):
     return str(d) if d else None
 
 
-# ── ENFORCEMENT ──
-
-@router.get("/finance/enforcement")
-def finance_enforcement_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(FinanceEnforcement, TrackedInstitution.display_name)
-            .join(TrackedInstitution, FinanceEnforcement.institution_id == TrackedInstitution.institution_id)
-            .order_by(desc(FinanceEnforcement.case_date))
-            .limit(limit)
-            .all()
-        )
-        return {
-            "total": db.query(func.count(FinanceEnforcement.id)).scalar(),
-            "actions": [{
-                "id": a.id, "case_title": a.case_title,
-                "case_date": _str_date(a.case_date), "case_url": a.case_url,
-                "enforcement_type": a.enforcement_type,
-                "penalty_amount": a.penalty_amount, "description": a.description,
-                "source": a.source, "entity_id": a.institution_id,
-                "entity_name": name,
-            } for a, name in rows],
-        }
-    finally:
-        db.close()
+def _get_join_condition(model, entity_model, id_col):
+    """Build the join ON clause: model.<id_col> == entity_model.<id_col>."""
+    return getattr(model, id_col) == getattr(entity_model, id_col)
 
 
-@router.get("/health/enforcement")
-def health_enforcement_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(HealthEnforcement, TrackedCompany.display_name)
-            .join(TrackedCompany, HealthEnforcement.company_id == TrackedCompany.company_id)
-            .order_by(desc(HealthEnforcement.case_date))
-            .limit(limit)
-            .all()
-        )
-        return {
-            "total": db.query(func.count(HealthEnforcement.id)).scalar(),
-            "actions": [{
-                "id": a.id, "case_title": a.case_title,
-                "case_date": _str_date(a.case_date), "case_url": a.case_url,
-                "enforcement_type": a.enforcement_type,
-                "penalty_amount": a.penalty_amount, "description": a.description,
-                "source": a.source, "entity_id": a.company_id,
-                "entity_name": name,
-            } for a, name in rows],
-        }
-    finally:
-        db.close()
+# ── Generic query functions ──
+
+def _query_enforcement(sector: str, limit: int, db: Session):
+    """Generic enforcement query for any sector."""
+    cfg = SECTOR_MODELS[sector]
+    model = cfg["enforcement"]
+    entity = cfg["entity"]
+    id_col = cfg["entity_id_col"]
+
+    rows = (
+        db.query(model, entity.display_name)
+        .join(entity, _get_join_condition(model, entity, id_col))
+        .order_by(desc(model.case_date))
+        .limit(limit)
+        .all()
+    )
+    return {
+        "total": db.query(func.count(model.id)).scalar(),
+        "actions": [{
+            "id": a.id, "case_title": a.case_title,
+            "case_date": _str_date(a.case_date), "case_url": a.case_url,
+            "enforcement_type": a.enforcement_type,
+            "penalty_amount": a.penalty_amount, "description": a.description,
+            "source": a.source, "entity_id": getattr(a, id_col),
+            "entity_name": name,
+        } for a, name in rows],
+    }
 
 
-@router.get("/tech/enforcement")
-def tech_enforcement_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(FTCEnforcement, TrackedTechCompany.display_name)
-            .join(TrackedTechCompany, FTCEnforcement.company_id == TrackedTechCompany.company_id)
-            .order_by(desc(FTCEnforcement.case_date))
-            .limit(limit)
-            .all()
-        )
-        return {
-            "total": db.query(func.count(FTCEnforcement.id)).scalar(),
-            "actions": [{
-                "id": a.id, "case_title": a.case_title,
-                "case_date": _str_date(a.case_date), "case_url": a.case_url,
-                "enforcement_type": a.enforcement_type,
-                "penalty_amount": a.penalty_amount, "description": a.description,
-                "source": a.source, "entity_id": a.company_id,
-                "entity_name": name,
-            } for a, name in rows],
-        }
-    finally:
-        db.close()
+def _query_lobbying(sector: str, limit: int, db: Session):
+    """Generic lobbying query for any sector."""
+    cfg = SECTOR_MODELS[sector]
+    model = cfg["lobbying"]
+    entity = cfg["entity"]
+    id_col = cfg["entity_id_col"]
 
-
-@router.get("/energy/enforcement")
-def energy_enforcement_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(EnergyEnforcement, TrackedEnergyCompany.display_name)
-            .join(TrackedEnergyCompany, EnergyEnforcement.company_id == TrackedEnergyCompany.company_id)
-            .order_by(desc(EnergyEnforcement.case_date))
-            .limit(limit)
-            .all()
-        )
-        return {
-            "total": db.query(func.count(EnergyEnforcement.id)).scalar(),
-            "actions": [{
-                "id": a.id, "case_title": a.case_title,
-                "case_date": _str_date(a.case_date), "case_url": a.case_url,
-                "enforcement_type": a.enforcement_type,
-                "penalty_amount": a.penalty_amount, "description": a.description,
-                "source": a.source, "entity_id": a.company_id,
-                "entity_name": name,
-            } for a, name in rows],
-        }
-    finally:
-        db.close()
-
-
-# ── LOBBYING ──
-
-def _lobbying_response(rows, total, id_field):
+    rows = (
+        db.query(model, entity.display_name)
+        .join(entity, _get_join_condition(model, entity, id_col))
+        .order_by(desc(model.filing_year), model.filing_period)
+        .limit(limit)
+        .all()
+    )
+    total = db.query(func.count(model.id)).scalar()
     return {
         "total": total,
         "filings": [{
@@ -157,83 +155,27 @@ def _lobbying_response(rows, total, id_field):
             "registrant_name": a.registrant_name, "client_name": a.client_name,
             "lobbying_issues": a.lobbying_issues,
             "government_entities": a.government_entities,
-            "entity_id": getattr(a, id_field),
+            "entity_id": getattr(a, id_col),
             "entity_name": name,
         } for a, name in rows],
     }
 
 
-@router.get("/finance/lobbying")
-def finance_lobbying_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(FinanceLobbyingRecord, TrackedInstitution.display_name)
-            .join(TrackedInstitution, FinanceLobbyingRecord.institution_id == TrackedInstitution.institution_id)
-            .order_by(desc(FinanceLobbyingRecord.filing_year), FinanceLobbyingRecord.filing_period)
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(FinanceLobbyingRecord.id)).scalar()
-        return _lobbying_response(rows, total, "institution_id")
-    finally:
-        db.close()
+def _query_contracts(sector: str, limit: int, db: Session):
+    """Generic contracts query for any sector."""
+    cfg = SECTOR_MODELS[sector]
+    model = cfg["contracts"]
+    entity = cfg["entity"]
+    id_col = cfg["entity_id_col"]
 
-
-@router.get("/health/lobbying")
-def health_lobbying_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(HealthLobbyingRecord, TrackedCompany.display_name)
-            .join(TrackedCompany, HealthLobbyingRecord.company_id == TrackedCompany.company_id)
-            .order_by(desc(HealthLobbyingRecord.filing_year), HealthLobbyingRecord.filing_period)
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(HealthLobbyingRecord.id)).scalar()
-        return _lobbying_response(rows, total, "company_id")
-    finally:
-        db.close()
-
-
-@router.get("/tech/lobbying")
-def tech_lobbying_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(LobbyingRecord, TrackedTechCompany.display_name)
-            .join(TrackedTechCompany, LobbyingRecord.company_id == TrackedTechCompany.company_id)
-            .order_by(desc(LobbyingRecord.filing_year), LobbyingRecord.filing_period)
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(LobbyingRecord.id)).scalar()
-        return _lobbying_response(rows, total, "company_id")
-    finally:
-        db.close()
-
-
-@router.get("/energy/lobbying")
-def energy_lobbying_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(EnergyLobbyingRecord, TrackedEnergyCompany.display_name)
-            .join(TrackedEnergyCompany, EnergyLobbyingRecord.company_id == TrackedEnergyCompany.company_id)
-            .order_by(desc(EnergyLobbyingRecord.filing_year), EnergyLobbyingRecord.filing_period)
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(EnergyLobbyingRecord.id)).scalar()
-        return _lobbying_response(rows, total, "company_id")
-    finally:
-        db.close()
-
-
-# ── CONTRACTS ──
-
-def _contracts_response(rows, total, id_field):
+    rows = (
+        db.query(model, entity.display_name)
+        .join(entity, _get_join_condition(model, entity, id_col))
+        .order_by(desc(model.award_amount))
+        .limit(limit)
+        .all()
+    )
+    total = db.query(func.count(model.id)).scalar()
     return {
         "total": total,
         "contracts": [{
@@ -244,199 +186,103 @@ def _contracts_response(rows, total, id_field):
             "start_date": _str_date(a.start_date),
             "end_date": _str_date(a.end_date),
             "contract_type": a.contract_type,
-            "entity_id": getattr(a, id_field),
+            "entity_id": getattr(a, id_col),
             "entity_name": name,
         } for a, name in rows],
     }
 
 
-@router.get("/finance/contracts")
-def finance_contracts_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(FinanceGovernmentContract, TrackedInstitution.display_name)
-            .join(TrackedInstitution, FinanceGovernmentContract.institution_id == TrackedInstitution.institution_id)
-            .order_by(desc(FinanceGovernmentContract.award_amount))
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(FinanceGovernmentContract.id)).scalar()
-        return _contracts_response(rows, total, "institution_id")
-    finally:
-        db.close()
+# ── Enforcement endpoints ──
+
+@router.get("/finance/enforcement")
+def finance_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_enforcement("finance", limit, db)
 
 
-@router.get("/health/contracts")
-def health_contracts_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(HealthGovernmentContract, TrackedCompany.display_name)
-            .join(TrackedCompany, HealthGovernmentContract.company_id == TrackedCompany.company_id)
-            .order_by(desc(HealthGovernmentContract.award_amount))
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(HealthGovernmentContract.id)).scalar()
-        return _contracts_response(rows, total, "company_id")
-    finally:
-        db.close()
+@router.get("/health/enforcement")
+def health_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_enforcement("health", limit, db)
 
 
-@router.get("/tech/contracts")
-def tech_contracts_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(GovernmentContract, TrackedTechCompany.display_name)
-            .join(TrackedTechCompany, GovernmentContract.company_id == TrackedTechCompany.company_id)
-            .order_by(desc(GovernmentContract.award_amount))
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(GovernmentContract.id)).scalar()
-        return _contracts_response(rows, total, "company_id")
-    finally:
-        db.close()
+@router.get("/tech/enforcement")
+def tech_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_enforcement("tech", limit, db)
 
 
-@router.get("/energy/contracts")
-def energy_contracts_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(EnergyGovernmentContract, TrackedEnergyCompany.display_name)
-            .join(TrackedEnergyCompany, EnergyGovernmentContract.company_id == TrackedEnergyCompany.company_id)
-            .order_by(desc(EnergyGovernmentContract.award_amount))
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(EnergyGovernmentContract.id)).scalar()
-        return _contracts_response(rows, total, "company_id")
-    finally:
-        db.close()
+@router.get("/energy/enforcement")
+def energy_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_enforcement("energy", limit, db)
 
-
-# ── TRANSPORTATION ──
 
 @router.get("/transportation/enforcement")
-def transportation_enforcement_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(TransportationEnforcement, TrackedTransportationCompany.display_name)
-            .join(TrackedTransportationCompany, TransportationEnforcement.company_id == TrackedTransportationCompany.company_id)
-            .order_by(desc(TransportationEnforcement.case_date))
-            .limit(limit)
-            .all()
-        )
-        return {
-            "total": db.query(func.count(TransportationEnforcement.id)).scalar(),
-            "actions": [{
-                "id": a.id, "case_title": a.case_title,
-                "case_date": _str_date(a.case_date), "case_url": a.case_url,
-                "enforcement_type": a.enforcement_type,
-                "penalty_amount": a.penalty_amount, "description": a.description,
-                "source": a.source, "entity_id": a.company_id,
-                "entity_name": name,
-            } for a, name in rows],
-        }
-    finally:
-        db.close()
+def transportation_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_enforcement("transportation", limit, db)
+
+
+@router.get("/defense/enforcement")
+def defense_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_enforcement("defense", limit, db)
+
+
+# ── Lobbying endpoints ──
+
+@router.get("/finance/lobbying")
+def finance_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_lobbying("finance", limit, db)
+
+
+@router.get("/health/lobbying")
+def health_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_lobbying("health", limit, db)
+
+
+@router.get("/tech/lobbying")
+def tech_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_lobbying("tech", limit, db)
+
+
+@router.get("/energy/lobbying")
+def energy_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_lobbying("energy", limit, db)
 
 
 @router.get("/transportation/lobbying")
-def transportation_lobbying_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(TransportationLobbyingRecord, TrackedTransportationCompany.display_name)
-            .join(TrackedTransportationCompany, TransportationLobbyingRecord.company_id == TrackedTransportationCompany.company_id)
-            .order_by(desc(TransportationLobbyingRecord.filing_year), TransportationLobbyingRecord.filing_period)
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(TransportationLobbyingRecord.id)).scalar()
-        return _lobbying_response(rows, total, "company_id")
-    finally:
-        db.close()
-
-
-@router.get("/transportation/contracts")
-def transportation_contracts_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(TransportationGovernmentContract, TrackedTransportationCompany.display_name)
-            .join(TrackedTransportationCompany, TransportationGovernmentContract.company_id == TrackedTransportationCompany.company_id)
-            .order_by(desc(TransportationGovernmentContract.award_amount))
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(TransportationGovernmentContract.id)).scalar()
-        return _contracts_response(rows, total, "company_id")
-    finally:
-        db.close()
-
-
-# ── DEFENSE ──
-
-@router.get("/defense/enforcement")
-def defense_enforcement_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(DefenseEnforcement, TrackedDefenseCompany.display_name)
-            .join(TrackedDefenseCompany, DefenseEnforcement.company_id == TrackedDefenseCompany.company_id)
-            .order_by(desc(DefenseEnforcement.case_date))
-            .limit(limit)
-            .all()
-        )
-        return {
-            "total": db.query(func.count(DefenseEnforcement.id)).scalar(),
-            "actions": [{
-                "id": a.id, "case_title": a.case_title,
-                "case_date": _str_date(a.case_date), "case_url": a.case_url,
-                "enforcement_type": a.enforcement_type,
-                "penalty_amount": a.penalty_amount, "description": a.description,
-                "source": a.source, "entity_id": a.company_id,
-                "entity_name": name,
-            } for a, name in rows],
-        }
-    finally:
-        db.close()
+def transportation_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_lobbying("transportation", limit, db)
 
 
 @router.get("/defense/lobbying")
-def defense_lobbying_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(DefenseLobbyingRecord, TrackedDefenseCompany.display_name)
-            .join(TrackedDefenseCompany, DefenseLobbyingRecord.company_id == TrackedDefenseCompany.company_id)
-            .order_by(desc(DefenseLobbyingRecord.filing_year), DefenseLobbyingRecord.filing_period)
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(DefenseLobbyingRecord.id)).scalar()
-        return _lobbying_response(rows, total, "company_id")
-    finally:
-        db.close()
+def defense_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_lobbying("defense", limit, db)
+
+
+# ── Contracts endpoints ──
+
+@router.get("/finance/contracts")
+def finance_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_contracts("finance", limit, db)
+
+
+@router.get("/health/contracts")
+def health_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_contracts("health", limit, db)
+
+
+@router.get("/tech/contracts")
+def tech_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_contracts("tech", limit, db)
+
+
+@router.get("/energy/contracts")
+def energy_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_contracts("energy", limit, db)
+
+
+@router.get("/transportation/contracts")
+def transportation_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_contracts("transportation", limit, db)
 
 
 @router.get("/defense/contracts")
-def defense_contracts_all(limit: int = Query(500, ge=1, le=2000)):
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(DefenseGovernmentContract, TrackedDefenseCompany.display_name)
-            .join(TrackedDefenseCompany, DefenseGovernmentContract.company_id == TrackedDefenseCompany.company_id)
-            .order_by(desc(DefenseGovernmentContract.award_amount))
-            .limit(limit)
-            .all()
-        )
-        total = db.query(func.count(DefenseGovernmentContract.id)).scalar()
-        return _contracts_response(rows, total, "company_id")
-    finally:
-        db.close()
+def defense_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_contracts("defense", limit, db)

@@ -9,14 +9,17 @@ Rate limit: 10 Haiku questions per IP per day (free tier).
 """
 
 import hashlib
+import logging
 import os
 import time
-from collections import defaultdict
-from threading import Lock
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+
+from services.rate_limit_store import check_rate_limit
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
 
@@ -43,36 +46,61 @@ class ChatResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Rate limiting (10 Haiku calls / day / IP)
+# Rate limiting (10 Haiku calls / day / IP) — persistent SQLite store
 # ---------------------------------------------------------------------------
 
-_chat_rate_store: dict = defaultdict(list)
-_chat_rate_lock = Lock()
 _CHAT_FREE_LIMIT = int(os.getenv("WTP_CHAT_FREE_LIMIT", "10"))
 _CHAT_WINDOW = 86400  # 24 hours
 
 
 def _get_remaining_questions(ip: str) -> int:
-    """Return how many Haiku questions this IP has left today."""
-    cutoff = time.time() - _CHAT_WINDOW
-    with _chat_rate_lock:
-        _chat_rate_store[ip] = [t for t in _chat_rate_store[ip] if t > cutoff]
-        return max(0, _CHAT_FREE_LIMIT - len(_chat_rate_store[ip]))
+    """Return how many Haiku questions this IP has left today.
+
+    Uses a read-only check against the persistent store (does NOT consume a token).
+    """
+    # Do a dry-run check: peek at the store without recording
+    allowed, remaining, _ = check_rate_limit(
+        ip=ip,
+        endpoint="chat",
+        max_requests=_CHAT_FREE_LIMIT + 1,  # +1 so peek never blocks
+        window_seconds=_CHAT_WINDOW,
+    )
+    # The remaining from the +1 trick gives us the true remaining
+    # But we need the real count, so just query properly:
+    from models.database import get_db
+    from services.rate_limit_store import RateLimitRecord
+    db = next(get_db())
+    try:
+        cutoff = time.time() - _CHAT_WINDOW
+        count = (
+            db.query(RateLimitRecord)
+            .filter(
+                RateLimitRecord.ip_address == ip,
+                RateLimitRecord.endpoint == "chat",
+                RateLimitRecord.window_start >= cutoff,
+            )
+            .count()
+        )
+        return max(0, _CHAT_FREE_LIMIT - count)
+    finally:
+        db.close()
 
 
 def _consume_rate_limit(ip: str) -> int:
     """Consume one rate limit token. Returns remaining. Raises 429 if exhausted."""
-    cutoff = time.time() - _CHAT_WINDOW
-    with _chat_rate_lock:
-        _chat_rate_store[ip] = [t for t in _chat_rate_store[ip] if t > cutoff]
-        if len(_chat_rate_store[ip]) >= _CHAT_FREE_LIMIT:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Daily limit reached: {_CHAT_FREE_LIMIT} AI questions per day. "
-                       f"Try again tomorrow, or ask a question that can be answered from our FAQ.",
-            )
-        _chat_rate_store[ip].append(time.time())
-        return max(0, _CHAT_FREE_LIMIT - len(_chat_rate_store[ip]))
+    allowed, remaining, _ = check_rate_limit(
+        ip=ip,
+        endpoint="chat",
+        max_requests=_CHAT_FREE_LIMIT,
+        window_seconds=_CHAT_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily limit reached: {_CHAT_FREE_LIMIT} AI questions per day. "
+                   f"Try again tomorrow, or ask a question that can be answered from our FAQ.",
+        )
+    return remaining
 
 
 # ---------------------------------------------------------------------------
@@ -112,12 +140,12 @@ def _cache_set(question: str, response: dict) -> None:
 
 CHAT_SYSTEM_PROMPT = """You are an assistant for WeThePeople, a civic transparency platform that tracks how corporations lobby Congress, win government contracts, face enforcement actions, and donate to politicians.
 
-The platform covers 6 sectors: Politics, Finance, Health, Technology, Energy, and Transportation. It tracks lobbying records, government contracts, enforcement actions, congressional trades, political donations, legislation, votes, and more.
+The platform covers 8 sectors: Politics, Finance, Health, Technology, Energy, Transportation, and Defense. It tracks lobbying records, government contracts, enforcement actions, congressional trades, political donations, legislation, votes, and more.
 
 Key data:
 - 547 politicians tracked with voting records, trades, committee memberships
-- 500+ companies tracked across all sectors
-- Data from 26 sources including Congress.gov, Senate LDA, USASpending.gov, FEC, SEC EDGAR, OpenFDA
+- 700+ companies tracked across all sectors (finance, health, tech, energy, transportation, defense)
+- Data from 30+ sources including Congress.gov, Senate LDA, USASpending.gov, FEC, SEC EDGAR, OpenFDA, NHTSA, SAM.gov, Regulations.gov, IT Dashboard
 - Most data syncs daily. Lobbying updates quarterly. Congressional trades within 24-48h of disclosure.
 
 IMPORTANT RULES:
@@ -155,6 +183,10 @@ Available pages:
 - /energy — Energy dashboard
 - /energy/companies — Energy companies
 - /transportation — Transportation dashboard
+- /transportation/companies — Transportation companies
+- /defense — Defense dashboard
+- /defense/companies — Defense companies
+- /stories — Data stories and investigations
 - /influence — Influence explorer hub
 - /influence/map — Spending map (choropleth)
 - /influence/network — Influence network graph
@@ -252,6 +284,7 @@ def ask_question(body: ChatRequest, request: Request):
     Rate limited: 10 AI questions per IP per day.
     """
     question = body.question.strip()
+    logger.info("Chat question received: %r", question[:100])
 
     # Check cache first (free, no rate limit consumed)
     cached = _cache_get(question)

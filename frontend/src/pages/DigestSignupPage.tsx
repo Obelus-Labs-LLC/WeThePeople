@@ -82,8 +82,8 @@ export default function DigestSignupPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Subscription failed');
       setSubmitted(true);
-    } catch (err: any) {
-      setSubmitError(err.message || 'Something went wrong');
+    } catch (err: unknown) {
+      setSubmitError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setSubmitting(false);
     }
@@ -99,8 +99,8 @@ export default function DigestSignupPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Preview failed');
       setPreview(data);
-    } catch (err: any) {
-      setPreviewError(err.message || 'Could not load preview');
+    } catch (err: unknown) {
+      setPreviewError(err instanceof Error ? err.message : 'Could not load preview');
     } finally {
       setPreviewLoading(false);
     }

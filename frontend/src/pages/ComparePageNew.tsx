@@ -232,8 +232,8 @@ export default function ComparePageNew() {
     try {
       const data = await apiClient.comparePeople(selectedIds);
       setCompareData(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load comparison');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load comparison');
     } finally {
       setLoadingCompare(false);
     }

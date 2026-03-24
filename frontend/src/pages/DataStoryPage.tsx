@@ -47,7 +47,7 @@ export default function DataStoryPage() {
             title: 'The Landscape',
             description: `Across four sectors, corporations spent ${formatMoney(stats.total_lobbying_spend)} on lobbying and secured ${formatMoney(stats.total_contract_value)} in government contracts. ${stats.total_enforcement_actions} enforcement actions were filed.`,
             chartType: 'bar',
-            data: Object.entries(bySector).map(([sector, data]: [string, any]) => ({
+            data: Object.entries(bySector as Record<string, Record<string, number>>).map(([sector, data]) => ({
               label: sector.charAt(0).toUpperCase() + sector.slice(1),
               value: data.lobbying || 0,
               color: SECTOR_COLORS[sector] || '#6B7280',
@@ -57,27 +57,27 @@ export default function DataStoryPage() {
             title: 'Lobbying Powerhouses',
             description: 'These are the top spenders trying to influence legislation. Every dollar spent on lobbying is an investment in shaping policy.',
             chartType: 'bar',
-            data: (lobbyLeaders.leaders || []).slice(0, 8).map((l: any) => ({
+            data: (lobbyLeaders.leaders || []).slice(0, 8).map((l: { display_name: string; total_lobbying?: number; sector?: string }) => ({
               label: l.display_name,
               value: l.total_lobbying || 0,
-              color: SECTOR_COLORS[l.sector] || '#6B7280',
+              color: SECTOR_COLORS[l.sector || ''] || '#6B7280',
             })),
           },
           {
             title: 'Government Contracts',
             description: 'The same companies that lobby Congress also win billions in government contracts. Coincidence?',
             chartType: 'bar',
-            data: (contractLeaders.leaders || []).slice(0, 8).map((l: any) => ({
+            data: (contractLeaders.leaders || []).slice(0, 8).map((l: { display_name: string; total_contracts?: number; sector?: string }) => ({
               label: l.display_name,
               value: l.total_contracts || 0,
-              color: SECTOR_COLORS[l.sector] || '#6B7280',
+              color: SECTOR_COLORS[l.sector || ''] || '#6B7280',
             })),
           },
           {
             title: 'Lobbying vs Contracts',
             description: 'For every dollar spent on lobbying, these companies win far more in contracts. The return on investment speaks for itself.',
             chartType: 'comparison',
-            data: Object.entries(bySector).map(([sector, data]: [string, any]) => ({
+            data: Object.entries(bySector as Record<string, Record<string, number>>).map(([sector, data]) => ({
               label: sector.charAt(0).toUpperCase() + sector.slice(1),
               value: data.contracts || 0,
               color: SECTOR_COLORS[sector] || '#6B7280',
@@ -87,7 +87,7 @@ export default function DataStoryPage() {
             title: 'Enforcement Gap',
             description: `Despite all this spending, only ${stats.total_enforcement_actions} enforcement actions were taken. Who is holding corporations accountable?`,
             chartType: 'bar',
-            data: Object.entries(bySector).map(([sector, data]: [string, any]) => ({
+            data: Object.entries(bySector as Record<string, Record<string, number>>).map(([sector, data]) => ({
               label: sector.charAt(0).toUpperCase() + sector.slice(1),
               value: data.enforcement || 0,
               color: SECTOR_COLORS[sector] || '#6B7280',
@@ -96,7 +96,7 @@ export default function DataStoryPage() {
         ];
         setSteps(storySteps);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

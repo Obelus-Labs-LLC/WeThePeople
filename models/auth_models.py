@@ -1,0 +1,89 @@
+"""
+Authentication & authorization models.
+
+Tables:
+  - User: registered users with hashed passwords and roles
+  - APIKeyRecord: per-user API keys with granular scopes
+  - AuditLog: immutable trail of security-relevant events
+"""
+
+from sqlalchemy import (
+    Column, String, Integer, DateTime, ForeignKey, Text, Float,
+    UniqueConstraint, Boolean,
+)
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
+from models.database import Base
+
+
+class User(Base):
+    """Registered platform user."""
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+
+    # Role hierarchy: free < pro < enterprise < admin
+    role = Column(String(50), nullable=False, server_default="free", index=True)
+
+    # Optional legacy-compatible flat API key (for migration period)
+    api_key = Column(String(255), nullable=True, unique=True, index=True)
+
+    display_name = Column(String(255), nullable=True)
+    is_active = Column(Integer, nullable=False, server_default="1", index=True)  # SQLite compat: 0/1
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    api_keys = relationship("APIKeyRecord", back_populates="user", cascade="all, delete-orphan")
+
+
+class APIKeyRecord(Base):
+    """Per-user API key with granular scopes and optional expiry."""
+
+    __tablename__ = "api_key_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # We store a SHA-256 hash of the key; the raw key is shown once at creation.
+    key_hash = Column(String(64), unique=True, nullable=False, index=True)
+
+    # Human-readable label, e.g. "CI pipeline", "Mobile app"
+    name = Column(String(255), nullable=False)
+
+    # JSON-encoded list of scopes, e.g. '["read","verify"]'
+    scopes = Column(Text, nullable=False, server_default='["read"]')
+
+    is_active = Column(Integer, nullable=False, server_default="1", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="api_keys")
+
+
+class AuditLog(Base):
+    """Immutable security audit trail."""
+
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+
+    action = Column(String(100), nullable=False, index=True)  # login, register, api_key_create, etc.
+    resource = Column(String(100), nullable=True, index=True)  # claims, api_keys, users, etc.
+    resource_id = Column(String(255), nullable=True)
+
+    ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6
+    user_agent = Column(String(500), nullable=True)
+
+    # JSON blob with action-specific details
+    details = Column(Text, nullable=True)
+
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)

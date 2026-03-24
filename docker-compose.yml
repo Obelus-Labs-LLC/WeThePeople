@@ -1,0 +1,109 @@
+# =============================================================================
+# WeThePeople — Local Development Docker Compose
+# =============================================================================
+# Usage:
+#   docker compose up              # Start all services
+#   docker compose up api          # Start only the backend API
+#   docker compose up frontend     # Start only the frontend dev server
+#   docker compose logs -f api     # Follow API logs
+#
+# Prerequisites:
+#   - Copy .env.example to .env and fill in API keys
+#   - SQLite DB will be created in ./data/ on first run
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend API (FastAPI + uvicorn)
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wtp-api
+    ports:
+      - "8006:8006"
+    env_file:
+      - .env
+    environment:
+      - WTP_ENV=development
+      - WTP_DB_PATH=/app/data/wethepeople.db
+    volumes:
+      - db-data:/app/data
+      # Mount source for hot-reload in development
+      - ./main.py:/app/main.py:ro
+      - ./routers:/app/routers:ro
+      - ./models:/app/models:ro
+      - ./connectors:/app/connectors:ro
+      - ./services:/app/services:ro
+      - ./utils:/app/utils:ro
+    # Override CMD for development with auto-reload
+    command: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port 8006
+      --reload
+      --reload-dir /app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Frontend Dev Server (Vite)
+  # ---------------------------------------------------------------------------
+  frontend:
+    image: node:20-slim
+    container_name: wtp-frontend
+    working_dir: /app/frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app/frontend
+      - frontend-node-modules:/app/frontend/node_modules
+    environment:
+      - WTP_API_URL=http://api:8006
+    command: >
+      sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5173 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Scheduler (sync jobs — same image as API)
+  # ---------------------------------------------------------------------------
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wtp-scheduler
+    env_file:
+      - .env
+    environment:
+      - WTP_ENV=development
+      - WTP_DB_PATH=/app/data/wethepeople.db
+    volumes:
+      - db-data:/app/data
+    command: ["python", "jobs/scheduler.py"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  # Named volume for SQLite DB — persists across container restarts
+  db-data:
+    driver: local
+  # Cache node_modules inside a volume to avoid host OS compat issues
+  frontend-node-modules:
+    driver: local

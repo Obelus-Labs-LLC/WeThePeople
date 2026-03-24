@@ -103,7 +103,7 @@ function AdverseEventsTab({ companyId }: { companyId: string }) {
   useEffect(() => {
     getHealthCompanyAdverseEvents(companyId, { limit: 50 })
       .then((res) => { setEvents(res.adverse_events || []); setTotal(res.total); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [companyId]);
 
@@ -111,7 +111,7 @@ function AdverseEventsTab({ companyId }: { companyId: string }) {
     setLoadingMore(true);
     getHealthCompanyAdverseEvents(companyId, { limit: 50, offset: events.length })
       .then((res) => { setEvents((prev) => [...prev, ...(res.adverse_events || [])]); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoadingMore(false));
   };
 
@@ -231,7 +231,7 @@ function RecallsTab({ companyId }: { companyId: string }) {
   useEffect(() => {
     getHealthCompanyRecalls(companyId, { limit: 50 })
       .then((res) => { setRecalls(res.recalls || []); setTotal(res.total); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [companyId]);
 
@@ -239,7 +239,7 @@ function RecallsTab({ companyId }: { companyId: string }) {
     setLoadingMore(true);
     getHealthCompanyRecalls(companyId, { limit: 50, offset: recalls.length })
       .then((res) => { setRecalls((prev) => [...prev, ...(res.recalls || [])]); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoadingMore(false));
   };
 
@@ -340,7 +340,7 @@ function TrialsTab({ companyId }: { companyId: string }) {
   useEffect(() => {
     getHealthCompanyTrials(companyId, { limit: 50 })
       .then((res) => { setTrials(res.trials || []); setTotal(res.total); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [companyId]);
 
@@ -348,7 +348,7 @@ function TrialsTab({ companyId }: { companyId: string }) {
     setLoadingMore(true);
     getHealthCompanyTrials(companyId, { limit: 50, offset: trials.length })
       .then((res) => { setTrials((prev) => [...prev, ...(res.trials || [])]); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoadingMore(false));
   };
 
@@ -469,7 +469,7 @@ function PaymentsFilingsTab({ companyId, company }: { companyId: string; company
         setFilings(filRes.filings || []);
         setStock(stockRes.stock);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [companyId]);
 
@@ -841,7 +841,7 @@ function LobbyingTab({ companyId }: { companyId: string }) {
       getHealthCompanyLobbySummary(companyId),
     ])
       .then(([lobbyRes, sumRes]) => { setFilings(lobbyRes.filings || []); setSummary(sumRes); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [companyId]);
 
@@ -908,7 +908,7 @@ function ContractsTab({ companyId }: { companyId: string }) {
   useEffect(() => {
     getHealthCompanyContracts(companyId, { limit: 50 })
       .then((res) => setContracts(res.contracts || []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [companyId]);
 
@@ -951,7 +951,7 @@ function EnforcementTab({ companyId }: { companyId: string }) {
   useEffect(() => {
     getHealthCompanyEnforcement(companyId, { limit: 50 })
       .then((res) => { setActions(res.actions || []); setTotalPenalties(res.total_penalties || 0); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [companyId]);
 
@@ -1009,7 +1009,7 @@ export default function HealthCompanyProfilePage() {
     let cancelled = false;
     getHealthCompanyDetail(companyId)
       .then((d) => { if (!cancelled) setCompany(d); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
     // Fetch trends
     fetch(`${getApiBaseUrl()}/health/companies/${encodeURIComponent(companyId)}/trends`)

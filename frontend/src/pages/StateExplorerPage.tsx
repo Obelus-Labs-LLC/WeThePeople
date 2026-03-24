@@ -46,7 +46,7 @@ export default function StateExplorerPage() {
         }
         setStateData(map);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

@@ -164,8 +164,8 @@ export default function LegislationTrackerPage() {
         setBills((prev) => [...prev, ...(data.bills || [])]);
       }
       setTotal(data.total || 0);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load bills');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load bills');
     } finally {
       setLoading(false);
     }

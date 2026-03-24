@@ -168,7 +168,7 @@ export default function BalanceOfPowerPage() {
         setPeople(pRes.people || []);
         setStats(sRes);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
