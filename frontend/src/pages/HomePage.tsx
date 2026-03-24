@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   MapPin,
   Search,
+  Newspaper,
 } from "lucide-react";
 import Footer from "../components/Footer";
 import { getApiBaseUrl } from "../api/client";
@@ -94,6 +95,80 @@ function SuspiciousPatternsTeaser() {
             className="inline-flex items-center gap-1.5 text-sm text-amber-400 hover:text-amber-300 transition-colors"
           >
             View all suspicious patterns <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface StoryTeaser {
+  slug: string;
+  title: string;
+  summary: string;
+  sector: string;
+}
+
+const SECTOR_BADGE_COLORS: Record<string, string> = {
+  finance: "bg-emerald-500/20 text-emerald-400",
+  health: "bg-rose-500/20 text-rose-400",
+  technology: "bg-violet-500/20 text-violet-400",
+  energy: "bg-orange-500/20 text-orange-400",
+  transportation: "bg-blue-500/20 text-blue-400",
+  defense: "bg-red-500/20 text-red-400",
+  politics: "bg-blue-500/20 text-blue-400",
+};
+
+function LatestStoriesTeaser() {
+  const [stories, setStories] = useState<StoryTeaser[]>([]);
+
+  useEffect(() => {
+    fetch(`${ANOMALY_API}/stories/latest?limit=3`)
+      .then((r) => r.json())
+      .then((data) => setStories(Array.isArray(data) ? data : data.stories || []))
+      .catch(() => {});
+  }, []);
+
+  if (stories.length === 0) return null;
+
+  return (
+    <div className="pb-12">
+      <div className="max-w-5xl mx-auto px-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Newspaper className="w-5 h-5 text-blue-400" />
+          <h3 className="text-xl font-bold text-white">Latest Stories</h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {stories.map((s) => (
+            <Link
+              key={s.slug}
+              to={`/stories/${s.slug}`}
+              className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/[0.08] transition-colors no-underline group"
+            >
+              {s.sector && (
+                <span
+                  className={`inline-block text-[10px] uppercase font-semibold px-2 py-0.5 rounded mb-2 ${
+                    SECTOR_BADGE_COLORS[s.sector] || "bg-slate-500/20 text-slate-400"
+                  }`}
+                >
+                  {s.sector}
+                </span>
+              )}
+              <div className="text-sm font-bold text-white mb-1 group-hover:text-blue-400 transition-colors line-clamp-2">
+                {s.title}
+              </div>
+              <div className="text-xs text-white/50 leading-relaxed line-clamp-3">
+                {s.summary}
+              </div>
+            </Link>
+          ))}
+        </div>
+        <div className="mt-3 text-center">
+          <Link
+            to="/stories"
+            className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            View all stories <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
@@ -413,6 +488,9 @@ const HomePage: React.FC = () => {
 
         {/* Suspicious Patterns teaser */}
         <SuspiciousPatternsTeaser />
+
+        {/* Latest Stories teaser */}
+        <LatestStoriesTeaser />
 
         <Footer />
       </div>

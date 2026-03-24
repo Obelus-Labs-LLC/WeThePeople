@@ -106,7 +106,7 @@ export default function StateDashboardPage() {
   const tabs = [
     { key: 'overview' as const, label: 'Overview' },
     { key: 'legislators' as const, label: `Legislators (${fmtNum(dashboard.total_legislators)})` },
-    { key: 'bills' as const, label: `Bills (${fmtNum(dashboard.total_bills)})` },
+    { key: 'bills' as const, label: dashboard.total_bills > 0 ? `Bills (${fmtNum(dashboard.total_bills)})` : 'Bills' },
   ];
 
   return (
@@ -149,7 +149,7 @@ export default function StateDashboardPage() {
             </span>
             <span className="font-mono text-sm text-white/40">
               <FileText size={14} className="inline mr-1.5" />
-              {fmtNum(dashboard.total_bills)} bills
+              {dashboard.total_bills > 0 ? `${fmtNum(dashboard.total_bills)} bills` : 'State bill data coming soon'}
             </span>
           </div>
         </motion.div>
@@ -519,7 +519,7 @@ function LegislatorCard({ legislator }: { legislator: StateLegislator }) {
     .toUpperCase();
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20">
+    <div className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20">
       <div className="flex items-center gap-3">
         {legislator.photo_url ? (
           <img
@@ -536,9 +536,21 @@ function LegislatorCard({ legislator }: { legislator: StateLegislator }) {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="font-body text-sm font-semibold text-white truncate">
-            {legislator.name}
-          </p>
+          {legislator.ocd_id ? (
+            <a
+              href={`https://openstates.org/person/${legislator.ocd_id}/`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-body text-sm font-semibold text-white hover:text-blue-400 transition-colors no-underline truncate block"
+            >
+              {legislator.name}
+              <ExternalLink size={10} className="inline ml-1 opacity-0 group-hover:opacity-50" />
+            </a>
+          ) : (
+            <p className="font-body text-sm font-semibold text-white truncate">
+              {legislator.name}
+            </p>
+          )}
           <p className="font-mono text-[10px] text-white/30">
             {legislator.district ? `District ${legislator.district}` : ''}
           </p>
@@ -623,7 +635,9 @@ function BillsTab({ stateCode, recentBills, totalBills }: { stateCode: string; r
 
       {!searching && bills.length === 0 && (
         <div className="py-16 text-center">
-          <p className="font-body text-sm text-white/30">No bills found.</p>
+          <p className="font-body text-sm text-white/30">
+            {search.trim() ? 'No bills found.' : 'State bill data coming soon'}
+          </p>
         </div>
       )}
 
