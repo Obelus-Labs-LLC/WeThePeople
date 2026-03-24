@@ -22,6 +22,8 @@ import {
   MapPin,
   Search,
   Newspaper,
+  FlaskConical,
+  ExternalLink,
 } from "lucide-react";
 import Footer from "../components/Footer";
 import { getApiBaseUrl } from "../api/client";
@@ -385,6 +387,51 @@ const HomePage: React.FC = () => {
               <ArrowRight className="w-5 h-5 text-emerald-400 opacity-50 group-hover:opacity-100 transition-opacity shrink-0" />
             </div>
           </button>
+        </div>
+
+        {/* Ecosystem cards */}
+        <div className="max-w-5xl mx-auto px-4 -mt-2 pb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* WTP Research */}
+            <a
+              href="https://research.wethepeopleforus.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-4 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-violet-500/20 p-4 transition-all duration-200 hover:bg-violet-500/[0.08] hover:border-violet-500/30 no-underline"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-600/20 shrink-0">
+                <FlaskConical className="w-5 h-5 text-violet-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold text-white mb-0.5">
+                  Looking to do deep research?
+                </div>
+                <div className="text-xs text-violet-300/60 leading-snug">
+                  Patent explorer, drug lookup, clinical trials, insider trades, and more.
+                </div>
+              </div>
+              <ExternalLink className="w-4 h-4 text-violet-400 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
+            </a>
+
+            {/* The Influence Journal */}
+            <Link
+              to="/stories"
+              className="group flex items-center gap-4 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-amber-500/20 p-4 transition-all duration-200 hover:bg-amber-500/[0.08] hover:border-amber-500/30 no-underline"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-600/20 shrink-0">
+                <Newspaper className="w-5 h-5 text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold text-white mb-0.5">
+                  Read our data investigations
+                </div>
+                <div className="text-xs text-amber-300/60 leading-snug">
+                  Data-driven stories about corporate influence on Congress. Cited sources, no spin.
+                </div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-amber-400 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
+            </Link>
+          </div>
         </div>
 
         {/* Sector grid */}
