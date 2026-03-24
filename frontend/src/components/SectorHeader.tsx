@@ -85,7 +85,7 @@ const FINANCE_LINKS: NavLink[] = [
   { label: 'Lobbying', to: '/finance/lobbying' },
   { label: 'Contracts', to: '/finance/contracts' },
   { label: 'Enforcement', to: '/finance/enforcement' },
-  { label: 'Insider Trades', to: '/finance/insider-trades' },
+  // Insider Trades, Market Movers, News, Complaints moved to WTP Research
   { label: 'Compare', to: '/finance/compare' },
 ];
 
@@ -96,7 +96,7 @@ const HEALTH_LINKS: NavLink[] = [
   { label: 'Lobbying', to: '/health/lobbying' },
   { label: 'Contracts', to: '/health/contracts' },
   { label: 'Enforcement', to: '/health/enforcement' },
-  { label: 'Pipeline', to: '/health/pipeline' },
+  // Pipeline + FDA Approvals moved to WTP Research
   { label: 'Compare', to: '/health/compare' },
 ];
 
@@ -104,7 +104,7 @@ const TECH_LINKS: NavLink[] = [
   { label: 'Sectors', to: '/' },
   { label: 'Dashboard', to: '/technology' },
   { label: 'Companies', to: '/technology/companies' },
-  { label: 'Patents', to: '/technology/patents' },
+  // Patents moved to WTP Research
   { label: 'Lobbying', to: '/technology/lobbying' },
   { label: 'Contracts', to: '/technology/contracts' },
   { label: 'Enforcement', to: '/technology/enforcement' },

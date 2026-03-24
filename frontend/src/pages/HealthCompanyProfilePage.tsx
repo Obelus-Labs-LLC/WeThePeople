@@ -356,6 +356,15 @@ function TrialsTab({ companyId }: { companyId: string }) {
 
   return (
     <div>
+      {/* WTP Research CTA */}
+      <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 mb-6 flex items-center justify-between gap-4">
+        <div>
+          <p className="font-body text-sm text-white/70">Full clinical pipeline analysis, trial phase breakdowns, and drug development tracking.</p>
+        </div>
+        <a href="https://research.wethepeopleforus.com/pipeline" target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 font-body text-xs font-semibold text-white hover:bg-blue-500 transition-colors no-underline">
+          Open in WTP Research &#8599;
+        </a>
+      </div>
       <p className="text-xs uppercase tracking-widest mb-4" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
         {total.toLocaleString()} TOTAL TRIALS
       </p>

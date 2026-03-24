@@ -200,7 +200,7 @@ export default function HealthDashboardPage() {
     { label: 'Lobbying Spend', value: formatMoney(stats?.total_lobbying_spend || 0), icon: DollarSign, color: '#3B82F6', to: '/health/lobbying' },
     { label: 'Gov Contracts', value: formatMoney(stats?.total_contract_value || 0), icon: Landmark, color: '#10B981', to: '/health/contracts' },
     { label: 'Enforcement Actions', value: fmtNum(stats?.total_enforcement || 0), icon: Shield, color: '#EF4444', to: '/health/enforcement' },
-    { label: 'Clinical Trials', value: fmtNum(stats?.total_trials || 0), icon: FlaskConical, color: '#A855F7', to: '/health/pipeline' },
+    { label: 'Clinical Trials', value: fmtNum(stats?.total_trials || 0), icon: FlaskConical, color: '#A855F7', to: '/health/companies' },
   ];
 
   const featured = companies.slice(0, 6);
@@ -257,12 +257,14 @@ export default function HealthDashboardPage() {
                 Browse Companies
                 <ArrowRight size={16} />
               </Link>
-              <Link
-                to="/health/drugs"
+              <a
+                href="https://research.wethepeopleforus.com/pipeline"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 font-body text-sm font-semibold text-white/70 transition-colors hover:border-white/20 hover:text-white no-underline"
               >
-                Drug Lookup
-              </Link>
+                Clinical Pipeline <span className="text-[10px] text-white/30">Research</span>
+              </a>
             </div>
           </motion.div>
 
@@ -322,20 +324,35 @@ export default function HealthDashboardPage() {
         >
           {[
             { to: '/health/companies', label: 'Companies', desc: 'Full company directory', color: ACCENT },
-            { to: '/health/drugs', label: 'Drug Lookup', desc: 'Search FDA drug database', color: '#3B82F6' },
-            { to: '/health/pipeline', label: 'Clinical Pipeline', desc: 'Active trials & phases', color: '#A855F7' },
+            { to: 'https://research.wethepeopleforus.com/pipeline', label: 'Clinical Pipeline', desc: 'Active trials & phases (WTP Research)', color: '#A855F7', external: true },
+            { to: 'https://research.wethepeopleforus.com/fda-approvals', label: 'FDA Approvals', desc: 'Recent FDA actions (WTP Research)', color: '#3B82F6', external: true },
             { to: '/health/compare', label: 'Compare', desc: 'Side-by-side company analysis', color: '#10B981' },
           ].map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 no-underline"
-            >
-              <p className="font-heading text-sm font-bold uppercase tracking-wider" style={{ color: link.color }}>
-                {link.label}
-              </p>
-              <p className="font-body text-xs text-white/30 mt-1">{link.desc}</p>
-            </Link>
+            'external' in link && link.external ? (
+              <a
+                key={link.to}
+                href={link.to}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 no-underline"
+              >
+                <p className="font-heading text-sm font-bold uppercase tracking-wider" style={{ color: link.color }}>
+                  {link.label} <span className="text-[9px] text-white/30 normal-case tracking-normal">&#8599;</span>
+                </p>
+                <p className="font-body text-xs text-white/30 mt-1">{link.desc}</p>
+              </a>
+            ) : (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 no-underline"
+              >
+                <p className="font-heading text-sm font-bold uppercase tracking-wider" style={{ color: link.color }}>
+                  {link.label}
+                </p>
+                <p className="font-body text-xs text-white/30 mt-1">{link.desc}</p>
+              </Link>
+            )
           ))}
         </motion.div>
 
