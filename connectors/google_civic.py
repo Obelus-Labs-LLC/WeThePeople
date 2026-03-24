@@ -21,7 +21,7 @@ Rate limit: 25,000 requests/day (free tier)
 import re
 from typing import Optional, List, Dict, Any
 
-from utils.config import config
+from utils.http_client import config
 from utils.logging import get_logger, setup_logging
 
 logger = get_logger(__name__)

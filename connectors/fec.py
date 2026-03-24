@@ -13,7 +13,7 @@ import time
 from typing import Optional, List, Dict, Any
 
 from utils.http_client import http_client, HTTPError
-from utils.config import config
+from utils.http_client import config
 from utils.logging import get_logger, setup_logging
 
 logger = get_logger(__name__)
