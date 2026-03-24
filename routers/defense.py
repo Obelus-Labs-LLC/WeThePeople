@@ -489,3 +489,75 @@ def get_defense_company_donations(
         }
     finally:
         db.close()
+
+
+# ── Trend Data ──────────────────────────────────────────────────────────
+
+
+@router.get("/companies/{company_id}/trends")
+def get_defense_company_trends(company_id: str):
+    """Yearly trend data for a defense company: lobbying, contracts, enforcement.
+
+    NOTE: func.strftime is SQLite-specific. PostgreSQL equivalent: func.extract('year', col)
+    or func.to_char(col, 'YYYY'). If migrating to PostgreSQL, update these queries.
+    """
+    import datetime
+    db = SessionLocal()
+    try:
+        co = db.query(TrackedDefenseCompany).filter_by(company_id=company_id).first()
+        if not co:
+            raise HTTPException(status_code=404, detail="Defense company not found")
+
+        current_year = datetime.date.today().year
+        min_year = 2018
+
+        # Lobbying by filing_year
+        lobby_rows = (
+            db.query(DefenseLobbyingRecord.filing_year, func.count(DefenseLobbyingRecord.id))
+            .filter_by(company_id=company_id)
+            .filter(DefenseLobbyingRecord.filing_year.isnot(None))
+            .group_by(DefenseLobbyingRecord.filing_year).all()
+        )
+        lobby_by_year = {int(r[0]): r[1] for r in lobby_rows if r[0]}
+
+        # Contracts by start_date year
+        contract_rows = (
+            db.query(
+                func.strftime('%Y', DefenseGovernmentContract.start_date).label("yr"),
+                func.count(DefenseGovernmentContract.id),
+            )
+            .filter_by(company_id=company_id)
+            .filter(DefenseGovernmentContract.start_date.isnot(None))
+            .group_by("yr").all()
+        )
+        contracts_by_year = {int(r[0]): r[1] for r in contract_rows if r[0]}
+
+        # Enforcement by case_date year
+        enforcement_rows = (
+            db.query(
+                func.strftime('%Y', DefenseEnforcement.case_date).label("yr"),
+                func.count(DefenseEnforcement.id),
+            )
+            .filter_by(company_id=company_id)
+            .filter(DefenseEnforcement.case_date.isnot(None))
+            .group_by("yr").all()
+        )
+        enforcement_by_year = {int(r[0]): r[1] for r in enforcement_rows if r[0]}
+
+        # Build year range
+        all_years_set = set(lobby_by_year) | set(contracts_by_year) | set(enforcement_by_year)
+        all_years_set = {y for y in all_years_set if min_year <= y <= current_year}
+        if not all_years_set:
+            all_years_set = set(range(min_year, current_year + 1))
+        years = sorted(all_years_set)
+
+        return {
+            "years": years,
+            "series": {
+                "lobbying": [lobby_by_year.get(y, 0) for y in years],
+                "contracts": [contracts_by_year.get(y, 0) for y in years],
+                "enforcement": [enforcement_by_year.get(y, 0) for y in years],
+            },
+        }
+    finally:
+        db.close()

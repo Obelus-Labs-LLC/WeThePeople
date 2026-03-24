@@ -10,7 +10,9 @@ import { motion } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
+import TrendChart from '../components/TrendChart';
 import { TransportationSectorHeader } from '../components/SectorHeader';
+import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
@@ -152,6 +154,7 @@ export default function TransportationCompanyProfilePage() {
   const [donationsLoaded, setDonationsLoaded] = useState(false);
 
   const [news, setNews] = useState<TransportationNewsItem[]>([]);
+  const [trends, setTrends] = useState<{ years: number[]; series: Record<string, number[]> } | null>(null);
 
   // Load overview on mount
   useEffect(() => {
@@ -172,6 +175,11 @@ export default function TransportationCompanyProfilePage() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+    // Fetch trends
+    fetch(`${getApiBaseUrl()}/transportation/companies/${encodeURIComponent(companyId)}/trends`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setTrends(d); })
+      .catch(() => {});
   }, [companyId]);
 
   // Lazy load tab data
@@ -360,6 +368,14 @@ export default function TransportationCompanyProfilePage() {
                     <MetricCard label="Revenue TTM" value={fmtDollar(stk.revenue_ttm)} icon={TrendingUp} color="#3B82F6" />
                     <MetricCard label="Profit Margin" value={fmtPct(stk.profit_margin)} icon={TrendingUp} color="#3B82F6" />
                   </div>
+                </div>
+              )}
+
+              {/* Activity Over Time */}
+              {trends && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
+                  <SectionHeader title="Activity Over Time" icon={TrendingUp} />
+                  <TrendChart data={trends} />
                 </div>
               )}
 
