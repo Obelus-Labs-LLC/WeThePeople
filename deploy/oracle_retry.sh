@@ -5,9 +5,9 @@
 # Free tier A1.Flex: 4 OCPUs + 24GB RAM total across all instances.
 # Plan: wtp-prod (1 OCPU/6GB), hedgebrain-prod (2 OCPU/12GB), guardian-prod (1 OCPU/6GB)
 
-COMPARTMENT="ocid1.tenancy.oc1..aaaaaaaac7kbbjxk2tm7lup47qizurwbpyouezvjobfl4jfil4z2dvesid4q"
-IMAGE="ocid1.image.oc1.us-chicago-1.aaaaaaaaoo4nzxuu6w5aty4ap6jjnfxebwwxhlfxj5gkzmtgtnsw24eksmia"
-SUBNET="ocid1.subnet.oc1.us-chicago-1.aaaaaaaamduowz3dmza7wpc6cdl25gllfirprolbuyuj3u5pofmlzghzauvq"
+COMPARTMENT="${OCI_COMPARTMENT_ID:?Set OCI_COMPARTMENT_ID in .env}"
+IMAGE="${OCI_IMAGE_ID:?Set OCI_IMAGE_ID in .env}"
+SUBNET="${OCI_SUBNET_ID:?Set OCI_SUBNET_ID in .env}"
 SSH_KEY="$HOME/.ssh/id_ed25519.pub"
 ADS=("ShPR:US-CHICAGO-1-AD-1" "ShPR:US-CHICAGO-1-AD-2" "ShPR:US-CHICAGO-1-AD-3")
 RETRY_INTERVAL=120  # seconds between attempts

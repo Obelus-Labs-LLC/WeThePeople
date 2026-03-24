@@ -2,7 +2,7 @@
 Bill Text Helper
 Fetch and format bill text version links for evidence receipts.
 
-Phase 3.2: "No bullshit" upgrade - link to actual legislative text.
+Phase 3.2: Direct links to actual legislative text on Congress.gov.
 """
 
 import os
