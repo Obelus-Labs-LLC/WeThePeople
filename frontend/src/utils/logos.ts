@@ -6,7 +6,14 @@
  * 4. Returns empty string (caller shows initials)
  */
 
-/** Known company domains for Clearbit fallback */
+/** IDs that have local high-quality logo files in /public/logos/{id}.png */
+export const LOCAL_LOGOS = new Set([
+  'apple', 'adobe', 'amd', 'amazon', 'broadcom', 'airbnb', 'bentley-systems',
+  'cyberark', 'datadog', 'dell', 'electronic-arts', 'alphabet', 'intel',
+  'microsoft', 'cloudflare', 'nvidia', 'spotify', 'trimble', 'uber', 'workday',
+]);
+
+/** Known company domains for Google Favicon fallback */
 const COMPANY_DOMAINS: Record<string, string> = {
   // ============================================================================
   // FINANCE — Banks
@@ -319,11 +326,49 @@ const COMPANY_DOMAINS: Record<string, string> = {
   'lattice-semi': 'latticesemi.com',
   'globalfoundries': 'globalfoundries.com',
 
-  // ── AI / Cloud ──
+  // ── AI / Cloud / Additional Tech ──
   'c3ai': 'c3.ai',
-  'upstart-tech': 'uipath.com',  // UiPath Inc. (ticker: PATH)
+  'upstart-tech': 'uipath.com',
   'uipath': 'uipath.com',
   'samsara': 'samsara.com',
+  'akamai': 'akamai.com',
+  'alteryx': 'alteryx.com',
+  'ansys': 'ansys.com',
+  'applovin': 'applovin.com',
+  'arista-networks': 'arista.com',
+  'autodesk': 'autodesk.com',
+  'bentley-systems': 'bentley.com',
+  'booking-holdings': 'bookingholdings.com',
+  'check-point': 'checkpoint.com',
+  'commvault': 'commvault.com',
+  'corning': 'corning.com',
+  'cyberark': 'cyberark.com',
+  'digitalocean': 'digitalocean.com',
+  'electronic-arts': 'ea.com',
+  'f5-networks': 'f5.com',
+  'fastly': 'fastly.com',
+  'juniper-networks': 'juniper.net',
+  'kla-corp': 'kla.com',
+  'match-group': 'match.com',
+  'microchip-tech': 'microchip.com',
+  'motorola-solutions': 'motorolasolutions.com',
+  'nutanix': 'nutanix.com',
+  'palo-alto-networks': 'paloaltonetworks.com',
+  'ptc-inc': 'ptc.com',
+  'qualys': 'qualys.com',
+  'rapid7': 'rapid7.com',
+  'rivian': 'rivian.com',
+  'sentinelone': 'sentinelone.com',
+  'splunk': 'splunk.com',
+  'take-two': 'take2games.com',
+  'tenable': 'tenable.com',
+  'teradata': 'teradata.com',
+  'trimble': 'trimble.com',
+  'dell-technologies': 'dell.com',
+  'unity': 'unity.com',
+  'varonis': 'varonis.com',
+  'veeva': 'veeva.com',
+  'zebra-technologies': 'zebra.com',
 
   // ── Telecom / Media ──
   'att': 'att.com',
@@ -486,11 +531,11 @@ export function getLogoUrl(
   logoUrl?: string | null,
   localLogos?: Set<string>,
 ): string {
-  // 1. Local file
-  if (localLogos?.has(id)) return `/logos/${id}.png`;
+  // 1. Local file (check both passed set and global set)
+  if (localLogos?.has(id) || LOCAL_LOGOS.has(id)) return `/logos/${id}.png`;
   // 2. API-provided URL
   if (logoUrl) return logoUrl;
-  // 3. Google Favicon service fallback via domain mapping
+  // 3. Google Favicon service (128px request — best free option)
   const domain = COMPANY_DOMAINS[id];
   if (domain) return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
   // 4. No logo available
