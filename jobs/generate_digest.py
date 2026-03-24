@@ -39,11 +39,11 @@ logger = logging.getLogger("generate_digest")
 def _zip_to_state(zip_code: str) -> Optional[str]:
     """Resolve a 5-digit zip code to a US state abbreviation."""
     try:
-        from routers.politics import _ZIP_STATE
+        from routers.politics_people import _ZIP_STATE
         prefix = zip_code[:3]
         return _ZIP_STATE.get(prefix)
     except ImportError:
-        logger.warning("Could not import _ZIP_STATE from routers.politics")
+        logger.warning("Could not import _ZIP_STATE from routers.politics_people")
         return None
 
 

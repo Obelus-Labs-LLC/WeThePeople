@@ -115,7 +115,7 @@ export default function TransportationCompaniesPage() {
         if (!Array.isArray(res.companies)) throw new Error('Transportation sector data is not yet available.');
         setCompanies(res.companies);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

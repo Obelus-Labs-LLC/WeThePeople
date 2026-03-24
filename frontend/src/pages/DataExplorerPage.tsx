@@ -56,7 +56,7 @@ export default function DataExplorerPage() {
         setStats(s);
         setLeaders(l.leaders || []);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

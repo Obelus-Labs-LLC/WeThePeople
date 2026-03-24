@@ -247,9 +247,9 @@ export default function ChatAgent() {
       if (response.action) {
         setTimeout(() => handleAction(response.action!), 1200);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       updateMessage(loadingId, {
-        text: err.message || "Sorry, I couldn't process that question. Please try again.",
+        text: err instanceof Error ? err.message : "Sorry, I couldn't process that question. Please try again.",
         loading: false,
       });
     } finally {

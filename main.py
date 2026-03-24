@@ -2,9 +2,9 @@
 WeThePeople API — main application entry point.
 
 All route logic lives in routers/. This file handles:
-  - App creation & middleware (CORS, rate limiting)
+  - App creation & middleware (CORS, rate limiting, request tracing)
   - Router mounting
-  - Startup events
+  - Startup events (structured logging, metrics)
 """
 
 import os
@@ -18,6 +18,11 @@ from slowapi.middleware import SlowAPIMiddleware
 
 load_dotenv()
 
+# --- Structured Logging (must be first, before any logger usage) ---
+from utils.logging import setup_logging, get_logger
+setup_logging(level=os.getenv("WTP_LOG_LEVEL", "INFO"))
+_logger = get_logger(__name__)
+
 # --- Rate Limiter ---
 # Default: 60 requests/minute per IP. Override with WTP_RATE_LIMIT env var.
 _rate_limit = os.getenv("WTP_RATE_LIMIT", "60/minute")
@@ -25,17 +30,27 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[_rate_limit])
 
 app = FastAPI(
     title="WeThePeople API",
-    description="Government accountability platform — Politics, Finance, Health, Technology",
+    description="Civic transparency platform tracking corporate influence on Congress across 8 sectors",
     version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# --- Request Tracing Middleware ---
+from middleware.tracing import TracingMiddleware
+app.add_middleware(TracingMiddleware)
+
+# --- Security Headers ---
+from middleware.security import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
+
 # --- CORS ---
 _cors_origins_raw = os.getenv(
     "CORS_ALLOW_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173",
+    "https://wethepeopleforus.com,https://www.wethepeopleforus.com,http://localhost:5173,http://127.0.0.1:5173",
 )
 _cors_origins = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
 if _cors_origins:
@@ -43,8 +58,8 @@ if _cors_origins:
         CORSMiddleware,
         allow_origins=_cors_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-WTP-API-KEY"],
     )
 
 
@@ -58,9 +73,9 @@ async def startup_event():
     try:
         from connectors.federal_register import fetch_presidential_documents
         fetch_presidential_documents(pages=3)
-        print("[OK] Federal Register data loaded successfully")
+        _logger.info("Federal Register data loaded successfully")
     except Exception as e:
-        print(f"[WARN] Failed to load Federal Register data: {e}")
+        _logger.warning("Failed to load Federal Register data: %s", e)
 
 
 # --- Mount Routers ---
@@ -86,7 +101,12 @@ from routers.anomalies import router as anomalies_router
 from routers.digest import router as digest_router
 from routers.og import router as og_router
 from routers.stories import router as stories_router
+from routers.metrics import router as metrics_router
+from routers.auth import router as auth_router
+from routers.ops import router as ops_router
 
+# --- Backward-compatible mounts (unprefixed, existing clients) ---
+app.include_router(auth_router)
 app.include_router(common_router)
 app.include_router(politics_router)
 app.include_router(finance_router)
@@ -109,3 +129,36 @@ app.include_router(anomalies_router)
 app.include_router(digest_router)
 app.include_router(og_router)
 app.include_router(stories_router)
+app.include_router(metrics_router)
+app.include_router(ops_router)
+
+_logger.info("WeThePeople API started, env=%s", os.getenv("WTP_ENV", "production"))
+
+
+# --- Versioned API (v1) — all the same routers under /v1/ prefix ---
+from fastapi import APIRouter as _APIRouter
+
+v1 = _APIRouter(prefix="/v1")
+v1.include_router(auth_router)
+v1.include_router(common_router)
+v1.include_router(politics_router)
+v1.include_router(finance_router)
+v1.include_router(health_router)
+v1.include_router(tech_router)
+v1.include_router(influence_router)
+v1.include_router(search_router)
+v1.include_router(education_router)
+v1.include_router(energy_router)
+v1.include_router(transportation_router)
+v1.include_router(defense_router)
+v1.include_router(infrastructure_router)
+v1.include_router(state_router)
+v1.include_router(aggregate_router)
+v1.include_router(claims_router, prefix="/claims", tags=["claims"])
+v1.include_router(chat_router, prefix="/chat", tags=["chat"])
+v1.include_router(anomalies_router)
+v1.include_router(digest_router)
+v1.include_router(og_router)
+v1.include_router(stories_router)
+
+app.include_router(v1)

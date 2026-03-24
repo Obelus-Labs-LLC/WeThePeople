@@ -268,7 +268,7 @@ export default function ComplaintsDashboardPage() {
         setSummary(summaryRes);
         setComplaints(complaintsRes.complaints || []);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

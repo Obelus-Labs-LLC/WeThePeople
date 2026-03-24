@@ -173,7 +173,7 @@ export default function PeoplePage() {
     apiClient
       .getPeople({ limit: 600 })
       .then((res) => setPeople(res.people || []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

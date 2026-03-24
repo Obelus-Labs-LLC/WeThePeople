@@ -420,7 +420,7 @@ def main():
                 co.last_full_refresh_at = datetime.utcnow()
                 session.commit()
             except Exception as e:
-                log.error(f"FAILED {cid}: {e}")
+                log.error(f"FAILED {cid}: {e}", exc_info=True)
                 # NOTE: totals may be slightly inaccurate if some syncs succeeded before the failure
                 session.rollback()
 

@@ -195,7 +195,7 @@ export default function TechCompaniesPage() {
   useEffect(() => {
     getTechCompanies({ limit: 200 })
       .then((res) => setCompanies(res.companies || []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

@@ -5,12 +5,16 @@ Generates 1200x630 PNG images with entity stats for Twitter/Reddit/Slack unfurli
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+import time
+
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
-from functools import lru_cache
+from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from models.database import SessionLocal, TrackedMember, CompanyDonation, CongressionalTrade
+logger = logging.getLogger(__name__)
+
+from models.database import SessionLocal, get_db, TrackedMember, CompanyDonation, CongressionalTrade
 from models.finance_models import (
     TrackedInstitution, FinanceLobbyingRecord, FinanceGovernmentContract, FinanceEnforcement,
 )
@@ -119,7 +123,7 @@ def _check_cairosvg() -> bool:
         cairosvg.svg2png(bytestring=b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>', output_width=1, output_height=1)
         _cairosvg_available = True
     except Exception:
-        logging.getLogger("og").warning("cairosvg unavailable — PNG OG images will fall back to SVG. Install libcairo2-dev and cairosvg.")
+        logger.warning("cairosvg unavailable — PNG OG images will fall back to SVG. Install libcairo2-dev and cairosvg.")
         _cairosvg_available = False
     return _cairosvg_available
 
@@ -138,13 +142,16 @@ def _svg_to_png(svg_str: str) -> tuple[bytes, str]:
     except Exception:
         # ImportError (not installed), OSError (libcairo2-dev missing), or any render error
         # Fall back to SVG instead of crashing
-        logging.getLogger("og").warning("cairosvg render failed — returning SVG fallback for OG image")
+        logger.warning("cairosvg render failed — returning SVG fallback for OG image")
         return svg_str.encode("utf-8"), "image/svg+xml"
 
 
-@lru_cache(maxsize=100)
-def _cached_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
-    """Generate and cache OG image bytes."""
+_og_cache: dict[str, tuple[tuple[bytes, str], float]] = {}
+_OG_CACHE_TTL = 3600  # 1 hour
+
+
+def _generate_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
+    """Generate OG image bytes from the database (no caching)."""
     db = SessionLocal()
     try:
         if entity_type == "person":
@@ -230,6 +237,24 @@ def _cached_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
         db.close()
 
 
+def _cached_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
+    """Return a cached OG image, regenerating if older than TTL."""
+    global _og_cache
+    key = f"{entity_type}:{entity_id}"
+    now = time.time()
+    if key in _og_cache:
+        data, ts = _og_cache[key]
+        if now - ts < _OG_CACHE_TTL:
+            return data
+    result = _generate_og_image(entity_type, entity_id)
+    _og_cache[key] = (result, now)
+    # Evict expired entries if cache grows too large
+    if len(_og_cache) > 200:
+        cutoff = now - _OG_CACHE_TTL
+        _og_cache = {k: v for k, v in _og_cache.items() if v[1] > cutoff}
+    return result
+
+
 @router.get("/{entity_type}/{entity_id}.png")
 def get_og_image(entity_type: str, entity_id: str):
     """Generate an Open Graph preview image for any entity."""
@@ -240,27 +265,23 @@ def get_og_image(entity_type: str, entity_id: str):
 
 
 @router.get("/{entity_type}/{entity_id}.svg")
-def get_og_svg(entity_type: str, entity_id: str):
+def get_og_svg(entity_type: str, entity_id: str, db: Session = Depends(get_db)):
     """Generate an Open Graph preview image as SVG (no cairosvg dependency needed)."""
-    db = SessionLocal()
-    try:
-        if entity_type == "person":
-            member = db.query(TrackedMember).filter(TrackedMember.person_id == entity_id).first()
-            if not member:
-                raise HTTPException(status_code=404, detail="Person not found")
-            trades = db.query(func.count(CongressionalTrade.id)).filter_by(person_id=entity_id).scalar() or 0
-            donations = db.query(func.count(CompanyDonation.id)).filter_by(person_id=entity_id).scalar() or 0
-            chamber = (member.chamber or "").capitalize()
-            party_map = {"D": "Democrat", "R": "Republican", "I": "Independent"}
-            party = party_map.get(member.party, member.party or "")
-            stats = [("CHAMBER", chamber or "Congress"), ("PARTY", party), ("STOCK TRADES", _fmt_num(trades)), ("DONATIONS", _fmt_num(donations))]
-            svg = _build_svg(member.display_name, "Politics", stats, SECTOR_COLORS["politics"])
-        else:
-            # Reuse the entity lookup logic but return SVG
-            # For brevity, generate the same way and just return SVG
-            raise HTTPException(status_code=400, detail="SVG endpoint only supports person type for now. Use .png for other entities.")
-    finally:
-        db.close()
+    if entity_type == "person":
+        member = db.query(TrackedMember).filter(TrackedMember.person_id == entity_id).first()
+        if not member:
+            raise HTTPException(status_code=404, detail="Person not found")
+        trades = db.query(func.count(CongressionalTrade.id)).filter_by(person_id=entity_id).scalar() or 0
+        donations = db.query(func.count(CompanyDonation.id)).filter_by(person_id=entity_id).scalar() or 0
+        chamber = (member.chamber or "").capitalize()
+        party_map = {"D": "Democrat", "R": "Republican", "I": "Independent"}
+        party = party_map.get(member.party, member.party or "")
+        stats = [("CHAMBER", chamber or "Congress"), ("PARTY", party), ("STOCK TRADES", _fmt_num(trades)), ("DONATIONS", _fmt_num(donations))]
+        svg = _build_svg(member.display_name, "Politics", stats, SECTOR_COLORS["politics"])
+    else:
+        # Reuse the entity lookup logic but return SVG
+        # For brevity, generate the same way and just return SVG
+        raise HTTPException(status_code=400, detail="SVG endpoint only supports person type for now. Use .png for other entities.")
 
     return Response(content=svg, media_type="image/svg+xml", headers={
         "Cache-Control": "public, max-age=3600",

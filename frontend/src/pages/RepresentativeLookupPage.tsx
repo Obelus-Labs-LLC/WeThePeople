@@ -89,7 +89,7 @@ export default function RepresentativeLookupPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: RepLookupResponse = await res.json();
       setReps(data.representatives || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Unable to load data. Please try again.');
       setReps([]);
     } finally {

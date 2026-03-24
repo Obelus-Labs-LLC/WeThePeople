@@ -331,7 +331,7 @@ def sync_all(
                 company.last_full_refresh_at = datetime.utcnow()
                 db.commit()
             except Exception as e:
-                logger.error("FAILED %s: %s", cid, e)
+                logger.error("FAILED %s: %s", cid, e, exc_info=True)
                 db.rollback()
 
         logger.info("=== SYNC COMPLETE ===")

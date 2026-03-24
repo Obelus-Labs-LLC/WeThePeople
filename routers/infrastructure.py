@@ -9,7 +9,11 @@ Planned data sources:
 - Infrastructure spending (IIJA tracker)
 """
 
+import logging
+
 from fastapi import APIRouter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/infrastructure", tags=["infrastructure"])
 

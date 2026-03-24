@@ -351,7 +351,7 @@ export default function NewsRegulatoryPage() {
   useEffect(() => {
     getInstitutions({ limit: 200 })
       .then((res) => setInstitutions(res.institutions || []))
-      .catch(console.error);
+      .catch(() => {});
   }, []);
 
   // Load content based on selected institution
@@ -372,7 +372,7 @@ export default function NewsRegulatoryPage() {
           setSummary(summaryRes);
           setComplaints(complaintsRes.complaints || []);
         })
-        .catch(console.error)
+        .catch(() => {})
         .finally(() => { setLoading(false); setContentLoading(false); });
     } else {
       // Global sector data
@@ -386,7 +386,7 @@ export default function NewsRegulatoryPage() {
           setSummary(summaryRes);
           setComplaints(complaintsRes.complaints || []);
         })
-        .catch(console.error)
+        .catch(() => {})
         .finally(() => { setLoading(false); setContentLoading(false); });
     }
   }, [selectedId]);

@@ -81,7 +81,7 @@ export default function InfluenceExplorerPage() {
         setTopLobbying(l.leaders);
         setTopContracts(c.leaders);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

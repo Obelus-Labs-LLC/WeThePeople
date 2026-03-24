@@ -167,7 +167,7 @@ export default function PersonProfilePage() {
   const [performanceError, setPerformanceError] = useState(false);
   const [stats, setStats] = useState<PersonStats | null>(null);
   const [graph, setGraph] = useState<PersonGraphResponse | null>(null);
-  const [committees, setCommittees] = useState<any[]>([]);
+  const [committees, setCommittees] = useState<Array<Record<string, unknown>>>([]);
   const [overviewLoading, setOverviewLoading] = useState(true);
 
   // ── State: legislation tab ──
@@ -187,11 +187,11 @@ export default function PersonProfilePage() {
   const [financeLoading, setFinanceLoading] = useState(false);
 
   // ── State: donors tab ──
-  const [donors, setDonors] = useState<any>(null);
+  const [donors, setDonors] = useState<DonorData | null>(null);
   const [donorsLoading, setDonorsLoading] = useState(false);
 
   // ── State: trades tab ──
-  const [trades, setTrades] = useState<any[]>([]);
+  const [trades, setTrades] = useState<Array<Record<string, unknown>>>([]);
   const [tradesLoading, setTradesLoading] = useState(false);
 
   // ── State: trends (overview) ──
@@ -695,7 +695,16 @@ function OverviewTab({
   sortedPolicyAreas: [string, number][];
   accountabilityTier: string | null;
   matchRate: number | null;
-  committees: any[];
+  committees: Array<{
+    committee_name?: string;
+    committee_thomas_id?: string;
+    thomas_id?: string;
+    rank_in_order?: number;
+    parent_thomas_id?: string | null;
+    role?: string;
+    name?: string;
+    chamber?: string;
+  }>;
   trends: { years: number[]; series: Record<string, number[]> } | null;
 }) {
   if (loading) return <Spinner />;
@@ -1339,12 +1348,27 @@ function VoteCard({ vote }: { vote: PersonVoteEntry }) {
 //  INDUSTRY DONORS TAB
 // ══════════════════════════════════════════════
 
+interface DonorData {
+  total?: number;
+  total_amount?: number;
+  by_sector?: Record<string, { total_amount?: number; donor_count?: number }>;
+  donations?: Array<{
+    id?: number;
+    entity_type?: string;
+    committee_name?: string;
+    cycle?: string;
+    amount?: number;
+    donation_date?: string;
+    source_url?: string;
+  }>;
+}
+
 function IndustryDonorsTab({
   loading,
   donors,
 }: {
   loading: boolean;
-  donors: any;
+  donors: DonorData | null;
 }) {
   if (loading) return <Spinner />;
   if (!donors || !donors.donations || donors.donations.length === 0) {
@@ -1375,7 +1399,7 @@ function IndustryDonorsTab({
             <p className="font-mono text-2xl font-bold text-white">{donors.total || 0}</p>
           </div>
         </Card>
-        {Object.entries(bySector).map(([sector, data]: [string, any]) => (
+        {Object.entries(bySector).map(([sector, data]: [string, { total_amount?: number; donor_count?: number }]) => (
           <Card key={sector}>
             <div className="text-center">
               <p className="font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase mb-1">
@@ -1403,7 +1427,7 @@ function IndustryDonorsTab({
               </tr>
             </thead>
             <tbody>
-              {donations.map((d: any, i: number) => (
+              {donations.map((d, i: number) => (
                 <tr key={d.id || i} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
                   <td className="py-2.5">
                     <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
@@ -1577,7 +1601,17 @@ function StockTradesTab({
   party,
 }: {
   loading: boolean;
-  trades: any[];
+  trades: Array<{
+    id?: number;
+    ticker?: string;
+    transaction_date?: string | null;
+    transaction_type?: string;
+    amount_range?: string | null;
+    reporting_gap?: string | number | null;
+    asset_description?: string;
+    asset_name?: string;
+    source_url?: string;
+  }>;
   bioguideId?: string;
   personName: string;
   personId?: string;
@@ -1588,15 +1622,15 @@ function StockTradesTab({
   // Build timeline markers from trade data
   const timelineMarkers: TradeMarker[] = useMemo(() => {
     return trades
-      .filter((t: any) => t.transaction_date && t.ticker)
-      .map((t: any) => ({
-        date: t.transaction_date,
+      .filter((t) => t.transaction_date && t.ticker)
+      .map((t) => ({
+        date: t.transaction_date!, // non-null guaranteed by filter above
         person_id: personId || '',
         display_name: personName,
         party: party || null,
         transaction_type: t.transaction_type || 'unknown',
         amount_range: t.amount_range || null,
-        reporting_gap: t.reporting_gap || null,
+        reporting_gap: t.reporting_gap != null ? String(t.reporting_gap) : null,
       }));
   }, [trades, personId, personName, party]);
 
@@ -1653,7 +1687,7 @@ function StockTradesTab({
         </div>
       ) : (
         <div className="space-y-2">
-          {trades.map((t: any, i: number) => (
+          {trades.map((t, i: number) => (
             <div
               key={t.id || i}
               className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4"

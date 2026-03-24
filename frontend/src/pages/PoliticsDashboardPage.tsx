@@ -167,7 +167,7 @@ export default function PoliticsDashboardPage() {
         setActions(a || []);
         setAllPeople(all.people || []);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

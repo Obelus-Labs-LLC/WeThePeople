@@ -99,8 +99,8 @@ export default function ContractTimelinePage() {
         });
 
         setAllContracts(combined);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || 'Failed to load contracts');
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load contracts');
       } finally {
         if (!cancelled) setLoading(false);
       }

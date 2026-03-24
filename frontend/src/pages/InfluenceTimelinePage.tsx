@@ -128,7 +128,7 @@ export default function InfluenceTimelinePage() {
         timelineEvents.sort((a, b) => b.date.localeCompare(a.date));
         setEvents(timelineEvents);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [entityType, entityId]);
 

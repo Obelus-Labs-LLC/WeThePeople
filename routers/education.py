@@ -9,7 +9,11 @@ Planned data sources:
 - School safety data (NCES)
 """
 
+import logging
+
 from fastapi import APIRouter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/education", tags=["education"])
 

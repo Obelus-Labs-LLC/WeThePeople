@@ -50,9 +50,8 @@ export default function ActivityFeedPage() {
         setActions(actionsRes || []);
         setVotes(votesRes.votes || []);
       })
-      .catch((err) => {
-        console.error(err);
-        setError(err.message || 'Failed to load activity feed');
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Failed to load activity feed');
       })
       .finally(() => setLoading(false));
   }, []);

@@ -131,9 +131,8 @@ export default function ClinicalTrialPipelinePage() {
         const companyBreakdown = Array.from(companyMap.values()).sort((a, b) => b.total - a.total);
 
         setData({ phaseCounts, phaseTrials, companyBreakdown, totalTrials });
-      } catch (err: any) {
-        console.error('Pipeline load error:', err);
-        setError(err?.message || 'Failed to load pipeline data');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to load pipeline data');
       } finally {
         setLoading(false);
       }

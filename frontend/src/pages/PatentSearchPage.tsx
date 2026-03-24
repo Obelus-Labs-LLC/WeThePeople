@@ -86,8 +86,8 @@ export default function PatentSearchPage() {
         });
 
         setAllPatents(combined);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || 'Failed to load patents');
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load patents');
       } finally {
         if (!cancelled) setLoading(false);
       }

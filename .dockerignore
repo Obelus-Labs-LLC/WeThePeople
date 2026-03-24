@@ -1,0 +1,62 @@
+# Frontend (built separately)
+frontend/
+mobile/
+
+# Mobile app
+App.tsx
+src/
+app.json
+babel.config.js
+metro.config.js
+eas.json
+
+# Git
+.git/
+.gitignore
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Database (mounted as volume, not baked into image)
+*.db
+*.db-wal
+*.db-shm
+
+# Environment files (secrets — mounted at runtime)
+.env
+.env.*
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Node (root-level from mobile)
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# Terraform state
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate
+deploy/terraform/*.tfstate.backup
+
+# Docs
+*.md
+LICENSE
+.github/

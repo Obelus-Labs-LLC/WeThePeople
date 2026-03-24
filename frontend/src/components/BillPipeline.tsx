@@ -7,6 +7,7 @@ import { ChevronRight } from 'lucide-react';
 interface BillEntry {
   bill_id: string;
   status_bucket: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bill entries come from multiple sector APIs with varying shapes
   [key: string]: any;
 }
 

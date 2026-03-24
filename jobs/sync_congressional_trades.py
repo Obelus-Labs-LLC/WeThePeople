@@ -121,8 +121,8 @@ def fetch_quiver_trades() -> list[dict]:
         log.info(f"Quiver API returned {len(data)} trades")
         return data
     except Exception as e:
-        log.error(f"Quiver API error: {e}")
-        return []
+        log.error(f"Quiver API error: {e}", exc_info=True)
+        raise
 
 
 def fetch_ainvest_reporting_gaps(tickers: set[str]) -> dict[str, dict]:

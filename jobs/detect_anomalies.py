@@ -662,7 +662,7 @@ def main() -> int:
         return 0
     except Exception:
         log.exception("Fatal error in anomaly detection")
-        return 1
+        raise
     finally:
         db.close()
 

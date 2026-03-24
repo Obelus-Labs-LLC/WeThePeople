@@ -75,7 +75,7 @@ export interface EnergyCompanyDetail {
     industry: string | null;
   } | null;
   sanctions_status?: string;
-  sanctions_data?: any;
+  sanctions_data?: Record<string, unknown>;
   sanctions_checked_at?: string;
 }
 
@@ -230,6 +230,7 @@ export interface RecentActivityItem {
   company_id: string;
   company_name: string;
   url: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- meta contains dynamic fields (award_amount, penalty_amount, income) from various activity types
   meta: Record<string, any>;
 }
 

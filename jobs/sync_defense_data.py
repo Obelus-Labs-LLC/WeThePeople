@@ -356,7 +356,7 @@ def main():
                 co.last_full_refresh_at = datetime.now(timezone.utc)
                 session.commit()
             except Exception as e:
-                log.error(f"FAILED {cid}: {e}")
+                log.error(f"FAILED {cid}: {e}", exc_info=True)
                 session.rollback()
 
         log.info(f"\nDone! Synced {len(companies)} companies.")

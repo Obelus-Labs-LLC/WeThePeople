@@ -21,7 +21,10 @@ class ContractViolationError extends Error {
   }
 }
 
-function assertField(data: any, field: string, type: string, endpoint: string) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- validators accept unknown JSON and narrow via runtime checks
+type JsonValue = any;
+
+function assertField(data: JsonValue, field: string, type: string, endpoint: string) {
   if (!(field in data)) {
     throw new ContractViolationError(endpoint, field, `missing field`);
   }
@@ -34,7 +37,7 @@ function assertField(data: any, field: string, type: string, endpoint: string) {
   }
 }
 
-function assertArray(data: any, field: string, endpoint: string) {
+function assertArray(data: JsonValue, field: string, endpoint: string) {
   if (!(field in data)) {
     throw new ContractViolationError(endpoint, field, `missing field`);
   }
@@ -43,7 +46,7 @@ function assertArray(data: any, field: string, endpoint: string) {
   }
 }
 
-export function validatePeopleResponse(data: any): asserts data is PeopleResponse {
+export function validatePeopleResponse(data: JsonValue): asserts data is PeopleResponse {
   const endpoint = '/people';
   assertField(data, 'total', 'number', endpoint);
   assertArray(data, 'people', endpoint);
@@ -61,7 +64,7 @@ export function validatePeopleResponse(data: any): asserts data is PeopleRespons
   }
 }
 
-export function validateLedgerPersonResponse(data: any): asserts data is LedgerPersonResponse {
+export function validateLedgerPersonResponse(data: JsonValue): asserts data is LedgerPersonResponse {
   const endpoint = '/ledger/person/{id}';
   assertField(data, 'total', 'number', endpoint);
   assertArray(data, 'entries', endpoint);
@@ -75,7 +78,7 @@ export function validateLedgerPersonResponse(data: any): asserts data is LedgerP
   }
 }
 
-export function validateLedgerClaimResponse(data: any): asserts data is LedgerClaimResponse {
+export function validateLedgerClaimResponse(data: JsonValue): asserts data is LedgerClaimResponse {
   const endpoint = '/ledger/claim/{id}';
   assertField(data, 'claim_id', 'number', endpoint);
   assertField(data, 'person_id', 'string', endpoint);
@@ -83,14 +86,14 @@ export function validateLedgerClaimResponse(data: any): asserts data is LedgerCl
   assertField(data, 'tier', 'string', endpoint);
 }
 
-export function validateBillResponse(data: any): asserts data is BillResponse {
+export function validateBillResponse(data: JsonValue): asserts data is BillResponse {
   const endpoint = '/bills/{id}';
   assertField(data, 'bill_id', 'string', endpoint);
   assertArray(data, 'timeline', endpoint);
   assertArray(data, 'sponsors', endpoint);
 }
 
-export function validateBillTimelineResponse(data: any): asserts data is BillTimelineResponse {
+export function validateBillTimelineResponse(data: JsonValue): asserts data is BillTimelineResponse {
   const endpoint = '/bills/{id}/timeline';
   assertArray(data, 'actions', endpoint);
 
@@ -100,7 +103,7 @@ export function validateBillTimelineResponse(data: any): asserts data is BillTim
   }
 }
 
-export function validateRuntimeInfo(data: any): asserts data is RuntimeInfo {
+export function validateRuntimeInfo(data: JsonValue): asserts data is RuntimeInfo {
   const endpoint = '/ops/runtime';
   assertField(data, 'db_url', 'string', endpoint);
   assertField(data, 'disable_startup_fetch', 'boolean', endpoint);

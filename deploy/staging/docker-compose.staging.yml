@@ -1,0 +1,92 @@
+# =============================================================================
+# WeThePeople — Staging Environment
+# =============================================================================
+# Runs alongside production on the same VM using different ports.
+#
+# Usage:
+#   cd deploy/staging
+#   docker compose -f docker-compose.staging.yml up -d
+#   docker compose -f docker-compose.staging.yml logs -f
+#   docker compose -f docker-compose.staging.yml down
+#
+# Staging ports:
+#   API:      9006 (production: 8006)
+#   Frontend: 9173 (production: Vercel)
+#
+# Uses a separate SQLite database so staging data never touches production.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Staging API
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    container_name: wtp-staging-api
+    ports:
+      - "9006:8006"
+    env_file:
+      - ../../.env
+    environment:
+      - WTP_ENV=staging
+      - WTP_DB_PATH=/app/data/wethepeople-staging.db
+      - WTP_RATE_LIMIT=120/minute
+    volumes:
+      - staging-db:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    labels:
+      - "com.wethepeople.environment=staging"
+
+  # ---------------------------------------------------------------------------
+  # Staging Frontend (built + served via nginx)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    container_name: wtp-staging-frontend
+    ports:
+      - "9173:80"
+    environment:
+      - WTP_API_UPSTREAM=http://api:8006
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    labels:
+      - "com.wethepeople.environment=staging"
+
+  # ---------------------------------------------------------------------------
+  # Staging Scheduler
+  # ---------------------------------------------------------------------------
+  scheduler:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    container_name: wtp-staging-scheduler
+    env_file:
+      - ../../.env
+    environment:
+      - WTP_ENV=staging
+      - WTP_DB_PATH=/app/data/wethepeople-staging.db
+    volumes:
+      - staging-db:/app/data
+    command: ["python", "jobs/scheduler.py"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    labels:
+      - "com.wethepeople.environment=staging"
+
+volumes:
+  staging-db:
+    driver: local

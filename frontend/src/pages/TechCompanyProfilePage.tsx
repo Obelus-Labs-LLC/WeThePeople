@@ -145,7 +145,7 @@ export default function TechCompanyProfilePage() {
     setError(null);
     Promise.all([
       getTechCompanyDetail(companyId),
-      getTechCompanyStock(companyId).catch((e) => { console.error('Stock fetch failed:', e); return { latest_stock: null }; }),
+      getTechCompanyStock(companyId).catch(() => ({ latest_stock: null })),
     ])
       .then(([d, s]) => {
         if (cancelled) return;
@@ -175,7 +175,7 @@ export default function TechCompanyProfilePage() {
           setPatents(r.patents || []); setPatentTotal(r.total); setPatentsLoaded(true);
           if (pp) { setPatentPolicy(pp); setPatentPolicyLoaded(true); }
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'contracts' && !contractsLoaded) {
       Promise.all([
@@ -189,7 +189,7 @@ export default function TechCompanyProfilePage() {
           setContractTrends(t.trends || []);
           setContractsLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'lobbying' && !lobbyingLoaded) {
       Promise.all([
@@ -201,7 +201,7 @@ export default function TechCompanyProfilePage() {
           if (s) setLobbySummary(s);
           setLobbyingLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getTechCompanyEnforcement(companyId, { limit: 100 })
@@ -210,12 +210,12 @@ export default function TechCompanyProfilePage() {
           setTotalPenalties(r.total_penalties || 0);
           setEnforcementLoaded(true);
         })
-        .catch(console.error);
+        .catch(() => {});
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getTechCompanyFilings(companyId, { limit: 100 })
         .then((r) => { setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true); })
-        .catch(console.error);
+        .catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, companyId]);

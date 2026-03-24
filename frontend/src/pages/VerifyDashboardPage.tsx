@@ -24,7 +24,7 @@ export default function VerifyDashboardPage() {
         setStats(s);
         setRecent(v.items);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

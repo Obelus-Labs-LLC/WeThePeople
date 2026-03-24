@@ -44,8 +44,7 @@ export default function MarketMoversPage() {
         setComplaints(complaintsRes.complaints || []);
         setNews(newsRes.news || []);
       })
-      .catch((err) => {
-        console.error(err);
+      .catch(() => {
         setError('Failed to load market data. Please try again later.');
       })
       .finally(() => setLoading(false));

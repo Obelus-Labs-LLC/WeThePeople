@@ -269,7 +269,7 @@ def main():
                 if not args.skip_contracts:
                     totals["contracts"] += fetch_contracts(session, inst)
             except Exception as e:
-                log.error(f"FAILED {inst_id}: {e}")
+                log.error(f"FAILED {inst_id}: {e}", exc_info=True)
                 # NOTE: totals may be slightly inaccurate if lobbying succeeded but contracts failed
                 session.rollback()
 

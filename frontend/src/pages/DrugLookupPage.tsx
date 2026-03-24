@@ -69,7 +69,7 @@ export default function DrugLookupPage() {
   useEffect(() => {
     getHealthCompanies({ limit: 200 })
       .then((res) => setCompanies(res.companies || []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setInitialLoading(false));
   }, []);
 
@@ -141,8 +141,8 @@ export default function DrugLookupPage() {
       drugResults.adverseEvents = aeResults.flat();
       drugResults.recalls = recallResults.flat();
       drugResults.trials = trialResults.flat();
-    } catch (err) {
-      console.error('Drug search error:', err);
+    } catch {
+      // Search failed for some drugs — partial results still shown
     }
 
     setResults(drugResults);

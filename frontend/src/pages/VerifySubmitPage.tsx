@@ -44,8 +44,8 @@ export default function VerifySubmitPage() {
         return;
       }
       setResult(res);
-    } catch (e: any) {
-      setError(e.message || 'Verification failed. Please try again.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Verification failed. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -223,7 +223,7 @@ export default function EnergyComparePage() {
           setIdB(list[1].company_id);
         }
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -232,7 +232,7 @@ export default function EnergyComparePage() {
     setComparing(true);
     getEnergyComparison([idA, idB])
       .then((res) => setCompared(res.companies || []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setComparing(false));
   }
 

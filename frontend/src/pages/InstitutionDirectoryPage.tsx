@@ -183,7 +183,7 @@ export default function InstitutionDirectoryPage() {
   useEffect(() => {
     getInstitutions({ limit: 200 })
       .then((res) => setAllInstitutions(res.institutions || []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

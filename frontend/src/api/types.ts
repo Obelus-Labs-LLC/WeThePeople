@@ -23,7 +23,7 @@ export interface Person {
   is_active: boolean;
   photo_url: string | null;
   sanctions_status?: string;
-  sanctions_data?: any;
+  sanctions_data?: Record<string, unknown>;
   sanctions_checked_at?: string;
 }
 
@@ -53,7 +53,7 @@ export interface LedgerEntry {
   relevance: string | null;
   progress: string | null;
   timing: string | null;
-  evidence: Record<string, any> | null;
+  evidence: Record<string, unknown> | null;
   why: string[];
   created_at: string | null;
 }

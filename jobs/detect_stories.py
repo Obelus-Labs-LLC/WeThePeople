@@ -115,7 +115,7 @@ def _generate_story_text(evidence: Dict[str, Any], category: str) -> Optional[Di
         return result
 
     except Exception as e:
-        logger.error("Failed to generate story text: %s", e)
+        logger.error("Failed to generate story text: %s", e, exc_info=True)
         return None
 
 

@@ -122,8 +122,7 @@ export default function FDAApprovalsPage() {
           .slice(0, 50);
 
         setRecentRecalls(allRecalls);
-      } catch (err) {
-        console.error('FDA approvals load error:', err);
+      } catch {
         setApiAvailable(false);
       } finally {
         setLoading(false);

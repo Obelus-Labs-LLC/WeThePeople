@@ -162,7 +162,7 @@ export default function TransportationComparePage() {
         setAllCompanies(list);
         if (list.length >= 2) { setIdA(list[0].company_id); setIdB(list[1].company_id); }
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -171,7 +171,7 @@ export default function TransportationComparePage() {
     setComparing(true);
     getTransportationComparison([idA, idB])
       .then((res) => setCompared(res.companies || []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setComparing(false));
   }
 

@@ -199,7 +199,7 @@ export default function FinanceDashboardPage() {
         setInstitutions(instRes.institutions || []);
         setTrades(tradesRes.trades || []);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
