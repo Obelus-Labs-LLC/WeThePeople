@@ -1,4 +1,3 @@
-export { default as TierBadge } from './TierBadge';
 export { default as PartyBadge } from './PartyBadge';
 export { default as ChamberBadge } from './ChamberBadge';
 export { default as StatCard } from './StatCard';
