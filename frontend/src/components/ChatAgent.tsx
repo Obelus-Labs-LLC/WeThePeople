@@ -7,12 +7,12 @@ import { globalSearch, type SearchResults } from "../api/search";
 // ── FAQ map (Tier 1 — free, no API call) ──
 
 const FAQ: Record<string, string> = {
-  "what data sources": "We track data from 26 sources including Congress.gov, Senate LDA (lobbying), USASpending.gov (contracts), FEC (donations), SEC EDGAR (filings), OpenFDA, ClinicalTrials.gov, USPTO (patents), and more. Visit our methodology page for the full list.",
+  "what data sources": "We pull from 35+ government APIs including Congress.gov, Senate LDA (lobbying), USASpending.gov (contracts), FEC (donations), SEC EDGAR (filings), SAM.gov (contractor data), Regulations.gov (regulatory comments), IT Dashboard (federal IT investments), OpenFDA, ClinicalTrials.gov, NHTSA, EPA GHGRP, PatentsView, and more. Visit our methodology page for the full list.",
   "how often updated": "Most data syncs daily via our automated scheduler. Congressional trades update within 24-48 hours of disclosure. Lobbying data updates quarterly when new Senate LDA filings are published.",
-  "what sectors": "We track 6 sectors: Politics, Finance, Health, Technology, Energy, and Transportation. Each sector has lobbying, contracts, and enforcement data linked to political activity.",
+  "what sectors": "We track 8 sectors: Politics, Finance, Health, Technology, Energy, Transportation, and Defense. Each sector has lobbying, contracts, and enforcement data linked to political activity.",
   "how does verification work": "Our claim verification pipeline extracts claims from text, matches them against 9 data sources (votes, trades, lobbying, contracts, enforcement, donations, committees, SEC filings), and scores them as Strong, Moderate, Weak, or Unverified.",
   "how many politicians": "We track 547 members of Congress including all current senators and representatives, with their voting records, stock trades, committee memberships, and campaign donations.",
-  "how many companies": "We track over 500 companies across Finance (144), Health (134), Technology (139), Energy (89), and Transportation (73) sectors.",
+  "how many companies": "We track over 1,000 entities across Finance (144), Health (134), Technology (139), Energy (89), Transportation (73), and Defense (60) sectors.",
   "what is this": "WeThePeople is a civic transparency platform that tracks how corporations lobby Congress, win government contracts, face enforcement actions, and donate to politicians. Our goal is to help you follow the money from industry to politics.",
   "who built this": "WeThePeople was built by Obelus Labs LLC as an open-source civic transparency tool. The source code is available on GitHub.",
   "is this free": "Yes, WeThePeople is completely free to use. The platform is open-source and funded through GitHub Sponsors.",
