@@ -10,8 +10,7 @@
  *   <EcosystemNav active="journal" />
  */
 
-/* eslint-disable */
-// @ts-nocheck
+import React from 'react';
 
 interface EcosystemNavProps {
   active: 'core' | 'research' | 'journal'
