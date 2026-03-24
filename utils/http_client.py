@@ -87,8 +87,8 @@ class HTTPClient:
         self.cache_ttl = cache_ttl or config.CACHE_TTL
         
         # Initialize cache
-        cache_path = cache_dir or config.CACHE_DIR
-        cache_path.mkdir(exist_ok=True)
+        cache_path = Path(cache_dir or config.CACHE_DIR)
+        cache_path.mkdir(parents=True, exist_ok=True)
         self.cache = Cache(str(cache_path))
     
     def _make_cache_key(self, url: str, params: Optional[dict] = None) -> str:
