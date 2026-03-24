@@ -36,7 +36,8 @@ interface ToolCard {
   description: string
   icon: React.ComponentType<{ size?: number; className?: string }>
   path: string
-  color: string
+  iconClass: string
+  bgClass: string
   available: boolean
 }
 
@@ -46,7 +47,7 @@ const tools: ToolCard[] = [
     description: 'Search across thousands of patents from tracked technology companies. Find prior art, explore patent portfolios, and link IP to policy.',
     icon: FileSearch,
     path: '/patents',
-    color: '#8B5CF6',
+    iconClass: 'text-violet-500', bgClass: 'bg-violet-500/15',
     available: true,
   },
   {
@@ -54,7 +55,7 @@ const tools: ToolCard[] = [
     description: 'Search for a drug or medication by name. View FDA recalls and clinical trials across all tracked health companies.',
     icon: Pill,
     path: '/drugs',
-    color: '#DC2626',
+    iconClass: 'text-red-600', bgClass: 'bg-red-600/15',
     available: true,
   },
   {
@@ -62,7 +63,7 @@ const tools: ToolCard[] = [
     description: 'Visualize the clinical trial pipeline by phase. Browse Phase 1 through Phase 4 trials with enrollment data and status tracking.',
     icon: FlaskConical,
     path: '/clinical-trials',
-    color: '#3B82F6',
+    iconClass: 'text-blue-500', bgClass: 'bg-blue-500/15',
     available: true,
   },
   {
@@ -70,7 +71,7 @@ const tools: ToolCard[] = [
     description: 'Executive stock transactions from SEC Form 4 filings. Filter by transaction type, search by company or insider name.',
     icon: TrendingUp,
     path: '/insider-trades',
-    color: '#10B981',
+    iconClass: 'text-emerald-500', bgClass: 'bg-emerald-500/15',
     available: true,
   },
   {
@@ -78,7 +79,7 @@ const tools: ToolCard[] = [
     description: 'Track FDA drug approvals, rejections, and recent recall activity across tracked health companies.',
     icon: ShieldCheck,
     path: '/fda-approvals',
-    color: '#F59E0B',
+    iconClass: 'text-amber-500', bgClass: 'bg-amber-500/15',
     available: false,
   },
   {
@@ -86,7 +87,7 @@ const tools: ToolCard[] = [
     description: 'Biggest insider trades, complaint spikes, and notable sector news aggregated across the finance sector.',
     icon: Search,
     path: '/market-movers',
-    color: '#34D399',
+    iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
     available: false,
   },
   {
@@ -140,7 +141,7 @@ function HomePage() {
                     className="flex h-10 w-10 items-center justify-center rounded-lg mb-4"
                     style={{ background: `${tool.color}15` }}
                   >
-                    <Icon size={20} color={tool.color} />
+                    <Icon size={20} className="text-emerald-400" />
                   </div>
 
                   {/* Title */}
