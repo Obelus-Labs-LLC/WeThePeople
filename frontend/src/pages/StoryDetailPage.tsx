@@ -185,7 +185,7 @@ export default function StoryDetailPage() {
 
           {/* Share */}
           <div className="flex items-center gap-4 pt-6 border-t border-white/5">
-            <ShareButton title={story.title} text={story.summary} />
+            <ShareButton url={`https://wethepeopleforus.com/stories/${story.slug}`} title={story.title} text={story.summary} />
             <Link to="/stories" className="text-sm text-white/30 hover:text-white/50 no-underline ml-auto">
               More stories
             </Link>
