@@ -281,9 +281,10 @@ export default function ChatAgent() {
             dragMomentum={false}
             dragElastic={0.1}
             whileDrag={{ scale: 1.1, cursor: "grabbing" }}
-            onDragEnd={(_, info) => {
-              // Only open chat if it was a click (not a drag) — 12px threshold for mobile touch
-              if (Math.abs(info.offset.x) < 12 && Math.abs(info.offset.y) < 12) {
+            onDragStart={() => { (window as any).__wtpChatDragged = true; }}
+            onDragEnd={() => { setTimeout(() => { (window as any).__wtpChatDragged = false; }, 100); }}
+            onClick={() => {
+              if (!(window as any).__wtpChatDragged) {
                 setOpen(true);
               }
             }}

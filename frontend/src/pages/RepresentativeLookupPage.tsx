@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { MapPin, Search, Users, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getApiBaseUrl } from '../api/client';
@@ -59,6 +59,7 @@ function initials(name: string): string {
 // ── Page ──
 
 export default function RepresentativeLookupPage() {
+  const [searchParams] = useSearchParams();
   const [zip, setZip] = useState('');
   const [submittedZip, setSubmittedZip] = useState('');
   const [reps, setReps] = useState<Representative[]>([]);
@@ -67,11 +68,11 @@ export default function RepresentativeLookupPage() {
   const [dataUnavailable, setDataUnavailable] = useState(false);
   const [searched, setSearched] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleaned = zip.trim().replace(/\D/g, '').slice(0, 5);
+  const doSearch = async (zipCode: string) => {
+    const cleaned = zipCode.trim().replace(/\D/g, '').slice(0, 5);
     if (cleaned.length < 5) return;
 
+    setZip(cleaned);
     setLoading(true);
     setError(null);
     setDataUnavailable(false);
@@ -89,12 +90,24 @@ export default function RepresentativeLookupPage() {
       const data: RepLookupResponse = await res.json();
       setReps(data.representatives || []);
     } catch (err: any) {
-      // Network error or non-existent endpoint
       setError('Unable to load data. Please try again.');
       setReps([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Auto-search if zip is passed in URL (from landing page)
+  useEffect(() => {
+    const urlZip = searchParams.get('zip');
+    if (urlZip && urlZip.replace(/\D/g, '').length === 5) {
+      doSearch(urlZip);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    doSearch(zip);
   };
 
   const isValidZip = zip.trim().replace(/\D/g, '').length >= 5;
@@ -250,22 +263,9 @@ export default function RepresentativeLookupPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {reps.map((rep, idx) => (
-                <motion.div
-                  key={rep.person_id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: idx * 0.1 }}
-                >
-                  <RepCard rep={rep} />
-                </motion.div>
-              ))}
-            </div>
-
-            {/* State legislature link */}
+            {/* State legislature link — above reps for visibility */}
             {reps.length > 0 && reps[0].state && (
-              <div className="mt-6 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 flex items-center justify-between">
+              <div className="mb-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 flex items-center justify-between">
                 <div>
                   <p className="font-body text-sm font-semibold text-white/70">
                     Explore {reps[0].state} State Legislature
@@ -283,6 +283,19 @@ export default function RepresentativeLookupPage() {
                 </Link>
               </div>
             )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {reps.map((rep, idx) => (
+                <motion.div
+                  key={rep.person_id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: idx * 0.1 }}
+                >
+                  <RepCard rep={rep} />
+                </motion.div>
+              ))}
+            </div>
           </motion.div>
         )}
 

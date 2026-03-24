@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Users, FileText, Scale, ArrowRight, Activity, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
@@ -16,6 +16,116 @@ const PARTY_COLORS: Record<string, string> = {
   R: '#EF4444',
   I: '#A855F7',
 };
+
+interface ChamberBreakdown {
+  total: number;
+  democrat: number;
+  republican: number;
+  independent: number;
+}
+
+function computeBreakdown(people: Person[], chamber: 'house' | 'senate'): ChamberBreakdown {
+  const filtered = people.filter((p) =>
+    chamber === 'house'
+      ? p.chamber.toLowerCase().includes('house') || p.chamber.toLowerCase() === 'lower'
+      : p.chamber.toLowerCase().includes('senate') || p.chamber.toLowerCase() === 'upper'
+  );
+  let democrat = 0, republican = 0, independent = 0;
+  filtered.forEach((p) => {
+    const party = p.party?.charAt(0);
+    if (party === 'D') democrat++;
+    else if (party === 'R') republican++;
+    else independent++;
+  });
+  return { total: filtered.length, democrat, republican, independent };
+}
+
+function chamberPct(n: number, total: number): number {
+  return total > 0 ? (n / total) * 100 : 0;
+}
+
+function ChamberBar({ label, breakdown }: { label: string; breakdown: ChamberBreakdown }) {
+  const majority = Math.ceil(breakdown.total / 2) + 1;
+  const dPct = chamberPct(breakdown.democrat, breakdown.total);
+  const rPct = chamberPct(breakdown.republican, breakdown.total);
+  const iPct = chamberPct(breakdown.independent, breakdown.total);
+  const leading = breakdown.democrat > breakdown.republican ? 'D' : breakdown.republican > breakdown.democrat ? 'R' : 'Tied';
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-white/70">
+          {label}
+        </h3>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] text-white/30">{breakdown.total} seats</span>
+          <span className="font-mono text-[10px] text-white/20">|</span>
+          <span className="font-mono text-[10px] text-white/30">{majority} for majority</span>
+        </div>
+      </div>
+      <div className="flex h-8 overflow-hidden rounded-lg mb-2">
+        {breakdown.democrat > 0 && (
+          <div
+            className="flex items-center justify-center transition-all duration-500"
+            style={{ width: `${dPct}%`, backgroundColor: '#3B82F6' }}
+          >
+            {dPct > 12 && (
+              <span className="font-mono text-[10px] font-bold text-white">{breakdown.democrat}</span>
+            )}
+          </div>
+        )}
+        {breakdown.independent > 0 && (
+          <div
+            className="flex items-center justify-center transition-all duration-500"
+            style={{ width: `${iPct}%`, backgroundColor: '#A855F7' }}
+          >
+            {iPct > 5 && (
+              <span className="font-mono text-[10px] font-bold text-white">{breakdown.independent}</span>
+            )}
+          </div>
+        )}
+        {breakdown.republican > 0 && (
+          <div
+            className="flex items-center justify-center transition-all duration-500"
+            style={{ width: `${rPct}%`, backgroundColor: '#EF4444' }}
+          >
+            {rPct > 12 && (
+              <span className="font-mono text-[10px] font-bold text-white">{breakdown.republican}</span>
+            )}
+          </div>
+        )}
+      </div>
+      {/* Majority line + legend */}
+      <div className="flex items-center gap-4 text-[10px]">
+        <div className="flex items-center gap-1">
+          <div className="h-2 w-2 rounded" style={{ backgroundColor: '#3B82F6' }} />
+          <span className="font-mono text-white/40">D {breakdown.democrat}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="h-2 w-2 rounded" style={{ backgroundColor: '#EF4444' }} />
+          <span className="font-mono text-white/40">R {breakdown.republican}</span>
+        </div>
+        {breakdown.independent > 0 && (
+          <div className="flex items-center gap-1">
+            <div className="h-2 w-2 rounded" style={{ backgroundColor: '#A855F7' }} />
+            <span className="font-mono text-white/40">I {breakdown.independent}</span>
+          </div>
+        )}
+        <span
+          className={`ml-auto rounded-full px-2 py-0.5 font-mono text-[10px] font-bold ${
+            leading === 'D'
+              ? 'bg-blue-500/15 text-blue-400'
+              : leading === 'R'
+                ? 'bg-red-500/15 text-red-400'
+                : 'bg-white/10 text-white/50'
+          }`}
+        >
+          {leading === 'D' ? 'DEM MAJORITY' : leading === 'R' ? 'GOP MAJORITY' : 'SPLIT'}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function partyColor(party: string): string {
   return PARTY_COLORS[party?.charAt(0)] || '#6B7280';
@@ -69,6 +179,9 @@ export default function PoliticsDashboardPage() {
     });
     return counts;
   }, [allPeople]);
+
+  const house = useMemo(() => computeBreakdown(allPeople, 'house'), [allPeople]);
+  const senate = useMemo(() => computeBreakdown(allPeople, 'senate'), [allPeople]);
 
   if (loading) {
     return (
@@ -129,12 +242,16 @@ export default function PoliticsDashboardPage() {
                 Browse Members
                 <ArrowRight size={16} />
               </Link>
-              <Link
-                to="/politics/power"
-                className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 font-body text-sm font-semibold text-white/70 transition-colors hover:border-white/20 hover:text-white no-underline"
+              <a
+                href="#balance-of-power"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById('balance-of-power')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 font-body text-sm font-semibold text-white/70 transition-colors hover:border-white/20 hover:text-white no-underline cursor-pointer"
               >
                 Balance of Power
-              </Link>
+              </a>
             </div>
           </motion.div>
 
@@ -170,9 +287,10 @@ export default function PoliticsDashboardPage() {
         {/* Data Freshness */}
         <DataFreshness />
 
-        {/* Party Distribution Bar */}
+        {/* Balance of Power — Party Distribution */}
         {allPeople.length > 0 && (
           <motion.div
+            id="balance-of-power"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.6 }}
@@ -181,35 +299,53 @@ export default function PoliticsDashboardPage() {
               className="rounded-xl border border-white/10 bg-white/[0.03] mb-12"
               spotlightColor="rgba(59, 130, 246, 0.10)"
             >
-              <div className="p-6">
-                <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white mb-4">
-                  Party Distribution
-                </h2>
-                <div className="flex h-8 overflow-hidden rounded-lg">
-                  {[
-                    { key: 'D', label: 'Dem', color: '#3B82F6' },
-                    { key: 'I', label: 'Ind', color: '#A855F7' },
-                    { key: 'R', label: 'Rep', color: '#EF4444' },
-                  ].map(({ key, label, color }) => {
-                    const count = partyCounts[key] || 0;
-                    const total = allPeople.length || 1;
-                    const pctVal = (count / total) * 100;
-                    if (pctVal === 0) return null;
-                    return (
-                      <div
-                        key={key}
-                        className="flex items-center justify-center transition-all"
-                        style={{ width: `${pctVal}%`, backgroundColor: color }}
-                      >
-                        {pctVal > 8 && (
-                          <span className="font-mono text-[10px] font-bold text-white/90 uppercase">
-                            {label} {count}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
+              <div className="p-6 space-y-6">
+                {/* Total */}
+                <div>
+                  <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white mb-4">
+                    Balance of Power
+                  </h2>
+                  <div className="flex h-8 overflow-hidden rounded-lg">
+                    {[
+                      { key: 'D', label: 'Dem', color: '#3B82F6' },
+                      { key: 'I', label: 'Ind', color: '#A855F7' },
+                      { key: 'R', label: 'Rep', color: '#EF4444' },
+                    ].map(({ key, label, color }) => {
+                      const count = partyCounts[key] || 0;
+                      const total = allPeople.length || 1;
+                      const pctVal = (count / total) * 100;
+                      if (pctVal === 0) return null;
+                      return (
+                        <div
+                          key={key}
+                          className="flex items-center justify-center transition-all"
+                          style={{ width: `${pctVal}%`, backgroundColor: color }}
+                        >
+                          {pctVal > 8 && (
+                            <span className="font-mono text-[10px] font-bold text-white/90 uppercase">
+                              {label} {count}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="font-mono text-[10px] text-white/20 mt-2">
+                    Total Congress &mdash; {allPeople.length} members
+                  </p>
                 </div>
+
+                {/* Divider */}
+                <div className="border-t border-white/5" />
+
+                {/* House */}
+                <ChamberBar label="House of Representatives" breakdown={house} />
+
+                {/* Divider */}
+                <div className="border-t border-white/5" />
+
+                {/* Senate */}
+                <ChamberBar label="Senate" breakdown={senate} />
               </div>
             </SpotlightCard>
           </motion.div>
@@ -225,7 +361,7 @@ export default function PoliticsDashboardPage() {
           {[
             { to: '/politics/people', label: 'Representatives', desc: 'Full member directory', color: '#3B82F6' },
             { to: '/politics/activity', label: 'Activity Feed', desc: 'Latest legislative actions', color: '#F59E0B' },
-            { to: '/politics/power', label: 'Balance of Power', desc: 'Party analytics & breakdown', color: '#10B981' },
+            { to: '/politics/legislation', label: 'Legislation', desc: 'Bills & voting tracker', color: '#10B981' },
             { to: '/politics/compare', label: 'Compare', desc: 'Side-by-side member analysis', color: '#A855F7' },
             { to: '/politics/states', label: 'Explore by State', desc: 'State legislatures & bills', color: '#06B6D4' },
           ].map((link) => (
@@ -423,7 +559,7 @@ export default function PoliticsDashboardPage() {
         <div className="border-t border-white/10 pt-6 mt-8">
           <span className="font-mono text-xs font-bold tracking-[0.2em] uppercase text-white/30">Data Sources</span>
           <div className="flex flex-wrap gap-x-8 gap-y-3 mt-4">
-            {['Congress.gov API', 'Senate LDA', 'FEC', 'USASpending.gov'].map((source) => (
+            {['Congress.gov (Bills, Votes, Actions)', 'Senate LDA (Lobbying Disclosures)', 'USASpending.gov (Gov Contracts)', 'FEC (Donations, PAC Data)', 'House Clerk Disclosures (Financial Disclosures)', 'Quiver Quantitative (Congressional Trades)', 'Federal Register (Enforcement, Rulemaking)', 'Google Civic API (Rep Lookup)', 'OpenStates (State Legislators)', 'Senate.gov (Roll Call Votes)', 'Wikipedia (Politician Profiles)', 'SAM.gov (Contractor Exclusions)', 'Regulations.gov (Regulatory Comments)'].map((source) => (
               <div key={source} className="flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
                 <span className="w-1.5 h-1.5 rounded-sm bg-zinc-600" />
                 <span className="font-mono text-xs font-semibold tracking-wider uppercase text-zinc-300">{source}</span>

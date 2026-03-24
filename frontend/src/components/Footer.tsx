@@ -22,6 +22,7 @@ export default function Footer() {
             <Link to="/terms" className="hover:text-white transition-colors">Terms of Use</Link>
             <Link to="/disclaimer" className="hover:text-white transition-colors">Disclaimer</Link>
             <Link to="/methodology" className="hover:text-white transition-colors">Methodology</Link>
+            <Link to="/stories" className="hover:text-white transition-colors">Stories</Link>
           </div>
         </div>
 

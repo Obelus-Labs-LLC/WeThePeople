@@ -26,7 +26,8 @@ const VoteDetailPage = React.lazy(() => import("./pages/VoteDetailPage"));
 const ComparePageNew = React.lazy(() => import("./pages/ComparePageNew"));
 const PressToolsPage = React.lazy(() => import("./pages/PressToolsPage"));
 const ActivityFeedPage = React.lazy(() => import("./pages/ActivityFeedPage"));
-const BalanceOfPowerPage = React.lazy(() => import("./pages/BalanceOfPowerPage"));
+// Balance of Power merged into PoliticsDashboardPage — kept for reference
+// const BalanceOfPowerPage = React.lazy(() => import("./pages/BalanceOfPowerPage"));
 const LegislationTrackerPage = React.lazy(() => import("./pages/LegislationTrackerPage"));
 const CommitteesPage = React.lazy(() => import("./pages/CommitteesPage"));
 const RepresentativeLookupPage = React.lazy(() => import("./pages/RepresentativeLookupPage"));
@@ -115,7 +116,8 @@ const App: React.FC = () => (
           <Route path="/politics" element={<PoliticsLayout><PoliticsDashboardPage /></PoliticsLayout>} />
           <Route path="/politics/people" element={<PoliticsLayout><PeoplePage /></PoliticsLayout>} />
           <Route path="/politics/activity" element={<PoliticsLayout><ActivityFeedPage /></PoliticsLayout>} />
-          <Route path="/politics/power" element={<PoliticsLayout><BalanceOfPowerPage /></PoliticsLayout>} />
+          {/* Balance of Power merged into dashboard — route kept for reference */}
+          {/* <Route path="/politics/power" element={<PoliticsLayout><BalanceOfPowerPage /></PoliticsLayout>} /> */}
           <Route path="/politics/people/:person_id" element={<PoliticsLayout><PersonProfilePage /></PoliticsLayout>} />
           <Route path="/politics/claim/:claim_id" element={<PoliticsLayout><ClaimDetailPage /></PoliticsLayout>} />
           <Route path="/politics/bill/:bill_id" element={<PoliticsLayout><BillDetailPage /></PoliticsLayout>} />

@@ -73,7 +73,6 @@ const POLITICS_LINKS: NavLink[] = [
   { label: 'Committees', to: '/politics/committees' },
   { label: 'Activity', to: '/politics/activity' },
   { label: 'Trades', to: '/politics/trades' },
-  { label: 'Power', to: '/politics/power' },
   { label: 'Compare', to: '/politics/compare' },
   { label: 'Find Rep', to: '/politics/find-rep' },
   { label: 'Influence Loops', to: '/influence/closed-loops' },

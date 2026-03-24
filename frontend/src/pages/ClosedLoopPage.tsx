@@ -281,7 +281,12 @@ export default function ClosedLoopPage() {
                       <Building2 className="w-4 h-4 text-emerald-400" />
                     </div>
                     <div>
-                      <span className="text-sm font-semibold text-white">{loop.company.display_name}</span>
+                      <Link
+                        to={`/${loop.company.entity_type === 'finance' ? 'finance' : loop.company.entity_type === 'health' ? 'health' : loop.company.entity_type === 'energy' ? 'energy' : loop.company.entity_type === 'defense' ? 'defense' : loop.company.entity_type === 'transportation' ? 'transportation' : 'technology'}/${loop.company.entity_id}`}
+                        className="text-sm font-semibold text-emerald-400 hover:text-emerald-300 no-underline"
+                      >
+                        {loop.company.display_name}
+                      </Link>
                     </div>
                   </div>
 
@@ -314,9 +319,13 @@ export default function ClosedLoopPage() {
                       <FileText className="w-4 h-4 text-violet-400" />
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="text-sm text-white/70 truncate max-w-[180px]" title={loop.bill.title}>
+                      <Link
+                        to={`/politics/bill/${loop.bill.bill_id}`}
+                        className="text-sm text-violet-400 hover:text-violet-300 no-underline truncate max-w-[180px]"
+                        title={loop.bill.title}
+                      >
                         {loop.bill.title}
-                      </span>
+                      </Link>
                       <span className="text-xs text-white/30">{loop.bill.status}</span>
                     </div>
                   </div>
@@ -371,6 +380,19 @@ export default function ClosedLoopPage() {
                     </span>
                   </div>
                 </div>
+
+                {/* Explanatory summary */}
+                <p className="mt-3 pt-3 border-t border-white/5 text-xs text-white/40 leading-relaxed">
+                  <span className="text-emerald-400">{loop.company.display_name}</span> lobbied{' '}
+                  <span className="text-yellow-400 font-mono">{formatCurrency(loop.lobbying.total_income)}</span> on issues related to{' '}
+                  <span className="text-violet-400">{loop.bill.title.length > 50 ? loop.bill.title.slice(0, 50) + '...' : loop.bill.title}</span>.{' '}
+                  The bill was referred to the <span className="text-orange-400">{loop.committee.name}</span>, where{' '}
+                  <span className="text-blue-400">{loop.politician.display_name}</span> ({loop.politician.party}-{loop.politician.state}) serves
+                  {loop.politician.committee_role ? ` as ${loop.politician.committee_role}` : ''}.{' '}
+                  {loop.company.display_name}'s PAC donated{' '}
+                  <span className="text-red-400 font-mono">{formatCurrency(loop.donation.total_amount)}</span> to {loop.politician.display_name}
+                  {loop.donation.donation_count > 1 ? ` across ${loop.donation.donation_count} contributions` : ''}.
+                </p>
               </motion.div>
             ))}
           </div>
