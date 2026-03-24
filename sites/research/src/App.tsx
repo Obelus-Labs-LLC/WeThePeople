@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
-import { EcosystemNav } from '@shared/EcosystemNav'
+import { EcosystemNav } from './components/EcosystemNav'
 import {
   Search,
   Pill,

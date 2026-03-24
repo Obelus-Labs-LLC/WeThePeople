@@ -9,6 +9,8 @@ import {
   HealthSectorHeader,
   TechSectorHeader,
   EnergySectorHeader,
+  TransportationSectorHeader,
+  DefenseSectorHeader,
 } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
@@ -63,6 +65,20 @@ const SECTOR_MAP: Record<string, SectorConfig> = {
     aggregateEndpoint: '',
     entityKey: 'companies',
     profilePath: () => '/politics',
+  },
+  transportation: {
+    key: 'transportation', label: 'Transportation', accent: '#06B6D4', accentRGB: '6,182,212',
+    Header: TransportationSectorHeader,
+    aggregateEndpoint: `${API_BASE}/aggregate/transportation/enforcement?limit=1000`,
+    entityKey: 'companies',
+    profilePath: (id) => `/transportation/${id}`,
+  },
+  defense: {
+    key: 'defense', label: 'Defense', accent: '#DC2626', accentRGB: '220,38,38',
+    Header: DefenseSectorHeader,
+    aggregateEndpoint: `${API_BASE}/aggregate/defense/enforcement?limit=1000`,
+    entityKey: 'companies',
+    profilePath: (id) => `/defense/${id}`,
   },
 };
 
