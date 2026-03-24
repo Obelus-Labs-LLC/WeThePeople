@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Landmark, TrendingUp, Building2, Calendar, ExternalLink } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Landmark, TrendingUp, Building2, Calendar, ExternalLink, Search, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import CSVExport from '../components/CSVExport';
 import {
   PoliticsSectorHeader,
@@ -94,6 +94,32 @@ interface CompanyContractStats {
   contractCount: number;
 }
 
+type SortOption = 'amount_desc' | 'date_desc' | 'agency_asc';
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'amount_desc', label: 'Highest Value' },
+  { value: 'date_desc', label: 'Most Recent' },
+  { value: 'agency_asc', label: 'Agency (A-Z)' },
+];
+
+const CONTRACTS_PER_PAGE = 10;
+
+// ── Deterministic agency color palette ──
+
+const AGENCY_COLORS = [
+  '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981',
+  '#EF4444', '#06B6D4', '#F97316', '#6366F1', '#14B8A6',
+  '#D946EF', '#84CC16', '#FB923C', '#A78BFA', '#F472B6',
+];
+
+function agencyColor(agency: string): string {
+  let hash = 0;
+  for (let i = 0; i < agency.length; i++) {
+    hash = ((hash << 5) - hash + agency.charCodeAt(i)) | 0;
+  }
+  return AGENCY_COLORS[Math.abs(hash) % AGENCY_COLORS.length];
+}
+
 // ── Animation variants ──
 
 const containerVariants = {
@@ -127,6 +153,241 @@ async function fetchJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   return res.json();
+}
+
+function sortContracts(contracts: ContractItem[], sortBy: SortOption): ContractItem[] {
+  const sorted = [...contracts];
+  switch (sortBy) {
+    case 'amount_desc':
+      sorted.sort((a, b) => (b.award_amount || 0) - (a.award_amount || 0));
+      break;
+    case 'date_desc':
+      sorted.sort((a, b) => {
+        const da = a.start_date ? new Date(a.start_date).getTime() : 0;
+        const db = b.start_date ? new Date(b.start_date).getTime() : 0;
+        return db - da;
+      });
+      break;
+    case 'agency_asc':
+      sorted.sort((a, b) => (a.awarding_agency || '').localeCompare(b.awarding_agency || ''));
+      break;
+  }
+  return sorted;
+}
+
+// ── Expanded company contracts panel ──
+
+interface CompanyContractsPanelProps {
+  contracts: ContractItem[];
+  accent: string;
+  accentRGB: string;
+}
+
+function CompanyContractsPanel({ contracts, accent, accentRGB }: CompanyContractsPanelProps) {
+  const [sortBy, setSortBy] = useState<SortOption>('amount_desc');
+  const [filterText, setFilterText] = useState('');
+  const [visibleCount, setVisibleCount] = useState(CONTRACTS_PER_PAGE);
+
+  // Summary stats
+  const totalValue = contracts.reduce((s, c) => s + (c.award_amount || 0), 0);
+  const agencyCounts = new Map<string, number>();
+  let minDate: string | null = null;
+  let maxDate: string | null = null;
+
+  for (const c of contracts) {
+    if (c.awarding_agency) {
+      agencyCounts.set(c.awarding_agency, (agencyCounts.get(c.awarding_agency) || 0) + 1);
+    }
+    if (c.start_date) {
+      if (!minDate || c.start_date < minDate) minDate = c.start_date;
+      if (!maxDate || c.start_date > maxDate) maxDate = c.start_date;
+    }
+  }
+
+  let topAgency = '';
+  let topAgencyCount = 0;
+  for (const [agency, count] of agencyCounts) {
+    if (count > topAgencyCount) {
+      topAgency = agency;
+      topAgencyCount = count;
+    }
+  }
+
+  // Filter and sort
+  const filtered = useMemo(() => {
+    let list = contracts;
+    if (filterText.trim()) {
+      const q = filterText.toLowerCase();
+      list = list.filter(
+        (c) =>
+          (c.awarding_agency || '').toLowerCase().includes(q) ||
+          (c.description || '').toLowerCase().includes(q) ||
+          (c.contract_type || '').toLowerCase().includes(q)
+      );
+    }
+    return sortContracts(list, sortBy);
+  }, [contracts, filterText, sortBy]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
+
+  return (
+    <div className="mt-4 ml-9 space-y-4" onClick={(e) => e.stopPropagation()}>
+      {/* Summary stats bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Total Value</p>
+          <p className="font-mono text-sm font-bold text-emerald-400">{fmtDollar(totalValue)}</p>
+        </div>
+        <div className="rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Contracts</p>
+          <p className="font-mono text-sm font-bold text-zinc-200">{fmtNum(contracts.length)}</p>
+        </div>
+        <div className="rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Top Agency</p>
+          <p className="font-mono text-xs font-medium text-zinc-300 truncate" title={topAgency}>
+            {topAgency || '\u2014'}
+          </p>
+        </div>
+        <div className="rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Date Range</p>
+          <p className="font-mono text-xs font-medium text-zinc-300">
+            {minDate && maxDate ? `${fmtDate(minDate)} \u2013 ${fmtDate(maxDate)}` : '\u2014'}
+          </p>
+        </div>
+      </div>
+
+      {/* Controls row: search + sort */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+          <input
+            type="text"
+            placeholder="Filter by agency, description, or type..."
+            value={filterText}
+            onChange={(e) => { setFilterText(e.target.value); setVisibleCount(CONTRACTS_PER_PAGE); }}
+            className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] py-2 pl-9 pr-3 text-sm text-zinc-200 placeholder-white/25 outline-none focus:border-white/20 focus:bg-white/[0.06] transition-colors"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal size={14} className="text-white/30 flex-shrink-0" />
+          <select
+            value={sortBy}
+            onChange={(e) => { setSortBy(e.target.value as SortOption); setVisibleCount(CONTRACTS_PER_PAGE); }}
+            className="rounded-lg border border-white/[0.08] bg-white/[0.04] py-2 px-3 text-sm text-zinc-200 outline-none focus:border-white/20 cursor-pointer appearance-none"
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value} className="bg-zinc-900 text-zinc-200">
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Filtered count indicator */}
+      {filterText.trim() && (
+        <p className="font-mono text-xs text-white/30">
+          Showing {filtered.length} of {contracts.length} contracts
+        </p>
+      )}
+
+      {/* Contract cards */}
+      <div className="space-y-2">
+        {visible.map((ct) => (
+          <div
+            key={ct.id}
+            className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4 hover:bg-white/[0.05] transition-colors"
+          >
+            {/* Top row: description + amount */}
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <p className="font-body text-sm text-white/80 leading-relaxed flex-1">
+                {ct.description || 'No description available'}
+              </p>
+              {ct.award_amount != null && (
+                <span className="font-mono text-sm font-bold text-emerald-400 flex-shrink-0 whitespace-nowrap">
+                  {fmtDollar(ct.award_amount)}
+                </span>
+              )}
+            </div>
+
+            {/* AI summary if present */}
+            {(ct as any).ai_summary && (
+              <p className="text-zinc-400 text-xs mb-2 leading-relaxed">{(ct as any).ai_summary}</p>
+            )}
+
+            {/* Tags row: agency badge, date, type, source link */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {ct.awarding_agency && (
+                <span
+                  className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium border"
+                  style={{
+                    color: agencyColor(ct.awarding_agency),
+                    borderColor: `${agencyColor(ct.awarding_agency)}33`,
+                    backgroundColor: `${agencyColor(ct.awarding_agency)}12`,
+                  }}
+                >
+                  {ct.awarding_agency}
+                </span>
+              )}
+              {ct.start_date && (
+                <span className="inline-flex items-center gap-1 font-mono text-[11px] text-white/40">
+                  <Calendar size={11} />
+                  {fmtDate(ct.start_date)}{ct.end_date ? ` \u2013 ${fmtDate(ct.end_date)}` : ''}
+                </span>
+              )}
+              {ct.contract_type && (
+                <span className="rounded-full bg-white/[0.08] px-2.5 py-0.5 font-mono text-[10px] text-white/45">
+                  {ct.contract_type}
+                </span>
+              )}
+              {ct.award_id && (
+                <a
+                  href={`https://www.usaspending.gov/award/${ct.award_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-mono text-[11px] no-underline hover:opacity-80 transition-opacity"
+                  style={{ color: accent }}
+                >
+                  <ExternalLink size={11} />USASpending
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Show more / Show fewer */}
+      {filtered.length > CONTRACTS_PER_PAGE && (
+        <div className="flex justify-center pt-1">
+          {hasMore ? (
+            <button
+              onClick={() => setVisibleCount((v) => v + CONTRACTS_PER_PAGE)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-5 py-2 text-sm text-zinc-300 hover:bg-white/[0.08] hover:border-white/[0.15] transition-colors cursor-pointer"
+            >
+              <ChevronDown size={14} />
+              Show more ({filtered.length - visibleCount} remaining)
+            </button>
+          ) : (
+            <button
+              onClick={() => setVisibleCount(CONTRACTS_PER_PAGE)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-5 py-2 text-sm text-zinc-300 hover:bg-white/[0.08] hover:border-white/[0.15] transition-colors cursor-pointer"
+            >
+              <ChevronUp size={14} />
+              Show fewer
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* No results after filter */}
+      {filtered.length === 0 && filterText.trim() && (
+        <p className="text-center font-body text-sm text-white/30 py-4">
+          No contracts match "{filterText}"
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ── Page ──
@@ -392,11 +653,12 @@ export default function SectorContractsPage() {
               <h2 className="font-heading text-2xl font-bold tracking-tight uppercase text-zinc-50 mb-2">
                 Top {config.entityKey === 'institutions' ? 'Recipients' : 'Contractors'}
               </h2>
-              <p className="font-body text-sm text-zinc-500 mb-6">
-                {config.entityKey === 'institutions' ? 'Institutions' : 'Companies'} ranked by total government contract value
+              <p className="font-body text-sm text-zinc-500 mb-1">
+                {config.entityKey === 'institutions' ? 'Institutions' : 'Companies'} ranked by total government contract value.
+                Click any row to explore individual contracts.
               </p>
 
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 mt-4">
                 {topContractors.map((comp, idx) => {
                   const pct = maxContractorAmount > 0 ? (comp.totalAmount / maxContractorAmount) * 100 : 0;
                   const color = BAR_COLORS[idx % BAR_COLORS.length];
@@ -409,86 +671,74 @@ export default function SectorContractsPage() {
                     <motion.div
                       key={comp.entity_id}
                       variants={itemVariants}
-                      onClick={() => setExpandedId(isExpanded ? null : comp.entity_id)}
-                      className="group rounded-xl border border-transparent bg-white/[0.03] p-4 transition-all hover:bg-white/[0.06] hover:border-white/10 cursor-pointer"
+                      layout
+                      className="group rounded-xl border border-transparent bg-white/[0.03] transition-all hover:bg-white/[0.06] hover:border-white/10"
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <span className="font-mono text-xs text-white/30 w-6 text-right flex-shrink-0">
-                            {idx + 1}
-                          </span>
-                          <Link
-                            to={config.profilePath(comp.entity_id)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="font-body text-sm font-medium text-white no-underline truncate"
-                            style={{ ['--hover-color' as any]: config.accent }}
-                            onMouseEnter={(e) => (e.currentTarget.style.color = config.accent)}
-                            onMouseLeave={(e) => (e.currentTarget.style.color = 'white')}
+                      {/* Clickable header row */}
+                      <div
+                        onClick={() => setExpandedId(isExpanded ? null : comp.entity_id)}
+                        className="p-4 cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <span className="font-mono text-xs text-white/30 w-6 text-right flex-shrink-0">
+                              {idx + 1}
+                            </span>
+                            <Link
+                              to={config.profilePath(comp.entity_id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="font-body text-sm font-medium text-white no-underline truncate"
+                              style={{ ['--hover-color' as any]: config.accent }}
+                              onMouseEnter={(e) => (e.currentTarget.style.color = config.accent)}
+                              onMouseLeave={(e) => (e.currentTarget.style.color = 'white')}
+                            >
+                              {comp.entity_name}
+                            </Link>
+                          </div>
+                          <div className="flex items-center gap-4 flex-shrink-0">
+                            <span className="font-mono text-xs text-white/40">{comp.contractCount} contracts</span>
+                            <span className="font-mono text-sm font-bold text-emerald-400">{fmtDollar(comp.totalAmount)}</span>
+                            <motion.div
+                              animate={{ rotate: isExpanded ? 180 : 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <ChevronDown size={16} className="text-white/30" />
+                            </motion.div>
+                          </div>
+                        </div>
+
+                        {/* Bar */}
+                        <div className="h-4 bg-zinc-900 rounded-lg overflow-hidden ml-9">
+                          <motion.div
+                            className="h-full rounded-lg"
+                            style={{ backgroundColor: color }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.max(pct, 1)}%` }}
+                            transition={{ duration: 0.8, delay: idx * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Expanded contract details panel */}
+                      <AnimatePresence>
+                        {isExpanded && companyContracts.length > 0 && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                            className="overflow-hidden border-t border-white/[0.06]"
                           >
-                            {comp.entity_name}
-                          </Link>
-                        </div>
-                        <div className="flex items-center gap-4 flex-shrink-0">
-                          <span className="font-mono text-xs text-white/40">{comp.contractCount} contracts</span>
-                          <span className="font-mono text-sm font-bold text-[#10B981]">{fmtDollar(comp.totalAmount)}</span>
-                        </div>
-                      </div>
-
-                      {/* Bar */}
-                      <div className="h-4 bg-zinc-900 rounded-lg overflow-hidden ml-9">
-                        <motion.div
-                          className="h-full rounded-lg"
-                          style={{ backgroundColor: color }}
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.max(pct, 1)}%` }}
-                          transition={{ duration: 0.8, delay: idx * 0.03, ease: [0.16, 1, 0.3, 1] }}
-                        />
-                      </div>
-
-                      {/* Expanded contract details */}
-                      {isExpanded && companyContracts.length > 0 && (
-                        <div className="flex flex-col gap-2 mt-3 ml-9">
-                          <span className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-white/30">Contract Details</span>
-                          {companyContracts.map((ct) => (
-                            <div key={ct.id} className="rounded-lg bg-white/[0.03] p-3">
-                              {ct.description && (
-                                <p className="font-body text-sm text-white/70 mb-1">{ct.description}</p>
-                              )}
-                              {(ct as any).ai_summary && (
-                                <p className="text-zinc-400 text-sm mt-1 mb-1">{(ct as any).ai_summary}</p>
-                              )}
-                              <div className="flex items-center gap-4 flex-wrap">
-                                {ct.award_amount != null && (
-                                  <span className="font-mono text-xs text-[#10B981]">{fmtDollar(ct.award_amount)}</span>
-                                )}
-                                {ct.awarding_agency && (
-                                  <span className="font-mono text-xs text-white/40">{ct.awarding_agency}</span>
-                                )}
-                                {ct.start_date && (
-                                  <span className="flex items-center gap-1 font-mono text-xs text-white/40">
-                                    <Calendar size={12} />{fmtDate(ct.start_date)}{ct.end_date ? ` — ${fmtDate(ct.end_date)}` : ''}
-                                  </span>
-                                )}
-                                {ct.contract_type && (
-                                  <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-[10px] text-white/50">{ct.contract_type}</span>
-                                )}
-                                {ct.award_id && (
-                                  <a
-                                    href={`https://www.usaspending.gov/award/${ct.award_id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex items-center gap-1 font-mono text-xs no-underline"
-                                    style={{ color: config.accent }}
-                                  >
-                                    <ExternalLink size={11} />Source
-                                  </a>
-                                )}
-                              </div>
+                            <div className="px-4 pb-4">
+                              <CompanyContractsPanel
+                                contracts={companyContracts}
+                                accent={config.accent}
+                                accentRGB={config.accentRGB}
+                              />
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </motion.div>
                   );
                 })}

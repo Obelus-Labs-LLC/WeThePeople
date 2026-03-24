@@ -14,6 +14,7 @@ from typing import List, Dict, Optional
 from anthropic import Anthropic
 
 from .prompts import CLAIM_EXTRACTION_SYSTEM_PROMPT, build_claim_extraction_prompt
+from services.budget import check_budget, record_spend, compute_cost
 
 # Singleton client
 _client: Optional[Anthropic] = None
@@ -88,6 +89,12 @@ def extract_claims_from_text(
             source_type=source_type,
         )
 
+    # Budget check before calling
+    allowed, remaining = check_budget(estimated_cost=0.05)
+    if not allowed:
+        print(f"  [BUDGET] Skipping LLM call: only ${remaining:.2f} remaining")
+        return []
+
     delay = 1.0
     for attempt in range(max_retries + 1):
         try:
@@ -100,12 +107,12 @@ def extract_claims_from_text(
                 ],
             )
 
-            # Log approximate cost for tracking
+            # Record cost to shared budget ledger
             if hasattr(message, 'usage') and message.usage:
                 input_tokens = getattr(message.usage, 'input_tokens', 0) or 0
                 output_tokens = getattr(message.usage, 'output_tokens', 0) or 0
-                # Approximate cost: Sonnet input=$3/MTok, output=$15/MTok
-                approx_cost = (input_tokens * 3.0 / 1_000_000) + (output_tokens * 15.0 / 1_000_000)
+                approx_cost = compute_cost(model, input_tokens, output_tokens)
+                record_spend(approx_cost, model, input_tokens, output_tokens)
                 _cost_logger.info(
                     f"LLM call: model={model} in={input_tokens} out={output_tokens} "
                     f"approx_cost=${approx_cost:.4f}"

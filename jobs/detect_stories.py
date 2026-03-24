@@ -57,36 +57,15 @@ def _slugify(title: str) -> str:
 
 def _check_budget(max_cost: float) -> bool:
     """Check if we have enough Anthropic API budget remaining."""
-    try:
-        if os.path.exists(BUDGET_FILE):
-            with open(BUDGET_FILE) as f:
-                ledger = json.load(f)
-            spent = ledger.get("wethepeople", {}).get("total_spent", 0)
-            limit = ledger.get("wethepeople", {}).get("monthly_limit", 20)
-            if spent + max_cost > limit:
-                logger.warning("Budget exhausted: $%.2f spent of $%.2f limit", spent, limit)
-                return False
-    except Exception:
-        pass
-    return True
+    from services.budget import check_budget
+    allowed, remaining = check_budget(estimated_cost=max_cost)
+    return allowed
 
 
 def _record_cost(cost: float) -> None:
     """Record API cost to the shared budget ledger."""
-    try:
-        ledger = {}
-        if os.path.exists(BUDGET_FILE):
-            with open(BUDGET_FILE) as f:
-                ledger = json.load(f)
-
-        wtp = ledger.setdefault("wethepeople", {"total_spent": 0, "monthly_limit": 20})
-        wtp["total_spent"] = wtp.get("total_spent", 0) + cost
-        wtp["last_updated"] = datetime.now(timezone.utc).isoformat()
-
-        with open(BUDGET_FILE, "w") as f:
-            json.dump(ledger, f, indent=2)
-    except Exception as e:
-        logger.warning("Failed to record cost: %s", e)
+    from services.budget import record_spend
+    record_spend(cost, model="claude-sonnet-4-20250514")
 
 
 def _generate_story_text(evidence: Dict[str, Any], category: str) -> Optional[Dict[str, str]]:
