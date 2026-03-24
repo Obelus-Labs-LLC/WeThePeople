@@ -35,6 +35,7 @@ WeThePeople is an open-source civic transparency platform that tracks how corpor
 | **[WeThePeople](https://wethepeopleforus.com)** | Live | The core lobbying and influence tracker. Congressional trades, money flows, enforcement actions, lobbying filings, government contracts. 1,000+ tracked entities across 8 sectors. |
 | **WTP Research** | Coming soon | Deep-dive research tools. Patent explorer, drug lookup, clinical trial pipelines, insider trade analysis, company financials, and SEC filing search. |
 | **The Influence Journal** | Coming soon | Data-driven stories and investigations. Weekly newsletter. Anomaly-detected leads. Every claim cited against the public record. |
+| **Mobile App** | Coming soon | iOS and Android via Expo. Full parity with the web platform — 74 screens across all 8 sectors, influence tools, claim verification, and AI chat. Available via Expo Go during preview. |
 
 ---
 
