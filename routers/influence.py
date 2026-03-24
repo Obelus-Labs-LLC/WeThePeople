@@ -18,6 +18,7 @@ from models.tech_models import TrackedTechCompany, LobbyingRecord, GovernmentCon
 from models.energy_models import (
     TrackedEnergyCompany, EnergyLobbyingRecord, EnergyGovernmentContract, EnergyEnforcement,
 )
+from models.government_data_models import RegulatoryComment
 
 import time as _time
 
@@ -589,5 +590,48 @@ def get_money_flow(
             links.append({"source": pac_node, "target": donations_node, "value": agg_total})
 
         return {"nodes": nodes, "links": links}
+    finally:
+        db.close()
+
+
+# ── Regulatory Comments (cross-sector) ──────────────────────────────────
+
+
+@router.get("/regulatory-comments/{company_id}")
+def get_regulatory_comments(
+    company_id: str,
+    agency_id: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Get regulatory comments by a company across all agencies."""
+    db = SessionLocal()
+    try:
+        query = db.query(RegulatoryComment).filter(RegulatoryComment.company_id == company_id)
+        if agency_id:
+            query = query.filter(RegulatoryComment.agency_id == agency_id)
+
+        total = query.count()
+        comments = query.order_by(desc(RegulatoryComment.posted_date)).offset(offset).limit(limit).all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "comments": [
+                {
+                    "id": c.id,
+                    "comment_id": c.comment_id,
+                    "document_id": c.document_id,
+                    "docket_id": c.docket_id,
+                    "agency_id": c.agency_id,
+                    "title": c.title,
+                    "posted_date": str(c.posted_date) if c.posted_date else None,
+                    "commenter_name": c.commenter_name,
+                    "comment_text": c.comment_text,
+                }
+                for c in comments
+            ],
+        }
     finally:
         db.close()

@@ -16,6 +16,7 @@ from models.defense_models import (
 )
 from models.market_models import StockFundamentals
 from models.database import CompanyDonation
+from models.government_data_models import SAMExclusion, SAMEntity
 
 router = APIRouter(prefix="/defense", tags=["defense"])
 
@@ -558,6 +559,74 @@ def get_defense_company_trends(company_id: str):
                 "contracts": [contracts_by_year.get(y, 0) for y in years],
                 "enforcement": [enforcement_by_year.get(y, 0) for y in years],
             },
+        }
+    finally:
+        db.close()
+
+
+# ── SAM.gov Data ────────────────────────────────────────────────────────
+
+
+@router.get("/companies/{company_id}/exclusions")
+def get_defense_company_exclusions(company_id: str):
+    """Get SAM.gov exclusion (debarment/suspension) records for a defense company."""
+    db = SessionLocal()
+    try:
+        exclusions = (
+            db.query(SAMExclusion)
+            .filter(SAMExclusion.company_id == company_id)
+            .order_by(desc(SAMExclusion.activation_date))
+            .all()
+        )
+        return {
+            "total": len(exclusions),
+            "exclusions": [
+                {
+                    "id": e.id,
+                    "sam_number": e.sam_number,
+                    "entity_name": e.entity_name,
+                    "exclusion_type": e.exclusion_type,
+                    "excluding_agency": e.excluding_agency,
+                    "classification": e.classification,
+                    "activation_date": str(e.activation_date) if e.activation_date else None,
+                    "termination_date": str(e.termination_date) if e.termination_date else None,
+                    "description": e.description,
+                }
+                for e in exclusions
+            ],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/companies/{company_id}/sam-entity")
+def get_defense_company_sam_entity(company_id: str):
+    """Get SAM.gov entity registration data (UEI, CAGE, NAICS, parent/subsidiary)."""
+    db = SessionLocal()
+    try:
+        entities = (
+            db.query(SAMEntity)
+            .filter(SAMEntity.company_id == company_id)
+            .all()
+        )
+        return {
+            "total": len(entities),
+            "entities": [
+                {
+                    "id": e.id,
+                    "uei": e.uei,
+                    "cage_code": e.cage_code,
+                    "legal_business_name": e.legal_business_name,
+                    "dba_name": e.dba_name,
+                    "physical_address": e.physical_address,
+                    "naics_codes": e.naics_codes,
+                    "parent_uei": e.parent_uei,
+                    "parent_name": e.parent_name,
+                    "registration_status": e.registration_status,
+                    "exclusion_status_flag": e.exclusion_status_flag,
+                }
+                for e in entities
+            ],
         }
     finally:
         db.close()

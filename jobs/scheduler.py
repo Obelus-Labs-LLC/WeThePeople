@@ -258,6 +258,44 @@ JOB_REGISTRY: List[JobDef] = [
         description="Scan for suspicious patterns: trades near votes, lobbying spikes, enforcement gaps",
     ),
 
+    JobDef(
+        name="detect_stories",
+        script="jobs/detect_stories.py",
+        interval_hours=24,
+        timeout_sec=3600,
+        description="Detect interesting data patterns and generate story drafts via Claude",
+    ),
+
+    # ── New data source syncs ──────────────────────────────────────
+    JobDef(
+        name="sync_samgov",
+        script="jobs/sync_samgov.py",
+        interval_hours=24,
+        timeout_sec=600,
+        description="SAM.gov exclusions + entity registrations (10 req/day budget)",
+    ),
+    JobDef(
+        name="sync_regulatory_comments",
+        script="jobs/sync_regulatory_comments.py",
+        interval_hours=168,
+        timeout_sec=7200,
+        description="Corporate regulatory comments from Regulations.gov",
+    ),
+    JobDef(
+        name="sync_it_dashboard",
+        script="jobs/sync_it_dashboard.py",
+        interval_hours=168,
+        timeout_sec=1800,
+        description="Federal IT investment CIO ratings from IT Dashboard CSV",
+    ),
+    JobDef(
+        name="sync_site_scanning",
+        script="jobs/sync_site_scanning.py",
+        interval_hours=168,
+        timeout_sec=1800,
+        description="Government website tech footprint from GSA Site Scanning CSV",
+    ),
+
     # NOTE: twitter_bot.py is NOT in the scheduler — it runs via cron at specific times
     # (4x/day at fixed hours for optimal engagement, not on an interval).
 

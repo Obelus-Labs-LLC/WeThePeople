@@ -286,12 +286,33 @@ def generate_thread() -> tuple:
 
 # ── Category Rotation ──
 
+def generate_story_tweet():
+    """Generate a tweet from a published data story."""
+    data = api_get("/stories/latest", {"limit": 5})
+    stories = data.get("stories", [])
+    if not stories:
+        return generate_product_tweet()
+
+    story = random.choice(stories)
+    title = story.get("title", "")
+    summary = story.get("summary", "")
+    slug = story.get("slug", "")
+
+    if not title:
+        return generate_product_tweet()
+
+    text = f"{title}\n\n{summary}" if summary else title
+    link = f"{SITE}/stories/{slug}" if slug else SITE
+    return (text, link), "story"
+
+
 CATEGORIES = {
-    "data": (generate_data_tweet, 30),
-    "product": (generate_product_tweet, 30),
-    "thread": (generate_thread, 20),
-    "verify": (generate_verify_tweet, 10),
-    "engagement": (generate_engagement_tweet, 10),
+    "data": (generate_data_tweet, 25),
+    "product": (generate_product_tweet, 20),
+    "story": (generate_story_tweet, 25),
+    "thread": (generate_thread, 15),
+    "verify": (generate_verify_tweet, 8),
+    "engagement": (generate_engagement_tweet, 7),
 }
 
 
