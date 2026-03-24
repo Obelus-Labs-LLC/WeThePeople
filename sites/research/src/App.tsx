@@ -140,7 +140,7 @@ function HomePage() {
                     className="flex h-10 w-10 items-center justify-center rounded-lg mb-4"
                     style={{ background: `${tool.color}15` }}
                   >
-                    <Icon size={20} style={{ color: tool.color }} />
+                    <Icon size={20} color={tool.color} />
                   </div>
 
                   {/* Title */}
