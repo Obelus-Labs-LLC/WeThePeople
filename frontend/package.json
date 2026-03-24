@@ -32,7 +32,7 @@
     "react-force-graph-2d": "^1.29.1",
     "react-leaflet": "^5.0.0",
     "react-plotly.js": "^2.6.0",
-    "react-router-dom": "^6.30.3",
+    "react-router-dom": "^7.13.2",
     "shadcn": "^4.0.8",
     "tailwind-merge": "^3.5.0",
     "three": "^0.183.2",
