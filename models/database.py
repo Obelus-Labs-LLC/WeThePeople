@@ -558,6 +558,8 @@ import models.defense_models  # noqa: F401 — register defense tables for Alemb
 import models.state_models  # noqa: F401 — register state legislature tables
 import models.committee_models  # noqa: F401 — register committee tables
 import models.digest_models  # noqa: F401 — register digest subscriber table
+import models.stories_models  # noqa: F401 — register stories table
+import models.government_data_models  # noqa: F401 — register SAM, Regulations.gov, IT Dashboard, Site Scanning tables
 
 
 if __name__ == "__main__":

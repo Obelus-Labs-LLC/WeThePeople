@@ -170,10 +170,10 @@ const HomePage: React.FC = () => {
       {/* Dark overlay (fixed) */}
       <div className="fixed inset-0 bg-slate-950/75" />
       {/* FloatingLines over entire page (fixed) */}
-      <div className="fixed inset-0 opacity-40 mix-blend-screen">
+      <div className="fixed inset-0 opacity-20 mix-blend-screen">
         <FloatingLines
           linesGradient={['#e90101', '#fafafa', '#0804fb']}
-          animationSpeed={1}
+          animationSpeed={0.5}
         />
       </div>
       {/* Gradient fade (fixed) */}
@@ -205,7 +205,7 @@ const HomePage: React.FC = () => {
             />
           </h2>
 
-          <p className="text-slate-400 text-center max-w-lg mb-8">
+          <p className="text-white/80 text-center text-lg sm:text-xl max-w-lg mb-8 font-medium">
             Enter your zip code to see your representatives and who's paying them
           </p>
 
@@ -220,7 +220,7 @@ const HomePage: React.FC = () => {
                 zipInputRef.current.focus();
               }
             }}
-            className="flex items-center gap-3 mb-8"
+            className="flex items-center gap-3 mb-8 w-full max-w-lg justify-center"
           >
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400" />
@@ -233,7 +233,7 @@ const HomePage: React.FC = () => {
                 placeholder="Enter zip code"
                 value={zipCode}
                 onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
-                className="pl-10 pr-4 py-3 w-48 sm:w-56 rounded-lg bg-white/10 border border-white/20 text-white text-lg placeholder-white/30 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-all"
+                className="pl-10 pr-4 py-4 w-64 sm:w-80 rounded-lg bg-white/10 border border-white/20 text-white text-xl placeholder-white/30 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-all"
               />
             </div>
             <button

@@ -88,6 +88,8 @@ const VerifyResultPage = React.lazy(() => import("./pages/VerifyResultPage"));
 const VerifyEntityPage = React.lazy(() => import("./pages/VerifyEntityPage"));
 const VerifyMethodologyPage = React.lazy(() => import("./pages/VerifyMethodologyPage"));
 const DigestSignupPage = React.lazy(() => import("./pages/DigestSignupPage"));
+const StoriesPage = React.lazy(() => import("./pages/StoriesPage"));
+const StoryDetailPage = React.lazy(() => import("./pages/StoryDetailPage"));
 const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage"));
 const PrivacyPolicyPage = React.lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfUsePage = React.lazy(() => import("./pages/TermsOfUsePage"));
@@ -210,6 +212,10 @@ const App: React.FC = () => (
           <Route path="/verify/results/:id" element={<VerifyLayout><VerifyResultPage /></VerifyLayout>} />
           <Route path="/verify/entity/:type/:id" element={<VerifyLayout><VerifyEntityPage /></VerifyLayout>} />
           <Route path="/verify/methodology" element={<VerifyLayout><VerifyMethodologyPage /></VerifyLayout>} />
+
+          {/* Stories */}
+          <Route path="/stories" element={<StoriesPage />} />
+          <Route path="/stories/:slug" element={<StoryDetailPage />} />
 
           {/* Digest signup */}
           <Route path="/digest" element={<DigestSignupPage />} />

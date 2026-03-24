@@ -27,6 +27,7 @@ load_dotenv()
 from sqlalchemy import desc
 from models.database import SessionLocal, TrackedMember, CongressionalTrade, Vote, MemberVote, Anomaly
 from models.digest_models import DigestSubscriber
+from models.stories_models import Story
 
 import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -146,6 +147,26 @@ def generate_digest_for_subscriber(db, subscriber: DigestSubscriber) -> Dict[str
 
     reps = [_build_rep_digest(db, m, seven_days_ago) for m in members]
 
+    # Recent published stories (last 7 days)
+    recent_stories = (
+        db.query(Story)
+        .filter(Story.status == "published")
+        .filter(Story.published_at >= datetime.combine(seven_days_ago, datetime.min.time()).replace(tzinfo=timezone.utc))
+        .order_by(desc(Story.published_at))
+        .limit(3)
+        .all()
+    )
+    top_stories = [
+        {
+            "title": s.title,
+            "slug": s.slug,
+            "summary": s.summary,
+            "sector": s.sector,
+            "category": s.category,
+        }
+        for s in recent_stories
+    ]
+
     return {
         "subscriber": {
             "email": subscriber.email,
@@ -153,6 +174,7 @@ def generate_digest_for_subscriber(db, subscriber: DigestSubscriber) -> Dict[str
             "state": state,
         },
         "representatives": reps,
+        "top_stories": top_stories,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -168,10 +190,25 @@ def generate_preview(zip_code: str) -> Dict[str, Any]:
         members = _get_representatives(db, state)
         seven_days_ago = date.today() - timedelta(days=7)
         reps = [_build_rep_digest(db, m, seven_days_ago) for m in members]
+
+        recent_stories = (
+            db.query(Story)
+            .filter(Story.status == "published")
+            .filter(Story.published_at >= datetime.combine(seven_days_ago, datetime.min.time()).replace(tzinfo=timezone.utc))
+            .order_by(desc(Story.published_at))
+            .limit(3)
+            .all()
+        )
+        top_stories = [
+            {"title": s.title, "slug": s.slug, "summary": s.summary, "sector": s.sector}
+            for s in recent_stories
+        ]
+
         return {
             "zip_code": zip_code,
             "state": state,
             "representatives": reps,
+            "top_stories": top_stories,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
     finally:
