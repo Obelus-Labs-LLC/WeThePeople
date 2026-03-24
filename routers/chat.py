@@ -175,6 +175,12 @@ Available pages:
 def _call_haiku(question: str, context: Optional[dict] = None) -> dict:
     """Call Claude Haiku and parse the response."""
     from services.llm.client import get_llm_client
+    from services.budget import check_budget, record_spend, compute_cost
+
+    # Budget check before calling
+    allowed, remaining = check_budget(estimated_cost=0.005)
+    if not allowed:
+        return {"answer": "I'm temporarily unavailable. Please try again later.", "action": None, "cached": False}
 
     client = get_llm_client()
 
@@ -187,12 +193,20 @@ def _call_haiku(question: str, context: Optional[dict] = None) -> dict:
             user_message += f", viewing entity: {entity_id}"
         user_message += f"]\n\n{question}"
 
+    model = "claude-haiku-4-5-20251001"
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=model,
         max_tokens=500,
         system=CHAT_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
+
+    # Record spend
+    if hasattr(response, 'usage') and response.usage:
+        in_tok = getattr(response.usage, 'input_tokens', 0) or 0
+        out_tok = getattr(response.usage, 'output_tokens', 0) or 0
+        cost = compute_cost(model, in_tok, out_tok)
+        record_spend(cost, model, in_tok, out_tok)
 
     text = response.content[0].text.strip()
 

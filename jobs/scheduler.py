@@ -266,6 +266,16 @@ JOB_REGISTRY: List[JobDef] = [
         description="Detect interesting data patterns and generate story drafts via Claude",
     ),
 
+    # ── Daily AI summarization (runs after syncs, Haiku for bulk) ──
+    JobDef(
+        name="ai_summarize_daily",
+        script="jobs/ai_summarize.py",
+        args=["--votes", "--enforcement", "--contracts", "--lobbying", "--limit", "50"],
+        interval_hours=24,
+        timeout_sec=1800,  # 30 minutes
+        description="Haiku summaries for new unsummarized votes, enforcement, contracts, lobbying (50/run cap)",
+    ),
+
     # ── New data source syncs ──────────────────────────────────────
     JobDef(
         name="sync_samgov",

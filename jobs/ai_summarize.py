@@ -1,7 +1,7 @@
 """
 WeThePeople AI Summarization Pipeline
 ======================================
-Uses Claude Sonnet to generate plain-English summaries for:
+Uses Claude Haiku for bulk data and Sonnet for profiles to generate plain-English summaries for:
   1. Vote descriptions (what the vote was actually about)
   2. Enforcement action summaries (what happened and why it matters)
   3. Contract descriptions (plain-English contract purpose)
@@ -377,7 +377,7 @@ def summarize_votes(conn, limit: int = 0, dry_run: bool = False) -> int:
             "bill": f"{r['related_bill_type'] or ''} {r['related_bill_number'] or ''}".strip() or None,
         } for r in batch], indent=None)
 
-        result = call_claude(VOTE_SYSTEM, prompt)
+        result = call_claude(VOTE_SYSTEM, prompt, model=HAIKU_MODEL)
         if result is None:
             break  # Budget exceeded
 
@@ -431,7 +431,7 @@ def summarize_enforcement(conn, limit: int = 0, dry_run: bool = False) -> int:
                 "source": r["source"],
             } for r in batch], indent=None)
 
-            result = call_claude(ENFORCEMENT_SYSTEM, prompt)
+            result = call_claude(ENFORCEMENT_SYSTEM, prompt, model=HAIKU_MODEL)
             if result is None:
                 return total
 
@@ -626,7 +626,7 @@ def summarize_politician_profiles(conn, limit: int = 0, dry_run: bool = False) -
             "stock_trades": stats["trades"],
         })
 
-        result = call_claude(POLITICIAN_PROFILE_SYSTEM, prompt)
+        result = call_claude(POLITICIAN_PROFILE_SYSTEM, prompt, model=SONNET_MODEL)
         if result is None:
             break
 
@@ -731,7 +731,7 @@ def summarize_company_profiles(conn, limit: int = 0, dry_run: bool = False) -> i
                 "donations": {"count": don["cnt"] if don else 0, "total": don["total"] if don else 0},
             })
 
-            result = call_claude(COMPANY_PROFILE_SYSTEM, prompt)
+            result = call_claude(COMPANY_PROFILE_SYSTEM, prompt, model=SONNET_MODEL)
             if result is None:
                 return total
 
