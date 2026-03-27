@@ -132,7 +132,7 @@ def get_state_dashboard(code: str, db: Session = Depends(get_db)):
         "bill_id": b.bill_id,
         "identifier": b.identifier,
         "title": b.title,
-        "session": b.session,
+        "session": b.legislative_session,
         "latest_action": b.latest_action,
         "latest_action_date": str(b.latest_action_date) if b.latest_action_date else None,
         "sponsor_name": b.sponsor_name,
@@ -215,7 +215,7 @@ def get_state_bills(
             | (StateBill.sponsor_name.ilike(pattern))
         )
     if session:
-        query = query.filter(StateBill.session == session)
+        query = query.filter(StateBill.legislative_session == session)
 
     total = query.count()
     bills = query.order_by(desc(StateBill.latest_action_date)).offset(offset).limit(limit).all()
@@ -229,7 +229,7 @@ def get_state_bills(
             "bill_id": b.bill_id,
             "identifier": b.identifier,
             "title": b.title,
-            "session": b.session,
+            "session": b.legislative_session,
             "subjects": b.subjects,
             "latest_action": b.latest_action,
             "latest_action_date": str(b.latest_action_date) if b.latest_action_date else None,

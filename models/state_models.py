@@ -55,7 +55,7 @@ class StateBill(Base):
     id = Column(Integer, primary_key=True, index=True)
     bill_id = Column(String, nullable=False, index=True)  # e.g., "ny-2025-S1234"
     state = Column(String(2), nullable=False, index=True)
-    session = Column(String, nullable=True)
+    legislative_session = Column("legislative_session", String, nullable=True)  # renamed from 'session' (Oracle reserved word)
     identifier = Column(String, nullable=True)  # e.g., "S 1234"
     title = Column(String, nullable=True)
     subjects = Column(String, nullable=True)  # JSON array as string

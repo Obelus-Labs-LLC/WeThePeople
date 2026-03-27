@@ -152,7 +152,7 @@ def sync_bills(session, state: str, dry_run: bool = False, max_pages: int = 10) 
                 session.add(StateBill(
                     bill_id=bill_id,
                     state=bill["state"],
-                    session=bill["session"],
+                    legislative_session=bill["session"],
                     identifier=bill["identifier"],
                     title=bill["title"],
                     subjects=json.dumps(bill["subjects"]) if bill["subjects"] else None,
