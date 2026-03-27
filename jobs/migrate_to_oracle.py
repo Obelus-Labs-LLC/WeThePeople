@@ -171,6 +171,10 @@ def migrate_table(sqlite_engine, oracle_engine, table_name, batch_size=200, dry_
                 # Oracle DATE/TIMESTAMP columns need Python datetime objects, not ISO strings
                 elif isinstance(val, str) and len(val) >= 10:
                     val = _try_parse_datetime(val)
+                # Oracle VARCHAR2(4000) limit: truncate oversized strings
+                # (source data preserved in SQLite; Oracle schema can be fixed later with CLOB columns)
+                if isinstance(val, str) and len(val) > 4000:
+                    val = val[:3997] + "..."
                 d[bind_name] = val
             batch.append(d)
 
