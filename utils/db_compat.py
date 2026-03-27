@@ -10,10 +10,31 @@ Usage:
 """
 
 import os
-from sqlalchemy import func, text, literal_column
+from sqlalchemy import func, text, literal_column, event, JSON
 from sqlalchemy.sql import expression
+from sqlalchemy.types import TypeDecorator, Text as SAText
 
 DATABASE_URL = os.getenv("WTP_DB_URL") or "sqlite:///./wethepeople.db"
+
+
+# --- Oracle JSON compatibility ---
+# Oracle 19c doesn't have native JSON type in SQLAlchemy.
+# This hook remaps JSON columns to CLOB at DDL time for Oracle.
+
+def patch_json_for_oracle(metadata):
+    """Call before create_all() when targeting Oracle 19c.
+
+    Replaces JSON column types with Text (CLOB) since Oracle 19c
+    doesn't support the JSON DDL type through SQLAlchemy's Oracle dialect.
+    The data is still stored as JSON strings — just in CLOB columns.
+    """
+    if not is_oracle():
+        return
+    from sqlalchemy import Text
+    for table in metadata.tables.values():
+        for column in table.columns:
+            if isinstance(column.type, JSON):
+                column.type = Text()
 
 
 def is_sqlite() -> bool:
