@@ -23,6 +23,36 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from sqlalchemy import create_engine, text, inspect
+from datetime import datetime, date
+
+
+def _try_parse_datetime(val):
+    """Try to parse a string as a datetime/date. Returns original string if not a date."""
+    if not val or not isinstance(val, str):
+        return val
+    # Quick check: must start with 4-digit year
+    if len(val) < 10 or not val[:4].isdigit():
+        return val
+    # Try common datetime formats
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S.%f+00:00",
+        "%Y-%m-%dT%H:%M:%S+00:00",
+        "%Y-%m-%dT%H:%M:%S.%f",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S.%f",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+    ):
+        try:
+            return datetime.strptime(val[:len(val)], fmt)
+        except ValueError:
+            continue
+    # Try fromisoformat (Python 3.7+, handles timezone)
+    try:
+        return datetime.fromisoformat(val.replace("+00:00", "+00:00").rstrip("Z"))
+    except (ValueError, AttributeError):
+        pass
+    return val
 
 
 def get_sqlite_engine():
@@ -125,6 +155,9 @@ def migrate_table(sqlite_engine, oracle_engine, table_name, batch_size=200, dry_
                 # Oracle doesn't accept Python dicts/lists in CLOB — serialize to JSON string
                 if isinstance(val, (dict, list)):
                     val = json.dumps(val)
+                # Oracle DATE/TIMESTAMP columns need Python datetime objects, not ISO strings
+                elif isinstance(val, str) and len(val) >= 10:
+                    val = _try_parse_datetime(val)
                 d[oracle_col] = val
             batch.append(d)
 
