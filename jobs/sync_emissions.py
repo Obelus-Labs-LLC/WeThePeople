@@ -33,6 +33,7 @@ from connectors.epa_ghgrp import (
     _compute_hash,
     _safe_float,
 )
+from utils.db_compat import is_sqlite, set_pragmas_if_sqlite
 
 load_dotenv()
 
@@ -44,12 +45,13 @@ DB_PATH = os.getenv("DATABASE_URL", "sqlite:///wethepeople.db")
 engine = create_engine(DB_PATH, echo=False)
 
 
-@sa_event.listens_for(engine, "connect")
-def _set_sqlite_pragmas(dbapi_conn, connection_record):
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA busy_timeout=60000")
-    cursor.close()
+if is_sqlite():
+    @sa_event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=60000")
+        cursor.close()
 
 
 Session = sessionmaker(bind=engine)

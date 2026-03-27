@@ -5,9 +5,10 @@ Safe to re-run — uses CREATE INDEX IF NOT EXISTS.
 
 import os
 import sys
-import sqlite3
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.db_compat import is_sqlite
 
 DB_PATH = os.getenv("DATABASE_URL", "sqlite:///wethepeople.db").replace("sqlite:///", "")
 if not DB_PATH or DB_PATH.startswith("sqlite"):
@@ -113,6 +114,12 @@ indexes = [
 ]
 
 def main():
+    if not is_sqlite():
+        print("Skipping — indexes managed by Alembic on non-SQLite databases.")
+        return
+
+    import sqlite3
+
     print(f"Database: {DB_PATH}")
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")

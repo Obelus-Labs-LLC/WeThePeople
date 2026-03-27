@@ -17,6 +17,7 @@ from models.tech_models import (
 )
 from models.market_models import StockFundamentals
 from models.database import CompanyDonation
+from utils.db_compat import extract_year
 
 router = APIRouter(prefix="/tech", tags=["technology"])
 
@@ -219,7 +220,7 @@ def get_tech_company_enforcement(company_id: str, limit: int = Query(50, ge=1, l
 def get_tech_company_contract_trends(company_id: str, db: Session = Depends(get_db)):
     co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Tech company not found")
-    rows = db.query(func.strftime("%Y", GovernmentContract.start_date).label("year"), func.sum(GovernmentContract.award_amount).label("total_amount"), func.count(GovernmentContract.id).label("count")).filter_by(company_id=company_id).filter(GovernmentContract.start_date.isnot(None)).group_by("year").order_by("year").all()
+    rows = db.query(extract_year(GovernmentContract.start_date).label("year"), func.sum(GovernmentContract.award_amount).label("total_amount"), func.count(GovernmentContract.id).label("count")).filter_by(company_id=company_id).filter(GovernmentContract.start_date.isnot(None)).group_by("year").order_by("year").all()
     sorted_years = [{"year": r.year, "total_amount": float(r.total_amount or 0), "count": r.count} for r in rows]
     unknown_row = db.query(func.sum(GovernmentContract.award_amount).label("total_amount"), func.count(GovernmentContract.id).label("count")).filter_by(company_id=company_id).filter(GovernmentContract.start_date.is_(None)).first()
     if unknown_row and unknown_row.count > 0:
@@ -313,11 +314,11 @@ def get_tech_company_trends(company_id: str, db: Session = Depends(get_db)):
     min_year = 2018
     lobby_rows = db.query(LobbyingRecord.filing_year, func.count(LobbyingRecord.id)).filter_by(company_id=company_id).filter(LobbyingRecord.filing_year.isnot(None)).group_by(LobbyingRecord.filing_year).all()
     lobby_by_year = {int(r[0]): r[1] for r in lobby_rows if r[0]}
-    contract_rows = db.query(func.strftime('%Y', GovernmentContract.start_date).label("yr"), func.count(GovernmentContract.id)).filter_by(company_id=company_id).filter(GovernmentContract.start_date.isnot(None)).group_by("yr").all()
+    contract_rows = db.query(extract_year(GovernmentContract.start_date).label("yr"), func.count(GovernmentContract.id)).filter_by(company_id=company_id).filter(GovernmentContract.start_date.isnot(None)).group_by("yr").all()
     contracts_by_year = {int(r[0]): r[1] for r in contract_rows if r[0]}
-    enforcement_rows = db.query(func.strftime('%Y', FTCEnforcement.case_date).label("yr"), func.count(FTCEnforcement.id)).filter_by(company_id=company_id).filter(FTCEnforcement.case_date.isnot(None)).group_by("yr").all()
+    enforcement_rows = db.query(extract_year(FTCEnforcement.case_date).label("yr"), func.count(FTCEnforcement.id)).filter_by(company_id=company_id).filter(FTCEnforcement.case_date.isnot(None)).group_by("yr").all()
     enforcement_by_year = {int(r[0]): r[1] for r in enforcement_rows if r[0]}
-    patent_rows = db.query(func.strftime('%Y', TechPatent.filing_date).label("yr"), func.count(TechPatent.id)).filter_by(company_id=company_id).filter(TechPatent.filing_date.isnot(None)).group_by("yr").all()
+    patent_rows = db.query(extract_year(TechPatent.filing_date).label("yr"), func.count(TechPatent.id)).filter_by(company_id=company_id).filter(TechPatent.filing_date.isnot(None)).group_by("yr").all()
     patents_by_year = {int(r[0]): r[1] for r in patent_rows if r[0]}
     all_years_set = set(lobby_by_year) | set(contracts_by_year) | set(enforcement_by_year) | set(patents_by_year)
     all_years_set = {y for y in all_years_set if min_year <= y <= current_year}

@@ -11,7 +11,12 @@ Tables affected (13 total):
 Also adds ai_profile_summary to entity tables (5):
   - tracked_members, tracked_institutions, tracked_companies, tracked_tech_companies, tracked_energy_companies
 """
-import sqlite3
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.db_compat import is_sqlite
 
 DB_PATH = "wethepeople.db"
 
@@ -45,6 +50,12 @@ ENTITY_TABLES = [
 
 
 def migrate():
+    if not is_sqlite():
+        print("Skipping — use Alembic for schema migrations on non-SQLite databases.")
+        return
+
+    import sqlite3
+
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=60000")

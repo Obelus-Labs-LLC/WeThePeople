@@ -117,15 +117,17 @@ def record_error() -> None:
 # --- DB size helper ---
 
 def _get_db_size_bytes() -> int:
-    """Get SQLite database file size. Returns 0 for non-SQLite or missing file."""
+    """Get database file size. Returns file size for SQLite, 0 for other backends."""
     try:
-        from models.database import DATABASE_URL
-        if DATABASE_URL.startswith("sqlite"):
+        from utils.db_compat import is_sqlite
+        if is_sqlite():
+            from models.database import DATABASE_URL
             db_path = DATABASE_URL.replace("sqlite:///", "").replace("sqlite://", "")
             if db_path.startswith("./"):
                 db_path = db_path[2:]
             if os.path.exists(db_path):
                 return os.path.getsize(db_path)
+        # Oracle and PostgreSQL manage storage differently; return 0
     except Exception:
         pass
     return 0

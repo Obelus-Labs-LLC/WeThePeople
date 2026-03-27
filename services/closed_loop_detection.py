@@ -23,6 +23,8 @@ from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy import func, text, desc
 from sqlalchemy.orm import Session
 
+from utils.db_compat import limit_sql
+
 # Simple in-memory cache: key -> (timestamp, result)
 _cache: Dict[str, Tuple[float, Dict]] = {}
 _CACHE_TTL = 300  # 5 minutes
@@ -143,7 +145,7 @@ def find_closed_loops(
         GROUP BY entity_id, entity_type, person_id
         {having_clause}
         ORDER BY total_amount DESC
-        LIMIT 100
+        {limit_sql(100)}
     """)
     donation_pairs = db.execute(raw_sql, sql_params).fetchall()
     if not donation_pairs:

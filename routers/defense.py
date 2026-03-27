@@ -22,6 +22,7 @@ from models.defense_models import (
 from models.market_models import StockFundamentals
 from models.database import CompanyDonation
 from models.government_data_models import SAMExclusion, SAMEntity
+from utils.db_compat import extract_year
 
 router = APIRouter(prefix="/defense", tags=["defense"])
 
@@ -483,7 +484,7 @@ def get_defense_company_trends(company_id: str, db: Session = Depends(get_db)):
     # Contracts by start_date year
     contract_rows = (
         db.query(
-            func.strftime('%Y', DefenseGovernmentContract.start_date).label("yr"),
+            extract_year(DefenseGovernmentContract.start_date).label("yr"),
             func.count(DefenseGovernmentContract.id),
         )
         .filter_by(company_id=company_id)
@@ -495,7 +496,7 @@ def get_defense_company_trends(company_id: str, db: Session = Depends(get_db)):
     # Enforcement by case_date year
     enforcement_rows = (
         db.query(
-            func.strftime('%Y', DefenseEnforcement.case_date).label("yr"),
+            extract_year(DefenseEnforcement.case_date).label("yr"),
             func.count(DefenseEnforcement.id),
         )
         .filter_by(company_id=company_id)

@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.database import Base
 from models.state_models import StateLegislator, StateBill
 from connectors.openstates import fetch_state_legislators, fetch_state_bills
+from utils.db_compat import is_sqlite, set_pragmas_if_sqlite
 
 load_dotenv()
 
@@ -38,12 +39,13 @@ DB_PATH = os.getenv("DATABASE_URL", "sqlite:///wethepeople.db")
 
 engine = create_engine(DB_PATH, echo=False)
 
-@sa_event.listens_for(engine, "connect")
-def _set_sqlite_pragmas(dbapi_conn, connection_record):
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA busy_timeout=60000")
-    cursor.close()
+if is_sqlite():
+    @sa_event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=60000")
+        cursor.close()
 
 Session = sessionmaker(bind=engine)
 

@@ -28,6 +28,7 @@ from models.database import Base
 from models.health_models import TrackedCompany, HealthEnforcement
 from sqlalchemy import create_engine, event as sa_event
 from sqlalchemy.orm import sessionmaker
+from utils.db_compat import is_sqlite, set_pragmas_if_sqlite
 
 load_dotenv()
 
@@ -216,12 +217,13 @@ def main():
 
     engine = create_engine(DATABASE_URL)
 
-    @sa_event.listens_for(engine, "connect")
-    def _set_sqlite_pragmas(dbapi_conn, connection_record):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA busy_timeout=60000")
-        cursor.close()
+    if is_sqlite():
+        @sa_event.listens_for(engine, "connect")
+        def _set_sqlite_pragmas(dbapi_conn, connection_record):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA busy_timeout=60000")
+            cursor.close()
 
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)

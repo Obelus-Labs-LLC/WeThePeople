@@ -22,6 +22,7 @@ from models.energy_models import (
 )
 from models.market_models import StockFundamentals
 from models.database import CompanyDonation
+from utils.db_compat import extract_year
 
 router = APIRouter(prefix="/energy", tags=["energy"])
 
@@ -294,9 +295,9 @@ def get_energy_company_trends(company_id: str, db: Session = Depends(get_db)):
     min_year = 2018
     lobby_rows = db.query(EnergyLobbyingRecord.filing_year, func.count(EnergyLobbyingRecord.id)).filter_by(company_id=company_id).filter(EnergyLobbyingRecord.filing_year.isnot(None)).group_by(EnergyLobbyingRecord.filing_year).all()
     lobby_by_year = {int(r[0]): r[1] for r in lobby_rows if r[0]}
-    contract_rows = db.query(func.strftime('%Y', EnergyGovernmentContract.start_date).label("yr"), func.count(EnergyGovernmentContract.id)).filter_by(company_id=company_id).filter(EnergyGovernmentContract.start_date.isnot(None)).group_by("yr").all()
+    contract_rows = db.query(extract_year(EnergyGovernmentContract.start_date).label("yr"), func.count(EnergyGovernmentContract.id)).filter_by(company_id=company_id).filter(EnergyGovernmentContract.start_date.isnot(None)).group_by("yr").all()
     contracts_by_year = {int(r[0]): r[1] for r in contract_rows if r[0]}
-    enforcement_rows = db.query(func.strftime('%Y', EnergyEnforcement.case_date).label("yr"), func.count(EnergyEnforcement.id)).filter_by(company_id=company_id).filter(EnergyEnforcement.case_date.isnot(None)).group_by("yr").all()
+    enforcement_rows = db.query(extract_year(EnergyEnforcement.case_date).label("yr"), func.count(EnergyEnforcement.id)).filter_by(company_id=company_id).filter(EnergyEnforcement.case_date.isnot(None)).group_by("yr").all()
     enforcement_by_year = {int(r[0]): r[1] for r in enforcement_rows if r[0]}
     emission_rows = db.query(EnergyEmission.reporting_year, func.count(EnergyEmission.id)).filter_by(company_id=company_id).filter(EnergyEmission.reporting_year.isnot(None)).group_by(EnergyEmission.reporting_year).all()
     emissions_by_year = {int(r[0]): r[1] for r in emission_rows if r[0]}

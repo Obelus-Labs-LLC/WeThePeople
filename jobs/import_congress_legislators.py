@@ -46,6 +46,7 @@ from sqlalchemy.orm import sessionmaker
 from models.database import Base
 from models.committee_models import Committee, CommitteeMembership
 from models.database import TrackedMember
+from utils.db_compat import is_sqlite, set_pragmas_if_sqlite
 
 load_dotenv()
 
@@ -57,10 +58,10 @@ DB_PATH = os.getenv("WTP_DB_URL") or os.getenv("DATABASE_URL") or "sqlite:///wet
 
 def get_engine():
     kwargs = {}
-    if DB_PATH.startswith("sqlite"):
+    if is_sqlite():
         kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60}
     engine = create_engine(DB_PATH, echo=False, **kwargs)
-    if DB_PATH.startswith("sqlite"):
+    if is_sqlite():
         @event.listens_for(engine, "connect")
         def _set_sqlite_pragmas(dbapi_conn, connection_record):
             cursor = dbapi_conn.cursor()
