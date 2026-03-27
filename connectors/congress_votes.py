@@ -133,7 +133,7 @@ def ingest_vote_with_members(congress: int, chamber: str, roll_number: int, pers
             congress=congress,
             chamber=chamber.lower(),
             roll_number=roll_number,
-            session=vote_data.get("session"),
+            vote_session=vote_data.get("session"),
             question=vote_data.get("question"),
             vote_date=vote_date,
             related_bill_congress=bill_congress,

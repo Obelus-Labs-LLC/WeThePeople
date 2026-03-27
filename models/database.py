@@ -280,7 +280,7 @@ class Vote(Base):
     congress = Column(Integer, index=True, nullable=False)       # 118, 119, etc.
     chamber = Column(String, index=True, nullable=False)          # "house" or "senate"
     roll_number = Column(Integer, index=True, nullable=False)     # roll call number
-    session = Column(Integer, nullable=True)                      # 1, 2, etc.
+    vote_session = Column("vote_session", Integer, nullable=True)  # 1, 2, etc. — renamed from 'session' (Oracle reserved word)
     
     # Vote metadata
     question = Column(Text, nullable=True)                        # "On Passage", "On Agreeing to Amendment", etc.

@@ -65,7 +65,7 @@ def list_votes(
             "total": total, "limit": limit, "offset": offset,
             "votes": [{
                 "id": v.id, "congress": v.congress, "chamber": v.chamber,
-                "session": v.session, "roll_number": v.roll_number,
+                "session": v.vote_session, "roll_number": v.roll_number,
                 "vote_date": v.vote_date.isoformat() if v.vote_date else None,
                 "question": v.question, "result": v.result,
                 "related_bill_congress": v.related_bill_congress,
@@ -98,7 +98,7 @@ def get_vote(vote_id: int):
 
         return {
             "id": v.id, "congress": v.congress, "chamber": v.chamber,
-            "session": v.session, "roll_number": v.roll_number,
+            "session": v.vote_session, "roll_number": v.roll_number,
             "vote_date": v.vote_date.isoformat() if v.vote_date else None,
             "question": v.question, "result": v.result,
             "related_bill_congress": v.related_bill_congress,
