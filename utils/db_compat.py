@@ -35,13 +35,22 @@ def patch_types_for_oracle(metadata):
         return
     from sqlalchemy import Text, String
     from sqlalchemy.types import String as SAString
+    # Oracle reserved words that may be used as column names
+    ORACLE_RESERVED = {
+        'session', 'comment', 'order', 'group', 'user', 'date', 'number',
+        'level', 'size', 'type', 'key', 'index', 'resource', 'share',
+        'start', 'end', 'mode', 'uid', 'timestamp',
+    }
     for table in metadata.tables.values():
         for column in table.columns:
             if isinstance(column.type, JSON):
                 column.type = Text()
             elif isinstance(column.type, SAString) and not column.type.length:
-                # Oracle requires VARCHAR2(N) — default to 4000 (Oracle max)
                 column.type = SAString(4000)
+            # Quote column names that are Oracle reserved words
+            if column.name.lower() in ORACLE_RESERVED and not column.name.startswith('"'):
+                column.name = column.key  # keep Python attribute name
+                column.quote = True  # force quoting in DDL
 
 
 def is_sqlite() -> bool:
