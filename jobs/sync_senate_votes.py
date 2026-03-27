@@ -460,7 +460,7 @@ def ingest_senate_vote(
             congress=congress,
             chamber="senate",
             roll_number=roll_number,
-            session=session,
+            vote_session=session,
             question=vote_data.get("question"),
             vote_date=vote_data.get("vote_date"),
             related_bill_congress=congress,
