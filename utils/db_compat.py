@@ -21,20 +21,27 @@ DATABASE_URL = os.getenv("WTP_DB_URL") or "sqlite:///./wethepeople.db"
 # Oracle 19c doesn't have native JSON type in SQLAlchemy.
 # This hook remaps JSON columns to CLOB at DDL time for Oracle.
 
-def patch_json_for_oracle(metadata):
+def patch_types_for_oracle(metadata):
     """Call before create_all() when targeting Oracle 19c.
 
-    Replaces JSON column types with Text (CLOB) since Oracle 19c
-    doesn't support the JSON DDL type through SQLAlchemy's Oracle dialect.
-    The data is still stored as JSON strings — just in CLOB columns.
+    Fixes two Oracle incompatibilities:
+    1. JSON → CLOB (Oracle 19c doesn't support JSON DDL through SQLAlchemy)
+    2. VARCHAR2 without length → VARCHAR2(4000) (Oracle requires explicit lengths)
+
+    The data is still stored as JSON strings in CLOB columns, and varchar
+    data works the same — just with an explicit max length.
     """
     if not is_oracle():
         return
-    from sqlalchemy import Text
+    from sqlalchemy import Text, String
+    from sqlalchemy.types import String as SAString
     for table in metadata.tables.values():
         for column in table.columns:
             if isinstance(column.type, JSON):
                 column.type = Text()
+            elif isinstance(column.type, SAString) and not column.type.length:
+                # Oracle requires VARCHAR2(N) — default to 4000 (Oracle max)
+                column.type = SAString(4000)
 
 
 def is_sqlite() -> bool:
