@@ -69,10 +69,16 @@ def get_oracle_engine():
 
 
 # Column rename map: SQLite column name -> Oracle column name
+# These columns were renamed because they're Oracle reserved words
 COLUMN_RENAMES = {
     "votes": {"session": "vote_session"},
     "state_bills": {"session": "legislative_session"},
 }
+
+# Columns to skip during migration (Oracle reserved words that exist in the DDL
+# but may cause issues). The migration script quotes column names, so most work
+# as-is. Only add here if a column consistently fails.
+SKIP_COLUMNS = {}
 
 
 def migrate_table(sqlite_engine, oracle_engine, table_name, batch_size=200, dry_run=False):
@@ -108,12 +114,14 @@ def migrate_table(sqlite_engine, oracle_engine, table_name, batch_size=200, dry_
         result = conn.execute(text(f"PRAGMA table_info('{table_name}')"))
         sqlite_columns = [row[1] for row in result]
 
-    # Get column info from Oracle
+    # Get column info from Oracle (preserve exact case — Oracle is case-sensitive with quoted identifiers)
     with oracle_engine.connect() as conn:
         result = conn.execute(text(
             f"SELECT column_name FROM all_tab_columns WHERE table_name = '{table_name.upper()}' ORDER BY column_id"
         ))
-        oracle_columns = {row[0].lower() for row in result}
+        # Map lowercase name -> exact Oracle name (preserves case for quoted columns)
+        oracle_columns_exact = {row[0].lower(): row[0] for row in result}
+        oracle_columns = set(oracle_columns_exact.keys())
 
     # Map SQLite columns to Oracle columns (handle renames)
     renames = COLUMN_RENAMES.get(table_name, {})
@@ -128,8 +136,12 @@ def migrate_table(sqlite_engine, oracle_engine, table_name, batch_size=200, dry_
         return 0
 
     select_cols = ", ".join(f'"{c}"' for c in col_map.keys())
-    insert_cols = ", ".join(f'"{c.upper()}"' for c in col_map.values())
-    placeholders = ", ".join(f":{c}" for c in col_map.values())
+    # Use exact Oracle column names (case-sensitive with quoted identifiers)
+    oracle_exact_names = {v.lower(): oracle_columns_exact.get(v.lower(), v.upper()) for v in col_map.values()}
+    insert_cols = ", ".join(f'"{oracle_exact_names[c.lower()]}"' for c in col_map.values())
+    # Bind parameter names (must be simple identifiers, no quotes)
+    bind_names = [c.replace('"', '').lower() for c in col_map.values()]
+    placeholders = ", ".join(f":{b}" for b in bind_names)
 
     # Read and insert in batches
     migrated = 0
@@ -146,11 +158,12 @@ def migrate_table(sqlite_engine, oracle_engine, table_name, batch_size=200, dry_
         if not rows:
             break
 
-        # Convert to dicts with Oracle column names
+        # Convert to dicts with bind parameter names
+        col_keys = list(col_map.keys())
         batch = []
         for row in rows:
             d = {}
-            for i, (sqlite_col, oracle_col) in enumerate(col_map.items()):
+            for i, bind_name in enumerate(bind_names):
                 val = row[i]
                 # Oracle doesn't accept Python dicts/lists in CLOB — serialize to JSON string
                 if isinstance(val, (dict, list)):
@@ -158,7 +171,7 @@ def migrate_table(sqlite_engine, oracle_engine, table_name, batch_size=200, dry_
                 # Oracle DATE/TIMESTAMP columns need Python datetime objects, not ISO strings
                 elif isinstance(val, str) and len(val) >= 10:
                     val = _try_parse_datetime(val)
-                d[oracle_col] = val
+                d[bind_name] = val
             batch.append(d)
 
         # Insert into Oracle
