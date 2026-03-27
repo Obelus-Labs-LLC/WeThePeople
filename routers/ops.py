@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from models.database import get_db, DATABASE_URL, engine
 from services.auth import require_press_key
+from utils.db_compat import is_sqlite, is_oracle, all_tables_sql, index_count_sql, table_row_count_sql
 from utils.logging import get_logger
 
 router = APIRouter(prefix="/ops", tags=["ops"], dependencies=[Depends(require_press_key)])
@@ -393,14 +394,34 @@ def pipeline_quality(db: Session = Depends(get_db)):
         run_check(name, query, threshold=threshold, check_type="null_rate")
 
     # 2. Stale data checks — tables that should have recent data
-    stale_checks = [
-        ("votes_staleness_days",
-         "SELECT CAST(julianday('now') - julianday(MAX(date)) AS INTEGER) FROM votes",
-         14),
-        ("congressional_trades_staleness_days",
-         "SELECT CAST(julianday('now') - julianday(MAX(transaction_date)) AS INTEGER) FROM congressional_trades",
-         14),
-    ]
+    if is_sqlite():
+        stale_checks = [
+            ("votes_staleness_days",
+             "SELECT CAST(julianday('now') - julianday(MAX(date)) AS INTEGER) FROM votes",
+             14),
+            ("congressional_trades_staleness_days",
+             "SELECT CAST(julianday('now') - julianday(MAX(transaction_date)) AS INTEGER) FROM congressional_trades",
+             14),
+        ]
+    elif is_oracle():
+        stale_checks = [
+            ("votes_staleness_days",
+             "SELECT TRUNC(SYSDATE - MAX(\"date\")) FROM votes",
+             14),
+            ("congressional_trades_staleness_days",
+             "SELECT TRUNC(SYSDATE - MAX(transaction_date)) FROM congressional_trades",
+             14),
+        ]
+    else:
+        # PostgreSQL
+        stale_checks = [
+            ("votes_staleness_days",
+             "SELECT EXTRACT(DAY FROM NOW() - MAX(date))::INTEGER FROM votes",
+             14),
+            ("congressional_trades_staleness_days",
+             "SELECT EXTRACT(DAY FROM NOW() - MAX(transaction_date))::INTEGER FROM congressional_trades",
+             14),
+        ]
     for name, query, threshold in stale_checks:
         run_check(name, query, threshold=threshold, check_type="staleness")
 
@@ -440,35 +461,36 @@ def db_stats(db: Session = Depends(get_db)):
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    # File size (SQLite only)
-    db_path = _get_db_path()
-    if db_path and os.path.exists(db_path):
-        size_bytes = os.path.getsize(db_path)
-        stats["file_size_bytes"] = size_bytes
-        stats["file_size_mb"] = round(size_bytes / (1024 * 1024), 1)
+    # Database size
+    if is_sqlite():
+        db_path = _get_db_path()
+        if db_path and os.path.exists(db_path):
+            size_bytes = os.path.getsize(db_path)
+            stats["file_size_bytes"] = size_bytes
+            stats["file_size_mb"] = round(size_bytes / (1024 * 1024), 1)
 
-        # WAL file size
-        wal_path = db_path + "-wal"
-        if os.path.exists(wal_path):
-            stats["wal_size_mb"] = round(os.path.getsize(wal_path) / (1024 * 1024), 1)
+            # WAL file size
+            wal_path = db_path + "-wal"
+            if os.path.exists(wal_path):
+                stats["wal_size_mb"] = round(os.path.getsize(wal_path) / (1024 * 1024), 1)
+    elif is_oracle():
+        try:
+            size_row = db.execute(text("SELECT SUM(bytes) FROM user_segments")).fetchone()
+            if size_row and size_row[0]:
+                stats["file_size_bytes"] = int(size_row[0])
+                stats["file_size_mb"] = round(int(size_row[0]) / (1024 * 1024), 1)
+        except Exception:
+            pass
 
     # Table row counts
     tables: List[Dict[str, Any]] = []
     try:
-        if DATABASE_URL.startswith("sqlite"):
-            rows = db.execute(text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
-            )).fetchall()
-            table_names = [r[0] for r in rows]
-        else:
-            rows = db.execute(text(
-                "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
-            )).fetchall()
-            table_names = [r[0] for r in rows]
+        rows = db.execute(text(all_tables_sql())).fetchall()
+        table_names = [r[0] for r in rows]
 
         for tname in table_names:
             try:
-                count = db.execute(text(f"SELECT COUNT(*) FROM \"{tname}\"")).fetchone()[0]
+                count = db.execute(text(table_row_count_sql(tname))).fetchone()[0]
                 tables.append({"table": tname, "rows": count})
             except Exception:
                 tables.append({"table": tname, "rows": None, "error": "count failed"})
@@ -482,33 +504,27 @@ def db_stats(db: Session = Depends(get_db)):
     stats["total_tables"] = len(tables)
     stats["total_rows"] = sum(t.get("rows") or 0 for t in tables)
 
-    # Index count (SQLite)
+    # Index count
     try:
-        if DATABASE_URL.startswith("sqlite"):
-            idx_count = db.execute(text(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='index'"
-            )).fetchone()[0]
-            stats["index_count"] = idx_count
-        else:
-            idx_count = db.execute(text(
-                "SELECT COUNT(*) FROM pg_indexes WHERE schemaname='public'"
-            )).fetchone()[0]
-            stats["index_count"] = idx_count
+        idx_count = db.execute(text(index_count_sql())).fetchone()[0]
+        stats["index_count"] = idx_count
     except Exception:
         stats["index_count"] = None
 
-    # Disk usage (overall)
-    try:
-        if db_path:
-            import shutil
-            total, used, free = shutil.disk_usage(os.path.dirname(db_path) or ".")
-            stats["disk"] = {
-                "total_gb": round(total / (1024**3), 1),
-                "used_gb": round(used / (1024**3), 1),
-                "free_gb": round(free / (1024**3), 1),
-                "usage_pct": round(100 * used / total, 1),
-            }
-    except Exception:
-        pass
+    # Disk usage (SQLite only — file-based)
+    if is_sqlite():
+        try:
+            db_path = _get_db_path()
+            if db_path:
+                import shutil
+                total, used, free = shutil.disk_usage(os.path.dirname(db_path) or ".")
+                stats["disk"] = {
+                    "total_gb": round(total / (1024**3), 1),
+                    "used_gb": round(used / (1024**3), 1),
+                    "free_gb": round(free / (1024**3), 1),
+                    "usage_pct": round(100 * used / total, 1),
+                }
+        except Exception:
+            pass
 
     return stats

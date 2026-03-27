@@ -18,6 +18,7 @@ from models.finance_models import (
 )
 from models.database import CompanyDonation
 from models.market_models import StockFundamentals
+from utils.db_compat import extract_year
 from models.response_schemas import FinanceDashboardStats
 
 router = APIRouter(prefix="/finance", tags=["finance"])
@@ -322,9 +323,9 @@ def get_institution_trends(institution_id: str, db: Session = Depends(get_db)):
     min_year = 2018
     lobby_rows = db.query(FinanceLobbyingRecord.filing_year, func.count(FinanceLobbyingRecord.id)).filter_by(institution_id=institution_id).filter(FinanceLobbyingRecord.filing_year.isnot(None)).group_by(FinanceLobbyingRecord.filing_year).all()
     lobby_by_year = {int(r[0]): r[1] for r in lobby_rows if r[0]}
-    contract_rows = db.query(func.strftime('%Y', FinanceGovernmentContract.start_date).label("yr"), func.count(FinanceGovernmentContract.id)).filter_by(institution_id=institution_id).filter(FinanceGovernmentContract.start_date.isnot(None)).group_by("yr").all()
+    contract_rows = db.query(extract_year(FinanceGovernmentContract.start_date).label("yr"), func.count(FinanceGovernmentContract.id)).filter_by(institution_id=institution_id).filter(FinanceGovernmentContract.start_date.isnot(None)).group_by("yr").all()
     contracts_by_year = {int(r[0]): r[1] for r in contract_rows if r[0]}
-    enforcement_rows = db.query(func.strftime('%Y', FinanceEnforcement.case_date).label("yr"), func.count(FinanceEnforcement.id)).filter_by(institution_id=institution_id).filter(FinanceEnforcement.case_date.isnot(None)).group_by("yr").all()
+    enforcement_rows = db.query(extract_year(FinanceEnforcement.case_date).label("yr"), func.count(FinanceEnforcement.id)).filter_by(institution_id=institution_id).filter(FinanceEnforcement.case_date.isnot(None)).group_by("yr").all()
     enforcement_by_year = {int(r[0]): r[1] for r in enforcement_rows if r[0]}
     all_years_set = set(lobby_by_year) | set(contracts_by_year) | set(enforcement_by_year)
     all_years_set = {y for y in all_years_set if min_year <= y <= current_year}

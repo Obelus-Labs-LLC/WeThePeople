@@ -14,7 +14,12 @@ Columns added:
   - sanctions_data TEXT (JSON blob with best match details)
   - sanctions_checked_at DATETIME (when last checked)
 """
-import sqlite3
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.db_compat import is_sqlite
 
 DB_PATH = "wethepeople.db"
 
@@ -34,6 +39,12 @@ COLUMNS = [
 
 
 def migrate():
+    if not is_sqlite():
+        print("Skipping — use Alembic for schema migrations on non-SQLite databases.")
+        return
+
+    import sqlite3
+
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=60000")

@@ -1,13 +1,23 @@
 """Add specific_issues column to all lobbying tables."""
 import os
-import sqlite3
+import sys
 from dotenv import load_dotenv
 
 load_dotenv()
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.db_compat import is_sqlite
+
 DB_PATH = os.getenv("DATABASE_URL", "sqlite:///wethepeople.db").replace("sqlite:///", "")
 
 def main():
+    if not is_sqlite():
+        print("Skipping — use Alembic for schema migrations on non-SQLite databases.")
+        return
+
+    import sqlite3
+
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=60000")

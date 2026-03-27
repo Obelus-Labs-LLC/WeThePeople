@@ -37,6 +37,11 @@ sys.path.insert(0, str(ROOT))
 from models.database import SessionLocal, CongressionalTrade
 from models.stories_models import Story
 from sqlalchemy import func, text
+from utils.db_compat import (
+    extract_year_week, group_concat, now_minus_days,
+    datetime_now_minus_days, current_year_sql, limit_sql,
+    is_oracle, is_sqlite, is_postgres,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -146,7 +151,7 @@ def detect_lobbying_spikes(db) -> List[Dict[str, Any]]:
                 GROUP BY company_id
                 HAVING prev_spend > 100000 AND curr_spend > prev_spend * 2
                 ORDER BY curr_spend DESC
-                LIMIT 5
+                {limit_sql(5)}
             """)
             rows = db.execute(sql, {"prev": prev_year, "curr": current_year}).fetchall()
 
@@ -174,18 +179,28 @@ def detect_trade_clusters(db) -> List[Dict[str, Any]]:
     """Find multiple congress members trading the same stock in the same week."""
     stories = []
     try:
-        sql = text("""
+        # Dialect-aware raw SQL fragments
+        if is_oracle():
+            _yw = "TO_CHAR(transaction_date, 'IYYY-IW')"
+            _gc = "LISTAGG(DISTINCT person_id, ',') WITHIN GROUP (ORDER BY person_id)"
+        elif is_postgres():
+            _yw = "TO_CHAR(transaction_date, 'IYYY-IW')"
+            _gc = "STRING_AGG(DISTINCT person_id::TEXT, ',')"
+        else:
+            _yw = "strftime('%Y-%W', transaction_date)"
+            _gc = "GROUP_CONCAT(DISTINCT person_id)"
+        sql = text(f"""
             SELECT ticker, transaction_type,
-                strftime('%Y-%W', transaction_date) as week,
+                {_yw} as week,
                 COUNT(DISTINCT person_id) as member_count,
-                GROUP_CONCAT(DISTINCT person_id) as members
+                {_gc} as members
             FROM congressional_trades
-            WHERE transaction_date >= date('now', '-30 days')
+            WHERE transaction_date >= {now_minus_days(30)}
                 AND ticker IS NOT NULL AND ticker != ''
             GROUP BY ticker, transaction_type, week
             HAVING member_count >= 3
             ORDER BY member_count DESC
-            LIMIT 5
+            {limit_sql(5)}
         """)
         rows = db.execute(sql).fetchall()
 
@@ -227,14 +242,14 @@ def detect_contract_windfalls(db) -> List[Dict[str, Any]]:
                 JOIN (
                     SELECT company_id, SUM(COALESCE(income, 0)) as total_lobby
                     FROM {lt}
-                    WHERE filing_year >= strftime('%Y', 'now') - 1
+                    WHERE filing_year >= {current_year_sql()} - 1
                     GROUP BY company_id
                     HAVING total_lobby > 500000
                 ) l ON c.company_id = l.company_id
                 WHERE c.award_amount > 10000000
-                    AND c.start_date >= date('now', '-90 days')
+                    AND c.start_date >= {now_minus_days(90)}
                 ORDER BY c.award_amount DESC
-                LIMIT 3
+                {limit_sql(3)}
             """)
             rows = db.execute(sql).fetchall()
 
@@ -346,7 +361,7 @@ def main():
             slug_prefix = f"{category}-{company_id}" if company_id else category
             existing = db.query(Story).filter(
                 Story.slug.like(f"{slug_prefix}%"),
-                Story.created_at >= text("datetime('now', '-7 days')"),
+                Story.created_at >= text(datetime_now_minus_days(7)),
             ).first()
             if existing:
                 logger.info("Skipping %s — similar story exists: %s", category, existing.slug)

@@ -18,6 +18,7 @@ from models.health_models import (
 )
 from models.database import CompanyDonation
 from models.market_models import StockFundamentals
+from utils.db_compat import extract_year
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -271,11 +272,11 @@ def get_health_company_trends(company_id: str, db: Session = Depends(get_db)):
     min_year = 2018
     lobby_rows = db.query(HealthLobbyingRecord.filing_year, func.count(HealthLobbyingRecord.id)).filter_by(company_id=company_id).filter(HealthLobbyingRecord.filing_year.isnot(None)).group_by(HealthLobbyingRecord.filing_year).all()
     lobby_by_year = {int(r[0]): r[1] for r in lobby_rows if r[0]}
-    contract_rows = db.query(func.strftime('%Y', HealthGovernmentContract.start_date).label("yr"), func.count(HealthGovernmentContract.id)).filter_by(company_id=company_id).filter(HealthGovernmentContract.start_date.isnot(None)).group_by("yr").all()
+    contract_rows = db.query(extract_year(HealthGovernmentContract.start_date).label("yr"), func.count(HealthGovernmentContract.id)).filter_by(company_id=company_id).filter(HealthGovernmentContract.start_date.isnot(None)).group_by("yr").all()
     contracts_by_year = {int(r[0]): r[1] for r in contract_rows if r[0]}
-    enforcement_rows = db.query(func.strftime('%Y', HealthEnforcement.case_date).label("yr"), func.count(HealthEnforcement.id)).filter_by(company_id=company_id).filter(HealthEnforcement.case_date.isnot(None)).group_by("yr").all()
+    enforcement_rows = db.query(extract_year(HealthEnforcement.case_date).label("yr"), func.count(HealthEnforcement.id)).filter_by(company_id=company_id).filter(HealthEnforcement.case_date.isnot(None)).group_by("yr").all()
     enforcement_by_year = {int(r[0]): r[1] for r in enforcement_rows if r[0]}
-    trial_rows = db.query(func.strftime('%Y', ClinicalTrial.start_date).label("yr"), func.count(ClinicalTrial.id)).filter_by(company_id=company_id).filter(ClinicalTrial.start_date.isnot(None)).group_by("yr").all()
+    trial_rows = db.query(extract_year(ClinicalTrial.start_date).label("yr"), func.count(ClinicalTrial.id)).filter_by(company_id=company_id).filter(ClinicalTrial.start_date.isnot(None)).group_by("yr").all()
     trials_by_year = {int(r[0]): r[1] for r in trial_rows if r[0]}
     all_years_set = set(lobby_by_year) | set(contracts_by_year) | set(enforcement_by_year) | set(trials_by_year)
     all_years_set = {y for y in all_years_set if min_year <= y <= current_year}

@@ -25,6 +25,8 @@ from typing import Any, Dict, List, Optional, Set
 from sqlalchemy import func, desc
 from sqlalchemy.orm import Session
 
+from utils.db_compat import group_concat, extract_year
+
 from models.database import (
     CompanyDonation, CongressionalTrade, TrackedMember,
     MemberBillGroundTruth, Bill,
@@ -46,11 +48,6 @@ from models.energy_models import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-# NOTE: This module uses SQLite-specific functions throughout:
-#   - func.group_concat(...) — SQLite aggregate; PostgreSQL equivalent is string_agg()
-#   - func.strftime("%Y", ...) — SQLite date function; PostgreSQL equivalent is extract(year from ...)
-# If migrating to PostgreSQL, these calls must be updated.
-
 def _node_id(kind: str, value: Any) -> str:
     return f"{kind}:{value}"
 
@@ -178,7 +175,7 @@ def _expand_person(
             CompanyDonation.entity_id,
             func.sum(CompanyDonation.amount).label("total"),
             func.max(CompanyDonation.cycle).label("latest_cycle"),
-            func.group_concat(CompanyDonation.cycle.distinct()).label("all_cycles"),
+            group_concat(CompanyDonation.cycle.distinct()).label("all_cycles"),
         )
         .filter(CompanyDonation.person_id == person_id)
         .group_by(CompanyDonation.entity_type, CompanyDonation.entity_id)
@@ -354,7 +351,7 @@ def _expand_company(
             CompanyDonation.person_id,
             func.sum(CompanyDonation.amount).label("total"),
             func.max(CompanyDonation.cycle).label("latest_cycle"),
-            func.group_concat(CompanyDonation.cycle.distinct()).label("all_cycles"),
+            group_concat(CompanyDonation.cycle.distinct()).label("all_cycles"),
         )
         .filter(
             CompanyDonation.entity_type == entity_type,
@@ -410,7 +407,7 @@ def _expand_company(
                 FinanceLobbyingRecord.lobbying_issues,
                 func.sum(FinanceLobbyingRecord.income),
                 func.max(FinanceLobbyingRecord.filing_year),
-                func.group_concat(FinanceLobbyingRecord.filing_year.distinct()),
+                group_concat(FinanceLobbyingRecord.filing_year.distinct()),
             )
             .filter(FinanceLobbyingRecord.institution_id == entity_id)
             .group_by(FinanceLobbyingRecord.lobbying_issues)
@@ -424,7 +421,7 @@ def _expand_company(
                 HealthLobbyingRecord.lobbying_issues,
                 func.sum(HealthLobbyingRecord.income),
                 func.max(HealthLobbyingRecord.filing_year),
-                func.group_concat(HealthLobbyingRecord.filing_year.distinct()),
+                group_concat(HealthLobbyingRecord.filing_year.distinct()),
             )
             .filter(HealthLobbyingRecord.company_id == entity_id)
             .group_by(HealthLobbyingRecord.lobbying_issues)
@@ -438,7 +435,7 @@ def _expand_company(
                 LobbyingRecord.lobbying_issues,
                 func.sum(LobbyingRecord.income),
                 func.max(LobbyingRecord.filing_year),
-                func.group_concat(LobbyingRecord.filing_year.distinct()),
+                group_concat(LobbyingRecord.filing_year.distinct()),
             )
             .filter(LobbyingRecord.company_id == entity_id)
             .group_by(LobbyingRecord.lobbying_issues)
@@ -452,7 +449,7 @@ def _expand_company(
                 EnergyLobbyingRecord.lobbying_issues,
                 func.sum(EnergyLobbyingRecord.income),
                 func.max(EnergyLobbyingRecord.filing_year),
-                func.group_concat(EnergyLobbyingRecord.filing_year.distinct()),
+                group_concat(EnergyLobbyingRecord.filing_year.distinct()),
             )
             .filter(EnergyLobbyingRecord.company_id == entity_id)
             .group_by(EnergyLobbyingRecord.lobbying_issues)
@@ -503,7 +500,7 @@ def _expand_company(
                 func.sum(FinanceGovernmentContract.award_amount),
                 func.count(FinanceGovernmentContract.id),
                 func.max(FinanceGovernmentContract.start_date),
-                func.group_concat(func.strftime("%Y", FinanceGovernmentContract.start_date).distinct()),
+                group_concat(extract_year(FinanceGovernmentContract.start_date).distinct()),
             )
             .filter(FinanceGovernmentContract.institution_id == entity_id)
             .group_by(FinanceGovernmentContract.awarding_agency)
@@ -518,7 +515,7 @@ def _expand_company(
                 func.sum(HealthGovernmentContract.award_amount),
                 func.count(HealthGovernmentContract.id),
                 func.max(HealthGovernmentContract.start_date),
-                func.group_concat(func.strftime("%Y", HealthGovernmentContract.start_date).distinct()),
+                group_concat(extract_year(HealthGovernmentContract.start_date).distinct()),
             )
             .filter(HealthGovernmentContract.company_id == entity_id)
             .group_by(HealthGovernmentContract.awarding_agency)
@@ -533,7 +530,7 @@ def _expand_company(
                 func.sum(GovernmentContract.award_amount),
                 func.count(GovernmentContract.id),
                 func.max(GovernmentContract.start_date),
-                func.group_concat(func.strftime("%Y", GovernmentContract.start_date).distinct()),
+                group_concat(extract_year(GovernmentContract.start_date).distinct()),
             )
             .filter(GovernmentContract.company_id == entity_id)
             .group_by(GovernmentContract.awarding_agency)
@@ -548,7 +545,7 @@ def _expand_company(
                 func.sum(EnergyGovernmentContract.award_amount),
                 func.count(EnergyGovernmentContract.id),
                 func.max(EnergyGovernmentContract.start_date),
-                func.group_concat(func.strftime("%Y", EnergyGovernmentContract.start_date).distinct()),
+                group_concat(extract_year(EnergyGovernmentContract.start_date).distinct()),
             )
             .filter(EnergyGovernmentContract.company_id == entity_id)
             .group_by(EnergyGovernmentContract.awarding_agency)

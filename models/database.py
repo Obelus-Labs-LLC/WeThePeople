@@ -8,19 +8,31 @@ from sqlalchemy.sql import func
 
 DATABASE_URL = os.getenv("WTP_DB_URL") or "sqlite:///./wethepeople.db"
 
+# If DATABASE_URL starts with "oracle", build the full connection URL from env vars
+if DATABASE_URL.startswith("oracle"):
+    from utils.db_compat import get_oracle_connection_url
+    DATABASE_URL = get_oracle_connection_url()
+
 from utils.logging import get_logger as _get_logger
 _db_logger = _get_logger(__name__)
-_db_logger.info("Database: %s", DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else DATABASE_URL)
+# Log DB URL but mask credentials
+_safe_url = DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else DATABASE_URL
+_db_logger.info("Database: %s", _safe_url)
 
 # Slow query threshold (ms)
 _SLOW_QUERY_THRESHOLD_MS = 500
 
-# SQLite needs check_same_thread=False; PostgreSQL doesn't accept that arg
+# Dialect-specific engine configuration
 _engine_kwargs = {}
 if DATABASE_URL.startswith("sqlite"):
     _engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60}
+elif "oracle" in DATABASE_URL:
+    # Oracle: connection pooling + thick mode params
+    _engine_kwargs["pool_size"] = 10
+    _engine_kwargs["max_overflow"] = 20
+    _engine_kwargs["pool_pre_ping"] = True
 else:
-    # PostgreSQL: use connection pooling
+    # PostgreSQL: connection pooling
     _engine_kwargs["pool_size"] = 10
     _engine_kwargs["max_overflow"] = 20
     _engine_kwargs["pool_pre_ping"] = True

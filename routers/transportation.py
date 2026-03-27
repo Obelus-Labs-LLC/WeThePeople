@@ -25,6 +25,7 @@ from models.transportation_models import (
 )
 from models.market_models import StockFundamentals
 from models.database import CompanyDonation
+from utils.db_compat import extract_year
 
 router = APIRouter(prefix="/transportation", tags=["transportation"])
 
@@ -628,7 +629,7 @@ def get_transportation_company_trends(company_id: str, db: Session = Depends(get
     # Contracts by start_date year
     contract_rows = (
         db.query(
-            func.strftime('%Y', TransportationGovernmentContract.start_date).label("yr"),
+            extract_year(TransportationGovernmentContract.start_date).label("yr"),
             func.count(TransportationGovernmentContract.id),
         )
         .filter_by(company_id=company_id)
@@ -640,7 +641,7 @@ def get_transportation_company_trends(company_id: str, db: Session = Depends(get
     # Enforcement by case_date year
     enforcement_rows = (
         db.query(
-            func.strftime('%Y', TransportationEnforcement.case_date).label("yr"),
+            extract_year(TransportationEnforcement.case_date).label("yr"),
             func.count(TransportationEnforcement.id),
         )
         .filter_by(company_id=company_id)
@@ -652,7 +653,7 @@ def get_transportation_company_trends(company_id: str, db: Session = Depends(get
     # NHTSA Recalls by report_received_date year
     recall_rows = (
         db.query(
-            func.strftime('%Y', NHTSARecall.report_received_date).label("yr"),
+            extract_year(NHTSARecall.report_received_date).label("yr"),
             func.count(NHTSARecall.id),
         )
         .filter_by(company_id=company_id)

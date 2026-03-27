@@ -61,6 +61,9 @@ except ImportError:
         def _unlock_file(f):
             pass
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.db_compat import is_sqlite
+
 # ── Logging ──────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -263,8 +266,9 @@ def parse_json_response(text: str) -> Any:
 def get_db():
     """Get a SQLite connection with WAL mode."""
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=60000")
+    if is_sqlite():
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=60000")
     conn.row_factory = sqlite3.Row
     return conn
 

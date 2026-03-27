@@ -29,6 +29,7 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.database import Base, TrackedMember, CongressionalTrade
+from utils.db_compat import is_sqlite, set_pragmas_if_sqlite
 
 load_dotenv()
 
@@ -46,12 +47,13 @@ AINVEST_URL = "https://openapi.ainvest.com/open/ownership/congress"
 
 engine = create_engine(DB_PATH, connect_args={"check_same_thread": False} if "sqlite" in DB_PATH else {})
 
-@event.listens_for(engine, "connect")
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA busy_timeout=60000")
-    cursor.close()
+if is_sqlite():
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=60000")
+        cursor.close()
 
 Session = sessionmaker(bind=engine)
 

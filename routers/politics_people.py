@@ -33,6 +33,7 @@ from models.committee_models import Committee, CommitteeMembership
 from connectors.wikipedia import build_politician_profile
 from connectors.fec import build_finance_profile
 from models.response_schemas import PeopleListResponse, PersonDetailResponse
+from utils.db_compat import extract_year
 
 router = APIRouter(tags=["politics"])
 
@@ -758,7 +759,7 @@ def get_person_trends(person_id: str):
         # Trades by year (transaction_date)
         trade_rows = (
             db.query(
-                func.strftime('%Y', CongressionalTrade.transaction_date).label("yr"),
+                extract_year(CongressionalTrade.transaction_date).label("yr"),
                 func.count(CongressionalTrade.id),
             )
             .filter(CongressionalTrade.person_id == person_id)
@@ -770,7 +771,7 @@ def get_person_trends(person_id: str):
         # Votes by year (via MemberVote → Vote.vote_date)
         vote_rows = (
             db.query(
-                func.strftime('%Y', Vote.vote_date).label("yr"),
+                extract_year(Vote.vote_date).label("yr"),
                 func.count(MemberVote.id),
             )
             .join(Vote, Vote.id == MemberVote.vote_id)
@@ -783,7 +784,7 @@ def get_person_trends(person_id: str):
         # Bills sponsored by year (via PersonBill → Bill.introduced_date)
         bill_rows = (
             db.query(
-                func.strftime('%Y', Bill.introduced_date).label("yr"),
+                extract_year(Bill.introduced_date).label("yr"),
                 func.count(PersonBill.id),
             )
             .join(Bill, Bill.bill_id == PersonBill.bill_id)
@@ -796,7 +797,7 @@ def get_person_trends(person_id: str):
         # Donations received by year
         donation_rows = (
             db.query(
-                func.strftime('%Y', CompanyDonation.donation_date).label("yr"),
+                extract_year(CompanyDonation.donation_date).label("yr"),
                 func.count(CompanyDonation.id),
             )
             .filter(CompanyDonation.person_id == person_id)

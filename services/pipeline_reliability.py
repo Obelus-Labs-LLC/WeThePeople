@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
 from models.database import Base
+from utils.db_compat import limit_sql
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -260,14 +261,14 @@ class DataQualityCheck(Base):
 
 def _count_rows(db: Session, table_name: str) -> int:
     """Count rows in a table using raw SQL (works for any table name)."""
-    result = db.execute(text(f"SELECT COUNT(*) FROM [{table_name}]"))
+    result = db.execute(text(f'SELECT COUNT(*) FROM "{table_name}"'))
     return result.scalar() or 0
 
 
 def _table_exists(db: Session, table_name: str) -> bool:
     """Check if a table exists in the database."""
     try:
-        db.execute(text(f"SELECT 1 FROM [{table_name}] LIMIT 1"))
+        db.execute(text(f'SELECT 1 FROM "{table_name}" {limit_sql(1)}'))
         return True
     except Exception:
         return False
@@ -394,7 +395,7 @@ def run_quality_checks(db: Session) -> List[Dict[str, Any]]:
             continue
 
         null_income_result = db.execute(text(
-            f"SELECT COUNT(*) FROM [{table}] WHERE income IS NULL"
+            f'SELECT COUNT(*) FROM "{table}" WHERE income IS NULL'
         ))
         null_count = null_income_result.scalar() or 0
         # Allow up to 10% null income fields (some filings legitimately omit income)
