@@ -115,44 +115,38 @@ def _fmt_money(n: float) -> str:
 
 
 def generate_data_tweet() -> tuple:
-    """Pull real data and generate a punchy, name-and-dollar tweet.
+    """Pull real data and generate a story-driven tweet that connects dots.
 
-    Strategy: Post insight as native text (no link), then reply with link.
-    Links in main tweet get 30-50% reach penalty on X.
+    Strategy: Lead with the discovery, not the product. Name names, show
+    connections, let the data speak. Link goes in reply.
     """
     options = []
 
-    # Try: top lobbying — name names
-    data = api_get("/influence/top-lobbying", {"limit": 10})
-    items = data if isinstance(data, list) else data.get("leaders", [])
-    if items:
-        item = random.choice(items[:5])
-        name = item.get("display_name", item.get("name", "A company"))
-        total = item.get("total_lobbying", 0)
-        if total > 0:
-            options.append((
-                f"{name} spent {_fmt_money(total)} lobbying Congress.\n\n"
-                f"Wonder what they asked for.\n\n"
-                f"#CorporateLobbying",
-                f"{SITE}/influence"
-            ))
+    # --- Cross-reference: lobbying + contracts for the same company ---
+    lobbying_data = api_get("/influence/top-lobbying", {"limit": 10})
+    contract_data = api_get("/influence/top-contracts", {"limit": 10})
+    lobby_items = lobbying_data if isinstance(lobbying_data, list) else lobbying_data.get("leaders", [])
+    contract_items = contract_data if isinstance(contract_data, list) else contract_data.get("leaders", [])
 
-    # Try: top contracts — taxpayer angle
-    data = api_get("/influence/top-contracts", {"limit": 10})
-    items = data if isinstance(data, list) else data.get("leaders", [])
-    if items:
-        item = random.choice(items[:5])
-        name = item.get("display_name", item.get("name", "A company"))
-        total = item.get("total_contracts", 0)
-        if total > 0:
-            options.append((
-                f"{name} received {_fmt_money(total)} in government contracts.\n\n"
-                f"Your tax dollars. Their bottom line.\n\n"
-                f"#FollowTheMoney",
-                f"{SITE}/influence"
-            ))
+    # Find companies that appear in BOTH top lobbying AND top contracts
+    lobby_map = {i.get("entity_id"): i for i in lobby_items}
+    for ci in contract_items:
+        eid = ci.get("entity_id")
+        if eid in lobby_map:
+            name = ci.get("display_name", "A company")
+            lobby = lobby_map[eid].get("total_lobbying", 0)
+            contracts = ci.get("total_contracts", 0)
+            sector = ci.get("sector", "")
+            if lobby > 0 and contracts > 0:
+                options.append((
+                    f"{name} spent {_fmt_money(lobby)} lobbying Congress and received "
+                    f"{_fmt_money(contracts)} in government contracts.\n\n"
+                    f"Public record. Connected for the first time.\n\n"
+                    f"#FollowTheMoney",
+                    f"{SITE}/{sector}/{eid}" if sector else f"{SITE}/influence"
+                ))
 
-    # Try: congressional trades — irony/conflict angle
+    # --- Congressional trades with context ---
     data = api_get("/congressional-trades", {"limit": 20})
     trades = data.get("trades", data.get("items", []))
     if trades:
@@ -162,7 +156,7 @@ def generate_data_tweet() -> tuple:
             person = "A member of Congress"
         ticker = trade.get("ticker", "???")
         raw_type = (trade.get("transaction_type", "") or "").lower()
-        tx_type = {
+        tx_verb = {
             "purchase": "bought", "purchased": "bought",
             "sale": "sold", "sold": "sold",
             "sale (partial)": "sold", "sale_partial": "sold",
@@ -170,30 +164,74 @@ def generate_data_tweet() -> tuple:
             "exchange": "exchanged",
         }.get(raw_type, "traded")
         amount = trade.get("amount_range", "")
+        date_str = trade.get("transaction_date", "")
+        disc_str = trade.get("disclosure_date", "")
+
+        # Calculate reporting gap if both dates available
+        gap_note = ""
+        if date_str and disc_str and date_str != disc_str:
+            try:
+                from datetime import datetime as dt
+                td = dt.fromisoformat(date_str)
+                dd = dt.fromisoformat(disc_str)
+                gap = (dd - td).days
+                if gap > 30:
+                    gap_note = f" Disclosed {gap} days later."
+                elif gap > 0:
+                    gap_note = f" Disclosed {gap} days after the trade."
+            except (ValueError, TypeError):
+                pass
+
         amount_str = f" ({amount})" if amount and amount != "N/A" else ""
         options.append((
-            f"{person} {tx_type} ${ticker}{amount_str}.\n\n"
-            f"Disclosed days later. As required by law. Barely.\n\n"
-            f"#CongressTrades",
+            f"{person} {tx_verb} ${ticker} stock{amount_str}.{gap_note}\n\n"
+            f"Members of Congress are required to disclose trades within 45 days. "
+            f"Many don't.\n\n#CongressTrades",
             f"{SITE}/politics/trades"
         ))
 
-    # Try: influence stats — big numbers
-    # API returns: total_lobbying_spend, total_contract_value, total_enforcement_actions, politicians_connected
+    # --- Lobbying-to-sector ratio insight ---
     stats = api_get("/influence/stats")
-    if stats:
-        lobbying_spend = stats.get("total_lobbying_spend", 0)
-        contract_value = stats.get("total_contract_value", 0)
-        enforcement = stats.get("total_enforcement_actions", 0)
-        politicians = stats.get("politicians_connected", 0)
-        if lobbying_spend > 0 and contract_value > 0:
+    if stats and stats.get("by_sector"):
+        sectors = stats["by_sector"]
+        # Find the sector with highest lobbying-to-enforcement ratio
+        best_ratio = None
+        best_sector = None
+        for sec_name, sec_data in sectors.items():
+            lobby = sec_data.get("lobbying", 0)
+            enforcement = sec_data.get("enforcement", 0)
+            if lobby > 0 and enforcement > 0:
+                ratio = lobby / enforcement
+                if best_ratio is None or ratio > best_ratio:
+                    best_ratio = ratio
+                    best_sector = (sec_name, sec_data)
+
+        if best_sector:
+            sec_name, sec_data = best_sector
+            lobby_spend = sec_data.get("lobbying_spend", sec_data.get("lobbying", 0))
+            enforcement_count = sec_data.get("enforcement", 0)
             options.append((
-                f"{_fmt_money(lobbying_spend)} in lobbying.\n"
-                f"{_fmt_money(contract_value)} in government contracts.\n"
-                f"{enforcement:,} enforcement actions.\n\n"
-                f"All searchable. All free.\n\n"
-                f"#FollowTheMoney",
-                SITE
+                f"The {sec_name} sector has {sec_data.get('lobbying', 0):,} lobbying filings "
+                f"and only {enforcement_count:,} enforcement actions.\n\n"
+                f"That's {sec_data.get('lobbying', 0) // max(enforcement_count, 1)} lobbying filings "
+                f"for every enforcement action.\n\n#FollowTheMoney",
+                f"{SITE}/{sec_name}"
+            ))
+
+    # --- Single company deep dive ---
+    if lobby_items:
+        item = random.choice(lobby_items[:5])
+        name = item.get("display_name", "A company")
+        sector = item.get("sector", "")
+        eid = item.get("entity_id", "")
+        total = item.get("total_lobbying", 0)
+        if total > 0 and sector and eid:
+            options.append((
+                f"Since 2020, {name} has filed {_fmt_money(total)} in lobbying disclosures "
+                f"with the U.S. Senate.\n\n"
+                f"Who they lobbied. What they asked for. All public record.\n\n"
+                f"#CorporateLobbying",
+                f"{SITE}/{sector}/{eid}"
             ))
 
     if not options:
@@ -204,23 +242,12 @@ def generate_data_tweet() -> tuple:
 
 
 def generate_product_tweet() -> tuple:
-    """Generate a punchy product awareness tweet. Link goes in reply."""
+    """Generate a product tweet that sounds like a discovery, not an ad."""
     templates = [
-        ("Your senator bought pharma stocks while sitting on the Health Committee.\n\nWe track every trade.\n\n#CivicTech #OpenData", f"{SITE}/politics/trades"),
-        ("One search. Every lobbying dollar, every contract, every enforcement action.\n\nEight sectors. Open source.\n\n#CivicTech #OpenData", SITE),
-        ("We cross-reference congressional trades with committee assignments.\n\nThe overlap is... something.\n\n#CivicTech", f"{SITE}/politics/trades"),
-        ("Want to know who's lobbying your state's politicians?\n\nWe mapped it.\n\n#CivicTech #OpenData", f"{SITE}/influence/map"),
-        ("8 sectors. 35+ data sources. 1M+ records. No paywall.\n\n#CivicTech #OpenData", SITE),
-        ("Politicians write the rules. Corporations fund the politicians.\n\nWe track both sides.\n\n#CivicTech", SITE),
-        ("Every government contract. Every lobbying filing. Every stock trade by Congress.\n\nOne platform.\n\n#CivicTech #OpenData", SITE),
-        ("Think your representative works for you?\n\nCheck who's actually paying them.\n\n#CivicTech", f"{SITE}/politics"),
-        ("We built what Congress hoped nobody would build — a searchable record of who pays them.\n\n#CivicTech #OpenData", SITE),
-        ("The influence network shows you exactly how money flows from corporations to politicians.\n\n#CivicTech", f"{SITE}/influence/network"),
-        ("FDA enforcement. SEC filings. Lobbying spend. All connected for every major health company.\n\n#CivicTech #OpenData", f"{SITE}/health"),
-        ("Insider trades, lobbying filings, enforcement actions — the full picture on every major bank.\n\n#CivicTech #OpenData", f"{SITE}/finance"),
-        ("Follow the money from industry to politics.\n\nThat's literally all we do.\n\n#CivicTech", SITE),
+        ("Your senator bought pharma stocks while sitting on the Health Committee.\n\nPublic record.\n\n#CongressTrades", f"{SITE}/politics/trades"),
+        ("Politicians write the rules. Corporations fund the politicians.\n\nHere's the receipt.\n\n#FollowTheMoney", SITE),
+        ("\"I don't take corporate money.\"\n\nThe FEC filing from last quarter says otherwise.\n\n#FollowTheMoney", f"{SITE}/verify"),
         ("Open source. Because transparency shouldn't have a paywall.\n\n#CivicTech #OpenData", SITE),
-        ("\"I don't take corporate money.\"\n\nCool. We checked the FEC filings.\n\nYou do.\n\n#CivicTech", f"{SITE}/verify"),
     ]
 
     tweet_text, link = random.choice(templates)
@@ -380,13 +407,13 @@ def generate_anomaly_tweet() -> tuple:
 
 
 CATEGORIES = {
-    "data": (generate_data_tweet, 25),
-    "anomaly": (generate_anomaly_tweet, 10),
-    "product": (generate_product_tweet, 10),
-    "story": (generate_story_tweet, 25),
-    "thread": (generate_thread, 15),
-    "verify": (generate_verify_tweet, 8),
-    "engagement": (generate_engagement_tweet, 7),
+    "data": (generate_data_tweet, 35),       # Cross-referenced data stories
+    "anomaly": (generate_anomaly_tweet, 20), # Suspicious patterns — most shareable
+    "story": (generate_story_tweet, 20),     # Published investigations
+    "thread": (generate_thread, 10),         # Mini deep-dives
+    "engagement": (generate_engagement_tweet, 8),  # Questions
+    "product": (generate_product_tweet, 5),  # Self-promo (minimal)
+    "verify": (generate_verify_tweet, 2),    # Fact-check promos
 }
 
 
