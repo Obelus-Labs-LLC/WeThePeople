@@ -170,7 +170,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
         TrackedInstitution.institution_id, TrackedInstitution.display_name,
         func.sum(FinanceLobbyingRecord.income),
     ).join(FinanceLobbyingRecord, FinanceLobbyingRecord.institution_id == TrackedInstitution.institution_id
-    ).group_by(TrackedInstitution.institution_id).all()
+    ).group_by(TrackedInstitution.institution_id, TrackedInstitution.display_name).all()
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "finance", "total_lobbying": total or 0})
 
@@ -179,7 +179,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
         TrackedCompany.company_id, TrackedCompany.display_name,
         func.sum(HealthLobbyingRecord.income),
     ).join(HealthLobbyingRecord, HealthLobbyingRecord.company_id == TrackedCompany.company_id
-    ).group_by(TrackedCompany.company_id).all()
+    ).group_by(TrackedCompany.company_id, TrackedCompany.display_name).all()
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "health", "total_lobbying": total or 0})
 
@@ -188,7 +188,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
         TrackedTechCompany.company_id, TrackedTechCompany.display_name,
         func.sum(LobbyingRecord.income),
     ).join(LobbyingRecord, LobbyingRecord.company_id == TrackedTechCompany.company_id
-    ).group_by(TrackedTechCompany.company_id).all()
+    ).group_by(TrackedTechCompany.company_id, TrackedTechCompany.display_name).all()
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "tech", "total_lobbying": total or 0})
 
@@ -197,7 +197,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
         TrackedEnergyCompany.company_id, TrackedEnergyCompany.display_name,
         func.sum(EnergyLobbyingRecord.income),
     ).join(EnergyLobbyingRecord, EnergyLobbyingRecord.company_id == TrackedEnergyCompany.company_id
-    ).group_by(TrackedEnergyCompany.company_id).all()
+    ).group_by(TrackedEnergyCompany.company_id, TrackedEnergyCompany.display_name).all()
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "energy", "total_lobbying": total or 0})
 
@@ -337,7 +337,7 @@ def get_top_contracts(limit: int = Query(10, ge=1, le=50), db: Session = Depends
         TrackedInstitution.institution_id, TrackedInstitution.display_name,
         func.sum(FinanceGovernmentContract.award_amount),
     ).join(FinanceGovernmentContract, FinanceGovernmentContract.institution_id == TrackedInstitution.institution_id
-    ).group_by(TrackedInstitution.institution_id).all()
+    ).group_by(TrackedInstitution.institution_id, TrackedInstitution.display_name).all()
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "finance", "total_contracts": total or 0})
 
@@ -346,7 +346,7 @@ def get_top_contracts(limit: int = Query(10, ge=1, le=50), db: Session = Depends
         TrackedCompany.company_id, TrackedCompany.display_name,
         func.sum(HealthGovernmentContract.award_amount),
     ).join(HealthGovernmentContract, HealthGovernmentContract.company_id == TrackedCompany.company_id
-    ).group_by(TrackedCompany.company_id).all()
+    ).group_by(TrackedCompany.company_id, TrackedCompany.display_name).all()
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "health", "total_contracts": total or 0})
 
@@ -355,7 +355,7 @@ def get_top_contracts(limit: int = Query(10, ge=1, le=50), db: Session = Depends
         TrackedTechCompany.company_id, TrackedTechCompany.display_name,
         func.sum(GovernmentContract.award_amount),
     ).join(GovernmentContract, GovernmentContract.company_id == TrackedTechCompany.company_id
-    ).group_by(TrackedTechCompany.company_id).all()
+    ).group_by(TrackedTechCompany.company_id, TrackedTechCompany.display_name).all()
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "tech", "total_contracts": total or 0})
 
@@ -364,7 +364,7 @@ def get_top_contracts(limit: int = Query(10, ge=1, le=50), db: Session = Depends
         TrackedEnergyCompany.company_id, TrackedEnergyCompany.display_name,
         func.sum(EnergyGovernmentContract.award_amount),
     ).join(EnergyGovernmentContract, EnergyGovernmentContract.company_id == TrackedEnergyCompany.company_id
-    ).group_by(TrackedEnergyCompany.company_id).all()
+    ).group_by(TrackedEnergyCompany.company_id, TrackedEnergyCompany.display_name).all()
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "energy", "total_contracts": total or 0})
 
