@@ -259,8 +259,7 @@ export default function ClinicalTrialsPage() {
                           </span>
                           <ChevronRight
                             size={16}
-                            className="text-zinc-600 transition-transform"
-                            style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                            className={`text-zinc-600 transition-transform ${isExpanded ? 'rotate-90' : 'rotate-0'}`}
                           />
                         </div>
                       </div>

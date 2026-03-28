@@ -8,3 +8,43 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Oswald headings utility */
+.font-oswald {
+  font-family: 'Oswald', sans-serif;
+}
+
+/* Line clamp utilities */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Article body prose-like styling */
+article p {
+  margin-bottom: 1.5rem;
+}
+
+article p:last-child {
+  margin-bottom: 0;
+}
+
+/* Selection color */
+::selection {
+  background-color: rgba(251, 191, 36, 0.25);
+  color: #fafafa;
+}
