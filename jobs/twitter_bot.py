@@ -312,23 +312,67 @@ def generate_thread() -> tuple:
 # ── Category Rotation ──
 
 def generate_story_tweet():
-    """Generate a tweet from a published data story."""
-    data = api_get("/stories/latest", {"limit": 5})
+    """Generate a tweet that's an excerpt of a published journal story.
+
+    The tweet IS the story, just truncated. Links to the full investigation
+    on the journal site. This is the primary content type.
+    """
+    data = api_get("/stories/latest", {"limit": 10})
     stories = data.get("stories", [])
     if not stories:
-        return generate_product_tweet()
+        # Fall back to data tweet if no stories published yet
+        return generate_data_tweet()
 
-    story = random.choice(stories)
+    story = random.choice(stories[:5])
     title = story.get("title", "")
     summary = story.get("summary", "")
+    content = story.get("content", "")
     slug = story.get("slug", "")
+    category = story.get("category", "")
+    sources_count = len(story.get("data_sources", []))
 
     if not title:
-        return generate_product_tweet()
+        return generate_data_tweet()
 
-    text = f"{title}\n\n{summary}" if summary else title
-    text += "\n\n#FollowTheMoney"
-    link = f"{SITE}/stories/{slug}" if slug else SITE
+    # Build the excerpt — lead with the most compelling line
+    # Try to extract the first substantive sentence from content
+    excerpt = ""
+    if content:
+        # Split on paragraphs, find first one with a dollar amount or name
+        paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
+        for p in paragraphs[:3]:
+            if "$" in p or any(c.isupper() for c in p[1:10]):
+                excerpt = p
+                break
+        if not excerpt and paragraphs:
+            excerpt = paragraphs[0]
+
+    # Build tweet: title + excerpt (or summary) + source count
+    if excerpt and len(excerpt) < 200:
+        text = f"{title}\n\n{excerpt}"
+    elif summary:
+        text = f"{title}\n\n{summary}"
+    else:
+        text = title
+
+    # Add source citation count for credibility
+    if sources_count > 0:
+        text += f"\n\n{sources_count} government sources cited."
+
+    # Hashtag based on category
+    hashtag = {
+        "lobbying_influence": "#CorporateLobbying",
+        "trade_timing": "#CongressTrades",
+        "regulatory_capture": "#FollowTheMoney",
+        "bipartisan_buying": "#FollowTheMoney",
+        "revolving_door": "#RevolvingDoor",
+        "enforcement_gap": "#Accountability",
+    }.get(category, "#FollowTheMoney")
+    text += f"\n\n{hashtag}"
+
+    # Link to journal site (not main site)
+    journal_url = "journal.wethepeopleforus.com"
+    link = f"{journal_url}/story/{slug}" if slug else f"{journal_url}"
     return (text, link), "story"
 
 
@@ -407,13 +451,12 @@ def generate_anomaly_tweet() -> tuple:
 
 
 CATEGORIES = {
-    "data": (generate_data_tweet, 35),       # Cross-referenced data stories
-    "anomaly": (generate_anomaly_tweet, 20), # Suspicious patterns — most shareable
-    "story": (generate_story_tweet, 20),     # Published investigations
-    "thread": (generate_thread, 10),         # Mini deep-dives
-    "engagement": (generate_engagement_tweet, 8),  # Questions
-    "product": (generate_product_tweet, 5),  # Self-promo (minimal)
-    "verify": (generate_verify_tweet, 2),    # Fact-check promos
+    "story": (generate_story_tweet, 40),     # Journal excerpts — primary content
+    "data": (generate_data_tweet, 25),       # Cross-referenced data discoveries
+    "anomaly": (generate_anomaly_tweet, 20), # Suspicious patterns
+    "thread": (generate_thread, 8),          # Mini deep-dives
+    "engagement": (generate_engagement_tweet, 5),  # Questions
+    "product": (generate_product_tweet, 2),  # Self-promo (rare)
 }
 
 
