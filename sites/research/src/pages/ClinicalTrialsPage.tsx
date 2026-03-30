@@ -85,19 +85,25 @@ export default function ClinicalTrialsPage() {
         });
         const companies = companiesRes.companies || [];
 
-        const companySlice = companies.slice(0, 50);
-        const allTrialSets = await Promise.all(
-          companySlice.map((c) =>
-            apiFetch<{ trials: ClinicalTrialItem[] }>(`/health/companies/${c.company_id}/trials`, {
-              params: { limit: 100 },
-            })
-              .then((res) => ({
-                company: c,
-                trials: res.trials || [],
-              }))
-              .catch(() => ({ company: c, trials: [] as ClinicalTrialItem[] })),
-          ),
-        );
+        // Load ALL companies in batches of 20
+        const batchSize = 20;
+        const allTrialSets: { company: HealthCompany; trials: ClinicalTrialItem[] }[] = [];
+        for (let i = 0; i < companies.length; i += batchSize) {
+          const batch = companies.slice(i, i + batchSize);
+          const batchResults = await Promise.all(
+            batch.map((c) =>
+              apiFetch<{ trials: ClinicalTrialItem[] }>(`/health/companies/${c.company_id}/trials`, {
+                params: { limit: 100 },
+              })
+                .then((res) => ({
+                  company: c,
+                  trials: res.trials || [],
+                }))
+                .catch(() => ({ company: c, trials: [] as ClinicalTrialItem[] })),
+            ),
+          );
+          allTrialSets.push(...batchResults);
+        }
 
         const combined: TrialWithCompany[] = [];
         for (const { company, trials } of allTrialSets) {

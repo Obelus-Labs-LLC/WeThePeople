@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { Search, Calendar, ExternalLink, SearchX, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiFetch, mainSiteUrl } from '../api/client';
@@ -40,15 +39,6 @@ function fmtNum(n: number): string {
   return n.toLocaleString();
 }
 
-const containerVariants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.04, delayChildren: 0.05 } },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 120, damping: 22 } },
-};
 
 // ── Page ──
 
@@ -144,17 +134,17 @@ export default function PatentSearchPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="flex flex-col gap-8">
+      <div className="flex flex-col gap-8">
         {/* Back link */}
-        <motion.div variants={itemVariants}>
+        <div>
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
             <ArrowLeft size={14} />
             Back to Research Tools
           </Link>
-        </motion.div>
+        </div>
 
         {/* Header */}
-        <motion.div variants={itemVariants} className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           <span className="text-xs font-bold tracking-[0.2em] text-violet-400 uppercase">Patent Search</span>
           <h1 className="text-4xl font-bold tracking-tight text-zinc-50" style={{ fontFamily: 'Oswald, sans-serif' }}>
             Patent Explorer
@@ -163,10 +153,10 @@ export default function PatentSearchPage() {
             Search across {loading ? '...' : fmtNum(totalPatents)} patents from{' '}
             {loading ? '...' : uniqueCompanies} technology companies.
           </p>
-        </motion.div>
+        </div>
 
         {/* Search bar */}
-        <motion.div variants={itemVariants} className="relative max-w-2xl w-full">
+        <div className="relative max-w-2xl w-full">
           <Search size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input
             type="text"
@@ -183,15 +173,15 @@ export default function PatentSearchPage() {
               Clear
             </button>
           )}
-        </motion.div>
+        </div>
 
         {/* Stats row */}
         {!loading && (
-          <motion.div variants={itemVariants}>
+          <div>
             <span className="text-sm text-zinc-500">
               {query ? `${fmtNum(filtered.length)} results` : `Showing ${Math.min(100, totalPatents)} of ${fmtNum(totalPatents)}`}
             </span>
-          </motion.div>
+          </div>
         )}
 
         {/* Results */}
@@ -202,7 +192,7 @@ export default function PatentSearchPage() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <motion.div variants={itemVariants} className="flex flex-col items-center justify-center gap-4 py-20">
+          <div className="flex flex-col items-center justify-center gap-4 py-20">
             <SearchX size={48} className="text-zinc-700" />
             <p className="text-xl text-zinc-500">
               {query ? 'No patents match your search' : 'No patents available'}
@@ -212,14 +202,13 @@ export default function PatentSearchPage() {
                 Clear search
               </button>
             )}
-          </motion.div>
+          </div>
         ) : (
-          <motion.div variants={containerVariants} className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3">
             {filtered.map((p) => (
-              <motion.div
+              <div
                 key={`${p.company_id}-${p.id}`}
-                variants={itemVariants}
-                className="group rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-5 transition-all hover:bg-zinc-900/70 hover:border-zinc-700 cursor-pointer"
+                               className="group rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-5 transition-all hover:bg-zinc-900/70 hover:border-zinc-700 cursor-pointer"
                 onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}
               >
                 <div className="flex items-start justify-between gap-4">
@@ -265,11 +254,11 @@ export default function PatentSearchPage() {
                     </a>
                   )}
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

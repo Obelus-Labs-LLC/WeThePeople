@@ -93,43 +93,55 @@ export default function DrugLookupPage() {
     setActiveTab('recalls');
 
     const drugResults: SearchResults = { recalls: [], trials: [] };
-    const companySlice = companies.slice(0, 15);
     const qLower = q.toLowerCase();
 
+    // Search ALL companies in batches of 20 to avoid overwhelming the API
+    const batchSize = 20;
     try {
-      const [recallResults, trialResults] = await Promise.all([
-        Promise.all(
-          companySlice.map((c) =>
-            apiFetch<{ recalls: RecallItem[] }>(`/health/companies/${c.company_id}/recalls`, {
-              params: { limit: 50 },
-            })
-              .then((res) =>
-                (res.recalls || [])
-                  .filter((r) => r.product_description && r.product_description.toLowerCase().includes(qLower))
-                  .map((r) => ({ ...r, companyId: c.company_id, companyName: c.display_name })),
-              )
-              .catch(() => [] as (RecallItem & { companyId: string; companyName: string })[]),
+      const allRecalls: (RecallItem & { companyId: string; companyName: string })[] = [];
+      const allTrials: (ClinicalTrialItem & { companyId: string; companyName: string })[] = [];
+
+      for (let i = 0; i < companies.length; i += batchSize) {
+        const batch = companies.slice(i, i + batchSize);
+        const [recallBatch, trialBatch] = await Promise.all([
+          Promise.all(
+            batch.map((c) =>
+              apiFetch<{ recalls: RecallItem[] }>(`/health/companies/${c.company_id}/recalls`, {
+                params: { limit: 50 },
+              })
+                .then((res) =>
+                  (res.recalls || [])
+                    .filter((r) => r.product_description && r.product_description.toLowerCase().includes(qLower))
+                    .map((r) => ({ ...r, companyId: c.company_id, companyName: c.display_name })),
+                )
+                .catch(() => [] as (RecallItem & { companyId: string; companyName: string })[]),
+            ),
           ),
-        ),
-        Promise.all(
-          companySlice.map((c) =>
-            apiFetch<{ trials: ClinicalTrialItem[] }>(`/health/companies/${c.company_id}/trials`, {
-              params: { limit: 50 },
-            })
-              .then((res) =>
-                (res.trials || [])
-                  .filter(
-                    (t) =>
-                      (t.title && t.title.toLowerCase().includes(qLower)) ||
-                      (t.conditions && t.conditions.toLowerCase().includes(qLower)) ||
-                      (t.interventions && t.interventions.toLowerCase().includes(qLower)),
-                  )
-                  .map((t) => ({ ...t, companyId: c.company_id, companyName: c.display_name })),
-              )
-              .catch(() => [] as (ClinicalTrialItem & { companyId: string; companyName: string })[]),
+          Promise.all(
+            batch.map((c) =>
+              apiFetch<{ trials: ClinicalTrialItem[] }>(`/health/companies/${c.company_id}/trials`, {
+                params: { limit: 50 },
+              })
+                .then((res) =>
+                  (res.trials || [])
+                    .filter(
+                      (t) =>
+                        (t.title && t.title.toLowerCase().includes(qLower)) ||
+                        (t.conditions && t.conditions.toLowerCase().includes(qLower)) ||
+                        (t.interventions && t.interventions.toLowerCase().includes(qLower)),
+                    )
+                    .map((t) => ({ ...t, companyId: c.company_id, companyName: c.display_name })),
+                )
+                .catch(() => [] as (ClinicalTrialItem & { companyId: string; companyName: string })[]),
+            ),
           ),
-        ),
-      ]);
+        ]);
+        allRecalls.push(...recallBatch.flat());
+        allTrials.push(...trialBatch.flat());
+      }
+
+      const recallResults = [allRecalls];
+      const trialResults = [allTrials];
 
       drugResults.recalls = recallResults.flat();
       drugResults.trials = trialResults.flat();
