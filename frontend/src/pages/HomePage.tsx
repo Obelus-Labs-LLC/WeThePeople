@@ -414,8 +414,10 @@ const HomePage: React.FC = () => {
             </a>
 
             {/* The Influence Journal */}
-            <Link
-              to="/stories"
+            <a
+              href="https://journal.wethepeopleforus.com"
+              target="_blank"
+              rel="noopener noreferrer"
               className="group flex items-center gap-4 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-amber-500/20 p-4 transition-all duration-200 hover:bg-amber-500/[0.08] hover:border-amber-500/30 no-underline"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-600/20 shrink-0">
@@ -429,8 +431,8 @@ const HomePage: React.FC = () => {
                   Data-driven stories about corporate influence on Congress. Cited sources, no spin.
                 </div>
               </div>
-              <ArrowRight className="w-4 h-4 text-amber-400 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
-            </Link>
+              <ExternalLink className="w-4 h-4 text-amber-400 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
+            </a>
           </div>
         </div>
 
