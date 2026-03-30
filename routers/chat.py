@@ -338,5 +338,9 @@ def ask_question(body: ChatRequest, request: Request):
 def get_remaining_questions(request: Request):
     """Check how many AI questions the caller has remaining today."""
     client_ip = request.client.host if request.client else "unknown"
-    remaining = _get_remaining_questions(client_ip)
+    try:
+        remaining = _get_remaining_questions(client_ip)
+    except Exception as e:
+        logger.warning("rate limit check failed (table may not exist): %s", e)
+        remaining = _CHAT_FREE_LIMIT
     return {"remaining": remaining, "limit": _CHAT_FREE_LIMIT}

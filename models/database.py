@@ -635,8 +635,11 @@ import models.stories_models  # noqa: F401 — register stories table
 import models.twitter_models  # noqa: F401 — register tweet log table
 import models.government_data_models  # noqa: F401 — register SAM, Regulations.gov, IT Dashboard, Site Scanning tables
 import models.auth_models  # noqa: F401 — register User, APIKeyRecord, AuditLog tables
+import services.rate_limit_store  # noqa: F401 — register rate_limit_records table
 import services.pipeline_reliability  # noqa: F401 — register DLQ, processed_records, data_quality_checks tables
 
 
 if __name__ == "__main__":
+    from utils.db_compat import patch_types_for_oracle
+    patch_types_for_oracle(Base.metadata)
     Base.metadata.create_all(bind=engine)

@@ -32,21 +32,25 @@ def list_stories(
     db: Session = Depends(get_db),
 ):
     """List stories, filtered by sector/category/status, ordered by published_at."""
-    query = db.query(Story).filter(Story.status == status)
+    try:
+        query = db.query(Story).filter(Story.status == status)
 
-    if sector:
-        query = query.filter(Story.sector == sector)
-    if category:
-        query = query.filter(Story.category == category)
+        if sector:
+            query = query.filter(Story.sector == sector)
+        if category:
+            query = query.filter(Story.category == category)
 
-    total = query.count()
+        total = query.count()
 
-    if status == "published":
-        query = query.order_by(desc(Story.published_at))
-    else:
-        query = query.order_by(desc(Story.created_at))
+        if status == "published":
+            query = query.order_by(desc(Story.published_at))
+        else:
+            query = query.order_by(desc(Story.created_at))
 
-    stories = query.offset(offset).limit(limit).all()
+        stories = query.offset(offset).limit(limit).all()
+    except Exception as e:
+        logger.warning("stories query failed (table may not exist): %s", e)
+        return {"total": 0, "limit": limit, "offset": offset, "stories": []}
 
     return {
         "total": total,
@@ -74,13 +78,17 @@ def list_stories(
 @router.get("/latest", response_model=StoriesListResponse)
 def latest_stories(limit: int = Query(5, ge=1, le=20), db: Session = Depends(get_db)):
     """Get the N most recent published stories (for landing page, digest, Twitter)."""
-    stories = (
-        db.query(Story)
-        .filter(Story.status == "published")
-        .order_by(desc(Story.published_at))
-        .limit(limit)
-        .all()
-    )
+    try:
+        stories = (
+            db.query(Story)
+            .filter(Story.status == "published")
+            .order_by(desc(Story.published_at))
+            .limit(limit)
+            .all()
+        )
+    except Exception as e:
+        logger.warning("stories query failed (table may not exist): %s", e)
+        return {"stories": []}
     return {
         "stories": [
             {
@@ -100,28 +108,32 @@ def latest_stories(limit: int = Query(5, ge=1, le=20), db: Session = Depends(get
 @router.get("/stats")
 def story_stats(db: Session = Depends(get_db)):
     """Count of stories by sector and category."""
-    by_sector = {}
-    rows = (
-        db.query(Story.sector, func.count())
-        .filter(Story.status == "published")
-        .group_by(Story.sector)
-        .all()
-    )
-    for sector, count in rows:
-        by_sector[sector or "cross-sector"] = count
+    try:
+        by_sector = {}
+        rows = (
+            db.query(Story.sector, func.count())
+            .filter(Story.status == "published")
+            .group_by(Story.sector)
+            .all()
+        )
+        for sector, count in rows:
+            by_sector[sector or "cross-sector"] = count
 
-    by_category = {}
-    rows = (
-        db.query(Story.category, func.count())
-        .filter(Story.status == "published")
-        .group_by(Story.category)
-        .all()
-    )
-    for cat, count in rows:
-        by_category[cat] = count
+        by_category = {}
+        rows = (
+            db.query(Story.category, func.count())
+            .filter(Story.status == "published")
+            .group_by(Story.category)
+            .all()
+        )
+        for cat, count in rows:
+            by_category[cat] = count
 
-    total = db.query(Story).filter(Story.status == "published").count()
-    drafts = db.query(Story).filter(Story.status == "draft").count()
+        total = db.query(Story).filter(Story.status == "published").count()
+        drafts = db.query(Story).filter(Story.status == "draft").count()
+    except Exception as e:
+        logger.warning("story stats query failed (table may not exist): %s", e)
+        return {"total_published": 0, "total_drafts": 0, "by_sector": {}, "by_category": {}}
 
     return {
         "total_published": total,
@@ -134,7 +146,11 @@ def story_stats(db: Session = Depends(get_db)):
 @router.get("/{slug}")
 def get_story(slug: str, db: Session = Depends(get_db)):
     """Get a single story by slug."""
-    story = db.query(Story).filter(Story.slug == slug).first()
+    try:
+        story = db.query(Story).filter(Story.slug == slug).first()
+    except Exception as e:
+        logger.warning("story lookup failed (table may not exist): %s", e)
+        raise HTTPException(status_code=404, detail="Stories not available")
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
@@ -162,7 +178,11 @@ def get_story(slug: str, db: Session = Depends(get_db)):
 @router.post("/{slug}/publish")
 def publish_story(slug: str, db: Session = Depends(get_db)):
     """Publish a draft story (sets status to published and published_at timestamp)."""
-    story = db.query(Story).filter(Story.slug == slug).first()
+    try:
+        story = db.query(Story).filter(Story.slug == slug).first()
+    except Exception as e:
+        logger.warning("story publish failed (table may not exist): %s", e)
+        raise HTTPException(status_code=404, detail="Stories not available")
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 

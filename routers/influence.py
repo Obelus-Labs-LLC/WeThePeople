@@ -416,7 +416,7 @@ def get_trade_timeline(
 
 @router.get("/network")
 def get_influence_network(
-    entity_type: str = Query(..., regex="^(person|finance|health|tech|energy)$"),
+    entity_type: str = Query(..., regex="^(person|finance|health|tech|energy|transportation|defense)$"),
     entity_id: str = Query(..., min_length=1),
     depth: int = Query(1, ge=1, le=2),
     limit: int = Query(50, ge=1, le=100),
@@ -426,7 +426,11 @@ def get_influence_network(
     logger.info("Influence network request: %s/%s depth=%d", entity_type, entity_id, depth)
     from services.influence_network import build_influence_network
 
-    return build_influence_network(db, entity_type, entity_id, depth=depth, limit=limit)
+    try:
+        return build_influence_network(db, entity_type, entity_id, depth=depth, limit=limit)
+    except Exception as e:
+        logger.exception("Influence network error for %s/%s: %s", entity_type, entity_id, e)
+        raise HTTPException(status_code=500, detail=f"Network build failed: {str(e)}")
 
 
 @router.get("/closed-loops")

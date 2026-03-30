@@ -43,6 +43,12 @@ from models.tech_models import (
 from models.energy_models import (
     TrackedEnergyCompany, EnergyLobbyingRecord, EnergyGovernmentContract,
 )
+from models.transportation_models import (
+    TrackedTransportationCompany, TransportationLobbyingRecord, TransportationGovernmentContract,
+)
+from models.defense_models import (
+    TrackedDefenseCompany, DefenseLobbyingRecord, DefenseGovernmentContract,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -84,6 +90,8 @@ _SECTOR_MAP = {
     "health": "health",
     "tech": "tech",
     "energy": "energy",
+    "transportation": "transportation",
+    "defense": "defense",
 }
 
 
@@ -109,6 +117,16 @@ def _resolve_company_label(db: Session, entity_type: str, entity_id: str) -> Opt
             TrackedEnergyCompany.company_id == entity_id
         ).first()
         return comp[0] if comp else None
+    elif entity_type == "transportation":
+        comp = db.query(TrackedTransportationCompany.display_name).filter(
+            TrackedTransportationCompany.company_id == entity_id
+        ).first()
+        return comp[0] if comp else None
+    elif entity_type == "defense":
+        comp = db.query(TrackedDefenseCompany.display_name).filter(
+            TrackedDefenseCompany.company_id == entity_id
+        ).first()
+        return comp[0] if comp else None
     return None
 
 
@@ -129,6 +147,14 @@ def _resolve_company_ticker(db: Session, entity_type: str, entity_id: str) -> Op
     elif entity_type == "energy":
         row = db.query(TrackedEnergyCompany.ticker).filter(
             TrackedEnergyCompany.company_id == entity_id
+        ).first()
+    elif entity_type == "transportation":
+        row = db.query(TrackedTransportationCompany.ticker).filter(
+            TrackedTransportationCompany.company_id == entity_id
+        ).first()
+    elif entity_type == "defense":
+        row = db.query(TrackedDefenseCompany.ticker).filter(
+            TrackedDefenseCompany.company_id == entity_id
         ).first()
     else:
         return None
@@ -457,6 +483,34 @@ def _expand_company(
             .limit(limit_per_type)
             .all()
         )
+    elif entity_type == "transportation":
+        lobbying_rows = (
+            db.query(
+                TransportationLobbyingRecord.lobbying_issues,
+                func.sum(TransportationLobbyingRecord.income),
+                func.max(TransportationLobbyingRecord.filing_year),
+                group_concat(TransportationLobbyingRecord.filing_year.distinct()),
+            )
+            .filter(TransportationLobbyingRecord.company_id == entity_id)
+            .group_by(TransportationLobbyingRecord.lobbying_issues)
+            .order_by(desc(func.sum(TransportationLobbyingRecord.income)))
+            .limit(limit_per_type)
+            .all()
+        )
+    elif entity_type == "defense":
+        lobbying_rows = (
+            db.query(
+                DefenseLobbyingRecord.lobbying_issues,
+                func.sum(DefenseLobbyingRecord.income),
+                func.max(DefenseLobbyingRecord.filing_year),
+                group_concat(DefenseLobbyingRecord.filing_year.distinct()),
+            )
+            .filter(DefenseLobbyingRecord.company_id == entity_id)
+            .group_by(DefenseLobbyingRecord.lobbying_issues)
+            .order_by(desc(func.sum(DefenseLobbyingRecord.income)))
+            .limit(limit_per_type)
+            .all()
+        )
 
     for issues_str, total_income, max_filing_year, all_filing_years in lobbying_rows:
         if not issues_str:
@@ -550,6 +604,36 @@ def _expand_company(
             .filter(EnergyGovernmentContract.company_id == entity_id)
             .group_by(EnergyGovernmentContract.awarding_agency)
             .order_by(desc(func.sum(EnergyGovernmentContract.award_amount)))
+            .limit(8)
+            .all()
+        )
+    elif entity_type == "transportation":
+        contract_rows = (
+            db.query(
+                TransportationGovernmentContract.awarding_agency,
+                func.sum(TransportationGovernmentContract.award_amount),
+                func.count(TransportationGovernmentContract.id),
+                func.max(TransportationGovernmentContract.start_date),
+                group_concat(extract_year(TransportationGovernmentContract.start_date).distinct()),
+            )
+            .filter(TransportationGovernmentContract.company_id == entity_id)
+            .group_by(TransportationGovernmentContract.awarding_agency)
+            .order_by(desc(func.sum(TransportationGovernmentContract.award_amount)))
+            .limit(8)
+            .all()
+        )
+    elif entity_type == "defense":
+        contract_rows = (
+            db.query(
+                DefenseGovernmentContract.awarding_agency,
+                func.sum(DefenseGovernmentContract.award_amount),
+                func.count(DefenseGovernmentContract.id),
+                func.max(DefenseGovernmentContract.start_date),
+                group_concat(extract_year(DefenseGovernmentContract.start_date).distinct()),
+            )
+            .filter(DefenseGovernmentContract.company_id == entity_id)
+            .group_by(DefenseGovernmentContract.awarding_agency)
+            .order_by(desc(func.sum(DefenseGovernmentContract.award_amount)))
             .limit(8)
             .all()
         )

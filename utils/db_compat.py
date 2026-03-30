@@ -98,9 +98,10 @@ def group_concat(column, separator=','):
     if is_sqlite():
         return func.group_concat(column, separator)
     elif is_oracle():
-        # Oracle 19c+ supports LISTAGG with DISTINCT
-        # LISTAGG(col, sep) WITHIN GROUP (ORDER BY col)
-        return func.listagg(column, separator).within_group(column)
+        # Oracle 19c LISTAGG doesn't handle DISTINCT passed via SQLAlchemy well.
+        # Strip the distinct modifier and use the base column for WITHIN GROUP.
+        base_col = column.element if hasattr(column, 'element') and hasattr(column, 'modifier') else column
+        return func.listagg(column, separator).within_group(base_col)
     else:
         # PostgreSQL
         return func.string_agg(func.cast(column, expression.literal_column("TEXT")), separator)
