@@ -18,6 +18,9 @@ const PatentSearchPage = lazy(() => import('./pages/PatentSearchPage'))
 const DrugLookupPage = lazy(() => import('./pages/DrugLookupPage'))
 const ClinicalTrialsPage = lazy(() => import('./pages/ClinicalTrialsPage'))
 const InsiderTradesPage = lazy(() => import('./pages/InsiderTradesPage'))
+const FdaSafetyPage = lazy(() => import('./pages/FdaSafetyPage'))
+const MarketMoversPage = lazy(() => import('./pages/MarketMoversPage'))
+const RegulatoryNewsPage = lazy(() => import('./pages/RegulatoryNewsPage'))
 
 // ── Loading fallback ──
 
@@ -75,12 +78,12 @@ const tools: ToolCard[] = [
     available: true,
   },
   {
-    title: 'FDA Approvals',
-    description: 'Track FDA drug approvals, rejections, and recent recall activity across tracked health companies.',
+    title: 'FDA Safety Monitor',
+    description: 'Track FDA recalls, adverse events, and safety signals across tracked health companies. Filter by severity and classification.',
     icon: ShieldCheck,
     path: '/fda-approvals',
     iconClass: 'text-amber-500', bgClass: 'bg-amber-500/15',
-    available: false,
+    available: true,
   },
   {
     title: 'Market Movers',
@@ -88,15 +91,15 @@ const tools: ToolCard[] = [
     icon: Search,
     path: '/market-movers',
     iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
-    available: false,
+    available: true,
   },
   {
     title: 'Regulatory News',
-    description: 'Federal Reserve press releases, regulatory actions, and consumer complaints. Filter by institution.',
+    description: 'Federal Reserve press releases, enforcement actions across finance and health, and regulatory news from government sources.',
     icon: Newspaper,
     path: '/regulatory-news',
     iconClass: 'text-blue-400', bgClass: 'bg-blue-400/15',
-    available: false,
+    available: true,
   },
 ]
 
@@ -266,6 +269,9 @@ export default function App() {
         <Route path="/drugs" element={<ToolLayout><DrugLookupPage /></ToolLayout>} />
         <Route path="/clinical-trials" element={<ToolLayout><ClinicalTrialsPage /></ToolLayout>} />
         <Route path="/insider-trades" element={<ToolLayout><InsiderTradesPage /></ToolLayout>} />
+        <Route path="/fda-approvals" element={<ToolLayout><FdaSafetyPage /></ToolLayout>} />
+        <Route path="/market-movers" element={<ToolLayout><MarketMoversPage /></ToolLayout>} />
+        <Route path="/regulatory-news" element={<ToolLayout><RegulatoryNewsPage /></ToolLayout>} />
         {/* Catch-all back to home */}
         <Route path="*" element={<HomePage />} />
       </Routes>
