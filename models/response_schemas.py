@@ -204,8 +204,11 @@ class StoryItem(BaseModel):
     title: Optional[str] = None
     slug: Optional[str] = None
     summary: Optional[str] = None
+    body: Optional[str] = None
     category: Optional[str] = None
     sector: Optional[str] = None
+    entity_ids: Optional[list] = None
+    data_sources: Optional[list] = None
     published_at: Optional[str] = None
 
 class StoriesListResponse(BaseModel):
