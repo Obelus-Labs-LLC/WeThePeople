@@ -11,13 +11,20 @@ Detection patterns (original 4):
 3. Enforcement gap — sector with high lobbying but zero enforcement
 4. Trade cluster — multiple congress members trading same stock same week
 
-New patterns (5 added):
+Patterns 5-9:
 5. Full influence loop — company lobbied → bill introduced → committee voted →
    politician on committee received donations → same politician traded stock
 6. Revolving door — committee members + top lobbying spenders targeting that committee
 7. Regulatory arbitrage — company with high lobbying but low/zero enforcement vs sector avg
 8. Bipartisan buying — company donates to BOTH parties on same committee
 9. Trade timing — congressional trade within N days of related committee vote or bill action
+
+Patterns 10-14:
+10. STOCK Act violation — congress members with chronic late trade disclosures (45+ day gaps)
+11. Committee stock overlap — members trading stocks in sectors their committee oversees
+12. Penalty-contract ratio — companies winning huge contracts with zero/minimal enforcement
+13. Prolific trader — congress members with 50+ trades who also receive corporate donations
+14. Enforcement immunity — companies with $50M+ in contracts and zero enforcement actions
 
 Usage:
     python jobs/detect_stories.py
@@ -1082,6 +1089,533 @@ def detect_trade_timing(db) -> List[Dict[str, Any]]:
     return stories
 
 
+# ── Patterns 10-14 ─────────────────────────────────────────────────────
+
+
+def detect_stock_act_violations(db) -> List[Dict[str, Any]]:
+    """Find congress members with chronic late trade disclosures (reporting_gap > 45 days).
+
+    The STOCK Act requires disclosure within 45 days. Members with 3+ late
+    trades since 2024 are flagged, scored by worst gap.
+    """
+    stories = []
+    try:
+        sql = text(f"""
+            SELECT person_id, ticker, transaction_type, transaction_date,
+                   disclosure_date, reporting_gap
+            FROM congressional_trades
+            WHERE transaction_date >= '2024-01-01'
+                AND reporting_gap IS NOT NULL
+        """)
+        rows = db.execute(sql).fetchall()
+
+        # Group by person_id, filter to late trades
+        person_trades: Dict[str, list] = {}
+        for row in rows:
+            person_id = str(row[0]) if row[0] else None
+            if not person_id:
+                continue
+            gap_str = str(row[5]) if row[5] else ""
+            try:
+                gap_days = int(gap_str.split()[0])
+            except (ValueError, IndexError):
+                continue
+            if gap_days <= 45:
+                continue
+            if person_id not in person_trades:
+                person_trades[person_id] = []
+            person_trades[person_id].append({
+                "ticker": row[1],
+                "transaction_type": row[2],
+                "transaction_date": str(row[3]) if row[3] else "",
+                "disclosure_date": str(row[4]) if row[4] else "",
+                "gap_days": gap_days,
+            })
+
+        for person_id, late_trades in person_trades.items():
+            if len(late_trades) < 3:
+                continue
+
+            worst_gap = max(t["gap_days"] for t in late_trades)
+
+            # Score by worst gap
+            if worst_gap >= 271:
+                score = 10
+            elif worst_gap >= 181:
+                score = 9
+            elif worst_gap >= 91:
+                score = 8
+            else:
+                score = 7
+
+            # Get total trade count for this person
+            total_sql = text(f"""
+                SELECT COUNT(*) FROM congressional_trades
+                WHERE person_id = :pid AND transaction_date >= '2024-01-01'
+            """)
+            total_row = db.execute(total_sql, {"pid": person_id}).fetchone()
+            total_trades = total_row[0] if total_row else len(late_trades)
+
+            tickers = list(set(t["ticker"] for t in late_trades if t["ticker"]))
+            sample_trades = sorted(late_trades, key=lambda t: t["gap_days"], reverse=True)[:5]
+            person_name = _resolve_member_name(db, person_id)
+
+            stories.append({
+                "category": "stock_act_violation",
+                "score": score,
+                "evidence": {
+                    "person_id": person_id,
+                    "person_name": person_name,
+                    "late_trade_count": len(late_trades),
+                    "total_trades": total_trades,
+                    "worst_gap_days": worst_gap,
+                    "tickers": ", ".join(tickers),
+                    "sample_trades": [
+                        {"ticker": t["ticker"], "date": t["transaction_date"], "gap": t["gap_days"]}
+                        for t in sample_trades
+                    ],
+                    "entity_ids": [person_id],
+                    "data_sources": ["congressional_trades"],
+                },
+            })
+
+    except Exception as e:
+        logger.debug("STOCK Act violation check failed: %s", e)
+
+    return stories
+
+
+def detect_committee_stock_overlap(db) -> List[Dict[str, Any]]:
+    """Detect members trading stocks in sectors their committee oversees.
+
+    Matches specific tickers to committee jurisdictions — e.g., a member on
+    the Armed Services Committee buying Lockheed Martin stock.
+    """
+    stories = []
+
+    # Committee keyword -> list of sector tickers
+    committee_tickers = {
+        "Health": ["UNH", "LLY", "MRK", "PFE", "JNJ", "ABBV", "AMGN", "CVS", "CI", "HUM"],
+        "Armed": ["LMT", "BA", "RTX", "GD", "NOC", "HII", "LHX"],
+        "Science": ["META", "GOOG", "GOOGL", "MSFT", "AAPL", "AMZN", "NVDA", "INTC", "CRM", "ORCL"],
+        "Commerce": ["META", "GOOG", "GOOGL", "MSFT", "AAPL", "AMZN", "NVDA", "INTC", "CRM", "ORCL"],
+        "Intelligence": ["META", "GOOG", "GOOGL", "MSFT", "AAPL", "AMZN", "NVDA", "INTC", "CRM", "ORCL"],
+        "Financial": ["JPM", "GS", "MS", "BAC", "C", "WFC", "BLK", "V", "MA", "AXP"],
+        "Banking": ["JPM", "GS", "MS", "BAC", "C", "WFC", "BLK", "V", "MA", "AXP"],
+        "Energy": ["XOM", "CVX", "COP", "SLB", "EOG", "OXY"],
+        "Natural Resources": ["XOM", "CVX", "COP", "SLB", "EOG", "OXY"],
+    }
+
+    try:
+        # Get all committee memberships with committee names
+        sql = text("""
+            SELECT cm.person_id, cm.member_name, c.name as committee_name
+            FROM committee_memberships cm
+            JOIN committees c ON c.thomas_id = cm.committee_thomas_id
+            WHERE cm.person_id IS NOT NULL
+                AND c.parent_thomas_id IS NULL
+        """)
+        membership_rows = db.execute(sql).fetchall()
+
+        # Build person -> [(committee_name, keyword, tickers)] map
+        person_committees: Dict[str, list] = {}
+        person_names: Dict[str, str] = {}
+        for row in membership_rows:
+            pid = str(row[0])
+            person_names[pid] = row[1] or pid
+            committee_name = row[2] or ""
+            for keyword, tickers in committee_tickers.items():
+                if keyword.lower() in committee_name.lower():
+                    if pid not in person_committees:
+                        person_committees[pid] = []
+                    person_committees[pid].append({
+                        "committee_name": committee_name,
+                        "keyword": keyword,
+                        "tickers": tickers,
+                    })
+
+        if not person_committees:
+            return stories
+
+        # Get all purchases since 2024
+        trade_sql = text(f"""
+            SELECT person_id, ticker, transaction_date, transaction_type
+            FROM congressional_trades
+            WHERE transaction_date >= '2024-01-01'
+                AND ticker IS NOT NULL AND ticker != ''
+                AND transaction_type IS NOT NULL
+                AND LOWER(transaction_type) LIKE '%purchase%'
+        """)
+        trade_rows = db.execute(trade_sql).fetchall()
+
+        # Match trades to committee jurisdictions
+        person_overlaps: Dict[str, list] = {}
+        for row in trade_rows:
+            pid = str(row[0]) if row[0] else None
+            if not pid or pid not in person_committees:
+                continue
+            ticker = str(row[1]).upper() if row[1] else ""
+            for cm_info in person_committees[pid]:
+                if ticker in cm_info["tickers"]:
+                    if pid not in person_overlaps:
+                        person_overlaps[pid] = []
+                    person_overlaps[pid].append({
+                        "ticker": ticker,
+                        "date": str(row[2]) if row[2] else "",
+                        "committee": cm_info["committee_name"],
+                    })
+
+        for pid, overlaps in person_overlaps.items():
+            count = len(overlaps)
+            if count == 0:
+                continue
+
+            if count >= 11:
+                score = 10
+            elif count >= 6:
+                score = 9
+            elif count >= 3:
+                score = 8
+            else:
+                score = 7
+
+            committees_list = list(set(o["committee"] for o in overlaps))
+            tickers_list = list(set(o["ticker"] for o in overlaps))
+            person_name = _resolve_member_name(db, pid) or person_names.get(pid, pid)
+
+            stories.append({
+                "category": "committee_stock_trade",
+                "score": score,
+                "evidence": {
+                    "person_id": pid,
+                    "person_name": person_name,
+                    "overlap_count": count,
+                    "committees": committees_list,
+                    "tickers_traded": tickers_list,
+                    "sample_trades": overlaps[:10],
+                    "entity_ids": [pid],
+                    "data_sources": [
+                        "congressional_trades", "committee_memberships", "committees",
+                    ],
+                },
+            })
+
+    except Exception as e:
+        logger.debug("Committee stock overlap check failed: %s", e)
+
+    return stories
+
+
+def detect_penalty_contract_ratio(db) -> List[Dict[str, Any]]:
+    """Find companies winning huge government contracts with zero or minimal
+    enforcement penalties.
+
+    Flags companies with $10M+ in contracts but under $1000 in penalties.
+    """
+    stories = []
+
+    sectors = [
+        ("health", "health_government_contracts", "health_enforcement_actions", "tracked_companies", "company_id"),
+        ("tech", "government_contracts", "ftc_enforcement_actions", "tracked_tech_companies", "company_id"),
+        ("energy", "energy_government_contracts", "energy_enforcement_actions", "tracked_energy_companies", "company_id"),
+        ("defense", "defense_government_contracts", "defense_enforcement_actions", "tracked_defense_companies", "company_id"),
+        ("finance", "finance_government_contracts", "finance_enforcement_actions", "tracked_institutions", "institution_id"),
+        ("transportation", "transportation_government_contracts", "transportation_enforcement_actions", "tracked_transportation_companies", "company_id"),
+    ]
+
+    all_candidates = []
+
+    for sector, contract_table, enforce_table, entity_table, id_col in sectors:
+        try:
+            sql = text(f"""
+                SELECT e.{id_col}, e.display_name,
+                       COALESCE(con.total_contracts, 0) as total_contracts,
+                       COALESCE(con.contract_count, 0) as contract_count,
+                       COALESCE(enf.total_penalties, 0) as total_penalties,
+                       COALESCE(enf.penalty_count, 0) as penalty_count
+                FROM {entity_table} e
+                LEFT JOIN (
+                    SELECT company_id, SUM(COALESCE(award_amount, 0)) as total_contracts,
+                           COUNT(*) as contract_count
+                    FROM {contract_table}
+                    GROUP BY company_id
+                ) con ON con.company_id = e.{id_col}
+                LEFT JOIN (
+                    SELECT company_id, SUM(COALESCE(penalty_amount, 0)) as total_penalties,
+                           COUNT(*) as penalty_count
+                    FROM {enforce_table}
+                    GROUP BY company_id
+                ) enf ON enf.company_id = e.{id_col}
+                WHERE COALESCE(con.total_contracts, 0) > 10000000
+                    AND COALESCE(enf.total_penalties, 0) < 1000
+                ORDER BY total_contracts DESC
+                {limit_sql(20)}
+            """)
+            rows = db.execute(sql).fetchall()
+
+            for row in rows:
+                total_contracts = float(row[2]) if row[2] else 0
+                total_penalties = float(row[4]) if row[4] else 0
+
+                if total_contracts >= 10_000_000_000:
+                    score = 10
+                elif total_contracts >= 1_000_000_000:
+                    score = 9
+                elif total_contracts >= 100_000_000:
+                    score = 8
+                else:
+                    score = 7
+
+                if total_penalties == 0:
+                    ratio_desc = f"${total_contracts:,.0f} in contracts, ZERO penalties"
+                else:
+                    ratio_desc = f"${total_contracts:,.0f} in contracts vs ${total_penalties:,.0f} in penalties"
+
+                all_candidates.append({
+                    "category": "penalty_contract_ratio",
+                    "score": score,
+                    "total_contracts": total_contracts,
+                    "evidence": {
+                        "company_id": row[0],
+                        "display_name": row[1],
+                        "sector": sector,
+                        "total_contracts": total_contracts,
+                        "contract_count": row[3],
+                        "total_penalties": total_penalties,
+                        "penalty_count": row[5],
+                        "ratio_description": ratio_desc,
+                        "entity_ids": [row[0]],
+                        "data_sources": [contract_table, enforce_table, entity_table],
+                    },
+                })
+
+        except Exception as e:
+            logger.debug("Penalty-contract ratio check failed for %s: %s", sector, e)
+            continue
+
+    # Sort by contract value descending, keep top 10
+    all_candidates.sort(key=lambda c: c["total_contracts"], reverse=True)
+    for c in all_candidates[:10]:
+        stories.append({
+            "category": c["category"],
+            "score": c["score"],
+            "evidence": c["evidence"],
+        })
+
+    return stories
+
+
+def detect_prolific_traders(db) -> List[Dict[str, Any]]:
+    """Find congress members with 50+ trades since 2024 who also receive
+    corporate donations — the intersection of heavy trading and donor ties.
+    """
+    stories = []
+    try:
+        # Get trade counts per person
+        trade_sql = text(f"""
+            SELECT person_id, COUNT(*) as trade_count,
+                   COUNT(DISTINCT ticker) as unique_tickers
+            FROM congressional_trades
+            WHERE transaction_date >= '2024-01-01'
+                AND person_id IS NOT NULL
+            GROUP BY person_id
+            HAVING trade_count >= 50
+            ORDER BY trade_count DESC
+        """)
+        trade_rows = db.execute(trade_sql).fetchall()
+
+        for trow in trade_rows:
+            person_id = str(trow[0])
+            trade_count = trow[1]
+            unique_tickers = trow[2]
+
+            # Check for corporate donations to this person
+            try:
+                donation_sql = text(f"""
+                    SELECT SUM(COALESCE(amount, 0)) as donation_total,
+                           COUNT(DISTINCT entity_id) as donor_count
+                    FROM company_donations
+                    WHERE person_id = :pid
+                        AND amount > 0
+                """)
+                don_row = db.execute(donation_sql, {"pid": person_id}).fetchone()
+                if not don_row or not don_row[0] or float(don_row[0]) == 0:
+                    continue
+                donation_total = float(don_row[0])
+                donor_count = don_row[1]
+            except Exception:
+                continue
+
+            # Get top donors
+            try:
+                top_donor_sql = text(f"""
+                    SELECT entity_id, committee_name, SUM(COALESCE(amount, 0)) as total
+                    FROM company_donations
+                    WHERE person_id = :pid AND amount > 0
+                    GROUP BY entity_id, committee_name
+                    ORDER BY total DESC
+                    {limit_sql(5)}
+                """)
+                donor_rows = db.execute(top_donor_sql, {"pid": person_id}).fetchall()
+                top_donors = [
+                    {"entity_id": r[0], "committee": r[1], "amount": float(r[2]) if r[2] else 0}
+                    for r in donor_rows
+                ]
+                # Resolve donor names
+                for d in top_donors:
+                    d["name"] = _resolve_entity_name(db, d["entity_id"])
+            except Exception:
+                top_donors = []
+
+            # Get top traded tickers
+            try:
+                top_ticker_sql = text(f"""
+                    SELECT ticker, COUNT(*) as cnt
+                    FROM congressional_trades
+                    WHERE person_id = :pid
+                        AND transaction_date >= '2024-01-01'
+                        AND ticker IS NOT NULL AND ticker != ''
+                    GROUP BY ticker
+                    ORDER BY cnt DESC
+                    {limit_sql(5)}
+                """)
+                ticker_rows = db.execute(top_ticker_sql, {"pid": person_id}).fetchall()
+                top_tickers = [r[0] for r in ticker_rows if r[0]]
+            except Exception:
+                top_tickers = []
+
+            # Score by trade count
+            if trade_count >= 200:
+                score = 10
+            elif trade_count >= 150:
+                score = 9
+            elif trade_count >= 100:
+                score = 8
+            else:
+                score = 7
+
+            person_name = _resolve_member_name(db, person_id)
+
+            stories.append({
+                "category": "prolific_trader",
+                "score": score,
+                "evidence": {
+                    "person_id": person_id,
+                    "person_name": person_name,
+                    "trade_count": trade_count,
+                    "unique_tickers": unique_tickers,
+                    "donation_total": donation_total,
+                    "donor_count": donor_count,
+                    "top_donors": top_donors,
+                    "top_tickers": top_tickers,
+                    "entity_ids": [person_id],
+                    "data_sources": ["congressional_trades", "company_donations"],
+                },
+            })
+
+    except Exception as e:
+        logger.debug("Prolific trader check failed: %s", e)
+
+    return stories
+
+
+def detect_enforcement_immunity(db) -> List[Dict[str, Any]]:
+    """Find companies with $50M+ in government contracts and zero enforcement
+    actions across all sectors — companies that appear immune to regulatory action.
+    """
+    stories = []
+
+    sectors = [
+        ("health", "health_government_contracts", "health_enforcement_actions", "health_lobbying_records", "tracked_companies", "company_id"),
+        ("tech", "government_contracts", "ftc_enforcement_actions", "lobbying_records", "tracked_tech_companies", "company_id"),
+        ("energy", "energy_government_contracts", "energy_enforcement_actions", "energy_lobbying_records", "tracked_energy_companies", "company_id"),
+        ("defense", "defense_government_contracts", "defense_enforcement_actions", "defense_lobbying_records", "tracked_defense_companies", "company_id"),
+        ("finance", "finance_government_contracts", "finance_enforcement_actions", "finance_lobbying_records", "tracked_institutions", "institution_id"),
+        ("transportation", "transportation_government_contracts", "transportation_enforcement_actions", "transportation_lobbying_records", "tracked_transportation_companies", "company_id"),
+    ]
+
+    all_candidates = []
+
+    for sector, contract_table, enforce_table, lobby_table, entity_table, id_col in sectors:
+        try:
+            sql = text(f"""
+                SELECT e.{id_col}, e.display_name,
+                       COALESCE(con.total_contracts, 0) as total_contracts,
+                       COALESCE(con.contract_count, 0) as contract_count,
+                       COALESCE(lob.total_lobbying, 0) as total_lobbying,
+                       COALESCE(lob.lobby_count, 0) as lobby_count,
+                       COALESCE(enf.action_count, 0) as enforcement_count
+                FROM {entity_table} e
+                LEFT JOIN (
+                    SELECT company_id, SUM(COALESCE(award_amount, 0)) as total_contracts,
+                           COUNT(*) as contract_count
+                    FROM {contract_table}
+                    GROUP BY company_id
+                ) con ON con.company_id = e.{id_col}
+                LEFT JOIN (
+                    SELECT {id_col}, SUM(COALESCE(income, 0)) as total_lobbying,
+                           COUNT(*) as lobby_count
+                    FROM {lobby_table}
+                    GROUP BY {id_col}
+                ) lob ON lob.{id_col} = e.{id_col}
+                LEFT JOIN (
+                    SELECT company_id, COUNT(*) as action_count
+                    FROM {enforce_table}
+                    GROUP BY company_id
+                ) enf ON enf.company_id = e.{id_col}
+                WHERE COALESCE(con.total_contracts, 0) > 50000000
+                    AND COALESCE(enf.action_count, 0) = 0
+                ORDER BY total_contracts DESC
+                {limit_sql(20)}
+            """)
+            rows = db.execute(sql).fetchall()
+
+            for row in rows:
+                total_contracts = float(row[2]) if row[2] else 0
+                total_lobbying = float(row[4]) if row[4] else 0
+
+                if total_contracts >= 1_000_000_000:
+                    score = 10
+                elif total_contracts >= 500_000_000:
+                    score = 9
+                elif total_contracts >= 200_000_000:
+                    score = 8
+                else:
+                    score = 7
+
+                all_candidates.append({
+                    "category": "enforcement_immunity",
+                    "score": score,
+                    "total_contracts": total_contracts,
+                    "evidence": {
+                        "company_id": row[0],
+                        "display_name": row[1],
+                        "sector": sector,
+                        "total_contracts": total_contracts,
+                        "contract_count": row[3],
+                        "lobbying_total": total_lobbying,
+                        "lobbying_count": row[5],
+                        "entity_ids": [row[0]],
+                        "data_sources": [contract_table, enforce_table, lobby_table, entity_table],
+                    },
+                })
+
+        except Exception as e:
+            logger.debug("Enforcement immunity check failed for %s: %s", sector, e)
+            continue
+
+    # Sort by contract value descending, keep top 15
+    all_candidates.sort(key=lambda c: c["total_contracts"], reverse=True)
+    for c in all_candidates[:15]:
+        stories.append({
+            "category": c["category"],
+            "score": c["score"],
+            "evidence": c["evidence"],
+        })
+
+    return stories
+
+
 # ── Main ────────────────────────────────────────────────────────────────
 
 
@@ -1095,6 +1629,11 @@ DETECTORS = {
     "regulatory_arbitrage": detect_regulatory_arbitrage,
     "bipartisan_buying": detect_bipartisan_buying,
     "trade_timing": detect_trade_timing,
+    "stock_act_violation": detect_stock_act_violations,
+    "committee_stock_trade": detect_committee_stock_overlap,
+    "penalty_contract_ratio": detect_penalty_contract_ratio,
+    "prolific_trader": detect_prolific_traders,
+    "enforcement_immunity": detect_enforcement_immunity,
 }
 
 
