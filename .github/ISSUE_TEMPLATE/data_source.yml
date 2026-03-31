@@ -1,0 +1,50 @@
+---
+name: Data Source Suggestion
+description: Suggest a government API or public dataset to integrate
+title: "[Data]: "
+labels: ["data-source"]
+body:
+  - type: input
+    id: source_name
+    attributes:
+      label: Data source name
+      placeholder: e.g., SEC EDGAR, ProPublica Congress API
+    validations:
+      required: true
+  - type: input
+    id: source_url
+    attributes:
+      label: URL or documentation link
+      placeholder: https://...
+    validations:
+      required: true
+  - type: dropdown
+    id: sector
+    attributes:
+      label: Which sector does it cover?
+      options:
+        - Politics
+        - Finance
+        - Health
+        - Technology
+        - Energy
+        - Cross-sector
+    validations:
+      required: true
+  - type: textarea
+    id: what_it_provides
+    attributes:
+      label: What data does it provide?
+      placeholder: Describe what this source tracks and why it matters for accountability
+    validations:
+      required: true
+  - type: dropdown
+    id: access
+    attributes:
+      label: Access type
+      options:
+        - Free API (no key required)
+        - Free API (key required)
+        - Bulk download
+        - Scraping required
+        - Paid / limited access
