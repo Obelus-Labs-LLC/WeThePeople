@@ -326,53 +326,64 @@ def generate_story_tweet():
     story = random.choice(stories[:5])
     title = story.get("title", "")
     summary = story.get("summary", "")
-    content = story.get("content", "")
+    body = story.get("body", "") or story.get("content", "")
     slug = story.get("slug", "")
     category = story.get("category", "")
     sources_count = len(story.get("data_sources", []))
+    data_sources = story.get("data_sources", [])
 
     if not title:
         return generate_data_tweet()
 
-    # Build the excerpt — lead with the most compelling line
-    # Try to extract the first substantive sentence from content
-    excerpt = ""
-    if content:
-        # Split on paragraphs, find first one with a dollar amount or name
-        paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
-        for p in paragraphs[:3]:
-            if "$" in p or any(c.isupper() for c in p[1:10]):
-                excerpt = p
-                break
-        if not excerpt and paragraphs:
-            excerpt = paragraphs[0]
+    # Build a rich tweet — X verified accounts get 25K chars.
+    # Include the full article body, cleaned of markdown headings.
+    clean_body = ""
+    if body:
+        lines = []
+        for line in body.split("\n"):
+            stripped = line.strip()
+            # Convert ## headings to bold-style plain text
+            if stripped.startswith("## "):
+                lines.append(stripped[3:].upper())
+            elif stripped.startswith("### "):
+                lines.append(stripped[4:].upper())
+            elif stripped:
+                lines.append(stripped)
+        clean_body = "\n\n".join(lines)
 
-    # Build tweet: title + excerpt (or summary) + source count
-    if excerpt and len(excerpt) < 200:
-        text = f"{title}\n\n{excerpt}"
-    elif summary:
-        text = f"{title}\n\n{summary}"
-    else:
-        text = title
+    # Build tweet: title + summary + full body + sources
+    parts = [title]
+    if summary:
+        parts.append(summary)
+    if clean_body:
+        parts.append(clean_body)
 
-    # Add source citation count for credibility
+    # Source attribution
     if sources_count > 0:
-        text += f"\n\n{sources_count} government sources cited."
+        source_line = f"{sources_count} government data sources: {', '.join(s.replace('_', ' ').title() for s in data_sources[:6])}"
+        parts.append(source_line)
 
     # Hashtag based on category
     hashtag = {
+        "lobbying_spike": "#CorporateLobbying",
         "lobbying_influence": "#CorporateLobbying",
         "trade_timing": "#CongressTrades",
+        "trade_cluster": "#CongressTrades",
         "regulatory_capture": "#FollowTheMoney",
+        "regulatory_arbitrage": "#FollowTheMoney",
         "bipartisan_buying": "#FollowTheMoney",
         "revolving_door": "#RevolvingDoor",
         "enforcement_gap": "#Accountability",
+        "contract_windfall": "#FollowTheMoney",
+        "full_influence_loop": "#FollowTheMoney",
     }.get(category, "#FollowTheMoney")
-    text += f"\n\n{hashtag}"
+    parts.append(hashtag)
 
-    # Link to journal site (not main site)
+    text = "\n\n".join(parts)
+
+    # Link to the specific journal article (not the journal homepage)
     journal_url = "journal.wethepeopleforus.com"
-    link = f"{journal_url}/story/{slug}" if slug else f"{journal_url}"
+    link = f"{journal_url}/story/{slug}" if slug else journal_url
     return (text, link), "story"
 
 
