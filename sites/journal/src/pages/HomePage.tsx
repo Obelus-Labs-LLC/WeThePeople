@@ -6,7 +6,11 @@ import { EmptyState } from '../components/EmptyState';
 import { useStories } from '../hooks/useStories';
 import { CATEGORY_META, type StoryCategory } from '../types';
 
-const categories: StoryCategory[] = ['lobbying', 'contracts', 'enforcement', 'trades', 'regulatory'];
+const categories: StoryCategory[] = [
+  'contract_windfall', 'revolving_door', 'bipartisan_buying', 'stock_act_violation',
+  'committee_stock_trade', 'prolific_trader', 'enforcement_immunity', 'penalty_contract_ratio',
+  'lobbying_spike', 'enforcement_gap', 'trade_timing', 'full_influence_loop',
+];
 
 export default function HomePage() {
   const { stories, loading, error } = useStories({ limit: 10 });
@@ -104,7 +108,7 @@ export default function HomePage() {
               >
                 Browse by Category
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {categories.map((cat) => {
                   const meta = CATEGORY_META[cat];
                   const count = stories.filter((s) => s.category === cat).length;
