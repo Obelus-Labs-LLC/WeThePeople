@@ -41,6 +41,10 @@ from models.chemicals_models import (
     TrackedChemicalCompany, ChemicalEnforcement,
     ChemicalLobbyingRecord, ChemicalGovernmentContract,
 )
+from models.agriculture_models import (
+    TrackedAgricultureCompany, AgricultureEnforcement,
+    AgricultureLobbyingRecord, AgricultureGovernmentContract,
+)
 
 router = APIRouter(prefix="/aggregate", tags=["aggregate"])
 
@@ -98,6 +102,13 @@ SECTOR_MODELS = {
         "enforcement": ChemicalEnforcement,
         "lobbying": ChemicalLobbyingRecord,
         "contracts": ChemicalGovernmentContract,
+    },
+    "agriculture": {
+        "entity": TrackedAgricultureCompany,
+        "entity_id_col": "company_id",
+        "enforcement": AgricultureEnforcement,
+        "lobbying": AgricultureLobbyingRecord,
+        "contracts": AgricultureGovernmentContract,
     },
 }
 
@@ -240,6 +251,11 @@ def chemicals_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Sessio
     return _query_enforcement("chemicals", limit, db)
 
 
+@router.get("/agriculture/enforcement")
+def agriculture_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_enforcement("agriculture", limit, db)
+
+
 # ── Lobbying endpoints ──
 
 @router.get("/finance/lobbying")
@@ -277,6 +293,11 @@ def chemicals_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session =
     return _query_lobbying("chemicals", limit, db)
 
 
+@router.get("/agriculture/lobbying")
+def agriculture_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_lobbying("agriculture", limit, db)
+
+
 # ── Contracts endpoints ──
 
 @router.get("/finance/contracts")
@@ -312,3 +333,8 @@ def defense_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = 
 @router.get("/chemicals/contracts")
 def chemicals_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
     return _query_contracts("chemicals", limit, db)
+
+
+@router.get("/agriculture/contracts")
+def agriculture_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_contracts("agriculture", limit, db)

@@ -9,6 +9,7 @@ import EnergyLayout from "./layouts/EnergyLayout";
 import TransportationLayout from "./layouts/TransportationLayout";
 import DefenseLayout from "./layouts/DefenseLayout";
 import ChemicalsLayout from "./layouts/ChemicalsLayout";
+import AgricultureLayout from "./layouts/AgricultureLayout";
 import VerifyLayout from "./layouts/VerifyLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -73,6 +74,10 @@ const ChemicalsDashboardPage = React.lazy(() => import("./pages/ChemicalsDashboa
 const ChemicalsCompaniesPage = React.lazy(() => import("./pages/ChemicalsCompaniesPage"));
 const ChemicalsCompanyProfilePage = React.lazy(() => import("./pages/ChemicalsCompanyProfilePage"));
 const ChemicalsComparePage = React.lazy(() => import("./pages/ChemicalsComparePage"));
+const AgricultureDashboardPage = React.lazy(() => import("./pages/AgricultureDashboardPage"));
+const AgricultureCompaniesPage = React.lazy(() => import("./pages/AgricultureCompaniesPage"));
+const AgricultureCompanyProfilePage = React.lazy(() => import("./pages/AgricultureCompanyProfilePage"));
+const AgricultureComparePage = React.lazy(() => import("./pages/AgricultureComparePage"));
 const CongressionalTradesPage = React.lazy(() => import("./pages/CongressionalTradesPage"));
 const StateExplorerPage = React.lazy(() => import("./pages/StateExplorerPage"));
 const StateDashboardPage = React.lazy(() => import("./pages/StateDashboardPage"));
@@ -225,6 +230,15 @@ const App: React.FC = () => (
           <Route path="/chemicals/contracts" element={<ChemicalsLayout><SectorContractsPage /></ChemicalsLayout>} />
           <Route path="/chemicals/enforcement" element={<ChemicalsLayout><SectorEnforcementPage /></ChemicalsLayout>} />
           <Route path="/chemicals/:companyId" element={<ChemicalsLayout><ChemicalsCompanyProfilePage /></ChemicalsLayout>} />
+
+          {/* Agriculture section — all wrapped in AgricultureLayout */}
+          <Route path="/agriculture" element={<AgricultureLayout><AgricultureDashboardPage /></AgricultureLayout>} />
+          <Route path="/agriculture/companies" element={<AgricultureLayout><AgricultureCompaniesPage /></AgricultureLayout>} />
+          <Route path="/agriculture/compare" element={<AgricultureLayout><AgricultureComparePage /></AgricultureLayout>} />
+          <Route path="/agriculture/lobbying" element={<AgricultureLayout><SectorLobbyingPage /></AgricultureLayout>} />
+          <Route path="/agriculture/contracts" element={<AgricultureLayout><SectorContractsPage /></AgricultureLayout>} />
+          <Route path="/agriculture/enforcement" element={<AgricultureLayout><SectorEnforcementPage /></AgricultureLayout>} />
+          <Route path="/agriculture/:companyId" element={<AgricultureLayout><AgricultureCompanyProfilePage /></AgricultureLayout>} />
 
           {/* Claim Verification section — wrapped in VerifyLayout */}
           <Route path="/verify" element={<VerifyLayout><VerifyDashboardPage /></VerifyLayout>} />

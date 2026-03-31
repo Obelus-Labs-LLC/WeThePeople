@@ -93,6 +93,7 @@ from routers.energy import router as energy_router
 from routers.transportation import router as transportation_router
 from routers.defense import router as defense_router
 from routers.chemicals import router as chemicals_router
+from routers.agriculture import router as agriculture_router
 from routers.infrastructure import router as infrastructure_router
 from routers.state import router as state_router
 from routers.aggregate import router as aggregate_router
@@ -122,6 +123,7 @@ app.include_router(energy_router)
 app.include_router(transportation_router)
 app.include_router(defense_router)
 app.include_router(chemicals_router)
+app.include_router(agriculture_router)
 app.include_router(infrastructure_router)
 app.include_router(state_router)
 app.include_router(aggregate_router)
@@ -154,6 +156,7 @@ v1.include_router(energy_router)
 v1.include_router(transportation_router)
 v1.include_router(defense_router)
 v1.include_router(chemicals_router)
+v1.include_router(agriculture_router)
 v1.include_router(infrastructure_router)
 v1.include_router(state_router)
 v1.include_router(aggregate_router)

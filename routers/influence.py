@@ -26,6 +26,9 @@ from models.energy_models import (
 from models.chemicals_models import (
     TrackedChemicalCompany, ChemicalLobbyingRecord, ChemicalGovernmentContract, ChemicalEnforcement,
 )
+from models.agriculture_models import (
+    TrackedAgricultureCompany, AgricultureLobbyingRecord, AgricultureGovernmentContract, AgricultureEnforcement,
+)
 from models.government_data_models import RegulatoryComment
 from models.response_schemas import InfluenceStatsResponse
 
@@ -58,6 +61,7 @@ def data_freshness(db: Session = Depends(get_db)):
         (HealthLobbyingRecord, HealthLobbyingRecord.created_at),
         (EnergyLobbyingRecord, EnergyLobbyingRecord.created_at),
         (ChemicalLobbyingRecord, ChemicalLobbyingRecord.created_at),
+        (AgricultureLobbyingRecord, AgricultureLobbyingRecord.created_at),
     ]
     lobby_latest = None
     lobby_count = 0
@@ -74,6 +78,7 @@ def data_freshness(db: Session = Depends(get_db)):
         (HealthGovernmentContract, HealthGovernmentContract.start_date),
         (EnergyGovernmentContract, EnergyGovernmentContract.start_date),
         (ChemicalGovernmentContract, ChemicalGovernmentContract.start_date),
+        (AgricultureGovernmentContract, AgricultureGovernmentContract.start_date),
     ]
     contract_latest = None
     contract_count = 0
@@ -90,6 +95,7 @@ def data_freshness(db: Session = Depends(get_db)):
         (HealthEnforcement, HealthEnforcement.case_date),
         (EnergyEnforcement, EnergyEnforcement.case_date),
         (ChemicalEnforcement, ChemicalEnforcement.case_date),
+        (AgricultureEnforcement, AgricultureEnforcement.case_date),
     ]
     enforcement_latest = None
     enforcement_count = 0
