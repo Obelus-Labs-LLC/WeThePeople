@@ -30,11 +30,9 @@ async def food_recalls(
     base = "https://api.fda.gov/food/enforcement.json"
     params: dict = {"limit": limit}
     if search.strip():
-        # Search across multiple fields
+        # OpenFDA search: field:term, use + for AND. For broad search, just search one field.
         q = search.strip().replace('"', "")
-        params["search"] = (
-            f'product_description:"{q}"+recalling_firm:"{q}"+reason_for_recall:"{q}"'
-        )
+        params["search"] = f'product_description:"{q}"'
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
