@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://api.wethepeopleforus.com:8006/:path*"
+      "destination": "https://api.wethepeopleforus.com/:path*"
     },
     {
       "source": "/((?!api/).*)",
