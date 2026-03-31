@@ -35,7 +35,7 @@ async def food_recalls(
         params["search"] = f'product_description:"{q}"'
 
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
             resp = await client.get(base, params=params)
             resp.raise_for_status()
             data = resp.json()
@@ -81,7 +81,7 @@ async def usda_recalls(
     base = "https://api.fsis.usda.gov/fsis-api/recalls"
 
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
             resp = await client.get(base)
             resp.raise_for_status()
             data = resp.json()
@@ -154,7 +154,7 @@ async def toxic_releases(
     url = "/".join([base] + segments)
 
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             data = resp.json()
