@@ -8,6 +8,7 @@ import HealthLayout from "./layouts/HealthLayout";
 import EnergyLayout from "./layouts/EnergyLayout";
 import TransportationLayout from "./layouts/TransportationLayout";
 import DefenseLayout from "./layouts/DefenseLayout";
+import ChemicalsLayout from "./layouts/ChemicalsLayout";
 import VerifyLayout from "./layouts/VerifyLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -68,6 +69,10 @@ const DefenseDashboardPage = React.lazy(() => import("./pages/DefenseDashboardPa
 const DefenseCompaniesPage = React.lazy(() => import("./pages/DefenseCompaniesPage"));
 const DefenseCompanyProfilePage = React.lazy(() => import("./pages/DefenseCompanyProfilePage"));
 const DefenseComparePage = React.lazy(() => import("./pages/DefenseComparePage"));
+const ChemicalsDashboardPage = React.lazy(() => import("./pages/ChemicalsDashboardPage"));
+const ChemicalsCompaniesPage = React.lazy(() => import("./pages/ChemicalsCompaniesPage"));
+const ChemicalsCompanyProfilePage = React.lazy(() => import("./pages/ChemicalsCompanyProfilePage"));
+const ChemicalsComparePage = React.lazy(() => import("./pages/ChemicalsComparePage"));
 const CongressionalTradesPage = React.lazy(() => import("./pages/CongressionalTradesPage"));
 const StateExplorerPage = React.lazy(() => import("./pages/StateExplorerPage"));
 const StateDashboardPage = React.lazy(() => import("./pages/StateDashboardPage"));
@@ -211,6 +216,15 @@ const App: React.FC = () => (
           <Route path="/defense/contracts" element={<DefenseLayout><SectorContractsPage /></DefenseLayout>} />
           <Route path="/defense/enforcement" element={<DefenseLayout><SectorEnforcementPage /></DefenseLayout>} />
           <Route path="/defense/:companyId" element={<DefenseLayout><DefenseCompanyProfilePage /></DefenseLayout>} />
+
+          {/* Chemicals section — all wrapped in ChemicalsLayout */}
+          <Route path="/chemicals" element={<ChemicalsLayout><ChemicalsDashboardPage /></ChemicalsLayout>} />
+          <Route path="/chemicals/companies" element={<ChemicalsLayout><ChemicalsCompaniesPage /></ChemicalsLayout>} />
+          <Route path="/chemicals/compare" element={<ChemicalsLayout><ChemicalsComparePage /></ChemicalsLayout>} />
+          <Route path="/chemicals/lobbying" element={<ChemicalsLayout><SectorLobbyingPage /></ChemicalsLayout>} />
+          <Route path="/chemicals/contracts" element={<ChemicalsLayout><SectorContractsPage /></ChemicalsLayout>} />
+          <Route path="/chemicals/enforcement" element={<ChemicalsLayout><SectorEnforcementPage /></ChemicalsLayout>} />
+          <Route path="/chemicals/:companyId" element={<ChemicalsLayout><ChemicalsCompanyProfilePage /></ChemicalsLayout>} />
 
           {/* Claim Verification section — wrapped in VerifyLayout */}
           <Route path="/verify" element={<VerifyLayout><VerifyDashboardPage /></VerifyLayout>} />

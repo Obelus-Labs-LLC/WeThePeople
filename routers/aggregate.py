@@ -37,6 +37,10 @@ from models.defense_models import (
     TrackedDefenseCompany, DefenseEnforcement,
     DefenseLobbyingRecord, DefenseGovernmentContract,
 )
+from models.chemicals_models import (
+    TrackedChemicalCompany, ChemicalEnforcement,
+    ChemicalLobbyingRecord, ChemicalGovernmentContract,
+)
 
 router = APIRouter(prefix="/aggregate", tags=["aggregate"])
 
@@ -87,6 +91,13 @@ SECTOR_MODELS = {
         "enforcement": DefenseEnforcement,
         "lobbying": DefenseLobbyingRecord,
         "contracts": DefenseGovernmentContract,
+    },
+    "chemicals": {
+        "entity": TrackedChemicalCompany,
+        "entity_id_col": "company_id",
+        "enforcement": ChemicalEnforcement,
+        "lobbying": ChemicalLobbyingRecord,
+        "contracts": ChemicalGovernmentContract,
     },
 }
 
@@ -224,6 +235,11 @@ def defense_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session 
     return _query_enforcement("defense", limit, db)
 
 
+@router.get("/chemicals/enforcement")
+def chemicals_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_enforcement("chemicals", limit, db)
+
+
 # ── Lobbying endpoints ──
 
 @router.get("/finance/lobbying")
@@ -256,6 +272,11 @@ def defense_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = D
     return _query_lobbying("defense", limit, db)
 
 
+@router.get("/chemicals/lobbying")
+def chemicals_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_lobbying("chemicals", limit, db)
+
+
 # ── Contracts endpoints ──
 
 @router.get("/finance/contracts")
@@ -286,3 +307,8 @@ def transportation_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Ses
 @router.get("/defense/contracts")
 def defense_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
     return _query_contracts("defense", limit, db)
+
+
+@router.get("/chemicals/contracts")
+def chemicals_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_contracts("chemicals", limit, db)
