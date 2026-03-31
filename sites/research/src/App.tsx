@@ -9,6 +9,8 @@ import {
   FileSearch,
   Newspaper,
   ShieldCheck,
+  ShieldAlert,
+  Flame,
   ArrowRight,
 } from 'lucide-react'
 
@@ -21,6 +23,8 @@ const InsiderTradesPage = lazy(() => import('./pages/InsiderTradesPage'))
 const FdaSafetyPage = lazy(() => import('./pages/FdaSafetyPage'))
 const MarketMoversPage = lazy(() => import('./pages/MarketMoversPage'))
 const RegulatoryNewsPage = lazy(() => import('./pages/RegulatoryNewsPage'))
+const FoodSafetyPage = lazy(() => import('./pages/FoodSafetyPage'))
+const ToxicReleasePage = lazy(() => import('./pages/ToxicReleasePage'))
 
 // ── Loading fallback ──
 
@@ -99,6 +103,22 @@ const tools: ToolCard[] = [
     icon: Newspaper,
     path: '/regulatory-news',
     iconClass: 'text-blue-400', bgClass: 'bg-blue-400/15',
+    available: true,
+  },
+  {
+    title: 'Food Safety Search',
+    description: 'Search FDA and USDA food recall databases. Find recalls by product name, company, or reason — with severity classification and distribution data.',
+    icon: ShieldAlert,
+    path: '/food-safety',
+    iconClass: 'text-red-600', bgClass: 'bg-red-600/15',
+    available: true,
+  },
+  {
+    title: 'Toxic Release Inventory',
+    description: 'Explore EPA Toxic Release Inventory data. Filter by state, chemical, facility, or year to find reported toxic chemical releases near you.',
+    icon: Flame,
+    path: '/toxic-releases',
+    iconClass: 'text-orange-500', bgClass: 'bg-orange-500/15',
     available: true,
   },
 ]
@@ -272,6 +292,8 @@ export default function App() {
         <Route path="/fda-approvals" element={<ToolLayout><FdaSafetyPage /></ToolLayout>} />
         <Route path="/market-movers" element={<ToolLayout><MarketMoversPage /></ToolLayout>} />
         <Route path="/regulatory-news" element={<ToolLayout><RegulatoryNewsPage /></ToolLayout>} />
+        <Route path="/food-safety" element={<ToolLayout><FoodSafetyPage /></ToolLayout>} />
+        <Route path="/toxic-releases" element={<ToolLayout><ToxicReleasePage /></ToolLayout>} />
         {/* Catch-all back to home */}
         <Route path="*" element={<HomePage />} />
       </Routes>
