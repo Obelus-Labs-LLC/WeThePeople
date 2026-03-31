@@ -1,5 +1,5 @@
 """
-Agricultures sector enforcement data ingestion.
+Agriculture sector enforcement data ingestion.
 
 Fetches enforcement actions from:
 - EPA (Environmental Protection Agency) — via Federal Register API
@@ -7,7 +7,7 @@ Fetches enforcement actions from:
 - DOJ (Department of Justice) — via Federal Register API
 
 Usage:
-    python jobs/sync_agricultures_enforcement.py [--company COMPANY_ID]
+    python jobs/sync_agriculture_enforcement.py [--company COMPANY_ID]
 """
 
 import os
@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.database import Base
-from models.agricultures_models import TrackedAgricultureCompany, AgricultureEnforcement
+from models.agriculture_models import TrackedAgricultureCompany, AgricultureEnforcement
 from sqlalchemy import create_engine, event as sa_event
 from sqlalchemy.orm import sessionmaker
 from utils.db_compat import is_sqlite, set_pragmas_if_sqlite

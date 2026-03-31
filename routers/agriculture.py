@@ -1,5 +1,5 @@
 """
-Agricultures sector routes — Companies, contracts, lobbying, enforcement, SEC filings, stock.
+Agriculture sector routes — Companies, contracts, lobbying, enforcement, SEC filings, stock.
 """
 
 import logging
@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any, List
 logger = logging.getLogger(__name__)
 
 from models.database import get_db
-from models.agricultures_models import (
+from models.agriculture_models import (
     TrackedAgricultureCompany,
     SECAgricultureFiling,
     AgricultureGovernmentContract,
@@ -23,11 +23,11 @@ from models.market_models import StockFundamentals
 from models.database import CompanyDonation
 from utils.db_compat import extract_year
 
-router = APIRouter(prefix="/agricultures", tags=["agricultures"])
+router = APIRouter(prefix="/agriculture", tags=["agriculture"])
 
 
 @router.get("/dashboard/stats")
-def get_agricultures_dashboard_stats(db: Session = Depends(get_db)):
+def get_agriculture_dashboard_stats(db: Session = Depends(get_db)):
     total_companies = db.query(TrackedAgricultureCompany).filter(TrackedAgricultureCompany.is_active == 1).count()
     total_filings = db.query(SECAgricultureFiling).count()
     total_contracts = db.query(AgricultureGovernmentContract).count()
@@ -51,8 +51,8 @@ def get_agricultures_dashboard_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/dashboard/recent-activity")
-def get_agricultures_recent_activity(limit: int = Query(10, ge=1, le=30), db: Session = Depends(get_db)):
-    """Return recent enforcement actions, contracts, and lobbying filings across all agricultures companies."""
+def get_agriculture_recent_activity(limit: int = Query(10, ge=1, le=30), db: Session = Depends(get_db)):
+    """Return recent enforcement actions, contracts, and lobbying filings across all agriculture companies."""
     items = []
     enforcements = db.query(AgricultureEnforcement).order_by(desc(AgricultureEnforcement.case_date)).limit(limit).all()
     contracts = db.query(AgricultureGovernmentContract).order_by(desc(AgricultureGovernmentContract.start_date)).limit(limit).all()
@@ -77,7 +77,7 @@ def get_agricultures_recent_activity(limit: int = Query(10, ge=1, le=30), db: Se
 
 
 @router.get("/companies")
-def get_agricultures_companies(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), q: Optional[str] = Query(None), sector_type: Optional[str] = Query(None), db: Session = Depends(get_db)):
+def get_agriculture_companies(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), q: Optional[str] = Query(None), sector_type: Optional[str] = Query(None), db: Session = Depends(get_db)):
     query = db.query(TrackedAgricultureCompany).filter(TrackedAgricultureCompany.is_active == 1)
     if q:
         pattern = f"%{q}%"
@@ -97,7 +97,7 @@ def get_agricultures_companies(limit: int = Query(50, ge=1, le=200), offset: int
 
 
 @router.get("/companies/{company_id}")
-def get_agricultures_company(company_id: str, db: Session = Depends(get_db)):
+def get_agriculture_company(company_id: str, db: Session = Depends(get_db)):
     logger.info("Agriculture company detail request: %s", company_id)
     co = db.query(TrackedAgricultureCompany).filter_by(company_id=company_id).first()
     if not co:
@@ -109,14 +109,14 @@ def get_agricultures_company(company_id: str, db: Session = Depends(get_db)):
     total_contract_value = db.query(func.sum(AgricultureGovernmentContract.award_amount)).filter_by(company_id=company_id).scalar() or 0
     total_penalties = db.query(func.sum(AgricultureEnforcement.penalty_amount)).filter_by(company_id=company_id).scalar() or 0
     latest_stock = None
-    latest = db.query(StockFundamentals).filter_by(entity_type="agricultures_company", entity_id=company_id).order_by(desc(StockFundamentals.snapshot_date)).first()
+    latest = db.query(StockFundamentals).filter_by(entity_type="agriculture_company", entity_id=company_id).order_by(desc(StockFundamentals.snapshot_date)).first()
     if latest:
         latest_stock = {"snapshot_date": str(latest.snapshot_date) if latest.snapshot_date else None, "market_cap": latest.market_cap, "pe_ratio": latest.pe_ratio, "forward_pe": latest.forward_pe, "peg_ratio": latest.peg_ratio, "price_to_book": latest.price_to_book, "eps": latest.eps, "revenue_ttm": latest.revenue_ttm, "profit_margin": latest.profit_margin, "operating_margin": latest.operating_margin, "return_on_equity": latest.return_on_equity, "dividend_yield": latest.dividend_yield, "dividend_per_share": latest.dividend_per_share, "week_52_high": latest.week_52_high, "week_52_low": latest.week_52_low, "day_50_moving_avg": latest.day_50_moving_avg, "day_200_moving_avg": latest.day_200_moving_avg, "sector": latest.sector, "industry": latest.industry}
     return {"company_id": co.company_id, "display_name": co.display_name, "ticker": co.ticker, "sector_type": co.sector_type, "headquarters": co.headquarters, "logo_url": co.logo_url, "sec_cik": co.sec_cik, "contract_count": contract_count, "filing_count": filing_count, "enforcement_count": enforcement_count, "lobbying_count": lobbying_count, "total_contract_value": total_contract_value, "total_penalties": total_penalties, "latest_stock": latest_stock, "ai_profile_summary": co.ai_profile_summary, "sanctions_status": co.sanctions_status}
 
 
 @router.get("/companies/{company_id}/filings")
-def get_agricultures_company_filings(company_id: str, form_type: Optional[str] = Query(None), limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
+def get_agriculture_company_filings(company_id: str, form_type: Optional[str] = Query(None), limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
     co = db.query(TrackedAgricultureCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Agriculture company not found")
     query = db.query(SECAgricultureFiling).filter_by(company_id=company_id)
@@ -127,7 +127,7 @@ def get_agricultures_company_filings(company_id: str, form_type: Optional[str] =
 
 
 @router.get("/companies/{company_id}/contracts")
-def get_agricultures_company_contracts(company_id: str, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
+def get_agriculture_company_contracts(company_id: str, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
     co = db.query(TrackedAgricultureCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Agriculture company not found")
     query = db.query(AgricultureGovernmentContract).filter_by(company_id=company_id)
@@ -137,7 +137,7 @@ def get_agricultures_company_contracts(company_id: str, limit: int = Query(25, g
 
 
 @router.get("/companies/{company_id}/contracts/summary")
-def get_agricultures_company_contract_summary(company_id: str, db: Session = Depends(get_db)):
+def get_agriculture_company_contract_summary(company_id: str, db: Session = Depends(get_db)):
     co = db.query(TrackedAgricultureCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Agriculture company not found")
     total_contracts = db.query(AgricultureGovernmentContract).filter_by(company_id=company_id).count()
@@ -150,7 +150,7 @@ def get_agricultures_company_contract_summary(company_id: str, db: Session = Dep
 
 
 @router.get("/companies/{company_id}/lobbying")
-def get_agricultures_company_lobbying(company_id: str, filing_year: Optional[int] = Query(None), limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
+def get_agriculture_company_lobbying(company_id: str, filing_year: Optional[int] = Query(None), limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
     co = db.query(TrackedAgricultureCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Agriculture company not found")
     query = db.query(AgricultureLobbyingRecord).filter_by(company_id=company_id)
@@ -161,7 +161,7 @@ def get_agricultures_company_lobbying(company_id: str, filing_year: Optional[int
 
 
 @router.get("/companies/{company_id}/lobbying/summary")
-def get_agricultures_company_lobbying_summary(company_id: str, db: Session = Depends(get_db)):
+def get_agriculture_company_lobbying_summary(company_id: str, db: Session = Depends(get_db)):
     co = db.query(TrackedAgricultureCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Agriculture company not found")
     total_filings = db.query(AgricultureLobbyingRecord).filter_by(company_id=company_id).count()
@@ -177,7 +177,7 @@ def get_agricultures_company_lobbying_summary(company_id: str, db: Session = Dep
 
 
 @router.get("/companies/{company_id}/enforcement")
-def get_agricultures_company_enforcement(company_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
+def get_agriculture_company_enforcement(company_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
     co = db.query(TrackedAgricultureCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Agriculture company not found")
     query = db.query(AgricultureEnforcement).filter_by(company_id=company_id)
@@ -188,16 +188,16 @@ def get_agricultures_company_enforcement(company_id: str, limit: int = Query(50,
 
 
 @router.get("/companies/{company_id}/stock")
-def get_agricultures_company_stock(company_id: str, db: Session = Depends(get_db)):
+def get_agriculture_company_stock(company_id: str, db: Session = Depends(get_db)):
     co = db.query(TrackedAgricultureCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Agriculture company not found")
-    latest = db.query(StockFundamentals).filter_by(entity_type="agricultures_company", entity_id=company_id).order_by(desc(StockFundamentals.snapshot_date)).first()
+    latest = db.query(StockFundamentals).filter_by(entity_type="agriculture_company", entity_id=company_id).order_by(desc(StockFundamentals.snapshot_date)).first()
     if not latest: return {"latest_stock": None}
     return {"latest_stock": {"snapshot_date": str(latest.snapshot_date) if latest.snapshot_date else None, "market_cap": latest.market_cap, "pe_ratio": latest.pe_ratio, "forward_pe": latest.forward_pe, "peg_ratio": latest.peg_ratio, "price_to_book": latest.price_to_book, "eps": latest.eps, "revenue_ttm": latest.revenue_ttm, "profit_margin": latest.profit_margin, "operating_margin": latest.operating_margin, "return_on_equity": latest.return_on_equity, "dividend_yield": latest.dividend_yield, "dividend_per_share": latest.dividend_per_share, "week_52_high": latest.week_52_high, "week_52_low": latest.week_52_low, "day_50_moving_avg": latest.day_50_moving_avg, "day_200_moving_avg": latest.day_200_moving_avg, "sector": latest.sector, "industry": latest.industry}}
 
 
 @router.get("/compare")
-def get_agricultures_comparison(ids: str = Query(..., description="Comma-separated company IDs"), db: Session = Depends(get_db)):
+def get_agriculture_comparison(ids: str = Query(..., description="Comma-separated company IDs"), db: Session = Depends(get_db)):
     company_ids = [cid.strip() for cid in ids.split(",") if cid.strip()]
     if not company_ids or len(company_ids) > 10: raise HTTPException(status_code=400, detail="Provide 2-10 company IDs")
     companies = {co.company_id: co for co in db.query(TrackedAgricultureCompany).filter(TrackedAgricultureCompany.company_id.in_(company_ids)).all()}
@@ -208,7 +208,7 @@ def get_agricultures_comparison(ids: str = Query(..., description="Comma-separat
     penalty_totals = dict(db.query(AgricultureEnforcement.company_id, func.sum(AgricultureEnforcement.penalty_amount)).filter(AgricultureEnforcement.company_id.in_(company_ids)).group_by(AgricultureEnforcement.company_id).all())
     stock_map = {}
     for cid in company_ids:
-        latest = db.query(StockFundamentals).filter_by(entity_type="agricultures_company", entity_id=cid).order_by(desc(StockFundamentals.snapshot_date)).first()
+        latest = db.query(StockFundamentals).filter_by(entity_type="agriculture_company", entity_id=cid).order_by(desc(StockFundamentals.snapshot_date)).first()
         if latest: stock_map[cid] = latest
     results = []
     for cid in company_ids:
@@ -220,22 +220,22 @@ def get_agricultures_comparison(ids: str = Query(..., description="Comma-separat
 
 
 @router.get("/companies/{company_id}/donations")
-def get_agricultures_company_donations(company_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
-    """PAC/corporate donations from a agricultures company to politicians."""
+def get_agriculture_company_donations(company_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
+    """PAC/corporate donations from a agriculture company to politicians."""
     co = db.query(TrackedAgricultureCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Agriculture company not found")
-    query = db.query(CompanyDonation).filter_by(entity_type="agricultures", entity_id=company_id)
+    query = db.query(CompanyDonation).filter_by(entity_type="agriculture", entity_id=company_id)
     total = query.count()
     donations = query.order_by(desc(CompanyDonation.amount)).offset(offset).limit(limit).all()
-    total_amount = db.query(func.sum(CompanyDonation.amount)).filter_by(entity_type="agricultures", entity_id=company_id).scalar() or 0
+    total_amount = db.query(func.sum(CompanyDonation.amount)).filter_by(entity_type="agriculture", entity_id=company_id).scalar() or 0
     return {"total": total, "total_amount": total_amount, "limit": limit, "offset": offset, "donations": [{"id": d.id, "committee_name": d.committee_name, "committee_id": d.committee_id, "candidate_name": d.candidate_name, "candidate_id": d.candidate_id, "person_id": d.person_id, "amount": d.amount, "cycle": d.cycle, "donation_date": str(d.donation_date) if d.donation_date else None, "source_url": d.source_url} for d in donations]}
 
 
 # ── Trend Data ──────────────────────────────────────────────────────────
 
 @router.get("/companies/{company_id}/trends")
-def get_agricultures_company_trends(company_id: str, db: Session = Depends(get_db)):
-    """Yearly trend data for a agricultures company: lobbying, contracts, enforcement.
+def get_agriculture_company_trends(company_id: str, db: Session = Depends(get_db)):
+    """Yearly trend data for a agriculture company: lobbying, contracts, enforcement.
 
     NOTE: func.strftime is SQLite-specific. PostgreSQL equivalent: func.extract('year', col)
     or func.to_char(col, 'YYYY'). If migrating to PostgreSQL, update these queries.
