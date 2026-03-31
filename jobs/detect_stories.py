@@ -71,6 +71,52 @@ MIN_SCORE_FOR_STORY = 7
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
 
 
+def _map_entity_type(category: str, evidence: Dict) -> str:
+    """Map story category/evidence to claims pipeline entity_type."""
+    sector = evidence.get("sector", "")
+    if sector in ("tech", "finance", "health", "energy", "defense", "transportation", "chemicals"):
+        return sector
+    # Person-based patterns
+    if category in ("stock_act_violation", "committee_stock_trade", "prolific_trader", "trade_timing", "revolving_door"):
+        return "politician"
+    return "politician"  # default
+
+
+def _verify_story(db, story_body: str, entity_id: str, entity_type: str) -> Dict:
+    """Run story body through the claims verification pipeline.
+
+    Returns dict with verification_score, verification_tier, and full results.
+    """
+    try:
+        from services.claims.pipeline import run_verification
+        result = run_verification(
+            db, text=story_body, entity_id=entity_id, entity_type=entity_type,
+        )
+        tier_counts = result.get("tier_counts", {})
+        strong = tier_counts.get("strong", 0)
+        moderate = tier_counts.get("moderate", 0)
+        weak = tier_counts.get("weak", 0)
+        unverified = tier_counts.get("unverified", 0)
+        total = strong + moderate + weak + unverified
+
+        if total == 0:
+            return {"score": 0.0, "tier": "unverified", "data": result}
+
+        verified_pct = (strong + moderate) / total
+        if verified_pct >= 0.6:
+            tier = "verified"
+        elif verified_pct >= 0.3:
+            tier = "partially_verified"
+        else:
+            tier = "unverified"
+
+        score = round(verified_pct, 3)
+        return {"score": score, "tier": tier, "data": result}
+    except Exception as e:
+        logger.warning("Story verification failed: %s", e)
+        return {"score": None, "tier": None, "data": None}
+
+
 def _slugify(title: str) -> str:
     """Convert title to URL-safe slug."""
     slug = title.lower().strip()
@@ -1786,6 +1832,29 @@ def main():
             # Use 'content' field from Claude if available, else fall back to 'body'
             body = result.get("content") or result.get("body", "")
 
+            # Verify story claims against data sources
+            primary_entity = company_id or person_id or (entity_ids[0] if entity_ids else "")
+            v_entity_type = _map_entity_type(category, evidence)
+            verification = _verify_story(db, body, primary_entity, v_entity_type)
+            v_score = verification.get("score")
+            v_tier = verification.get("tier")
+            v_data = verification.get("data")
+
+            # Auto-publish if verified or partially verified; draft if unverified
+            auto_status = "draft"
+            if v_tier in ("verified", "partially_verified"):
+                auto_status = "published"
+                from datetime import datetime, timezone as tz
+                pub_at = datetime.now(tz.utc)
+            else:
+                pub_at = None
+
+            logger.info(
+                "Verification: %s (score=%.2f, tier=%s) — %s",
+                title[:50], v_score or 0, v_tier or "none",
+                "auto-publishing" if auto_status == "published" else "saving as draft for review",
+            )
+
             story = Story(
                 title=title,
                 slug=slug,
@@ -1796,12 +1865,16 @@ def main():
                 entity_ids=entity_ids,
                 data_sources=data_sources,
                 evidence=evidence,
-                status="draft",
+                status=auto_status,
+                published_at=pub_at,
+                verification_score=v_score,
+                verification_tier=v_tier,
+                verification_data=json.dumps(v_data, default=str) if v_data else None,
             )
             db.add(story)
             db.flush()
             stories_created += 1
-            logger.info("Created story: '%s' (slug: %s, score: %d)", title, slug, score)
+            logger.info("Created story: '%s' (slug: %s, score: %d, verification: %s)", title, slug, score, v_tier or "none")
 
         if stories_created > 0:
             db.commit()
