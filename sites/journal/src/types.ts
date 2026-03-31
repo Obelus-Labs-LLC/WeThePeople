@@ -16,7 +16,12 @@ export type StoryCategory =
   | 'regulatory_arbitrage'
   | 'bipartisan_buying'
   | 'trade_timing'
-  | 'full_influence_loop';
+  | 'full_influence_loop'
+  | 'stock_act_violation'
+  | 'committee_stock_trade'
+  | 'penalty_contract_ratio'
+  | 'prolific_trader'
+  | 'enforcement_immunity';
 
 export interface StoryCitation {
   index: number;
@@ -43,6 +48,9 @@ export interface Story {
   data_sources?: string[];
   entity_ids?: string[];
   evidence?: Record<string, unknown>;
+  verification_score?: number | null;
+  verification_tier?: string | null;
+  verification_data?: Record<string, unknown> | null;
   featured?: boolean;
   hero_image_url?: string;
   tags?: string[];
@@ -72,6 +80,11 @@ export const CATEGORY_META: Record<string, { label: string; color: string; bgCol
   revolving_door: { label: 'Revolving Door', color: 'text-orange-400', bgColor: 'bg-orange-400/15' },
   bipartisan_buying: { label: 'Bipartisan Buying', color: 'text-cyan-400', bgColor: 'bg-cyan-400/15' },
   full_influence_loop: { label: 'Influence Loop', color: 'text-rose-400', bgColor: 'bg-rose-400/15' },
+  stock_act_violation: { label: 'STOCK Act Violation', color: 'text-red-500', bgColor: 'bg-red-500/15' },
+  committee_stock_trade: { label: 'Committee Trading', color: 'text-orange-400', bgColor: 'bg-orange-400/15' },
+  penalty_contract_ratio: { label: 'Penalty Gap', color: 'text-red-400', bgColor: 'bg-red-400/15' },
+  prolific_trader: { label: 'Prolific Trader', color: 'text-emerald-400', bgColor: 'bg-emerald-400/15' },
+  enforcement_immunity: { label: 'Zero Enforcement', color: 'text-yellow-400', bgColor: 'bg-yellow-400/15' },
 };
 
 export const SECTOR_LABELS: Record<string, string> = {

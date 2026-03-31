@@ -5,6 +5,7 @@ Stories are drafted by Claude from structured evidence found in government
 data, reviewed, then published to the /stories page, newsletter, and Twitter.
 """
 
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -67,6 +68,8 @@ def list_stories(
                 "entity_ids": s.entity_ids,
                 "evidence": s.evidence,
                 "status": s.status,
+                "verification_score": getattr(s, 'verification_score', None),
+                "verification_tier": getattr(s, 'verification_tier', None),
                 "published_at": s.published_at.isoformat() if s.published_at else None,
                 "created_at": s.created_at.isoformat() if s.created_at else None,
             }
@@ -101,6 +104,8 @@ def latest_stories(limit: int = Query(5, ge=1, le=20), db: Session = Depends(get
                 "sector": s.sector,
                 "entity_ids": s.entity_ids,
                 "data_sources": s.data_sources,
+                "verification_score": getattr(s, 'verification_score', None),
+                "verification_tier": getattr(s, 'verification_tier', None),
                 "published_at": s.published_at.isoformat() if s.published_at else None,
             }
             for s in stories
@@ -173,6 +178,9 @@ def get_story(slug: str, db: Session = Depends(get_db)):
         "data_sources": story.data_sources,
         "evidence": story.evidence,
         "status": story.status,
+        "verification_score": getattr(story, 'verification_score', None),
+        "verification_tier": getattr(story, 'verification_tier', None),
+        "verification_data": json.loads(story.verification_data) if getattr(story, 'verification_data', None) else None,
         "published_at": story.published_at.isoformat() if story.published_at else None,
         "created_at": story.created_at.isoformat() if story.created_at else None,
     }

@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Clock, FileText, Link2, Share2 } from 'lucide-react';
+import { ArrowLeft, Clock, FileText, Link2, Share2, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react';
 import { CategoryBadge } from '../components/CategoryBadge';
 import { SectorTag } from '../components/SectorTag';
 import { StoryCard } from '../components/StoryCard';
@@ -186,6 +186,29 @@ export default function StoryPage() {
                 <FileText size={14} />
                 {story.data_sources?.length ?? story.citations?.length ?? 0} data sources
               </span>
+            </>
+          )}
+          {story.verification_tier && (
+            <>
+              <span className="text-zinc-700">|</span>
+              {story.verification_tier === 'verified' && (
+                <span className="flex items-center gap-1 text-emerald-400">
+                  <ShieldCheck size={14} />
+                  Verified
+                </span>
+              )}
+              {story.verification_tier === 'partially_verified' && (
+                <span className="flex items-center gap-1 text-amber-400">
+                  <ShieldAlert size={14} />
+                  Partially Verified
+                </span>
+              )}
+              {story.verification_tier === 'unverified' && (
+                <span className="flex items-center gap-1 text-zinc-500">
+                  <ShieldQuestion size={14} />
+                  Unverified
+                </span>
+              )}
             </>
           )}
         </div>

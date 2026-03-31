@@ -6,7 +6,7 @@ Stories are drafted by Claude from structured evidence, reviewed, then published
 """
 
 from sqlalchemy import (
-    Column, String, Integer, DateTime, Text,
+    Column, String, Integer, Float, DateTime, Text,
     UniqueConstraint, JSON,
 )
 from sqlalchemy.sql import func
@@ -49,6 +49,11 @@ class Story(Base):
     # Workflow
     status = Column(String, nullable=False, server_default="draft", index=True)
     # Status: draft, published, archived
+
+    # Verification (claims pipeline)
+    verification_score = Column(Float, nullable=True)  # 0.0-1.0 overall
+    verification_tier = Column(String, nullable=True, index=True)  # 'verified', 'partially_verified', 'unverified'
+    verification_data = Column(Text, nullable=True)  # Full JSON from claims pipeline
 
     published_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
