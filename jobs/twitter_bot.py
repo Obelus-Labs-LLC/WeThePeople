@@ -340,9 +340,15 @@ def generate_story_tweet():
     excerpt_paras = []
     if body:
         paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
-        for p in paragraphs[:2]:
-            # Skip markdown headings, just take prose paragraphs
-            if p.startswith("##"):
+        summary_lower = (summary or "").lower()[:80]
+        for p in paragraphs:
+            if len(excerpt_paras) >= 2:
+                break
+            # Skip markdown headings
+            if p.startswith("#"):
+                continue
+            # Skip if it's basically the same as the summary
+            if summary_lower and p.lower()[:80] == summary_lower:
                 continue
             excerpt_paras.append(p)
 
