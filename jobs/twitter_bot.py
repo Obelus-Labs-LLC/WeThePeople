@@ -358,10 +358,32 @@ def generate_story_tweet():
     if excerpt_paras:
         parts.append("\n\n".join(excerpt_paras))
 
-    # Source attribution
+    # Source attribution — map table names to official government databases
+    SOURCE_DB_MAP = {
+        "lobbying_records": "Senate LDA Filings",
+        "health_lobbying_records": "Senate LDA Filings",
+        "finance_lobbying_records": "Senate LDA Filings",
+        "tech_lobbying_records": "Senate LDA Filings",
+        "energy_lobbying_records": "Senate LDA Filings",
+        "defense_lobbying_records": "Senate LDA Filings",
+        "chemical_lobbying_records": "Senate LDA Filings",
+        "agriculture_lobbying_records": "Senate LDA Filings",
+        "government_contracts": "USASpending.gov",
+        "health_government_contracts": "USASpending.gov",
+        "finance_government_contracts": "USASpending.gov",
+        "defense_government_contracts": "USASpending.gov",
+        "energy_government_contracts": "USASpending.gov",
+        "chemical_government_contracts": "USASpending.gov",
+        "agriculture_government_contracts": "USASpending.gov",
+        "congressional_trades": "House Financial Disclosures",
+        "company_donations": "FEC Campaign Finance Data",
+        "committees": "congress-legislators (CC0)",
+        "committee_memberships": "congress-legislators (CC0)",
+        "votes": "Senate.gov Roll Call Votes",
+    }
     if sources_count > 0:
-        source_names = ', '.join(s.replace('_', ' ').title() for s in data_sources[:4])
-        parts.append(f"Sources: {source_names}")
+        db_names = list(dict.fromkeys(SOURCE_DB_MAP.get(s, s.replace('_', ' ').title()) for s in data_sources))
+        parts.append(f"Data: {', '.join(db_names[:4])}")
 
     # CTA to read the full investigation
     journal_url = "journal.wethepeopleforus.com"

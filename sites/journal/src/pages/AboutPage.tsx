@@ -118,10 +118,24 @@ export default function AboutPage() {
         </ul>
 
         {/* Links */}
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3">
+          <Link
+            to="/coverage"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-lg transition-colors text-sm font-medium"
+          >
+            Coverage Balance
+            <ArrowRight size={14} />
+          </Link>
+          <Link
+            to="/verify-our-data"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-lg transition-colors text-sm font-medium"
+          >
+            Verify Our Data
+            <ArrowRight size={14} />
+          </Link>
           <a
             href="https://wethepeopleforus.com/methodology"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-lg transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-2 px-5 py-2.5 border border-zinc-800 hover:border-zinc-700 text-zinc-300 rounded-lg transition-colors text-sm font-medium"
           >
             View Full Methodology
             <ArrowRight size={14} />

@@ -155,10 +155,20 @@ def _generate_story_text(evidence: Dict[str, Any], category: str) -> Optional[Di
         client = Anthropic(api_key=api_key)
 
         system = (
-            "You are a data journalist. Write factual, compelling narratives based on "
-            "government records. No speculation. Every claim must be traceable to a "
-            "specific data point. Write in the style of ProPublica or The Intercept "
-            "-- direct, clear, no filler."
+            "You are a data journalist at a civic transparency platform. Write factual, "
+            "compelling narratives based on government records. No speculation. Every claim "
+            "must be traceable to a specific data point. Write in the style of ProPublica or "
+            "The Intercept: direct, clear, no filler, no dashes.\n\n"
+            "IMPORTANT RULES:\n"
+            "- Never claim causation from correlation. If lobbying precedes a contract, say "
+            "'the timing raises questions' not 'lobbying led to the contract.'\n"
+            "- Always acknowledge that contracts go through competitive bidding processes and "
+            "that lobbying is legal advocacy. The story is about the pattern, not a crime.\n"
+            "- Include a brief contextual note when possible: what percentage of total sector "
+            "spending does this represent? Is this company's lobbying above or below average?\n"
+            "- Name the specific government data sources (Senate LDA filings, USASpending.gov, "
+            "SEC EDGAR, Federal Register, FEC, House financial disclosures).\n"
+            "- Do not use em dashes. Use commas or periods instead."
         )
 
         user_prompt = (
@@ -167,11 +177,14 @@ def _generate_story_text(evidence: Dict[str, Any], category: str) -> Optional[Di
             "Write a data story with:\n"
             "1. title: A compelling, specific headline that names names (under 80 chars)\n"
             "2. summary: 2-3 sentence teaser that hooks the reader\n"
-            "3. content: 3-5 paragraphs in markdown. Include specific numbers, dates, "
-            "dollar amounts from the evidence. Every claim must cite which data source "
-            "it came from. End with a line summarizing the significance.\n"
-            "4. data_sources: JSON array of table/API names that provided the evidence\n"
-            "5. cited_entities: JSON array of entity IDs referenced in the story\n\n"
+            "3. content: 3-5 paragraphs. Include specific numbers, dates, dollar amounts "
+            "from the evidence. Cite which government database each data point comes from "
+            "(e.g., 'according to Senate lobbying disclosures' or 'per USASpending.gov contract records'). "
+            "Include a paragraph acknowledging that correlation between lobbying and contracts "
+            "does not prove a quid pro quo, and that federal procurement follows competitive processes. "
+            "End with a line on why the pattern matters for public accountability.\n"
+            "4. data_sources: JSON array of table/API names from the evidence\n"
+            "5. cited_entities: JSON array of entity IDs referenced\n\n"
             "Return ONLY valid JSON:\n"
             '{"title": "...", "summary": "...", "content": "...", '
             '"data_sources": [...], "cited_entities": [...]}'

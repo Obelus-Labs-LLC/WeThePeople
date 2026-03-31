@@ -10,6 +10,8 @@ const StoryPage = lazy(() => import('./pages/StoryPage'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const SubscribePage = lazy(() => import('./pages/SubscribePage'));
+const CoverageBalancePage = lazy(() => import('./pages/CoverageBalancePage'));
+const VerifyDataPage = lazy(() => import('./pages/VerifyDataPage'));
 
 // ── Loading fallback ──
 
@@ -46,6 +48,8 @@ export default function App() {
         <Route path="/category/:category" element={<Layout><CategoryPage /></Layout>} />
         <Route path="/about" element={<Layout><AboutPage /></Layout>} />
         <Route path="/subscribe" element={<Layout><SubscribePage /></Layout>} />
+        <Route path="/coverage" element={<Layout><CoverageBalancePage /></Layout>} />
+        <Route path="/verify-our-data" element={<Layout><VerifyDataPage /></Layout>} />
         {/* Catch-all back to home */}
         <Route path="*" element={<Layout><HomePage /></Layout>} />
       </Routes>

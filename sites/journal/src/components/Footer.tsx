@@ -29,6 +29,18 @@ export function Footer() {
             >
               Subscribe
             </Link>
+            <Link
+              to="/coverage"
+              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Coverage
+            </Link>
+            <Link
+              to="/verify-our-data"
+              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Verify Data
+            </Link>
             <a
               href="https://wethepeopleforus.com"
               className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
