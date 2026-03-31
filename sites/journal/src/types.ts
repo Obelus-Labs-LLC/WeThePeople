@@ -2,32 +2,51 @@
  * Story types for the Influence Journal
  */
 
-export type StoryCategory = 'lobbying' | 'contracts' | 'enforcement' | 'trades' | 'regulatory';
+export type StoryCategory =
+  | 'lobbying'
+  | 'contracts'
+  | 'enforcement'
+  | 'trades'
+  | 'regulatory'
+  | 'lobbying_spike'
+  | 'contract_windfall'
+  | 'enforcement_gap'
+  | 'trade_cluster'
+  | 'revolving_door'
+  | 'regulatory_arbitrage'
+  | 'bipartisan_buying'
+  | 'trade_timing'
+  | 'full_influence_loop';
 
 export interface StoryCitation {
   index: number;
   label: string;
   url?: string;
-  source_type: string; // e.g. "Senate LDA", "USASpending", "SEC EDGAR"
+  source_type: string;
   accessed_at?: string;
 }
 
 export interface Story {
-  id: string;
+  id: string | number;
   slug: string;
   title: string;
   summary: string;
-  content: string;
+  content?: string;  // journal-native format
+  body?: string;     // API format (detect_stories.py output)
   category: StoryCategory;
-  sector: string; // e.g. "finance", "health", "defense"
+  sector: string;
   published_at: string;
   updated_at?: string;
-  read_time_minutes: number;
-  citations: StoryCitation[];
+  created_at?: string;
+  read_time_minutes?: number;
+  citations?: StoryCitation[];
+  data_sources?: string[];
+  entity_ids?: string[];
+  evidence?: Record<string, unknown>;
   featured?: boolean;
   hero_image_url?: string;
   tags?: string[];
-  entities?: string[]; // entity names mentioned
+  entities?: string[];
 }
 
 export interface StoriesResponse {
@@ -38,12 +57,21 @@ export interface StoriesResponse {
 /**
  * Category metadata for display
  */
-export const CATEGORY_META: Record<StoryCategory, { label: string; color: string; bgColor: string }> = {
+export const CATEGORY_META: Record<string, { label: string; color: string; bgColor: string }> = {
   lobbying: { label: 'Lobbying', color: 'text-amber-400', bgColor: 'bg-amber-400/15' },
+  lobbying_spike: { label: 'Lobbying Spike', color: 'text-amber-400', bgColor: 'bg-amber-400/15' },
   contracts: { label: 'Contracts', color: 'text-blue-400', bgColor: 'bg-blue-400/15' },
+  contract_windfall: { label: 'Contract Windfall', color: 'text-blue-400', bgColor: 'bg-blue-400/15' },
   enforcement: { label: 'Enforcement', color: 'text-red-400', bgColor: 'bg-red-400/15' },
+  enforcement_gap: { label: 'Enforcement Gap', color: 'text-red-400', bgColor: 'bg-red-400/15' },
   trades: { label: 'Trades', color: 'text-emerald-400', bgColor: 'bg-emerald-400/15' },
+  trade_cluster: { label: 'Trade Cluster', color: 'text-emerald-400', bgColor: 'bg-emerald-400/15' },
+  trade_timing: { label: 'Trade Timing', color: 'text-emerald-400', bgColor: 'bg-emerald-400/15' },
   regulatory: { label: 'Regulatory', color: 'text-violet-400', bgColor: 'bg-violet-400/15' },
+  regulatory_arbitrage: { label: 'Regulatory Arbitrage', color: 'text-violet-400', bgColor: 'bg-violet-400/15' },
+  revolving_door: { label: 'Revolving Door', color: 'text-orange-400', bgColor: 'bg-orange-400/15' },
+  bipartisan_buying: { label: 'Bipartisan Buying', color: 'text-cyan-400', bgColor: 'bg-cyan-400/15' },
+  full_influence_loop: { label: 'Influence Loop', color: 'text-rose-400', bgColor: 'bg-rose-400/15' },
 };
 
 export const SECTOR_LABELS: Record<string, string> = {

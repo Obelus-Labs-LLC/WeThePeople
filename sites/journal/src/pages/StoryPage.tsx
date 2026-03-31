@@ -30,15 +30,39 @@ function shareOnTwitter(title: string) {
  * render as a single block.
  */
 function renderContent(content: string) {
-  const paragraphs = content.split(/\n{2,}/).filter(Boolean);
-  if (paragraphs.length <= 1) {
+  const blocks = content.split(/\n{2,}/).filter(Boolean);
+  if (blocks.length <= 1) {
     return <p className="text-zinc-300 leading-[1.85] text-base">{content}</p>;
   }
-  return paragraphs.map((para, i) => (
-    <p key={i} className="text-zinc-300 leading-[1.85] text-base mb-6">
-      {para}
-    </p>
-  ));
+  return blocks.map((block, i) => {
+    // Handle markdown ## headings
+    const h2Match = block.match(/^##\s+(.+)/);
+    if (h2Match) {
+      return (
+        <h2 key={i} className="text-xl font-bold text-white mt-8 mb-4" style={{ fontFamily: 'Oswald, sans-serif' }}>
+          {h2Match[1]}
+        </h2>
+      );
+    }
+    const h3Match = block.match(/^###\s+(.+)/);
+    if (h3Match) {
+      return (
+        <h3 key={i} className="text-lg font-bold text-white mt-6 mb-3" style={{ fontFamily: 'Oswald, sans-serif' }}>
+          {h3Match[1]}
+        </h3>
+      );
+    }
+    return (
+      <p key={i} className="text-zinc-300 leading-[1.85] text-base mb-6">
+        {block}
+      </p>
+    );
+  });
+}
+
+function estimateReadTime(text: string): number {
+  const words = text.split(/\s+/).length;
+  return Math.max(1, Math.round(words / 200));
 }
 
 export default function StoryPage() {
@@ -112,13 +136,17 @@ export default function StoryPage() {
           <span className="text-zinc-700">|</span>
           <span className="flex items-center gap-1">
             <Clock size={14} />
-            {story.read_time_minutes} min read
+            {story.read_time_minutes ?? estimateReadTime(story.body || story.content || '')} min read
           </span>
-          <span className="text-zinc-700">|</span>
-          <span className="flex items-center gap-1">
-            <FileText size={14} />
-            {story.citations?.length ?? 0} cited sources
-          </span>
+          {(story.data_sources?.length ?? story.citations?.length ?? 0) > 0 && (
+            <>
+              <span className="text-zinc-700">|</span>
+              <span className="flex items-center gap-1">
+                <FileText size={14} />
+                {story.data_sources?.length ?? story.citations?.length ?? 0} data sources
+              </span>
+            </>
+          )}
         </div>
 
         {/* Summary / lede */}
@@ -130,7 +158,7 @@ export default function StoryPage() {
 
         {/* Body */}
         <div className="mb-12">
-          {renderContent(story.content)}
+          {renderContent(story.body || story.content || '')}
         </div>
 
         {/* Share buttons */}

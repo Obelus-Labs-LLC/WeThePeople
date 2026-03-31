@@ -5,7 +5,7 @@ import { EmptyState } from '../components/EmptyState';
 import { useStories } from '../hooks/useStories';
 import { CATEGORY_META, type StoryCategory } from '../types';
 
-const validCategories: StoryCategory[] = ['lobbying', 'contracts', 'enforcement', 'trades', 'regulatory'];
+const validCategories: string[] = Object.keys(CATEGORY_META);
 
 export default function CategoryPage() {
   const { category } = useParams<{ category: string }>();
