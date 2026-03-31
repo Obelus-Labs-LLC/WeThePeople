@@ -99,6 +99,6 @@ export const SECTORS: Sector[] = [
     icon: "\u{1F33E}",
     gradient: "from-lime-500 to-green-700",
     route: "/agriculture",
-    available: false,
+    available: true,
   },
 ];

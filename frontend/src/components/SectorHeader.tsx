@@ -193,3 +193,16 @@ const CHEMICALS_LINKS: NavLink[] = [
 export function ChemicalsSectorHeader() {
   return <SectorHeader sector="chemicals" links={CHEMICALS_LINKS} />;
 }
+
+const AGRICULTURE_LINKS = [
+  { label: 'Dashboard', to: '/agriculture' },
+  { label: 'Companies', to: '/agriculture/companies' },
+  { label: 'Lobbying', to: '/agriculture/lobbying' },
+  { label: 'Contracts', to: '/agriculture/contracts' },
+  { label: 'Enforcement', to: '/agriculture/enforcement' },
+  { label: 'Compare', to: '/agriculture/compare' },
+];
+
+export function AgricultureSectorHeader() {
+  return <SectorHeader sector="agriculture" links={AGRICULTURE_LINKS} />;
+}

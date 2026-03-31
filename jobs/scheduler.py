@@ -205,6 +205,20 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=3600,
         description="Chemicals enforcement actions from Federal Register",
     ),
+    JobDef(
+        name="sync_agriculture_data",
+        script="jobs/sync_agriculture_data.py",
+        interval_hours=168,
+        timeout_sec=7200,
+        description="Agriculture sector lobbying, contracts, SEC filings",
+    ),
+    JobDef(
+        name="sync_agriculture_enforcement",
+        script="jobs/sync_agriculture_enforcement.py",
+        interval_hours=72,
+        timeout_sec=3600,
+        description="Agriculture enforcement actions from Federal Register",
+    ),
 
     # ── Weekly (168h) ────────────────────────────────────────────
     JobDef(
