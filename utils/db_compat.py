@@ -96,6 +96,11 @@ def group_concat(column, separator=','):
         group_concat(Model.column.distinct())          # concatenate distinct values
     """
     if is_sqlite():
+        # SQLite group_concat doesn't accept DISTINCT + separator as two args.
+        # When column has .distinct(), strip it and use plain group_concat.
+        if hasattr(column, 'element') and hasattr(column, 'modifier'):
+            # column is a UnaryExpression like DISTINCT(col) — not supported with separator in SQLite
+            return func.group_concat(column)  # DISTINCT without separator
         return func.group_concat(column, separator)
     elif is_oracle():
         # Oracle 19c LISTAGG doesn't handle DISTINCT passed via SQLAlchemy well.
