@@ -1167,9 +1167,26 @@ def main():
                 )
             return
 
-        # Generate stories for top qualified candidates
+        # Diversify: cap per-pattern to prevent one pattern from dominating.
+        # Prioritize rare patterns (revolving_door, enforcement_gap, lobbying_spike)
+        # over common ones (bipartisan_buying which produces 900+ candidates).
+        PER_PATTERN_CAP = 3
+        diversified = []
+        pattern_counts: dict[str, int] = {}
+        for c in qualified:
+            cat = c["category"]
+            pattern_counts.setdefault(cat, 0)
+            if pattern_counts[cat] < PER_PATTERN_CAP:
+                diversified.append(c)
+                pattern_counts[cat] += 1
+        logger.info(
+            "Diversified: %d stories across %d patterns (cap=%d/pattern)",
+            len(diversified), len(pattern_counts), PER_PATTERN_CAP,
+        )
+
+        # Generate stories for diversified candidates
         stories_created = 0
-        for candidate in qualified[:args.max_stories]:
+        for candidate in diversified[:args.max_stories]:
             category = candidate["category"]
             evidence = candidate["evidence"]
             score = candidate.get("score", 0)
