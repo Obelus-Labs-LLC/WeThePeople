@@ -96,8 +96,11 @@ def latest_stories(limit: int = Query(5, ge=1, le=20), db: Session = Depends(get
                 "title": s.title,
                 "slug": s.slug,
                 "summary": s.summary,
+                "body": s.body,
                 "category": s.category,
                 "sector": s.sector,
+                "entity_ids": s.entity_ids,
+                "data_sources": s.data_sources,
                 "published_at": s.published_at.isoformat() if s.published_at else None,
             }
             for s in stories
