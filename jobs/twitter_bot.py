@@ -335,33 +335,32 @@ def generate_story_tweet():
     if not title:
         return generate_data_tweet()
 
-    # Build a rich tweet — X verified accounts get 25K chars.
-    # Include the full article body, cleaned of markdown headings.
-    clean_body = ""
+    # Build tweet: title + summary + first 1-2 body paragraphs (the hook).
+    # Don't include the full article — save the analysis for the journal page.
+    excerpt_paras = []
     if body:
-        lines = []
-        for line in body.split("\n"):
-            stripped = line.strip()
-            # Convert ## headings to bold-style plain text
-            if stripped.startswith("## "):
-                lines.append(stripped[3:].upper())
-            elif stripped.startswith("### "):
-                lines.append(stripped[4:].upper())
-            elif stripped:
-                lines.append(stripped)
-        clean_body = "\n\n".join(lines)
+        paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
+        for p in paragraphs[:2]:
+            # Skip markdown headings, just take prose paragraphs
+            if p.startswith("##"):
+                continue
+            excerpt_paras.append(p)
 
-    # Build tweet: title + summary + full body + sources
     parts = [title]
     if summary:
         parts.append(summary)
-    if clean_body:
-        parts.append(clean_body)
+    if excerpt_paras:
+        parts.append("\n\n".join(excerpt_paras))
 
     # Source attribution
     if sources_count > 0:
-        source_line = f"{sources_count} government data sources: {', '.join(s.replace('_', ' ').title() for s in data_sources[:6])}"
-        parts.append(source_line)
+        source_names = ', '.join(s.replace('_', ' ').title() for s in data_sources[:4])
+        parts.append(f"Sources: {source_names}")
+
+    # CTA to read the full investigation
+    journal_url = "journal.wethepeopleforus.com"
+    link = f"{journal_url}/story/{slug}" if slug else journal_url
+    parts.append(f"Read the full investigation:")
 
     # Hashtag based on category
     hashtag = {
@@ -381,9 +380,6 @@ def generate_story_tweet():
 
     text = "\n\n".join(parts)
 
-    # Link to the specific journal article (not the journal homepage)
-    journal_url = "journal.wethepeopleforus.com"
-    link = f"{journal_url}/story/{slug}" if slug else journal_url
     return (text, link), "story"
 
 
