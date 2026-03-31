@@ -179,3 +179,17 @@ const VERIFY_LINKS: NavLink[] = [
 export function VerifySectorHeader() {
   return <SectorHeader sector="verify" links={VERIFY_LINKS} />;
 }
+
+const CHEMICALS_LINKS: NavLink[] = [
+  { label: 'Sectors', to: '/' },
+  { label: 'Dashboard', to: '/chemicals' },
+  { label: 'Companies', to: '/chemicals/companies' },
+  { label: 'Lobbying', to: '/chemicals/lobbying' },
+  { label: 'Contracts', to: '/chemicals/contracts' },
+  { label: 'Enforcement', to: '/chemicals/enforcement' },
+  { label: 'Compare', to: '/chemicals/compare' },
+];
+
+export function ChemicalsSectorHeader() {
+  return <SectorHeader sector="chemicals" links={CHEMICALS_LINKS} />;
+}

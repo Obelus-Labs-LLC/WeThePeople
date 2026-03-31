@@ -84,6 +84,15 @@ export const SECTORS: Sector[] = [
     available: true,
   },
   {
+    slug: "chemicals",
+    name: "Chemicals",
+    tagline: "Chemical industry lobbying, EPA enforcement, and government contracts",
+    icon: "\u{1F9EA}",
+    gradient: "from-teal-500 to-cyan-700",
+    route: "/chemicals",
+    available: true,
+  },
+  {
     slug: "agriculture",
     name: "Agriculture",
     tagline: "Farm subsidies, lobbying, and food safety enforcement",
