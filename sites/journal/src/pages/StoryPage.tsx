@@ -65,6 +65,47 @@ function estimateReadTime(text: string): number {
   return Math.max(1, Math.round(words / 200));
 }
 
+const DATA_SOURCE_MAP: Record<string, { label: string; url?: string; wtpPath?: string }> = {
+  lobbying_records: { label: 'Senate Lobbying Disclosure Act Filings', url: 'https://lda.senate.gov/filings/public/filing/search/', wtpPath: '/influence' },
+  finance_lobbying_records: { label: 'Finance Sector Lobbying Filings', url: 'https://lda.senate.gov/filings/public/filing/search/', wtpPath: '/finance' },
+  health_lobbying_records: { label: 'Health Sector Lobbying Filings', url: 'https://lda.senate.gov/filings/public/filing/search/', wtpPath: '/health' },
+  tech_lobbying_records: { label: 'Tech Sector Lobbying Filings', url: 'https://lda.senate.gov/filings/public/filing/search/', wtpPath: '/technology' },
+  energy_lobbying_records: { label: 'Energy Sector Lobbying Filings', url: 'https://lda.senate.gov/filings/public/filing/search/', wtpPath: '/energy' },
+  defense_lobbying_records: { label: 'Defense Sector Lobbying Filings', url: 'https://lda.senate.gov/filings/public/filing/search/', wtpPath: '/defense' },
+  transportation_lobbying_records: { label: 'Transportation Sector Lobbying Filings', url: 'https://lda.senate.gov/filings/public/filing/search/', wtpPath: '/transportation' },
+  government_contracts: { label: 'USASpending.gov Federal Contracts', url: 'https://www.usaspending.gov/search', wtpPath: '/influence' },
+  finance_government_contracts: { label: 'Finance Sector Federal Contracts', url: 'https://www.usaspending.gov/search', wtpPath: '/finance' },
+  health_government_contracts: { label: 'Health Sector Federal Contracts', url: 'https://www.usaspending.gov/search', wtpPath: '/health' },
+  tech_government_contracts: { label: 'Tech Sector Federal Contracts', url: 'https://www.usaspending.gov/search', wtpPath: '/technology' },
+  energy_government_contracts: { label: 'Energy Sector Federal Contracts', url: 'https://www.usaspending.gov/search', wtpPath: '/energy' },
+  defense_government_contracts: { label: 'Defense Sector Federal Contracts', url: 'https://www.usaspending.gov/search', wtpPath: '/defense' },
+  enforcement_actions: { label: 'Federal Register Enforcement Actions', url: 'https://www.federalregister.gov/', wtpPath: '/influence' },
+  finance_enforcement_actions: { label: 'Finance Enforcement Actions', url: 'https://www.federalregister.gov/' },
+  health_enforcement_actions: { label: 'Health Enforcement Actions', url: 'https://www.federalregister.gov/' },
+  defense_enforcement_actions: { label: 'Defense Enforcement Actions', url: 'https://www.federalregister.gov/' },
+  congressional_trades: { label: 'Congressional Stock Trades', url: 'https://disclosures-clerk.house.gov/FinancialDisclosure', wtpPath: '/politics/trades' },
+  company_donations: { label: 'FEC Campaign Donations', url: 'https://www.fec.gov/data/', wtpPath: '/politics' },
+  committees: { label: 'Congressional Committee Data', url: 'https://github.com/unitedstates/congress-legislators', wtpPath: '/politics' },
+  committee_memberships: { label: 'Committee Membership Records', url: 'https://github.com/unitedstates/congress-legislators', wtpPath: '/politics' },
+  tracked_members: { label: 'Congressional Member Profiles', wtpPath: '/politics' },
+  tracked_tech_companies: { label: 'Tracked Technology Companies', wtpPath: '/technology' },
+  tracked_companies: { label: 'Tracked Health Companies', wtpPath: '/health' },
+  tracked_institutions: { label: 'Tracked Financial Institutions', wtpPath: '/finance' },
+  tracked_energy_companies: { label: 'Tracked Energy Companies', wtpPath: '/energy' },
+  tracked_defense_companies: { label: 'Tracked Defense Companies', wtpPath: '/defense' },
+  sec_filings: { label: 'SEC EDGAR Filings', url: 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany' },
+  fda_recalls: { label: 'FDA Recall Database', url: 'https://www.accessdata.fda.gov/scripts/cder/daf/' },
+  votes: { label: 'Congressional Roll Call Votes', url: 'https://www.senate.gov/legislative/votes.htm', wtpPath: '/politics' },
+  bills: { label: 'Congressional Legislation', url: 'https://www.congress.gov/', wtpPath: '/politics' },
+  bill_actions: { label: 'Congressional Bill Actions', url: 'https://www.congress.gov/' },
+};
+
+function dataSourceInfo(tableName: string): { label: string; url?: string; wtpPath?: string } {
+  return DATA_SOURCE_MAP[tableName] ?? {
+    label: tableName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+  };
+}
+
 export default function StoryPage() {
   const { slug } = useParams<{ slug: string }>();
   const { story, related, loading, error } = useStory(slug);
@@ -180,45 +221,106 @@ export default function StoryPage() {
           </button>
         </div>
 
-        {/* Citations */}
-        {story.citations && story.citations.length > 0 && (
+        {/* Sources — data tables + original government sources + entity links */}
+        {((story.data_sources && story.data_sources.length > 0) || (story.entity_ids && story.entity_ids.length > 0) || (story.citations && story.citations.length > 0)) && (
           <section className="mb-10 pb-10 border-b border-zinc-800">
             <h2
               className="text-xl font-bold text-white mb-4"
               style={{ fontFamily: 'Oswald, sans-serif' }}
             >
-              Sources & Citations
+              Sources & Data
             </h2>
-            <p className="text-xs text-zinc-500 mb-4">
-              All data sourced from public government records and verified databases.
+            <p className="text-xs text-zinc-500 mb-5">
+              All data sourced from public government records. Click to view original sources or explore on our platform.
             </p>
-            <ol className="space-y-3">
-              {story.citations.map((cite, i) => (
-                <li key={i} className="flex gap-3 text-sm">
-                  <span className="text-amber-400 font-mono text-xs mt-0.5 shrink-0">
-                    [{i + 1}]
-                  </span>
-                  <div>
-                    <span className="text-zinc-300">{cite.label}</span>
-                    {cite.source_type && (
-                      <span className="text-zinc-600 ml-2 text-xs">
-                        ({cite.source_type})
-                      </span>
-                    )}
-                    {cite.url && (
+
+            {/* Government data sources */}
+            {story.data_sources && story.data_sources.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">Government Data Sources</h3>
+                <div className="space-y-2">
+                  {story.data_sources.map((src, i) => {
+                    const info = dataSourceInfo(src);
+                    return (
+                      <div key={i} className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/30 px-4 py-2.5">
+                        <span className="text-amber-400 font-mono text-xs shrink-0">[{i + 1}]</span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-zinc-300">{info.label}</span>
+                          <span className="text-xs text-zinc-600 ml-2">({src})</span>
+                        </div>
+                        {info.url && (
+                          <a
+                            href={info.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-amber-400/70 hover:text-amber-400 transition-colors shrink-0"
+                          >
+                            Original source
+                          </a>
+                        )}
+                        {info.wtpPath && (
+                          <a
+                            href={`https://wethepeopleforus.com${info.wtpPath}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-400/70 hover:text-blue-400 transition-colors shrink-0"
+                          >
+                            View on WTP
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Entities referenced */}
+            {story.entity_ids && story.entity_ids.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">Entities Referenced</h3>
+                <div className="flex flex-wrap gap-2">
+                  {story.entity_ids.map((eid, i) => {
+                    const sectorPath = story.sector || 'influence';
+                    const displayName = eid.replace(/-/g, ' ').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                    return (
                       <a
-                        href={cite.url}
+                        key={i}
+                        href={`https://wethepeopleforus.com/${sectorPath}/${eid}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="ml-2 text-amber-400/70 hover:text-amber-400 text-xs transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/30 text-xs text-zinc-300 hover:text-white hover:border-amber-500/30 transition-colors"
                       >
-                        View source
+                        {displayName}
                       </a>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Legacy citations (if any) */}
+            {story.citations && story.citations.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">Citations</h3>
+                <ol className="space-y-3">
+                  {story.citations.map((cite, i) => (
+                    <li key={i} className="flex gap-3 text-sm">
+                      <span className="text-amber-400 font-mono text-xs mt-0.5 shrink-0">[{i + 1}]</span>
+                      <div>
+                        <span className="text-zinc-300">{cite.label}</span>
+                        {cite.source_type && <span className="text-zinc-600 ml-2 text-xs">({cite.source_type})</span>}
+                        {cite.url && (
+                          <a href={cite.url} target="_blank" rel="noopener noreferrer" className="ml-2 text-amber-400/70 hover:text-amber-400 text-xs transition-colors">
+                            View source
+                          </a>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </section>
         )}
 
