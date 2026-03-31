@@ -1,5 +1,5 @@
 """
-Agricultures sector data ingestion job.
+Agriculture sector data ingestion job.
 
 Fetches data from:
 - SEC EDGAR (10-K, 10-Q, 8-K filings)
@@ -7,7 +7,7 @@ Fetches data from:
 - Senate LDA (lobbying disclosures)
 
 Usage:
-    python jobs/sync_agricultures_data.py [--company COMPANY_ID] [--skip-sec] [--skip-contracts] [--skip-lobbying] [--seed-only]
+    python jobs/sync_agriculture_data.py [--company COMPANY_ID] [--skip-sec] [--skip-contracts] [--skip-lobbying] [--seed-only]
 """
 
 import os
@@ -39,7 +39,7 @@ from utils.db_compat import is_sqlite, set_pragmas_if_sqlite
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-log = logging.getLogger("sync_agricultures")
+log = logging.getLogger("sync_agriculture")
 
 DB_PATH = os.getenv("DATABASE_URL", "sqlite:///wethepeople.db")
 CONGRESS_API_KEY = os.getenv("CONGRESS_API_KEY", "")
@@ -371,7 +371,7 @@ def fetch_lobbying(session, company: TrackedAgricultureCompany):
 # ─── Main ─────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Sync agricultures sector data")
+    parser = argparse.ArgumentParser(description="Sync agriculture sector data")
     parser.add_argument("--company", type=str, help="Sync only this company_id")
     parser.add_argument("--skip-sec", action="store_true", help="Skip SEC filings")
     parser.add_argument("--skip-contracts", action="store_true", help="Skip USASpending contracts")
