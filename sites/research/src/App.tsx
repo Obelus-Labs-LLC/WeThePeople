@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   Flame,
+  Globe,
   ArrowRight,
 } from 'lucide-react'
 
@@ -25,6 +26,7 @@ const MarketMoversPage = lazy(() => import('./pages/MarketMoversPage'))
 const RegulatoryNewsPage = lazy(() => import('./pages/RegulatoryNewsPage'))
 const FoodSafetyPage = lazy(() => import('./pages/FoodSafetyPage'))
 const ToxicReleasePage = lazy(() => import('./pages/ToxicReleasePage'))
+const ForeignLobbyingPage = lazy(() => import('./pages/ForeignLobbyingPage'))
 
 // ── Loading fallback ──
 
@@ -119,6 +121,14 @@ const tools: ToolCard[] = [
     icon: Flame,
     path: '/toxic-releases',
     iconClass: 'text-orange-500', bgClass: 'bg-orange-500/15',
+    available: true,
+  },
+  {
+    title: 'Foreign Lobbying (FARA)',
+    description: 'Search the FARA registry for foreign agents, principals, and the countries they represent. Track who lobbies for foreign governments in the U.S.',
+    icon: Globe,
+    path: '/foreign-lobbying',
+    iconClass: 'text-indigo-400', bgClass: 'bg-indigo-400/15',
     available: true,
   },
 ]
@@ -294,6 +304,7 @@ export default function App() {
         <Route path="/regulatory-news" element={<ToolLayout><RegulatoryNewsPage /></ToolLayout>} />
         <Route path="/food-safety" element={<ToolLayout><FoodSafetyPage /></ToolLayout>} />
         <Route path="/toxic-releases" element={<ToolLayout><ToxicReleasePage /></ToolLayout>} />
+        <Route path="/foreign-lobbying" element={<ToolLayout><ForeignLobbyingPage /></ToolLayout>} />
         {/* Catch-all back to home */}
         <Route path="*" element={<HomePage />} />
       </Routes>
