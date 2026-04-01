@@ -219,8 +219,8 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
 
 @router.get("/spending-by-state")
 def get_spending_by_state(
-    metric: str = Query("donations", regex="^(donations|members|lobbying)$"),
-    sector: Optional[str] = Query(None, regex="^(finance|health|tech|energy)$"),
+    metric: str = Query("donations", pattern="^(donations|members|lobbying)$"),
+    sector: Optional[str] = Query(None, pattern="^(finance|health|tech|energy|transportation|defense|chemicals|agriculture)$"),
     db: Session = Depends(get_db),
 ):
     """
@@ -388,7 +388,7 @@ def get_top_contracts(limit: int = Query(10, ge=1, le=50), db: Session = Depends
 def get_trade_timeline(
     ticker: str = Query(..., min_length=1),
     person_id: Optional[str] = Query(None),
-    time_range: str = Query("1y", alias="range", regex="^(3m|6m|1y|2y)$"),
+    time_range: str = Query("1y", alias="range", pattern="^(3m|6m|1y|2y)$"),
     db: Session = Depends(get_db),
 ):
     """
@@ -428,7 +428,7 @@ def get_trade_timeline(
 
 @router.get("/network")
 def get_influence_network(
-    entity_type: str = Query(..., regex="^(person|finance|health|tech|energy|transportation|defense)$"),
+    entity_type: str = Query(..., pattern="^(person|finance|health|tech|energy|transportation|defense|chemicals|agriculture)$"),
     entity_id: str = Query(..., min_length=1),
     depth: int = Query(1, ge=1, le=2),
     limit: int = Query(50, ge=1, le=100),
