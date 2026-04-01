@@ -18,15 +18,7 @@ interface FdaRecall {
   distribution_pattern: string | null;
 }
 
-interface UsdaRecall {
-  recall_number: string | null;
-  title: string | null;
-  risk_level: string | null;
-  reason: string | null;
-  company: string | null;
-  products: string | null;
-  date: string | null;
-}
+// Drug and device recalls use the same shape as FDA food recalls
 
 // ── Helpers ──
 
@@ -55,28 +47,21 @@ function classBgColor(cls: string | null): string {
   return 'bg-zinc-500/10';
 }
 
-function riskColor(level: string | null): string {
-  if (!level) return '#64748B';
-  const l = level.toLowerCase();
-  if (l.includes('high')) return '#DC2626';
-  if (l.includes('medium') || l.includes('moderate')) return '#F59E0B';
-  if (l.includes('low')) return '#3B82F6';
-  return '#64748B';
-}
-
-type ResultTab = 'fda' | 'usda';
+type ResultTab = 'food' | 'drug' | 'device';
 
 // ── Page ──
 
 export default function FoodSafetyPage() {
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
-  const [fdaRecalls, setFdaRecalls] = useState<FdaRecall[]>([]);
-  const [usdaRecalls, setUsdaRecalls] = useState<UsdaRecall[]>([]);
-  const [fdaTotal, setFdaTotal] = useState(0);
-  const [usdaTotal, setUsdaTotal] = useState(0);
+  const [foodRecalls, setFoodRecalls] = useState<FdaRecall[]>([]);
+  const [drugRecalls, setDrugRecalls] = useState<FdaRecall[]>([]);
+  const [deviceRecalls, setDeviceRecalls] = useState<FdaRecall[]>([]);
+  const [foodTotal, setFoodTotal] = useState(0);
+  const [drugTotal, setDrugTotal] = useState(0);
+  const [deviceTotal, setDeviceTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<ResultTab>('fda');
+  const [activeTab, setActiveTab] = useState<ResultTab>('food');
   const [searched, setSearched] = useState(false);
 
   const handleSearch = useCallback(async () => {
@@ -86,17 +71,20 @@ export default function FoodSafetyPage() {
     setLoading(true);
     setSubmittedQuery(q);
     setSearched(true);
-    setActiveTab('fda');
+    setActiveTab('food');
 
     try {
-      const [fdaRes, usdaRes] = await Promise.all([
+      const [foodRes, drugRes, deviceRes] = await Promise.all([
         apiFetch<{ total: number; recalls: FdaRecall[] }>('/research/food-recalls', { params: { search: q, limit: 50 } }).catch(() => ({ total: 0, recalls: [] })),
-        apiFetch<{ total: number; recalls: UsdaRecall[] }>('/research/usda-recalls', { params: { search: q, limit: 50 } }).catch(() => ({ total: 0, recalls: [] })),
+        apiFetch<{ total: number; recalls: FdaRecall[] }>('/research/drug-recalls', { params: { search: q, limit: 50 } }).catch(() => ({ total: 0, recalls: [] })),
+        apiFetch<{ total: number; recalls: FdaRecall[] }>('/research/device-recalls', { params: { search: q, limit: 50 } }).catch(() => ({ total: 0, recalls: [] })),
       ]);
-      setFdaRecalls(fdaRes.recalls);
-      setFdaTotal(fdaRes.total);
-      setUsdaRecalls(usdaRes.recalls);
-      setUsdaTotal(usdaRes.total);
+      setFoodRecalls(foodRes.recalls);
+      setFoodTotal(foodRes.total);
+      setDrugRecalls(drugRes.recalls);
+      setDrugTotal(drugRes.total);
+      setDeviceRecalls(deviceRes.recalls);
+      setDeviceTotal(deviceRes.total);
     } catch {
       // partial results still shown
     } finally {
@@ -123,7 +111,7 @@ export default function FoodSafetyPage() {
           Food Safety Search
         </h1>
         <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Search FDA and USDA food recall databases. Find recalls by product name, company, or reason.
+          Search 84,000+ FDA recalls across food, drugs, and medical devices. Find by product, company, or reason.
         </p>
       </div>
 
@@ -164,7 +152,7 @@ export default function FoodSafetyPage() {
             <ShieldAlert size={36} className="text-zinc-700" />
           </div>
           <p className="text-lg font-semibold text-zinc-400 mb-2">Search food recalls</p>
-          <p className="text-sm text-zinc-600">Results include FDA food enforcement and USDA FSIS recalls.</p>
+          <p className="text-sm text-zinc-600">Results include FDA food, drug, and medical device recalls.</p>
         </div>
       )}
 
@@ -173,15 +161,16 @@ export default function FoodSafetyPage() {
         <>
           <div className="mb-6">
             <span className="text-sm text-zinc-500">
-              {(fdaRecalls.length + usdaRecalls.length).toLocaleString()} results for &ldquo;{submittedQuery}&rdquo;
+              {(foodRecalls.length + drugRecalls.length + deviceRecalls.length).toLocaleString()} results for &ldquo;{submittedQuery}&rdquo;
             </span>
           </div>
 
           {/* Tabs */}
           <div className="flex gap-2 mb-6">
             {([
-              { key: 'fda' as ResultTab, label: 'FDA Recalls', count: fdaRecalls.length, icon: ShieldAlert },
-              { key: 'usda' as ResultTab, label: 'USDA Recalls', count: usdaRecalls.length, icon: AlertTriangle },
+              { key: 'food' as ResultTab, label: 'Food Recalls', count: foodRecalls.length, icon: ShieldAlert },
+              { key: 'drug' as ResultTab, label: 'Drug Recalls', count: drugRecalls.length, icon: AlertTriangle },
+              { key: 'device' as ResultTab, label: 'Device Recalls', count: deviceRecalls.length, icon: ShieldAlert },
             ]).map((tab) => {
               const isActive = activeTab === tab.key;
               return (
@@ -204,13 +193,13 @@ export default function FoodSafetyPage() {
             })}
           </div>
 
-          {/* FDA Tab */}
-          {activeTab === 'fda' && (
+          {/* Food Tab */}
+          {activeTab === 'food' && (
             <div className="space-y-4">
-              {fdaRecalls.length === 0 ? (
-                <EmptyState text={`No FDA recalls found for "${submittedQuery}".`} />
+              {foodRecalls.length === 0 ? (
+                <EmptyState text={`No food recalls found for "${submittedQuery}".`} />
               ) : (
-                fdaRecalls.map((r, idx) => {
+                foodRecalls.map((r, idx) => {
                   const barColor = classColor(r.classification);
                   return (
                     <div
@@ -272,57 +261,59 @@ export default function FoodSafetyPage() {
             </div>
           )}
 
-          {/* USDA Tab */}
-          {activeTab === 'usda' && (
+          {/* Drug Tab */}
+          {activeTab === 'drug' && (
             <div className="space-y-4">
-              {usdaRecalls.length === 0 ? (
-                <EmptyState text={`No USDA recalls found for "${submittedQuery}".`} />
+              {drugRecalls.length === 0 ? (
+                <EmptyState text={`No drug recalls found for "${submittedQuery}".`} />
               ) : (
-                usdaRecalls.map((r, idx) => {
-                  const barColor = riskColor(r.risk_level);
+                drugRecalls.map((r, idx) => {
+                  const barColor = classColor(r.classification);
                   return (
-                    <div
-                      key={`usda-${r.recall_number}-${idx}`}
-                      className="flex rounded-xl border border-zinc-800/60 overflow-hidden"
-                      style={{ opacity: 0, animation: `card-enter 0.3s ease-out ${idx * 0.03}s forwards` }}
-                    >
+                    <div key={`drug-${r.recall_number}-${idx}`} className="flex rounded-xl border border-zinc-800/60 overflow-hidden" style={{ opacity: 0, animation: `card-enter 0.3s ease-out ${idx * 0.03}s forwards` }}>
                       <div className="w-1.5 shrink-0" style={{ background: barColor }} />
                       <div className="flex-1 p-5 bg-zinc-900/40">
                         <div className="flex items-center gap-2 mb-3 flex-wrap">
-                          {r.risk_level && (
-                            <span
-                              className="rounded border px-2 py-1 text-xs font-bold"
-                              style={{ borderColor: `${barColor}40`, color: barColor }}
-                            >
-                              {r.risk_level.toUpperCase()}
-                            </span>
-                          )}
-                          {r.recall_number && (
-                            <span className="text-xs text-zinc-600 ml-auto font-mono">{r.recall_number}</span>
-                          )}
+                          {r.classification && <span className={`rounded border px-2 py-1 text-xs font-bold ${classBgColor(r.classification)}`} style={{ borderColor: `${barColor}40`, color: barColor }}>{r.classification}</span>}
+                          {r.status && <span className={`rounded px-2 py-1 text-xs font-bold ${r.status.toLowerCase().includes('ongoing') ? 'text-red-300' : 'text-zinc-500'}`}>{r.status.toUpperCase()}</span>}
+                          {r.recall_number && <span className="text-xs text-zinc-600 ml-auto font-mono">{r.recall_number}</span>}
                         </div>
-
-                        <p className="text-sm font-semibold text-white mb-2 line-clamp-2">
-                          {r.title || 'No title'}
-                        </p>
-
-                        {r.reason && (
-                          <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 mb-3">
-                            <p className="text-xs uppercase tracking-wider mb-1 text-zinc-600">REASON</p>
-                            <p className="text-sm text-zinc-400 line-clamp-2">{r.reason}</p>
-                          </div>
-                        )}
-
-                        {r.products && (
-                          <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 mb-3">
-                            <p className="text-xs uppercase tracking-wider mb-1 text-zinc-600">PRODUCTS</p>
-                            <p className="text-sm text-zinc-400 line-clamp-2">{String(r.products)}</p>
-                          </div>
-                        )}
-
+                        <p className="text-sm font-semibold text-white mb-2 line-clamp-2">{r.product_description || 'No product description'}</p>
+                        {r.reason_for_recall && <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 mb-3"><p className="text-xs uppercase tracking-wider mb-1 text-zinc-600">REASON</p><p className="text-sm text-zinc-400 line-clamp-2">{r.reason_for_recall}</p></div>}
                         <div className="flex items-center justify-between border-t border-zinc-800 pt-3">
-                          <span className="text-sm text-zinc-400">{r.company || '\u2014'}</span>
-                          <span className="text-sm text-zinc-600 font-mono">{fmtDate(r.date)}</span>
+                          <span className="text-sm text-zinc-400">{r.recalling_firm || '\u2014'}{r.city && r.state ? ` \u00b7 ${r.city}, ${r.state}` : ''}</span>
+                          <span className="text-sm text-zinc-600 font-mono">{fmtDate(r.recall_initiation_date)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* Device Tab */}
+          {activeTab === 'device' && (
+            <div className="space-y-4">
+              {deviceRecalls.length === 0 ? (
+                <EmptyState text={`No device recalls found for "${submittedQuery}".`} />
+              ) : (
+                deviceRecalls.map((r, idx) => {
+                  const barColor = classColor(r.classification);
+                  return (
+                    <div key={`device-${r.recall_number}-${idx}`} className="flex rounded-xl border border-zinc-800/60 overflow-hidden" style={{ opacity: 0, animation: `card-enter 0.3s ease-out ${idx * 0.03}s forwards` }}>
+                      <div className="w-1.5 shrink-0" style={{ background: barColor }} />
+                      <div className="flex-1 p-5 bg-zinc-900/40">
+                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                          {r.classification && <span className={`rounded border px-2 py-1 text-xs font-bold ${classBgColor(r.classification)}`} style={{ borderColor: `${barColor}40`, color: barColor }}>{r.classification}</span>}
+                          {r.status && <span className={`rounded px-2 py-1 text-xs font-bold ${r.status.toLowerCase().includes('ongoing') ? 'text-red-300' : 'text-zinc-500'}`}>{r.status.toUpperCase()}</span>}
+                          {r.recall_number && <span className="text-xs text-zinc-600 ml-auto font-mono">{r.recall_number}</span>}
+                        </div>
+                        <p className="text-sm font-semibold text-white mb-2 line-clamp-2">{r.product_description || 'No product description'}</p>
+                        {r.reason_for_recall && <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 mb-3"><p className="text-xs uppercase tracking-wider mb-1 text-zinc-600">REASON</p><p className="text-sm text-zinc-400 line-clamp-2">{r.reason_for_recall}</p></div>}
+                        <div className="flex items-center justify-between border-t border-zinc-800 pt-3">
+                          <span className="text-sm text-zinc-400">{r.recalling_firm || '\u2014'}{r.city && r.state ? ` \u00b7 ${r.city}, ${r.state}` : ''}</span>
+                          <span className="text-sm text-zinc-600 font-mono">{fmtDate(r.recall_initiation_date)}</span>
                         </div>
                       </div>
                     </div>

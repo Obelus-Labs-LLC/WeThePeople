@@ -72,54 +72,98 @@ async def food_recalls(
 # ── USDA FSIS Recalls ───────────────────────────────────────────────────────
 
 
-@router.get("/usda-recalls")
-async def usda_recalls(
-    search: str = Query("", description="Product or company search term"),
+@router.get("/drug-recalls")
+async def drug_recalls(
+    search: str = Query("", description="Drug or company search term"),
     limit: int = Query(25, ge=1, le=100),
 ):
-    """Proxy to USDA FSIS recall API."""
-    base = "https://api.fsis.usda.gov/fsis-api/recalls"
+    """Proxy to OpenFDA drug enforcement (recall) endpoint."""
+    base = "https://api.fda.gov/drug/enforcement.json"
+    params: dict = {"limit": limit}
+    if search.strip():
+        q = search.strip().replace('"', "")
+        params["search"] = f'product_description:"{q}"'
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
-            resp = await client.get(base)
+            resp = await client.get(base, params=params)
             resp.raise_for_status()
             data = resp.json()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return {"total": 0, "recalls": []}
+        logger.warning("OpenFDA drug error %s: %s", exc.response.status_code, exc.response.text[:200])
+        raise HTTPException(502, "OpenFDA drug request failed")
     except Exception as exc:
-        logger.warning("USDA FSIS request error: %s", exc)
-        raise HTTPException(502, "USDA FSIS request failed")
+        logger.warning("OpenFDA drug request error: %s", exc)
+        raise HTTPException(502, "OpenFDA drug request failed")
 
-    # FSIS returns a flat list; filter client-side
-    items = data if isinstance(data, list) else data.get("recalls", data.get("results", []))
-    q = search.strip().lower()
+    results = data.get("results", [])
+    total = data.get("meta", {}).get("results", {}).get("total", len(results))
 
-    filtered = []
-    for item in items:
-        if q:
-            searchable = " ".join(
-                str(v) for v in [
-                    item.get("recall_number", ""),
-                    item.get("title", ""),
-                    item.get("reason", ""),
-                    item.get("company", item.get("establishment", "")),
-                    item.get("products", ""),
-                ]
-            ).lower()
-            if q not in searchable:
-                continue
-        filtered.append({
-            "recall_number": item.get("recall_number"),
-            "title": item.get("title", item.get("subject", "")),
-            "risk_level": item.get("risk_level", item.get("classification", "")),
-            "reason": item.get("reason", ""),
-            "company": item.get("company", item.get("establishment", "")),
-            "products": item.get("products", item.get("product_items", "")),
-            "date": item.get("date", item.get("recall_date", "")),
+    recalls = []
+    for r in results:
+        recalls.append({
+            "recall_number": r.get("recall_number"),
+            "classification": r.get("classification"),
+            "status": r.get("status"),
+            "product_description": r.get("product_description"),
+            "reason_for_recall": r.get("reason_for_recall"),
+            "recall_initiation_date": r.get("recall_initiation_date"),
+            "recalling_firm": r.get("recalling_firm"),
+            "city": r.get("city"),
+            "state": r.get("state"),
+            "distribution_pattern": r.get("distribution_pattern"),
         })
-        if len(filtered) >= limit:
-            break
 
-    return {"total": len(filtered), "recalls": filtered}
+    return {"total": total, "recalls": recalls}
+
+
+@router.get("/device-recalls")
+async def device_recalls(
+    search: str = Query("", description="Device or company search term"),
+    limit: int = Query(25, ge=1, le=100),
+):
+    """Proxy to OpenFDA device enforcement (recall) endpoint."""
+    base = "https://api.fda.gov/device/enforcement.json"
+    params: dict = {"limit": limit}
+    if search.strip():
+        q = search.strip().replace('"', "")
+        params["search"] = f'product_description:"{q}"'
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+            resp = await client.get(base, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return {"total": 0, "recalls": []}
+        logger.warning("OpenFDA device error %s", exc.response.status_code)
+        raise HTTPException(502, "OpenFDA device request failed")
+    except Exception as exc:
+        logger.warning("OpenFDA device request error: %s", exc)
+        raise HTTPException(502, "OpenFDA device request failed")
+
+    results = data.get("results", [])
+    total = data.get("meta", {}).get("results", {}).get("total", len(results))
+
+    recalls = []
+    for r in results:
+        recalls.append({
+            "recall_number": r.get("recall_number"),
+            "classification": r.get("classification"),
+            "status": r.get("status"),
+            "product_description": r.get("product_description"),
+            "reason_for_recall": r.get("reason_for_recall"),
+            "recall_initiation_date": r.get("recall_initiation_date"),
+            "recalling_firm": r.get("recalling_firm"),
+            "city": r.get("city"),
+            "state": r.get("state"),
+            "distribution_pattern": r.get("distribution_pattern"),
+        })
+
+    return {"total": total, "recalls": recalls}
 
 
 # ── EPA Toxic Release Inventory (EnviroFacts) ───────────────────────────────
