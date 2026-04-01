@@ -1703,11 +1703,11 @@ def detect_foreign_lobbying(db) -> List[Dict[str, Any]]:
     stories = []
 
     try:
-        # Top countries by active registrant count
+        # Top countries by foreign principal count (country is on principals, not registrants)
         sql = text("""
             SELECT country, COUNT(*) as cnt
-            FROM fara_registrants
-            WHERE status = 'active' AND country IS NOT NULL AND country != ''
+            FROM fara_foreign_principals
+            WHERE country IS NOT NULL AND country != '' AND country != 'INTERNATIONAL'
             GROUP BY country
             HAVING COUNT(*) >= 5
             ORDER BY cnt DESC
@@ -1730,10 +1730,10 @@ def detect_foreign_lobbying(db) -> List[Dict[str, Any]]:
                 "score": score,
                 "evidence": {
                     "country": country,
-                    "active_registrants": count,
+                    "foreign_principals_count": count,
                     "sector": "politics",
-                    "source_tables": "fara_registrants",
-                    "data_sources": ["fara_registrants"],
+                    "source_tables": "fara_foreign_principals",
+                    "data_sources": ["fara_foreign_principals"],
                     "entity_ids": [],
                 },
             })
@@ -1742,9 +1742,9 @@ def detect_foreign_lobbying(db) -> List[Dict[str, Any]]:
         sql2 = text("""
             SELECT registrant_name, COUNT(DISTINCT country) as country_count,
                    COUNT(*) as total_registrations
-            FROM fara_registrants
-            WHERE status = 'active' AND registrant_name IS NOT NULL
-                AND country IS NOT NULL AND country != ''
+            FROM fara_foreign_principals
+            WHERE registrant_name IS NOT NULL
+                AND country IS NOT NULL AND country != '' AND country != 'INTERNATIONAL'
             GROUP BY registrant_name
             HAVING COUNT(DISTINCT country) >= 3
             ORDER BY country_count DESC
