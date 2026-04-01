@@ -74,7 +74,7 @@ HAIKU_MODEL = "claude-haiku-4-5-20251001"
 def _map_entity_type(category: str, evidence: Dict) -> str:
     """Map story category/evidence to claims pipeline entity_type."""
     sector = evidence.get("sector", "")
-    if sector in ("tech", "finance", "health", "energy", "defense", "transportation", "chemicals"):
+    if sector in ("tech", "finance", "health", "energy", "defense", "transportation", "chemicals", "agriculture"):
         return sector
     # Person-based patterns
     if category in ("stock_act_violation", "committee_stock_trade", "prolific_trader", "trade_timing", "revolving_door"):
@@ -273,6 +273,8 @@ def detect_lobbying_spikes(db) -> List[Dict[str, Any]]:
         ("lobbying_records", "company_id"),
         ("finance_lobbying_records", "institution_id"),
         ("health_lobbying_records", "company_id"),
+        ("chemical_lobbying_records", "company_id"),
+        ("agriculture_lobbying_records", "company_id"),
     ]
 
     for table, id_col in tables:
@@ -376,6 +378,11 @@ def detect_contract_windfalls(db) -> List[Dict[str, Any]]:
         ("defense_government_contracts", "defense_lobbying_records", "defense"),
         ("energy_government_contracts", "energy_lobbying_records", "energy"),
         ("health_government_contracts", "health_lobbying_records", "health"),
+        ("government_contracts", "lobbying_records", "tech"),
+        ("finance_government_contracts", "finance_lobbying_records", "finance"),
+        ("transportation_government_contracts", "transportation_lobbying_records", "transportation"),
+        ("chemical_government_contracts", "chemical_lobbying_records", "chemicals"),
+        ("agriculture_government_contracts", "agriculture_lobbying_records", "agriculture"),
     ]
 
     for ct, lt, sector in contract_tables:
@@ -437,6 +444,11 @@ def detect_enforcement_gaps(db) -> List[Dict[str, Any]]:
         ("defense", "defense_lobbying_records", "defense_enforcement_actions"),
         ("energy", "energy_lobbying_records", "energy_enforcement_actions"),
         ("transportation", "transportation_lobbying_records", "transportation_enforcement_actions"),
+        ("tech", "lobbying_records", "ftc_enforcement_actions"),
+        ("finance", "finance_lobbying_records", "finance_enforcement_actions"),
+        ("health", "health_lobbying_records", "health_enforcement_actions"),
+        ("chemicals", "chemical_lobbying_records", "chemical_enforcement_actions"),
+        ("agriculture", "agriculture_lobbying_records", "agriculture_enforcement_actions"),
     ]
 
     for sector, lobby_table, enforce_table in sectors:
@@ -829,6 +841,8 @@ def detect_regulatory_arbitrage(db) -> List[Dict[str, Any]]:
         ("defense", "defense_lobbying_records", "defense_enforcement_actions", "tracked_defense_companies", "company_id"),
         ("transportation", "transportation_lobbying_records", "transportation_enforcement_actions", "tracked_transportation_companies", "company_id"),
         ("finance", "finance_lobbying_records", "finance_enforcement_actions", "tracked_institutions", "institution_id"),
+        ("chemicals", "chemical_lobbying_records", "chemical_enforcement_actions", "tracked_chemical_companies", "company_id"),
+        ("agriculture", "agriculture_lobbying_records", "agriculture_enforcement_actions", "tracked_agriculture_companies", "company_id"),
     ]
 
     for sector, lobby_table, enforce_table, entity_table, id_col in sectors:
@@ -1380,6 +1394,8 @@ def detect_penalty_contract_ratio(db) -> List[Dict[str, Any]]:
         ("defense", "defense_government_contracts", "defense_enforcement_actions", "tracked_defense_companies", "company_id"),
         ("finance", "finance_government_contracts", "finance_enforcement_actions", "tracked_institutions", "institution_id"),
         ("transportation", "transportation_government_contracts", "transportation_enforcement_actions", "tracked_transportation_companies", "company_id"),
+        ("chemicals", "chemical_government_contracts", "chemical_enforcement_actions", "tracked_chemical_companies", "company_id"),
+        ("agriculture", "agriculture_government_contracts", "agriculture_enforcement_actions", "tracked_agriculture_companies", "company_id"),
     ]
 
     all_candidates = []
@@ -1591,6 +1607,8 @@ def detect_enforcement_immunity(db) -> List[Dict[str, Any]]:
         ("defense", "defense_government_contracts", "defense_enforcement_actions", "defense_lobbying_records", "tracked_defense_companies", "company_id"),
         ("finance", "finance_government_contracts", "finance_enforcement_actions", "finance_lobbying_records", "tracked_institutions", "institution_id"),
         ("transportation", "transportation_government_contracts", "transportation_enforcement_actions", "transportation_lobbying_records", "tracked_transportation_companies", "company_id"),
+        ("chemicals", "chemical_government_contracts", "chemical_enforcement_actions", "chemical_lobbying_records", "tracked_chemical_companies", "company_id"),
+        ("agriculture", "agriculture_government_contracts", "agriculture_enforcement_actions", "agriculture_lobbying_records", "tracked_agriculture_companies", "company_id"),
     ]
 
     all_candidates = []
@@ -1675,6 +1693,90 @@ def detect_enforcement_immunity(db) -> List[Dict[str, Any]]:
     return stories
 
 
+def detect_foreign_lobbying(db) -> List[Dict[str, Any]]:
+    """Find countries with the most active foreign lobbying operations in the US.
+
+    Uses FARA data to surface: which countries have the most registered agents,
+    which firms represent multiple foreign governments, and countries with
+    active registrants lobbying on sensitive topics.
+    """
+    stories = []
+
+    try:
+        # Top countries by active registrant count
+        sql = text("""
+            SELECT country, COUNT(*) as cnt
+            FROM fara_registrants
+            WHERE status = 'active' AND country IS NOT NULL AND country != ''
+            GROUP BY country
+            HAVING COUNT(*) >= 5
+            ORDER BY cnt DESC
+            LIMIT 10
+        """)
+        rows = db.execute(sql).fetchall()
+
+        for row in rows:
+            country = row[0]
+            count = row[1]
+            if count >= 20:
+                score = 10
+            elif count >= 10:
+                score = 9
+            else:
+                score = 8
+
+            stories.append({
+                "category": "foreign_lobbying",
+                "score": score,
+                "evidence": {
+                    "country": country,
+                    "active_registrants": count,
+                    "sector": "politics",
+                    "source_tables": "fara_registrants",
+                    "data_sources": ["fara_registrants"],
+                    "entity_ids": [],
+                },
+            })
+
+        # Firms representing multiple foreign governments
+        sql2 = text("""
+            SELECT registrant_name, COUNT(DISTINCT country) as country_count,
+                   COUNT(*) as total_registrations
+            FROM fara_registrants
+            WHERE status = 'active' AND registrant_name IS NOT NULL
+                AND country IS NOT NULL AND country != ''
+            GROUP BY registrant_name
+            HAVING COUNT(DISTINCT country) >= 3
+            ORDER BY country_count DESC
+            LIMIT 5
+        """)
+        rows2 = db.execute(sql2).fetchall()
+
+        for row in rows2:
+            firm = row[0]
+            country_count = row[1]
+            score = min(10, 7 + country_count // 2)
+
+            stories.append({
+                "category": "foreign_lobbying",
+                "score": score,
+                "evidence": {
+                    "firm_name": firm,
+                    "countries_represented": country_count,
+                    "total_registrations": row[2],
+                    "sector": "politics",
+                    "source_tables": "fara_registrants",
+                    "data_sources": ["fara_registrants"],
+                    "entity_ids": [],
+                },
+            })
+
+    except Exception as e:
+        logger.debug("Foreign lobbying detection failed: %s", e)
+
+    return stories
+
+
 # ── Main ────────────────────────────────────────────────────────────────
 
 
@@ -1693,6 +1795,7 @@ DETECTORS = {
     "penalty_contract_ratio": detect_penalty_contract_ratio,
     "prolific_trader": detect_prolific_traders,
     "enforcement_immunity": detect_enforcement_immunity,
+    "foreign_lobbying": detect_foreign_lobbying,
 }
 
 
@@ -1713,6 +1816,8 @@ def _infer_sector(evidence: Dict) -> Optional[str]:
         ("finance", "finance"),
         ("tech", "tech"),
         ("transport", "transportation"),
+        ("chemical", "chemicals"),
+        ("agriculture", "agriculture"),
     ]:
         if keyword in all_tables:
             return sector_name
