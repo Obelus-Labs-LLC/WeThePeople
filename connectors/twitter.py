@@ -41,13 +41,14 @@ def _get_client() -> tweepy.Client:
     return _cached_client
 
 
-def post_tweet(text: str, reply_to: Optional[str] = None) -> Optional[str]:
+def post_tweet(text: str, reply_to: Optional[str] = None, quote_tweet_id: Optional[str] = None) -> Optional[str]:
     """
     Post a single tweet. Returns the tweet ID on success, None on failure.
 
     Args:
         text: Tweet text (max 280 chars)
         reply_to: Optional tweet ID to reply to
+        quote_tweet_id: Optional tweet ID to quote-tweet
     """
     if len(text) > 280:
         logger.warning("Tweet too long (%d chars), truncating", len(text))
@@ -63,6 +64,8 @@ def post_tweet(text: str, reply_to: Optional[str] = None) -> Optional[str]:
         kwargs = {"text": text}
         if reply_to:
             kwargs["in_reply_to_tweet_id"] = reply_to
+        if quote_tweet_id:
+            kwargs["quote_tweet_id"] = quote_tweet_id
 
         response = client.create_tweet(**kwargs)
         tweet_id = response.data["id"]
@@ -97,6 +100,92 @@ def post_thread(tweets: List[str]) -> List[str]:
 
     logger.info("Posted thread: %d/%d tweets", len(ids), len(tweets))
     return ids
+
+
+def search_recent_tweets(query: str, max_results: int = 10) -> list:
+    """
+    Search recent tweets matching a query string.
+
+    Uses Twitter API v2 search_recent_tweets endpoint.
+    Free tier supports recent search with limited volume.
+
+    Args:
+        query: Search query (supports Twitter search operators)
+        max_results: Max tweets to return (10-100)
+    """
+    try:
+        client = _get_client()
+        response = client.search_recent_tweets(
+            query=query,
+            max_results=min(max(max_results, 10), 100),
+            tweet_fields=["author_id", "created_at", "text", "public_metrics"],
+            expansions=["author_id"],
+            user_fields=["username", "name"],
+        )
+        tweets = response.data or []
+        # Attach user info to tweets
+        users_map = {}
+        if response.includes and "users" in response.includes:
+            for u in response.includes["users"]:
+                users_map[u.id] = u
+
+        results = []
+        for t in tweets:
+            user = users_map.get(t.author_id)
+            results.append({
+                "id": t.id,
+                "text": t.text,
+                "author_id": t.author_id,
+                "username": user.username if user else None,
+                "name": user.name if user else None,
+                "created_at": str(t.created_at) if t.created_at else None,
+                "metrics": t.public_metrics,
+            })
+
+        logger.info("Search found %d tweets for query: %s", len(results), query[:50])
+        return results
+    except tweepy.TweepyException as e:
+        logger.error("Failed to search tweets: %s", e)
+        return []
+
+
+def get_user_tweets(username: str, max_results: int = 10) -> list:
+    """
+    Get recent tweets from a specific user by username.
+
+    Args:
+        username: Twitter username (without @)
+        max_results: Max tweets to return (5-100)
+    """
+    try:
+        client = _get_client()
+        user = client.get_user(username=username)
+        if not user.data:
+            logger.warning("User @%s not found", username)
+            return []
+
+        response = client.get_users_tweets(
+            id=user.data.id,
+            max_results=min(max(max_results, 5), 100),
+            tweet_fields=["created_at", "text", "public_metrics"],
+        )
+        tweets = response.data or []
+
+        results = []
+        for t in tweets:
+            results.append({
+                "id": t.id,
+                "text": t.text,
+                "username": username,
+                "created_at": str(t.created_at) if t.created_at else None,
+                "metrics": t.public_metrics,
+            })
+
+        logger.info("Fetched %d tweets from @%s", len(results), username)
+        return results
+    except tweepy.TweepyException as e:
+        logger.error("Failed to fetch tweets from @%s: %s", username, e)
+        return []
 
 
 def get_mentions(since_id: Optional[str] = None, max_results: int = 20) -> list:

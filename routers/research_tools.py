@@ -1,15 +1,20 @@
 """
 Research Tools — lightweight proxy router for external public APIs.
 
-Proxies FDA, USDA, and EPA data so the research site doesn't need
-to handle CORS or expose third-party endpoints to the browser.
+Proxies FDA, USDA, EPA, and Congress.gov data so the research site
+doesn't need to handle CORS or expose third-party endpoints to the browser.
 """
 
 import logging
+import os
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from models.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -275,8 +280,12 @@ async def fed_jobs(
         params["LocationName"] = location.strip()
 
     # USAJobs requires User-Agent and Authorization-Key headers
+    # Register free at https://developer.usajobs.gov/APIRequest/Index
     email = os.environ.get("USAJOBS_EMAIL", "research@wethepeopleforus.com")
     api_key = os.environ.get("USAJOBS_API_KEY", "")
+
+    if not api_key:
+        raise HTTPException(503, "USAJobs API key not configured. Register free at developer.usajobs.gov")
 
     headers = {
         "User-Agent": email,
@@ -400,3 +409,175 @@ async def campaign_finance(
         })
 
     return {"total": total, "candidates": candidates}
+
+
+# ── Congress.gov Bill Text Search + Lobbying Cross-Reference ────────────────
+
+
+# All sector lobbying tables share the same column layout for the fields we need.
+_LOBBYING_TABLES = [
+    "lobbying_records",
+    "finance_lobbying_records",
+    "health_lobbying_records",
+    "energy_lobbying_records",
+    "defense_lobbying_records",
+    "chemical_lobbying_records",
+    "agriculture_lobbying_records",
+    "transportation_lobbying_records",
+]
+
+# Map table name -> human-readable sector label
+_TABLE_SECTOR_MAP = {
+    "lobbying_records": "Technology",
+    "finance_lobbying_records": "Finance",
+    "health_lobbying_records": "Health",
+    "energy_lobbying_records": "Energy",
+    "defense_lobbying_records": "Defense",
+    "chemical_lobbying_records": "Chemicals",
+    "agriculture_lobbying_records": "Agriculture",
+    "transportation_lobbying_records": "Transportation",
+}
+
+
+def _build_lobbying_union_query(search_term: str) -> str:
+    """Build a UNION ALL query across all sector lobbying tables.
+
+    Searches lobbying_issues and specific_issues columns for the given term.
+    Returns registrant_name (the lobbying firm or company), income, and sector.
+    """
+    parts = []
+    for table in _LOBBYING_TABLES:
+        sector = _TABLE_SECTOR_MAP[table]
+        parts.append(
+            f"SELECT registrant_name, client_name, income, '{sector}' AS sector "
+            f"FROM {table} "
+            f"WHERE LOWER(lobbying_issues) LIKE :term "
+            f"OR LOWER(specific_issues) LIKE :term"
+        )
+    return " UNION ALL ".join(parts)
+
+
+@router.get("/bill-text-search")
+async def bill_text_search(
+    query: str = Query(..., description="Search term (lobbying issue, industry term, etc.)"),
+    congress: int = Query(119, description="Congress number"),
+    limit: int = Query(25, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """Search congressional bills via Congress.gov API and cross-reference with
+    lobbying filings from our database that mention the same terms."""
+
+    congress_api_key = os.environ.get("CONGRESS_API_KEY", "")
+    if not congress_api_key:
+        raise HTTPException(503, "Congress.gov API key not configured")
+
+    # ── 1. Query Congress.gov for matching bills ──
+
+    bills_url = "https://api.congress.gov/v3/bill"
+    params = {
+        "query": query.strip(),
+        "limit": limit,
+        "api_key": congress_api_key,
+        "format": "json",
+    }
+    if congress:
+        params["congress"] = congress
+
+    bills = []
+    total_bills = 0
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+            resp = await client.get(bills_url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+        total_bills = data.get("pagination", {}).get("count", 0)
+
+        for b in data.get("bills", []):
+            bill_type = b.get("type", "").lower()
+            bill_number = b.get("number", "")
+            bill_congress = b.get("congress", congress)
+            latest = b.get("latestAction", {})
+
+            bills.append({
+                "bill_id": f"{bill_type}{bill_number}-{bill_congress}",
+                "title": b.get("title", ""),
+                "policy_area": b.get("policyArea", {}).get("name", "") if isinstance(b.get("policyArea"), dict) else b.get("policyArea", ""),
+                "latest_action": latest.get("text", "") if isinstance(latest, dict) else str(latest),
+                "latest_action_date": latest.get("actionDate", "") if isinstance(latest, dict) else "",
+                "sponsor": b.get("sponsor", {}).get("fullName", "") if isinstance(b.get("sponsor"), dict) else "",
+                "url": b.get("url", f"https://www.congress.gov/bill/{bill_congress}th-congress/{bill_type}-bill/{bill_number}"),
+            })
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            pass  # No bills found, continue to lobbying
+        else:
+            logger.warning("Congress.gov API error %s: %s", exc.response.status_code, exc.response.text[:200])
+            raise HTTPException(502, "Congress.gov API request failed")
+    except Exception as exc:
+        logger.warning("Congress.gov API request error: %s", exc)
+        raise HTTPException(502, "Congress.gov API request failed")
+
+    # ── 2. Cross-reference with our lobbying database ──
+
+    related_lobbying = {
+        "total_filings": 0,
+        "top_companies": [],
+        "sectors": {},
+    }
+
+    try:
+        search_term = f"%{query.strip().lower()}%"
+        union_sql = _build_lobbying_union_query(query)
+
+        rows = db.execute(
+            text(union_sql),
+            {"term": search_term},
+        ).fetchall()
+
+        if rows:
+            related_lobbying["total_filings"] = len(rows)
+
+            # Aggregate by company (use client_name, fall back to registrant_name)
+            company_agg: dict = {}
+            sector_agg: dict = {}
+
+            for row in rows:
+                registrant = row[0] or "Unknown"
+                client = row[1] or registrant
+                income = row[2] or 0
+                sector = row[3]
+
+                # Use client name as the company (that's who hired the lobbyist)
+                company_key = client.strip().upper()
+                if company_key not in company_agg:
+                    company_agg[company_key] = {
+                        "name": client.strip(),
+                        "filings": 0,
+                        "total_spend": 0.0,
+                    }
+                company_agg[company_key]["filings"] += 1
+                company_agg[company_key]["total_spend"] += float(income) if income else 0
+
+                # Sector counts
+                sector_agg[sector] = sector_agg.get(sector, 0) + 1
+
+            # Sort companies by filing count descending, take top 20
+            sorted_companies = sorted(
+                company_agg.values(),
+                key=lambda c: (c["filings"], c["total_spend"]),
+                reverse=True,
+            )
+            related_lobbying["top_companies"] = sorted_companies[:20]
+            related_lobbying["sectors"] = sector_agg
+
+    except Exception as exc:
+        logger.warning("Lobbying cross-reference query failed: %s", exc)
+        # Don't fail the whole request — bills data is still useful
+
+    return {
+        "total_bills": total_bills,
+        "bills": bills,
+        "related_lobbying": related_lobbying,
+    }
