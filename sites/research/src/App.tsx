@@ -13,6 +13,9 @@ import {
   Flame,
   Globe,
   ArrowRight,
+  Building2,
+  ArrowRightLeft,
+  DollarSign,
 } from 'lucide-react'
 
 // ── Lazy-loaded pages ──
@@ -27,6 +30,9 @@ const RegulatoryNewsPage = lazy(() => import('./pages/RegulatoryNewsPage'))
 const FoodSafetyPage = lazy(() => import('./pages/FoodSafetyPage'))
 const ToxicReleasePage = lazy(() => import('./pages/ToxicReleasePage'))
 const ForeignLobbyingPage = lazy(() => import('./pages/ForeignLobbyingPage'))
+const GovSalaryPage = lazy(() => import('./pages/GovSalaryPage'))
+const RevolvingDoorPage = lazy(() => import('./pages/RevolvingDoorPage'))
+const CampaignFinancePage = lazy(() => import('./pages/CampaignFinancePage'))
 
 // ── Loading fallback ──
 
@@ -129,6 +135,30 @@ const tools: ToolCard[] = [
     icon: Globe,
     path: '/foreign-lobbying',
     iconClass: 'text-indigo-400', bgClass: 'bg-indigo-400/15',
+    available: true,
+  },
+  {
+    title: 'Government Salary Database',
+    description: 'Search federal job openings with salary data from USAJobs. Filter by keyword, agency, minimum salary, and location across all government positions.',
+    icon: Building2,
+    path: '/gov-salaries',
+    iconClass: 'text-blue-400', bgClass: 'bg-blue-400/15',
+    available: true,
+  },
+  {
+    title: 'Revolving Door Tracker',
+    description: 'Detect patterns of officials moving between government and lobbying. Cross-references FARA data with anomaly detection for revolving-door activity.',
+    icon: ArrowRightLeft,
+    path: '/revolving-door',
+    iconClass: 'text-purple-400', bgClass: 'bg-purple-400/15',
+    available: true,
+  },
+  {
+    title: 'Campaign Finance Search',
+    description: 'Search FEC campaign finance data by candidate, state, and election cycle. View total raised, spent, cash on hand, and link to FEC profiles.',
+    icon: DollarSign,
+    path: '/campaign-finance',
+    iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
     available: true,
   },
 ]
@@ -305,6 +335,9 @@ export default function App() {
         <Route path="/food-safety" element={<ToolLayout><FoodSafetyPage /></ToolLayout>} />
         <Route path="/toxic-releases" element={<ToolLayout><ToxicReleasePage /></ToolLayout>} />
         <Route path="/foreign-lobbying" element={<ToolLayout><ForeignLobbyingPage /></ToolLayout>} />
+        <Route path="/gov-salaries" element={<ToolLayout><GovSalaryPage /></ToolLayout>} />
+        <Route path="/revolving-door" element={<ToolLayout><RevolvingDoorPage /></ToolLayout>} />
+        <Route path="/campaign-finance" element={<ToolLayout><CampaignFinancePage /></ToolLayout>} />
         {/* Catch-all back to home */}
         <Route path="*" element={<HomePage />} />
       </Routes>

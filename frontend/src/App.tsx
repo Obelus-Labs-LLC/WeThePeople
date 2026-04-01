@@ -100,6 +100,7 @@ const VerifyResultPage = React.lazy(() => import("./pages/VerifyResultPage"));
 const VerifyEntityPage = React.lazy(() => import("./pages/VerifyEntityPage"));
 const VerifyMethodologyPage = React.lazy(() => import("./pages/VerifyMethodologyPage"));
 const DigestSignupPage = React.lazy(() => import("./pages/DigestSignupPage"));
+const ZipLookupPage = React.lazy(() => import("./pages/ZipLookupPage"));
 const StoriesPage = React.lazy(() => import("./pages/StoriesPage"));
 const StoryDetailPage = React.lazy(() => import("./pages/StoryDetailPage"));
 const MovedToResearchPage = React.lazy(() => import("./pages/MovedToResearchPage"));
@@ -250,6 +251,9 @@ const App: React.FC = () => (
           {/* Stories */}
           <Route path="/stories" element={<StoriesPage />} />
           <Route path="/stories/:slug" element={<StoryDetailPage />} />
+
+          {/* Zip Code Lookup */}
+          <Route path="/lookup" element={<ZipLookupPage />} />
 
           {/* Digest signup */}
           <Route path="/digest" element={<DigestSignupPage />} />

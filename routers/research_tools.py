@@ -246,3 +246,157 @@ def _safe_float(val) -> Optional[float]:
         return float(val)
     except (ValueError, TypeError):
         return None
+
+
+# ── USAJobs Federal Job Listings ───────────────────────────────────────────
+
+
+@router.get("/fed-jobs")
+async def fed_jobs(
+    keyword: str = Query("", description="Job title or keyword"),
+    agency: Optional[str] = Query(None, description="Agency subelement code"),
+    min_salary: Optional[int] = Query(None, description="Minimum salary"),
+    location: Optional[str] = Query(None, description="City or state"),
+    limit: int = Query(25, ge=1, le=100),
+):
+    """Proxy to USAJobs Search API for federal job listings with salary data."""
+    import os
+
+    base = "https://data.usajobs.gov/api/Search"
+    params: dict = {"ResultsPerPage": limit}
+
+    if keyword.strip():
+        params["Keyword"] = keyword.strip()
+    if agency:
+        params["Organization"] = agency
+    if min_salary:
+        params["RemunerationMinimumAmount"] = min_salary
+    if location:
+        params["LocationName"] = location.strip()
+
+    # USAJobs requires User-Agent and Authorization-Key headers
+    email = os.environ.get("USAJOBS_EMAIL", "research@wethepeopleforus.com")
+    api_key = os.environ.get("USAJOBS_API_KEY", "")
+
+    headers = {
+        "User-Agent": email,
+        "Authorization-Key": api_key,
+        "Host": "data.usajobs.gov",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+            resp = await client.get(base, params=params, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return {"total": 0, "jobs": []}
+        logger.warning("USAJobs error %s: %s", exc.response.status_code, exc.response.text[:200])
+        raise HTTPException(502, "USAJobs request failed")
+    except Exception as exc:
+        logger.warning("USAJobs request error: %s", exc)
+        raise HTTPException(502, "USAJobs request failed")
+
+    search_result = data.get("SearchResult", {})
+    total = int(search_result.get("SearchResultCountAll", 0))
+    items = search_result.get("SearchResultItems", [])
+
+    jobs = []
+    for item in items:
+        matched = item.get("MatchedObjectDescriptor", {})
+        pos_loc = matched.get("PositionLocation", [{}])
+        loc_name = pos_loc[0].get("LocationName", "") if pos_loc else ""
+
+        remun = matched.get("PositionRemuneration", [{}])
+        salary_min = ""
+        salary_max = ""
+        if remun:
+            salary_min = remun[0].get("MinimumRange", "")
+            salary_max = remun[0].get("MaximumRange", "")
+
+        schedule = matched.get("PositionSchedule", [{}])
+        schedule_type = schedule[0].get("Name", "") if schedule else ""
+
+        jobs.append({
+            "position_title": matched.get("PositionTitle", ""),
+            "organization_name": matched.get("OrganizationName", ""),
+            "department_name": matched.get("DepartmentName", ""),
+            "salary_min": salary_min,
+            "salary_max": salary_max,
+            "location": loc_name,
+            "grade": matched.get("JobGrade", [{}])[0].get("Code", "") if matched.get("JobGrade") else "",
+            "schedule_type": schedule_type,
+            "start_date": matched.get("PublicationStartDate", ""),
+            "end_date": matched.get("ApplicationCloseDate", ""),
+            "url": matched.get("PositionURI", ""),
+        })
+
+    return {"total": total, "jobs": jobs}
+
+
+# ── FEC Campaign Finance ──────────────────────────────────────────────────
+
+
+@router.get("/campaign-finance")
+async def campaign_finance(
+    candidate: str = Query("", description="Candidate name search"),
+    state: Optional[str] = Query(None, description="2-letter state code"),
+    cycle: int = Query(2024, description="Election cycle year"),
+    limit: int = Query(25, ge=1, le=100),
+):
+    """Proxy to FEC API for candidate campaign finance data."""
+    import os
+
+    api_key = os.environ.get("FEC_API_KEY", "DEMO_KEY")
+    base = "https://api.open.fec.gov/v1/candidates/search/"
+    params: dict = {
+        "api_key": api_key,
+        "per_page": limit,
+        "sort": "-receipts",
+        "cycle": cycle,
+        "is_active_candidate": "true",
+    }
+
+    if candidate.strip():
+        params["q"] = candidate.strip()
+    if state:
+        params["state"] = state.upper()
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+            resp = await client.get(base, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return {"total": 0, "candidates": []}
+        logger.warning("FEC API error %s: %s", exc.response.status_code, exc.response.text[:200])
+        raise HTTPException(502, "FEC API request failed")
+    except Exception as exc:
+        logger.warning("FEC API request error: %s", exc)
+        raise HTTPException(502, "FEC API request failed")
+
+    pagination = data.get("pagination", {})
+    total = pagination.get("count", 0)
+    results = data.get("results", [])
+
+    candidates = []
+    for c in results:
+        candidates.append({
+            "candidate_id": c.get("candidate_id", ""),
+            "name": c.get("name", ""),
+            "party": c.get("party_full", c.get("party", "")),
+            "office": c.get("office_full", c.get("office", "")),
+            "state": c.get("state", ""),
+            "district": c.get("district", ""),
+            "incumbent_challenge": c.get("incumbent_challenge_full", ""),
+            "total_receipts": c.get("receipts", 0),
+            "total_disbursements": c.get("disbursements", 0),
+            "cash_on_hand": c.get("cash_on_hand_end_period", 0),
+            "debt": c.get("debt_owed_by_committee", 0),
+            "cycle": cycle,
+            "fec_url": f"https://www.fec.gov/data/candidate/{c.get('candidate_id', '')}/" if c.get("candidate_id") else "",
+        })
+
+    return {"total": total, "candidates": candidates}
