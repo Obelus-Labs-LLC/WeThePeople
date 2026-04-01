@@ -1,18 +1,26 @@
 """
-Twitter Reply-with-Data CLI — reply to political tweets with WTP data.
+Twitter Reply-with-Data CLI — reply to or quote-tweet political tweets with WTP data.
 
 Finds an entity in WTP's database, pulls real data (lobbying, contracts,
 enforcement, trades, donations, anomalies), composes a factual 280-char
-reply with a link to the entity's WTP profile, and posts it as a reply.
+reply with a link to the entity's WTP profile, and posts it.
+
+Modes:
+    --reply (default): Post as a reply to the target tweet.
+    --quote: Post as a quote-tweet of the target tweet.
+    --auto-quote: Search accounts like OpenSecrets/ProPublica for tweets
+                  mentioning entities we track, then auto-quote with data.
 
 Usage:
     python jobs/twitter_reply.py --tweet-id 123456789 --entity "Pfizer"
-    python jobs/twitter_reply.py --tweet-id 123456789 --entity "Elizabeth Warren" --type politician
+    python jobs/twitter_reply.py --quote --tweet-id 123456789 --entity "Elizabeth Warren" --type politician
+    python jobs/twitter_reply.py --auto-quote --dry-run
     python jobs/twitter_reply.py --dry-run --tweet-id 123456789 --entity "Lockheed Martin"
 
 Safety:
     - Max 10 replies per day
-    - Won't reply to the same tweet twice
+    - Max 2 auto-quote-tweets per hour
+    - Won't reply/quote the same tweet twice
     - Won't reply to our own tweets
     - --dry-run shows the reply without posting
 """
@@ -32,7 +40,7 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from connectors.twitter import post_tweet, _get_client
+from connectors.twitter import post_tweet, _get_client, search_recent_tweets, get_user_tweets
 from models.database import SessionLocal
 from models.twitter_models import TweetLog
 
@@ -44,7 +52,19 @@ log = logging.getLogger(__name__)
 API_BASE = os.getenv("WTP_API_URL", "http://localhost:8006")
 SITE = "wethepeopleforus.com"
 MAX_REPLIES_PER_DAY = 10
+MAX_QUOTES_PER_HOUR = 2
 OUR_USERNAME = "WTPForUs"
+
+# Accounts to monitor for auto-quote-tweeting
+AUTO_QUOTE_ACCOUNTS = [
+    "OpenSecrets",       # Campaign finance / lobbying tracker
+    "ProPublica",        # Investigative journalism
+    "capitaborseusa",    # Capitol Trades (congressional trades)
+]
+
+# Well-known entity names to look for in tweets from monitored accounts
+# These are populated from the WTP API at runtime
+_ENTITY_CACHE: dict = {}
 
 # Sector search endpoints: (search_path, entity_key, sector_slug, profile_prefix)
 COMPANY_SECTORS = [
@@ -133,15 +153,15 @@ def is_own_tweet(tweet_id: str) -> bool:
         return False
 
 
-def log_reply(session, reply_tweet_id: str, text: str, original_tweet_id: str):
-    """Log the reply to TweetLog with category='reply'."""
+def log_reply(session, reply_tweet_id: str, text: str, original_tweet_id: str, category: str = "reply"):
+    """Log the reply or quote-tweet to TweetLog."""
     tagged_text = f"[reply_to:{original_tweet_id}] {text}"
     for attempt in range(3):
         try:
             session.add(
                 TweetLog(
                     tweet_id=reply_tweet_id,
-                    category="reply",
+                    category=category,
                     content_hash=content_hash(tagged_text),
                     text=tagged_text,
                 )
@@ -155,6 +175,17 @@ def log_reply(session, reply_tweet_id: str, text: str, original_tweet_id: str):
                 time.sleep(2)
             else:
                 log.error("Failed to log reply after 3 attempts: %s", e)
+
+
+def quotes_this_hour(session) -> int:
+    """Count quote-tweets posted in the last hour."""
+    from datetime import timedelta
+    one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+    return (
+        session.query(TweetLog)
+        .filter(TweetLog.posted_at >= one_hour_ago, TweetLog.category == "quote")
+        .count()
+    )
 
 
 # -- Entity Lookup --
@@ -381,8 +412,10 @@ def compose_reply(entity: dict) -> Optional[str]:
 
 # -- Main --
 
-def run(tweet_id: str, entity_name: str, entity_type: Optional[str] = None, dry_run: bool = False):
-    """Find entity, compose reply, and post it."""
+def run(tweet_id: str, entity_name: str, entity_type: Optional[str] = None,
+        dry_run: bool = False, quote: bool = False):
+    """Find entity, compose reply/quote-tweet, and post it."""
+    mode = "quote" if quote else "reply"
     session = SessionLocal()
 
     # Safety: rate limit
@@ -392,9 +425,16 @@ def run(tweet_id: str, entity_name: str, entity_type: Optional[str] = None, dry_
         session.close()
         return
 
-    # Safety: don't reply to same tweet twice
+    if quote:
+        qcount = quotes_this_hour(session)
+        if qcount >= MAX_QUOTES_PER_HOUR and not dry_run:
+            log.error("Already posted %d quote-tweets this hour (max %d). Stopping.", qcount, MAX_QUOTES_PER_HOUR)
+            session.close()
+            return
+
+    # Safety: don't reply/quote the same tweet twice
     if already_replied_to(session, tweet_id):
-        log.error("Already replied to tweet %s. Stopping.", tweet_id)
+        log.error("Already replied/quoted tweet %s. Stopping.", tweet_id)
         session.close()
         return
 
@@ -434,20 +474,20 @@ def run(tweet_id: str, entity_name: str, entity_type: Optional[str] = None, dry_
             entity.get("anomalies_count", 0),
         )
 
-    # Step 2: Compose reply
+    # Step 2: Compose reply text
     reply_text = compose_reply(entity)
     if not reply_text:
-        log.error("Could not compose a reply for %s.", entity["name"])
+        log.error("Could not compose a %s for %s.", mode, entity["name"])
         session.close()
         return
 
-    log.info("Reply (%d chars):\n  %s", len(reply_text), reply_text)
+    log.info("%s (%d chars):\n  %s", mode.title(), len(reply_text), reply_text)
 
     if dry_run:
-        print(f"\n[DRY RUN] Reply to tweet {tweet_id}:")
+        print(f"\n[DRY RUN] {mode.title()} tweet {tweet_id}:")
         print(f"  Entity: {entity['name']} ({entity['type']})")
         print(f"  Profile: {entity['profile_url']}")
-        print(f"  Reply ({len(reply_text)} chars):")
+        print(f"  {mode.title()} ({len(reply_text)} chars):")
         print(f"  ---")
         print(f"  {reply_text}")
         print(f"  ---")
@@ -455,30 +495,204 @@ def run(tweet_id: str, entity_name: str, entity_type: Optional[str] = None, dry_
         session.close()
         return
 
-    # Step 3: Post reply
-    reply_id = post_tweet(reply_text, reply_to=tweet_id)
-    if reply_id:
-        log.info("Reply posted: https://x.com/WTPForUs/status/%s", reply_id)
-        log_reply(session, reply_id, reply_text, tweet_id)
-        print(f"Reply posted: https://x.com/WTPForUs/status/{reply_id}")
+    # Step 3: Post reply or quote-tweet
+    if quote:
+        posted_id = post_tweet(reply_text, quote_tweet_id=tweet_id)
     else:
-        log.error("Failed to post reply.")
+        posted_id = post_tweet(reply_text, reply_to=tweet_id)
+
+    if posted_id:
+        log.info("%s posted: https://x.com/WTPForUs/status/%s", mode.title(), posted_id)
+        log_reply(session, posted_id, reply_text, tweet_id, category=mode)
+        print(f"{mode.title()} posted: https://x.com/WTPForUs/status/{posted_id}")
+    else:
+        log.error("Failed to post %s.", mode)
+
+    session.close()
+
+
+# -- Auto-Quote Logic --
+
+def _extract_entity_names_from_tweet(tweet_text: str) -> list:
+    """Extract potential politician/company names from a tweet.
+
+    Uses simple heuristics: looks for capitalized multi-word sequences
+    that could be proper nouns (names/companies).
+    """
+    import re
+    # Find sequences of 2-4 capitalized words (likely names)
+    # e.g. "Elizabeth Warren", "Lockheed Martin", "Goldman Sachs Group"
+    pattern = r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b'
+    matches = re.findall(pattern, tweet_text)
+
+    # Filter out common non-entity phrases
+    stopwords = {
+        "The White House", "United States", "New York", "Wall Street",
+        "Capitol Hill", "Supreme Court", "Federal Reserve", "White House",
+        "Los Angeles", "San Francisco", "Washington Post", "New York Times",
+    }
+
+    return [m for m in matches if m not in stopwords]
+
+
+def _load_entity_cache():
+    """Load tracked entity names from the WTP API for matching."""
+    global _ENTITY_CACHE
+    if _ENTITY_CACHE:
+        return
+
+    # Load politicians
+    data = api_get("/politics/people", {"limit": 200})
+    people = data.get("people", data.get("items", []))
+    for p in people:
+        name = p.get("display_name", p.get("name", ""))
+        if name:
+            _ENTITY_CACHE[name.upper()] = {"name": name, "type": "politician"}
+
+    # Load companies from each sector
+    for search_path, entity_key, sector, _ in COMPANY_SECTORS:
+        data = api_get(search_path, {"limit": 50})
+        items = data.get(entity_key, data.get("items", []))
+        for c in items:
+            name = c.get("display_name", c.get("name", ""))
+            if name:
+                _ENTITY_CACHE[name.upper()] = {"name": name, "type": "company"}
+
+    log.info("Loaded %d entities into cache for auto-quote matching.", len(_ENTITY_CACHE))
+
+
+def _match_entity_in_tweet(tweet_text: str) -> Optional[dict]:
+    """Check if a tweet mentions any entity we track. Returns entity info or None."""
+    _load_entity_cache()
+
+    text_upper = tweet_text.upper()
+
+    # First: exact match against our entity cache
+    for key, info in _ENTITY_CACHE.items():
+        if key in text_upper:
+            return info
+
+    # Second: extract proper nouns and try to look them up
+    names = _extract_entity_names_from_tweet(tweet_text)
+    for name in names:
+        if name.upper() in _ENTITY_CACHE:
+            return _ENTITY_CACHE[name.upper()]
+
+    return None
+
+
+def run_auto_quote(dry_run: bool = False):
+    """Search monitored accounts for tweets about entities we track,
+    then auto-quote-tweet with WTP data.
+
+    Rate limited to MAX_QUOTES_PER_HOUR quote-tweets per hour.
+    """
+    session = SessionLocal()
+
+    # Safety: check daily rate limit
+    count = replies_today(session)
+    if count >= MAX_REPLIES_PER_DAY and not dry_run:
+        log.info("Already posted %d tweets today (max %d). Skipping auto-quote.", count, MAX_REPLIES_PER_DAY)
+        session.close()
+        return
+
+    # Safety: check hourly quote limit
+    qcount = quotes_this_hour(session)
+    if qcount >= MAX_QUOTES_PER_HOUR and not dry_run:
+        log.info("Already posted %d quote-tweets this hour (max %d). Skipping.", qcount, MAX_QUOTES_PER_HOUR)
+        session.close()
+        return
+
+    quotes_posted = 0
+
+    for account in AUTO_QUOTE_ACCOUNTS:
+        if quotes_posted >= MAX_QUOTES_PER_HOUR:
+            break
+
+        log.info("Checking tweets from @%s...", account)
+        tweets = get_user_tweets(account, max_results=10)
+
+        if not tweets:
+            log.info("No tweets found from @%s", account)
+            continue
+
+        for tweet in tweets:
+            if quotes_posted >= MAX_QUOTES_PER_HOUR:
+                break
+
+            tweet_id = str(tweet["id"])
+            tweet_text = tweet.get("text", "")
+
+            # Skip if we already quoted/replied to this tweet
+            if already_replied_to(session, tweet_id):
+                continue
+
+            # Try to match an entity we track
+            matched = _match_entity_in_tweet(tweet_text)
+            if not matched:
+                continue
+
+            entity_name = matched["name"]
+            entity_type = matched["type"]
+            log.info("Matched entity '%s' (%s) in tweet %s from @%s",
+                     entity_name, entity_type, tweet_id, account)
+
+            # Look up full entity data
+            entity = find_entity(entity_name, entity_type)
+            if not entity:
+                log.warning("Entity '%s' not found in WTP data despite being in cache.", entity_name)
+                continue
+
+            # Compose the quote-tweet text
+            quote_text = compose_reply(entity)
+            if not quote_text:
+                continue
+
+            if dry_run:
+                print(f"\n[DRY RUN] Auto-quote @{account} tweet {tweet_id}:")
+                print(f"  Original: {tweet_text[:120]}...")
+                print(f"  Entity: {entity['name']} ({entity['type']})")
+                print(f"  Quote ({len(quote_text)} chars):")
+                print(f"  ---")
+                print(f"  {quote_text}")
+                print(f"  ---")
+                quotes_posted += 1
+                continue
+
+            # Post the quote-tweet
+            posted_id = post_tweet(quote_text, quote_tweet_id=tweet_id)
+            if posted_id:
+                log.info("Auto-quote posted: https://x.com/WTPForUs/status/%s", posted_id)
+                log_reply(session, posted_id, quote_text, tweet_id, category="quote")
+                print(f"Quote-tweet posted: https://x.com/WTPForUs/status/{posted_id}")
+                quotes_posted += 1
+
+                # Brief pause between posts to avoid looking spammy
+                if quotes_posted < MAX_QUOTES_PER_HOUR:
+                    time.sleep(5)
+            else:
+                log.error("Failed to post quote-tweet for tweet %s.", tweet_id)
+
+    if quotes_posted == 0:
+        log.info("No matching tweets found to quote-tweet this cycle.")
+    else:
+        log.info("Auto-quote complete: %d quote-tweets posted.", quotes_posted)
 
     session.close()
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Reply to a tweet with WTP data about a political entity"
+        description="Reply to or quote-tweet with WTP data about a political entity"
     )
     parser.add_argument(
         "--tweet-id",
-        required=True,
-        help="ID of the tweet to reply to",
+        default=None,
+        help="ID of the tweet to reply to or quote-tweet",
     )
     parser.add_argument(
         "--entity",
-        required=True,
+        default=None,
         help='Entity name to look up (e.g. "Pfizer", "Elizabeth Warren")',
     )
     parser.add_argument(
@@ -490,16 +704,42 @@ def main():
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Preview the reply without posting",
+        help="Preview the reply/quote without posting",
     )
+
+    # Mode flags
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--reply",
+        action="store_true",
+        default=True,
+        help="Reply to the target tweet (default mode)",
+    )
+    mode_group.add_argument(
+        "--quote",
+        action="store_true",
+        help="Quote-tweet the target tweet instead of replying",
+    )
+    mode_group.add_argument(
+        "--auto-quote",
+        action="store_true",
+        help="Auto-search monitored accounts and quote-tweet with data (no --tweet-id needed)",
+    )
+
     args = parser.parse_args()
 
-    run(
-        tweet_id=args.tweet_id,
-        entity_name=args.entity,
-        entity_type=args.type,
-        dry_run=args.dry_run,
-    )
+    if args.auto_quote:
+        run_auto_quote(dry_run=args.dry_run)
+    else:
+        if not args.tweet_id or not args.entity:
+            parser.error("--tweet-id and --entity are required for reply/quote modes")
+        run(
+            tweet_id=args.tweet_id,
+            entity_name=args.entity,
+            entity_type=args.type,
+            dry_run=args.dry_run,
+            quote=args.quote,
+        )
 
 
 if __name__ == "__main__":

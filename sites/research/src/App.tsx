@@ -33,6 +33,7 @@ const ForeignLobbyingPage = lazy(() => import('./pages/ForeignLobbyingPage'))
 const GovSalaryPage = lazy(() => import('./pages/GovSalaryPage'))
 const RevolvingDoorPage = lazy(() => import('./pages/RevolvingDoorPage'))
 const CampaignFinancePage = lazy(() => import('./pages/CampaignFinancePage'))
+const BillTextPage = lazy(() => import('./pages/BillTextPage'))
 
 // ── Loading fallback ──
 
@@ -159,6 +160,14 @@ const tools: ToolCard[] = [
     icon: DollarSign,
     path: '/campaign-finance',
     iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
+    available: true,
+  },
+  {
+    title: 'Bill Text Analysis',
+    description: 'Search congressional bills by lobbying topic and cross-reference with Senate lobbying disclosures. See which companies are lobbying on the same issues being legislated.',
+    icon: FileSearch,
+    path: '/bill-text',
+    iconClass: 'text-amber-400', bgClass: 'bg-amber-400/15',
     available: true,
   },
 ]
@@ -338,6 +347,7 @@ export default function App() {
         <Route path="/gov-salaries" element={<ToolLayout><GovSalaryPage /></ToolLayout>} />
         <Route path="/revolving-door" element={<ToolLayout><RevolvingDoorPage /></ToolLayout>} />
         <Route path="/campaign-finance" element={<ToolLayout><CampaignFinancePage /></ToolLayout>} />
+        <Route path="/bill-text" element={<ToolLayout><BillTextPage /></ToolLayout>} />
         {/* Catch-all back to home */}
         <Route path="*" element={<HomePage />} />
       </Routes>
