@@ -107,6 +107,7 @@ from routers.metrics import router as metrics_router
 from routers.auth import router as auth_router
 from routers.ops import router as ops_router
 from routers.research_tools import router as research_tools_router
+from routers.fara import router as fara_router
 
 # --- Backward-compatible mounts (unprefixed, existing clients) ---
 app.include_router(auth_router)
@@ -137,6 +138,7 @@ app.include_router(stories_router)
 app.include_router(metrics_router)
 app.include_router(ops_router)
 app.include_router(research_tools_router)
+app.include_router(fara_router)
 
 _logger.info("WeThePeople API started, env=%s", os.getenv("WTP_ENV", "production"))
 
@@ -169,5 +171,6 @@ v1.include_router(digest_router)
 v1.include_router(og_router)
 v1.include_router(stories_router)
 v1.include_router(research_tools_router)
+v1.include_router(fara_router)
 
 app.include_router(v1)

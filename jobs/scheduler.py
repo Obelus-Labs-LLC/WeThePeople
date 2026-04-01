@@ -333,6 +333,13 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=1800,
         description="Government website tech footprint from GSA Site Scanning CSV",
     ),
+    JobDef(
+        name="sync_fara_data",
+        script="jobs/sync_fara_data.py",
+        interval_hours=168,
+        timeout_sec=3600,
+        description="FARA foreign agent registrations, principals, and agents from efile.fara.gov",
+    ),
 
     # ── Pipeline monitoring (daily) ──────────────────────────────────
     JobDef(
