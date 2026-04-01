@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Dimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +22,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
 
+  // Sectors with their own bottom tab
   const SECTOR_TAB_MAP: Record<string, string> = {
     politics: 'PoliticsTab',
     finance: 'FinanceTab',
@@ -28,13 +30,34 @@ export default function HomeScreen() {
     technology: 'TechnologyTab',
   };
 
+  // Sectors accessible via HomeStack navigation
+  const SECTOR_SCREEN_MAP: Record<string, string> = {
+    energy: 'EnergyDashboard',
+    transportation: 'TransportationDashboard',
+    defense: 'DefenseDashboard',
+    chemicals: 'ChemicalsDashboard',
+    agriculture: 'AgricultureDashboard',
+  };
+
   const handleSectorPress = (sector: typeof SECTORS[0]) => {
-    if (sector.available) {
-      const tabName = SECTOR_TAB_MAP[sector.slug] || 'PoliticsTab';
-      navigation.getParent()?.navigate(tabName);
-    } else {
+    if (!sector.available) {
       navigation.navigate('ComingSoon', { sector });
+      return;
     }
+    // If the sector has its own tab, switch to that tab
+    const tabName = SECTOR_TAB_MAP[sector.slug];
+    if (tabName) {
+      navigation.getParent()?.navigate(tabName);
+      return;
+    }
+    // Otherwise navigate within the HomeStack
+    const screenName = SECTOR_SCREEN_MAP[sector.slug];
+    if (screenName) {
+      navigation.navigate(screenName);
+      return;
+    }
+    // Fallback
+    navigation.navigate('ComingSoon', { sector });
   };
 
   return (
@@ -69,7 +92,7 @@ export default function HomeScreen() {
                 <Text style={styles.pillText}>24+ Federal Sources</Text>
               </View>
               <View style={styles.pillGold}>
-                <Text style={styles.pillGoldText}>5 Sectors Live</Text>
+                <Text style={styles.pillGoldText}>9 Sectors Live</Text>
               </View>
             </View>
           </View>
@@ -132,6 +155,48 @@ export default function HomeScreen() {
               </View>
             </>
           )}
+        </View>
+
+        {/* Quick Tools */}
+        <View style={styles.quickToolsContainer}>
+          <View style={styles.sectionRow}>
+            <View style={[styles.accentBar, { backgroundColor: UI_COLORS.ACCENT }]} />
+            <Text style={styles.sectionTitle}>Quick Tools</Text>
+          </View>
+          <View style={styles.quickToolsGrid}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('CongressionalTrades')}
+              style={styles.quickToolWrapper}
+            >
+              <LinearGradient
+                colors={['#2563EB', '#1D4ED8']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.quickToolCard}
+              >
+                <Ionicons name="trending-up" size={28} color="#FFFFFF" />
+                <Text style={styles.quickToolName}>Congressional Trades</Text>
+                <Text style={styles.quickToolDesc}>Stock trades by members of Congress</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('ZipLookup')}
+              style={styles.quickToolWrapper}
+            >
+              <LinearGradient
+                colors={['#10B981', '#059669']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.quickToolCard}
+              >
+                <Ionicons name="location" size={28} color="#FFFFFF" />
+                <Text style={styles.quickToolName}>ZIP Code Lookup</Text>
+                <Text style={styles.quickToolDesc}>Find your representatives</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Footer */}
@@ -315,6 +380,40 @@ const styles = StyleSheet.create({
     color: UI_COLORS.TEXT_PRIMARY,
     fontSize: 16,
     fontWeight: '700',
+  },
+  // ── Quick Tools ──
+  quickToolsContainer: {
+    paddingHorizontal: 18,
+    marginTop: 20,
+  },
+  quickToolsGrid: {
+    flexDirection: 'row',
+    gap: CARD_GAP,
+  },
+  quickToolWrapper: {
+    width: CARD_WIDTH,
+  },
+  quickToolCard: {
+    borderRadius: 16,
+    padding: 18,
+    minHeight: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  quickToolName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  quickToolDesc: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    lineHeight: 16,
   },
   // ── Footer ──
   footer: {

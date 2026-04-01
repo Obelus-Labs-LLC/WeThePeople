@@ -17,14 +17,16 @@
   <img alt="FastAPI" src="https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white" />
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" />
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" />
-  <img alt="Data Sources" src="https://img.shields.io/badge/data%20sources-35%2B%20APIs-orange" />
+  <img alt="Sectors" src="https://img.shields.io/badge/sectors-9-blue" />
+  <img alt="Research Tools" src="https://img.shields.io/badge/research%20tools-14-green" />
+  <img alt="Data Sources" src="https://img.shields.io/badge/data%20sources-40%2B%20APIs-orange" />
 </p>
 
 ---
 
 ## What is this?
 
-WeThePeople is an open-source civic transparency platform that tracks how corporations lobby Congress, win government contracts, face enforcement actions, trade stocks alongside legislators, and donate to politicians. It pulls from 35+ government APIs and covers 8 sectors: Politics, Finance, Health, Technology, Energy, Transportation, Defense, and all 50 states. Every data point links back to its authoritative public source.
+WeThePeople is an open-source civic transparency platform that tracks how corporations lobby Congress, win government contracts, face enforcement actions, trade stocks alongside legislators, and donate to politicians. It pulls from 35+ government APIs and covers 9 sectors: Politics, Finance, Health, Technology, Energy, Transportation, Defense, Chemicals, and Agriculture — plus all 50 states. Every data point links back to its authoritative public source.
 
 ---
 
@@ -32,26 +34,31 @@ WeThePeople is an open-source civic transparency platform that tracks how corpor
 
 | Platform | Status | Description |
 |----------|--------|-------------|
-| **[WeThePeople](https://wethepeopleforus.com)** | Live | The core lobbying and influence tracker. Congressional trades, money flows, enforcement actions, lobbying filings, government contracts. 1,000+ tracked entities across 8 sectors. |
-| **WTP Research** | Coming soon | Deep-dive research tools. Patent explorer, drug lookup, clinical trial pipelines, insider trade analysis, company financials, and SEC filing search. |
-| **The Influence Journal** | Coming soon | Data-driven stories and investigations. Weekly newsletter. Anomaly-detected leads. Every claim cited against the public record. |
-| **Mobile App** | Coming soon | iOS and Android via Expo. Full parity with the web platform — 74 screens across all 8 sectors, influence tools, claim verification, and AI chat. Available via Expo Go during preview. |
+| **[WeThePeople](https://wethepeopleforus.com)** | Live | The core lobbying and influence tracker. Congressional trades, money flows, enforcement actions, lobbying filings, government contracts. 1,000+ tracked entities across 9 sectors. |
+| **[WTP Research](https://research.wethepeopleforus.com)** | Live | 14 deep-dive research tools: patent explorer, drug lookup, clinical trials, insider trades, FDA recalls, toxic releases, foreign lobbying (FARA), revolving door tracker, campaign finance, government salaries, bill text analysis, market movers, regulatory news. |
+| **[The Influence Journal](https://journal.wethepeopleforus.com)** | Live | AI-generated data investigations powered by 14 detection patterns. STOCK Act violations, committee-stock conflicts, enforcement immunity, penalty-to-contract ratios. 25+ published stories with verification pipeline. |
+| **Mobile App** | In development | iOS and Android via Expo. Currently covers 4 sectors (Politics, Finance, Health, Tech). Remaining 5 sectors and advanced features in progress. |
 
 ---
 
 ## Key Features
 
-- **8 Sectors** — Politics, Finance, Health, Technology, Energy, Transportation, Defense, and State-level data across all 50 states
+- **9 Sectors** — Politics, Finance, Health, Technology, Energy, Transportation, Defense, Chemicals, and Agriculture — plus State-level data across all 50 states
+- **14 Research Tools** — Patent Explorer, Drug Lookup, Clinical Trials, Insider Trades, FDA Recall Search (food/drug/device), Toxic Release Inventory, Foreign Lobbying (FARA), Revolving Door Tracker, Campaign Finance, Government Salaries, Bill Text Analysis, Market Movers, Regulatory News
 - **Influence Network Graph** — Interactive force-directed visualization mapping connections between politicians, companies, donations, lobbying, and legislation
 - **Congressional Trade Tracker** — 4,600+ stock trades parsed from official House disclosure PDFs and the Quiver API, with filing delay indicators and virtual scrolling
 - **Spending Choropleth Map** — Interactive US map showing lobbying spend, donations, and political activity by state
 - **Money Flow Sankey Diagrams** — Trace how money flows from companies through lobbying and PAC donations to specific politicians
 - **Claim Verification Pipeline** — Submit any political claim; the system extracts assertions and matches them against 9 data sources (votes, trades, lobbying, contracts, enforcement, donations, committees, SEC filings, legislative actions). Enterprise-gated.
 - **AI Chat Agent** — 3-tier resolution: client-side FAQ, response cache, then Claude Haiku for complex questions
+- **14 Story Detection Patterns** — STOCK Act violations, committee-stock conflicts, lobbying spikes, contract windfalls, enforcement gaps, bipartisan buying, penalty-to-contract ratios, prolific traders, enforcement immunity, revolving door, regulatory arbitrage, trade clusters, trade timing, full influence loops
+- **Story Verification Pipeline** — Auto-verifies AI-generated stories against 9 data sources before publishing. Green/yellow/gray verification badges.
 - **Anomaly Detection** — Flags unusual patterns: trades near committee votes, lobbying spend spikes before contract awards, enforcement timing gaps, donation surges
 - **Closed-Loop Influence Detection** — Identifies complete influence cycles: company lobbies on bill, bill goes to committee, company donates to committee members
+- **FARA Foreign Lobbying** — 7,000+ registrants, 17,000+ foreign principals, 44,000+ agents from DOJ FARA database. Search by country, registrant, or agent.
+- **Zip Code Lookup** — Enter your ZIP, see everything your representatives are doing: trades, donors, committee conflicts
 - **Weekly Digest** — Subscribe by ZIP code. Get a preview of your representatives' trades, votes, and flagged anomalies.
-- **Twitter Bot** — [@WTPForUs](https://twitter.com/WTPForUs) posts 4x/day with data-driven insights on congressional trades, lobbying patterns, and enforcement actions
+- **Twitter Bot** — [@WTPForUs](https://twitter.com/WTPForUs) posts 4x/day with data-driven story excerpts, linking to full journal investigations
 - **CSV Export** — Export any data table (lobbying, contracts, enforcement, trades) for your own analysis
 - **AI Summaries** — Claude-powered plain-English summaries of votes, enforcement actions, and politician profiles
 
@@ -60,20 +67,20 @@ WeThePeople is an open-source civic transparency platform that tracks how corpor
 ## Architecture
 
 ```
-Backend:    FastAPI + SQLite (WAL mode)
-            22 routers, 34 connectors, 43 jobs
+Backend:    FastAPI + SQLite (WAL mode, 4.1 GB)
+            25 routers, 36 connectors, 45+ jobs
             Versioned API (/v1/), rate limiting, structured logging
             JWT auth, RBAC, request tracing, security headers
 
 Frontend:   React 19 + Vite + TypeScript + Tailwind CSS 4
-            78 pages (all code-split via React.lazy)
-            Framer Motion animations, mobile-responsive
+            80+ pages (all code-split via React.lazy)
+            3 sites: main, research, journal
 
 Mobile:     Expo SDK 54 + React Native
-            Full parity with web
+            4 sectors live, 5 in progress
 
-Infra:      Docker + Terraform (GCP + Oracle Cloud)
-            GitHub Actions CI, Vercel auto-deploy
+Infra:      Hetzner Cloud (ARM, $3.99/mo) + Vercel
+            Let's Encrypt TLS, GitHub Actions CI
             Prometheus metrics endpoint
 ```
 
@@ -82,27 +89,30 @@ Infra:      Docker + Terraform (GCP + Oracle Cloud)
 ```
 WeThePeople/
 ├── main.py                  # FastAPI app + middleware + router mounting
-├── routers/                 # 22 API routers (one per sector + cross-cutting)
-├── connectors/              # 34 API wrappers (Congress.gov, SEC, FDA, EPA, ...)
-├── jobs/                    # 43 sync scripts, migrations, scheduler, Twitter bot
-├── models/                  # SQLAlchemy models (12 files, per-sector pattern)
+├── routers/                 # 25 API routers (one per sector + cross-cutting)
+├── connectors/              # 36 API wrappers (Congress.gov, SEC, FDA, EPA, FARA, ...)
+├── jobs/                    # 45+ sync scripts, migrations, scheduler, Twitter bot
+├── models/                  # 16 model files (per-sector pattern + auth, FARA, stories)
 ├── services/                # Business logic (claims pipeline, influence graph, auth)
 ├── middleware/               # Request tracing, security headers
 ├── frontend/                # React 19 + Vite web app
 │   └── src/
-│       ├── pages/           # 78 page components
+│       ├── pages/           # 80+ page components
 │       ├── components/      # Shared UI (InfluenceGraph, ChoroplethMap, ChatAgent, ...)
 │       ├── api/             # TypeScript API clients per sector
 │       └── layouts/         # Per-sector layout wrappers
-├── mobile/                  # React Native / Expo (full web parity)
-├── deploy/                  # Docker, Terraform, deploy scripts, TLS docs
-│   └── terraform/           # GCP + Oracle Cloud infrastructure
+├── sites/
+│   ├── research/            # WTP Research site (14 tools)
+│   ├── journal/             # The Influence Journal (data stories)
+│   └── shared/              # Shared components across sites
+├── mobile/                  # React Native / Expo (4 sectors live)
+├── deploy/                  # Docker, deploy scripts, TLS docs
 └── tests/                   # Backend test suite
 ```
 
 ---
 
-## Data Sources (35+)
+## Data Sources (40+)
 
 All data is sourced from official government APIs and open-source datasets. No scraped or paywalled data.
 
@@ -136,6 +146,10 @@ All data is sourced from official government APIs and open-source datasets. No s
 | House Clerk | Congressional financial disclosure PDFs | [disclosures-clerk.house.gov](https://disclosures-clerk.house.gov) |
 | AInvest | Congressional trade enrichment (filing delays) | [openapi.ainvest.com](https://openapi.ainvest.com) |
 | FTC | Enforcement case data | [ftc.gov](https://www.ftc.gov) |
+| DOJ FARA | Foreign Agents Registration Act (foreign lobbying) | [fara.gov](https://efile.fara.gov) |
+| EPA EnviroFacts | Toxic Release Inventory (TRI) data | [epa.gov/enviro](https://www.epa.gov/enviro) |
+| USAJobs | Federal job listings with salary data | [usajobs.gov](https://developer.usajobs.gov) |
+| Google News RSS | News search by topic | [news.google.com](https://news.google.com) |
 | Data.gov | Government open data | [data.gov](https://data.gov) |
 | GovInfo | Government publications | [govinfo.gov](https://www.govinfo.gov) |
 
