@@ -77,7 +77,7 @@ def _download_and_parse_csv(url: str) -> List[Dict[str, Any]]:
     reader = csv.DictReader(io.StringIO(text))
     for row in reader:
         # Strip whitespace from keys and values
-        cleaned = {k.strip(): (v.strip() if v else "") for k, v in row.items()}
+        cleaned = {k.strip(): (v.strip() if v else "") for k, v in row.items() if k is not None}
         rows.append(cleaned)
 
     logger.info("Parsed %d rows from %s", len(rows), csv_name)
@@ -103,15 +103,15 @@ def fetch_registrants() -> List[Dict[str, Any]]:
     results = []
 
     for row in raw:
-        reg_num = row.get("Registration_Number", row.get("Registration Number", ""))
-        name = row.get("Registrant_Name", row.get("Registrant Name", row.get("Name", "")))
-        address = row.get("Address_1", row.get("Address", ""))
+        reg_num = row.get("Registration Number", "")
+        name = row.get("Name", row.get("Business Name", ""))
+        address = row.get("Address 1", "")
         city = row.get("City", "")
         state = row.get("State", "")
-        country = row.get("Country", row.get("Registrant_Country", ""))
-        reg_date = row.get("Registration_Date", row.get("Registration Date", ""))
-        term_date = row.get("Termination_Date", row.get("Termination Date", ""))
-        status = row.get("Status", row.get("Registrant_Status", ""))
+        reg_date = row.get("Registration Date", "")
+        term_date = row.get("Termination Date", "")
+        # Infer status from termination date
+        status = "terminated" if term_date.strip() else "active"
 
         results.append({
             "registration_number": reg_num,
@@ -119,7 +119,7 @@ def fetch_registrants() -> List[Dict[str, Any]]:
             "address": address,
             "city": city,
             "state": state,
-            "country": country,
+            "country": "",  # Registrants don't have country; principals do
             "registration_date": reg_date,
             "termination_date": term_date,
             "status": status,
@@ -141,13 +141,13 @@ def fetch_foreign_principals() -> List[Dict[str, Any]]:
     results = []
 
     for row in raw:
-        reg_num = row.get("Registration_Number", row.get("Registration Number", ""))
-        reg_name = row.get("Registrant_Name", row.get("Registrant Name", ""))
-        fp_name = row.get("Foreign_Principal", row.get("Foreign Principal", row.get("Name", "")))
-        country = row.get("FP_Country", row.get("Country", row.get("Foreign Principal Country", "")))
-        reg_date = row.get("FP_Registration_Date", row.get("Foreign Principal Registration Date", ""))
-        term_date = row.get("FP_Termination_Date", row.get("Foreign Principal Termination Date", ""))
-        status = row.get("Status", row.get("FP_Status", ""))
+        reg_num = row.get("Registration Number", "")
+        reg_name = row.get("Registrant Name", "")
+        fp_name = row.get("Foreign Principal", "")
+        country = row.get("Country/Location Represented", "")
+        reg_date = row.get("Foreign Principal Registration Date", "")
+        term_date = row.get("Foreign Principal Termination Date", "")
+        status = "terminated" if term_date.strip() else "active"
 
         results.append({
             "registration_number": reg_num,
@@ -175,14 +175,17 @@ def fetch_short_forms() -> List[Dict[str, Any]]:
     results = []
 
     for row in raw:
-        reg_num = row.get("Registration_Number", row.get("Registration Number", ""))
-        reg_name = row.get("Registrant_Name", row.get("Registrant Name", ""))
-        agent_name = row.get("Name", row.get("Agent_Name", row.get("Short_Form_Name", "")))
-        address = row.get("Address_1", row.get("Address", ""))
+        reg_num = row.get("Registration Number", "")
+        reg_name = row.get("Registrant Name", "")
+        first = row.get("Short Form First Name", "")
+        last = row.get("Short Form Last Name", "")
+        agent_name = f"{first} {last}".strip() if first or last else ""
+        address = row.get("Address 1", "")
         city = row.get("City", "")
         state = row.get("State", "")
-        sf_date = row.get("Short_Form_Date", row.get("Date", ""))
-        status = row.get("Status", row.get("SF_Status", ""))
+        sf_date = row.get("Short Form Date", "")
+        term_date = row.get("Short Form Termination Date", "")
+        status = "terminated" if term_date.strip() else "active"
 
         results.append({
             "registration_number": reg_num,
