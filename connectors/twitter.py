@@ -45,17 +45,19 @@ def post_tweet(text: str, reply_to: Optional[str] = None, quote_tweet_id: Option
     """
     Post a single tweet. Returns the tweet ID on success, None on failure.
 
+    X verified accounts support up to 25,000 chars. Only truncate if
+    somehow we exceed that (shouldn't happen with story excerpts).
+
     Args:
-        text: Tweet text (max 280 chars)
+        text: Tweet text (up to 25,000 chars for verified accounts)
         reply_to: Optional tweet ID to reply to
         quote_tweet_id: Optional tweet ID to quote-tweet
     """
-    if len(text) > 280:
-        logger.warning("Tweet too long (%d chars), truncating", len(text))
-        # Truncate at last space before 277 chars to avoid cutting mid-word
-        truncated = text[:277]
+    if len(text) > 25000:
+        logger.warning("Tweet too long (%d chars), truncating to 25000", len(text))
+        truncated = text[:24997]
         last_space = truncated.rfind(" ")
-        if last_space > 200:  # Only use word boundary if it doesn't lose too much
+        if last_space > 24000:
             truncated = truncated[:last_space]
         text = truncated + "..."
 
