@@ -22,6 +22,25 @@ import BillScreen from '../screens/BillScreen';
 import ComingSoonScreen from '../screens/ComingSoonScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
+// New sector screens
+import EnergyDashboardScreen from '../screens/EnergyDashboardScreen';
+import EnergyCompaniesScreen from '../screens/EnergyCompaniesScreen';
+import EnergyCompanyScreen from '../screens/EnergyCompanyScreen';
+import TransportationDashboardScreen from '../screens/TransportationDashboardScreen';
+import TransportationCompaniesScreen from '../screens/TransportationCompaniesScreen';
+import TransportationCompanyScreen from '../screens/TransportationCompanyScreen';
+import DefenseDashboardScreen from '../screens/DefenseDashboardScreen';
+import DefenseCompaniesScreen from '../screens/DefenseCompaniesScreen';
+import DefenseCompanyScreen from '../screens/DefenseCompanyScreen';
+import ChemicalsDashboardScreen from '../screens/ChemicalsDashboardScreen';
+import ChemicalsCompaniesScreen from '../screens/ChemicalsCompaniesScreen';
+import ChemicalsCompanyScreen from '../screens/ChemicalsCompanyScreen';
+import AgricultureDashboardScreen from '../screens/AgricultureDashboardScreen';
+import AgricultureCompaniesScreen from '../screens/AgricultureCompaniesScreen';
+import AgricultureCompanyScreen from '../screens/AgricultureCompanyScreen';
+import CongressionalTradesScreen from '../screens/CongressionalTradesScreen';
+import ZipLookupScreen from '../screens/ZipLookupScreen';
+
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 const Tab = createBottomTabNavigator();
@@ -57,6 +76,97 @@ function HomeStackScreen() {
         name="ComingSoon"
         component={ComingSoonScreen}
         options={{ title: 'Coming Soon' }}
+      />
+      {/* Energy sector screens */}
+      <HomeStack.Screen
+        name="EnergyDashboard"
+        component={EnergyDashboardScreen}
+        options={{ title: 'Energy' }}
+      />
+      <HomeStack.Screen
+        name="EnergyCompaniesDirectory"
+        component={EnergyCompaniesScreen}
+        options={{ title: 'Energy Companies' }}
+      />
+      <HomeStack.Screen
+        name="EnergyCompanyDetail"
+        component={EnergyCompanyScreen}
+        options={{ title: '' }}
+      />
+      {/* Transportation sector screens */}
+      <HomeStack.Screen
+        name="TransportationDashboard"
+        component={TransportationDashboardScreen}
+        options={{ title: 'Transportation' }}
+      />
+      <HomeStack.Screen
+        name="TransportationCompaniesDirectory"
+        component={TransportationCompaniesScreen}
+        options={{ title: 'Transportation Companies' }}
+      />
+      <HomeStack.Screen
+        name="TransportationCompanyDetail"
+        component={TransportationCompanyScreen}
+        options={{ title: '' }}
+      />
+      {/* Defense sector screens */}
+      <HomeStack.Screen
+        name="DefenseDashboard"
+        component={DefenseDashboardScreen}
+        options={{ title: 'Defense' }}
+      />
+      <HomeStack.Screen
+        name="DefenseCompaniesDirectory"
+        component={DefenseCompaniesScreen}
+        options={{ title: 'Defense Companies' }}
+      />
+      <HomeStack.Screen
+        name="DefenseCompanyDetail"
+        component={DefenseCompanyScreen}
+        options={{ title: '' }}
+      />
+      {/* Chemicals sector screens */}
+      <HomeStack.Screen
+        name="ChemicalsDashboard"
+        component={ChemicalsDashboardScreen}
+        options={{ title: 'Chemicals' }}
+      />
+      <HomeStack.Screen
+        name="ChemicalsCompaniesDirectory"
+        component={ChemicalsCompaniesScreen}
+        options={{ title: 'Chemicals Companies' }}
+      />
+      <HomeStack.Screen
+        name="ChemicalsCompanyDetail"
+        component={ChemicalsCompanyScreen}
+        options={{ title: '' }}
+      />
+      {/* Agriculture sector screens */}
+      <HomeStack.Screen
+        name="AgricultureDashboard"
+        component={AgricultureDashboardScreen}
+        options={{ title: 'Agriculture' }}
+      />
+      <HomeStack.Screen
+        name="AgricultureCompaniesDirectory"
+        component={AgricultureCompaniesScreen}
+        options={{ title: 'Agriculture Companies' }}
+      />
+      <HomeStack.Screen
+        name="AgricultureCompanyDetail"
+        component={AgricultureCompanyScreen}
+        options={{ title: '' }}
+      />
+      {/* Quick Tools screens */}
+      <HomeStack.Screen
+        name="CongressionalTrades"
+        component={CongressionalTradesScreen}
+        options={{ title: 'Congressional Trades' }}
+      />
+      <HomeStack.Screen
+        name="ZipLookup"
+        component={ZipLookupScreen}
+        options={{ title: 'ZIP Code Lookup' }}
       />
     </HomeStack.Navigator>
   );
