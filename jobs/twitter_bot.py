@@ -486,12 +486,12 @@ def generate_anomaly_tweet() -> tuple:
 
 
 CATEGORIES = {
-    "story": (generate_story_tweet, 40),     # Journal excerpts — primary content
+    "story": (generate_story_tweet, 50),     # Journal excerpts — primary content
     "data": (generate_data_tweet, 25),       # Cross-referenced data discoveries
-    "anomaly": (generate_anomaly_tweet, 20), # Suspicious patterns
-    "thread": (generate_thread, 8),          # Mini deep-dives
-    "engagement": (generate_engagement_tweet, 5),  # Questions
-    "product": (generate_product_tweet, 2),  # Self-promo (rare)
+    "anomaly": (generate_anomaly_tweet, 15), # Suspicious patterns
+    "thread": (generate_thread, 10),         # Mini deep-dives
+    "engagement": (generate_engagement_tweet, 0),  # Disabled — no engagement fluff
+    "product": (generate_product_tweet, 0),  # Disabled — no self-promo
 }
 
 
@@ -529,17 +529,24 @@ def run(category: str = None, dry_run: bool = False):
     # Pick category
     cat = category or pick_category()
 
-    # If API is down, only allow categories that don't need live data
+    # If API is down, fall back to story (reads from DB) or skip this cycle
     if not api_up and cat in ("data", "thread", "anomaly"):
-        cat = random.choice(["product", "verify", "engagement"])
+        cat = "story"
 
     generator, _ = CATEGORIES.get(cat, (generate_product_tweet, 0))
 
     # Generate content — all generators return ((text, link), category)
     result, actual_cat = generator()
     if result is None:
-        log.warning("Category '%s' returned no content. Falling back to product.", cat)
-        result, actual_cat = generate_product_tweet()
+        log.warning("Category '%s' returned no content. Trying story fallback.", cat)
+        result, actual_cat = generate_story_tweet()
+    if result is None:
+        log.warning("Story fallback also empty. Trying data tweet.")
+        result, actual_cat = generate_data_tweet()
+    if result is None:
+        log.warning("No content available at all. Skipping this cycle.")
+        session.close()
+        return
 
     # Handle thread vs single tweet
     # Threads return (tweets_list, link) where tweets_list is a list
@@ -573,7 +580,13 @@ def run(category: str = None, dry_run: bool = False):
         log.info("Already posted similar content. Regenerating...")
         result, actual_cat = generator()
         if result is None:
-            result, actual_cat = generate_product_tweet()
+            result, actual_cat = generate_story_tweet()
+        if result is None:
+            result, actual_cat = generate_data_tweet()
+        if result is None:
+            log.warning("No unique content available. Skipping this cycle.")
+            session.close()
+            return
         is_thread = isinstance(result, tuple) and isinstance(result[0], list)
         if is_thread:
             thread_tweets, link = result
