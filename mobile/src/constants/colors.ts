@@ -1,76 +1,85 @@
-// WeThePeople — Design System
-// Light civic theme: white background, green & gold accents
+// WeThePeople - Design System v2
+// Dark theme: deep navy/charcoal backgrounds, gold + emerald accents
+// Inspired by Washington Post dark mode + web frontend
 
 export const UI_COLORS = {
-  // Backgrounds
-  PRIMARY_BG: '#FFFFFF',
-  SECONDARY_BG: '#F8FAF8',
-  CARD_BG: '#FFFFFF',
-  CARD_BG_ELEVATED: '#F0F5F0',
+  // Backgrounds - deep dark hierarchy
+  PRIMARY_BG: '#0A0F1A',        // deepest - main screen bg
+  SECONDARY_BG: '#0F1520',      // slightly lighter - scrollable content bg
+  CARD_BG: '#151C2A',           // card surfaces
+  CARD_BG_ELEVATED: '#1A2236',  // elevated cards, modals
 
-  // Borders
-  BORDER: '#E2E8E0',
-  BORDER_LIGHT: '#F0F2EF',
+  // Borders - subtle separation
+  BORDER: '#1E293B',            // standard border
+  BORDER_LIGHT: '#252F3F',      // lighter border for nested elements
 
-  // Text
-  TEXT_PRIMARY: '#1A2E1A',
-  TEXT_SECONDARY: '#4A5E4A',
-  TEXT_MUTED: '#8A978A',
+  // Text - high contrast on dark
+  TEXT_PRIMARY: '#F1F5F9',      // primary text (near white)
+  TEXT_SECONDARY: '#94A3B8',    // secondary text (slate)
+  TEXT_MUTED: '#64748B',        // muted/label text
 
-  // Accents — civic green + gold
-  ACCENT: '#1B7A3D',          // deep civic green (primary actions)
-  ACCENT_LIGHT: '#E8F5EC',    // soft green bg for badges/highlights
-  GOLD: '#C5960C',            // gold accent (secondary emphasis)
-  GOLD_LIGHT: '#FDF8E8',      // soft gold bg
+  // Accents - gold primary, emerald secondary
+  ACCENT: '#C5A044',            // gold (primary actions, highlights)
+  ACCENT_LIGHT: '#C5A04420',   // gold with alpha for backgrounds
+  GOLD: '#C5A044',              // gold accent
+  GOLD_LIGHT: '#C5A04415',     // subtle gold bg
+  EMERALD: '#10B981',           // emerald (success, positive data)
+  EMERALD_LIGHT: '#10B98120',  // emerald bg
 
   // Tab bar
-  TAB_ACTIVE: '#1B7A3D',
-  TAB_INACTIVE: '#9CA89C',
+  TAB_ACTIVE: '#C5A044',       // gold active tab
+  TAB_INACTIVE: '#475569',     // slate inactive
 
   // Status
   SUCCESS: '#10B981',
-  WARNING: '#D4A017',
-  DANGER: '#DC2626',
+  WARNING: '#F59E0B',
+  DANGER: '#EF4444',
 
-  // Hero / header gradient overlay
-  HERO_BG: '#F0F7F2',
+  // Hero / header
+  HERO_BG: '#0D1117',          // GitHub-dark style hero
+
+  // Surface overlays
+  OVERLAY: 'rgba(0, 0, 0, 0.6)',
+  GLASS: 'rgba(255, 255, 255, 0.05)',
 } as const;
 
 export const TIER_COLORS: Record<string, string> = {
   strong: '#10B981',
-  moderate: '#D4A017',
-  weak: '#E67E22',
-  none: '#9CA3AF',
+  moderate: '#F59E0B',
+  weak: '#F97316',
+  none: '#475569',
 };
 
 export const PARTY_COLORS: Record<string, string> = {
-  D: '#2563EB',
-  R: '#DC2626',
-  I: '#7C3AED',
-  Democrat: '#2563EB',
-  Republican: '#DC2626',
-  Independent: '#7C3AED',
+  D: '#3B82F6',
+  R: '#EF4444',
+  I: '#A855F7',
+  Democrat: '#3B82F6',
+  Republican: '#EF4444',
+  Independent: '#A855F7',
 };
 
 export const SECTOR_GRADIENTS: Record<string, [string, string]> = {
-  politics: ['#2563EB', '#4338CA'],
-  finance: ['#10B981', '#0F766E'],
-  health: ['#F43F5E', '#BE185D'],
-  chemicals: ['#F59E0B', '#C2410C'],
-  energy: ['#475569', '#3F3F46'],
-  technology: ['#8B5CF6', '#7C3AED'],
-  defense: ['#DC2626', '#9F1239'],
-  agriculture: ['#84CC16', '#15803D'],
+  politics: ['#1E40AF', '#1D4ED8'],
+  finance: ['#047857', '#059669'],
+  health: ['#9F1239', '#BE185D'],
+  chemicals: ['#92400E', '#B45309'],
+  energy: ['#1E293B', '#334155'],
+  technology: ['#5B21B6', '#7C3AED'],
+  transportation: ['#1E3A5F', '#2563EB'],
+  defense: ['#7F1D1D', '#DC2626'],
+  agriculture: ['#166534', '#15803D'],
 };
 
 export const ACCENT_COLORS: Record<string, string> = {
-  blue: '#2563EB',
+  blue: '#3B82F6',
   emerald: '#10B981',
-  amber: '#D4A017',
-  rose: '#E11D48',
-  red: '#DC2626',
+  amber: '#F59E0B',
+  rose: '#F43F5E',
+  red: '#EF4444',
   slate: '#64748B',
-  green: '#1B7A3D',
-  gold: '#C5960C',
-  purple: '#8B5CF6',
+  green: '#059669',
+  gold: '#C5A044',
+  purple: '#A855F7',
+  teal: '#14B8A6',
 };

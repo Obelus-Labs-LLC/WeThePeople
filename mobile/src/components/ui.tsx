@@ -83,8 +83,8 @@ export function ChamberBadge({ chamber }: { chamber: string }) {
     chamber?.toLowerCase().includes('house') || chamber?.toLowerCase() === 'lower';
   const label = isHouse ? 'House' : 'Senate';
   return (
-    <View style={[uiStyles.badge, { backgroundColor: '#F0F2EF', borderColor: '#E2E8E0' }]}>
-      <Text style={[uiStyles.badgeText, { color: '#4A5E4A' }]}>{label}</Text>
+    <View style={[uiStyles.badge, { backgroundColor: UI_COLORS.CARD_BG_ELEVATED, borderColor: UI_COLORS.BORDER }]}>
+      <Text style={[uiStyles.badgeText, { color: UI_COLORS.TEXT_SECONDARY }]}>{label}</Text>
     </View>
   );
 }
@@ -197,6 +197,11 @@ const uiStyles = StyleSheet.create({
   emptyContainer: {
     padding: 32,
     alignItems: 'center',
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderRadius: 14,
+    margin: 16,
+    borderWidth: 1,
+    borderColor: UI_COLORS.BORDER,
   },
   emptyTitle: {
     color: UI_COLORS.TEXT_PRIMARY,
@@ -261,7 +266,7 @@ const uiStyles = StyleSheet.create({
     flexDirection: 'row',
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#E8ECE8',
+    backgroundColor: UI_COLORS.BORDER_LIGHT,
     overflow: 'hidden',
   },
   progressBarSegment: {
@@ -297,7 +302,7 @@ const uiStyles = StyleSheet.create({
     flex: 1,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#E8ECE8',
+    backgroundColor: UI_COLORS.BORDER_LIGHT,
     overflow: 'hidden',
   },
   scoreBarFill: {
