@@ -97,13 +97,7 @@ def _filter_members_by_district(
             matched.append(m)
             continue
 
-        # For House members: match by district number first
-        member_district = str(m.district).strip() if m.district else ""
-        if member_district and member_district in districts:
-            matched.append(m)
-            continue
-
-        # Fallback: match by name similarity to API results
+        # For House members: match by name similarity to API results
         if api_names and m.display_name:
             best = max(_name_similarity(m.display_name, n) for n in api_names)
             if best >= 0.6:
