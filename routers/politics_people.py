@@ -1066,13 +1066,17 @@ def get_person_full(person_id: str):
         "trades": f"/people/{person_id}/trades?limit=50",
     }
 
+    import logging
+    _log = logging.getLogger("politics_people.full")
+
     def _fetch(key: str, path: str):
         try:
-            r = httpx.get(f"{base}{path}", timeout=10.0)
+            r = httpx.get(f"{base}{path}", timeout=14.0)
             if r.status_code == 200:
                 return key, r.json()
-        except Exception:
-            pass
+            _log.debug("full/%s returned %d", key, r.status_code)
+        except Exception as e:
+            _log.debug("full/%s failed: %s", key, e)
         return key, None
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
