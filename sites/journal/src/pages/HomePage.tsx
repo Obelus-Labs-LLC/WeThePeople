@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { StoryCard } from '../components/StoryCard';
 import { NewsletterCTA } from '../components/NewsletterCTA';
@@ -10,10 +11,27 @@ const categories: StoryCategory[] = [
   'contract_windfall', 'revolving_door', 'bipartisan_buying', 'stock_act_violation',
   'committee_stock_trade', 'prolific_trader', 'enforcement_immunity', 'penalty_contract_ratio',
   'lobbying_spike', 'enforcement_gap', 'trade_timing', 'full_influence_loop',
+  'foreign_lobbying', 'regulatory_capture', 'regulatory_arbitrage', 'trade_cluster',
 ];
 
 export default function HomePage() {
   const { stories, loading, error } = useStories({ limit: 10 });
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+
+  // Fetch real category counts from all stories, not just the 10 loaded
+  useEffect(() => {
+    const base = import.meta.env.VITE_API_BASE_URL || '/api';
+    fetch(`${base}/stories/latest?limit=200`)
+      .then((r) => r.json())
+      .then((data) => {
+        const counts: Record<string, number> = {};
+        for (const s of data.stories || []) {
+          counts[s.category] = (counts[s.category] || 0) + 1;
+        }
+        setCategoryCounts(counts);
+      })
+      .catch(() => {});
+  }, []);
 
   const featured = stories.find((s) => s.featured) ?? stories[0] ?? null;
   const rest = stories.filter((s) => s !== featured);
@@ -111,7 +129,7 @@ export default function HomePage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {categories.map((cat) => {
                   const meta = CATEGORY_META[cat];
-                  const count = stories.filter((s) => s.category === cat).length;
+                  const count = categoryCounts[cat] || 0;
                   return (
                     <Link
                       key={cat}
