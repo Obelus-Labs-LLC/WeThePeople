@@ -581,3 +581,121 @@ async def bill_text_search(
         "bills": bills,
         "related_lobbying": related_lobbying,
     }
+
+
+# ── OpenCorporates (Company Ownership) ─────────────────────────────────────
+
+
+@router.get("/company-lookup")
+async def company_lookup(
+    query: str = Query(..., min_length=1, description="Company name to search"),
+    jurisdiction: Optional[str] = Query(None, description="Jurisdiction code, e.g. us_ny, gb"),
+):
+    """Search OpenCorporates for company registration, officers, and ownership data."""
+    from connectors.opencorporates import search_companies, get_company_officers
+
+    companies = search_companies(query, jurisdiction_code=jurisdiction)
+    results = []
+    for c in companies[:10]:
+        item = {
+            "name": c.get("name", ""),
+            "company_number": c.get("company_number", ""),
+            "jurisdiction_code": c.get("jurisdiction_code", ""),
+            "incorporation_date": c.get("incorporation_date"),
+            "company_type": c.get("company_type"),
+            "current_status": c.get("current_status"),
+            "registered_address": c.get("registered_address_in_full"),
+            "opencorporates_url": c.get("opencorporates_url"),
+        }
+        results.append(item)
+
+    return {"total": len(results), "companies": results}
+
+
+# ── Follow the Money (State Campaign Finance) ──────────────────────────────
+
+
+@router.get("/state-campaign-finance")
+async def state_campaign_finance(
+    state: Optional[str] = Query(None, description="2-letter state code"),
+    year: Optional[str] = Query(None, description="Election year"),
+    office: Optional[str] = Query(None, description="Office filter"),
+):
+    """Search state-level campaign finance data via FollowTheMoney."""
+    from connectors.followthemoney import search_candidates
+
+    candidates = search_candidates(state=state, year=year, office=office)
+    return {"total": len(candidates), "candidates": candidates[:50]}
+
+
+@router.get("/state-donors")
+async def state_donors(
+    name: str = Query(..., min_length=1, description="Donor name to search"),
+    state: Optional[str] = Query(None, description="2-letter state code"),
+):
+    """Search state-level donor records via FollowTheMoney."""
+    from connectors.followthemoney import search_donors
+
+    donors = search_donors(name=name, state=state)
+    return {"total": len(donors), "donors": donors[:50]}
+
+
+# ── EveryPolitician (World Legislators) ────────────────────────────────────
+
+
+@router.get("/world-politicians")
+async def world_politicians():
+    """List all countries with available politician data from EveryPolitician."""
+    from connectors.everypolitician import fetch_all_countries
+
+    countries = fetch_all_countries()
+    return {"total": len(countries), "countries": countries}
+
+
+@router.get("/world-politicians/{country_code}")
+async def world_politicians_by_country(country_code: str):
+    """Get legislators for a specific country from EveryPolitician."""
+    from connectors.everypolitician import fetch_countries_index, fetch_legislature_popolo
+
+    countries = fetch_countries_index()
+    target = None
+    for c in countries:
+        if c.get("code", "").lower() == country_code.lower():
+            target = c
+            break
+
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Country '{country_code}' not found")
+
+    legislatures = target.get("legislatures", [])
+    result = {
+        "country": target.get("name"),
+        "code": target.get("code"),
+        "legislatures": [],
+    }
+
+    for leg in legislatures[:3]:  # Limit to 3 legislatures per country
+        popolo_url = leg.get("popolo_url")
+        if not popolo_url:
+            continue
+        data = fetch_legislature_popolo(popolo_url)
+        if not data:
+            continue
+        persons = data.get("persons", [])
+        result["legislatures"].append({
+            "name": leg.get("name"),
+            "type": leg.get("type"),
+            "total_persons": len(persons),
+            "persons": [
+                {
+                    "name": p.get("name"),
+                    "sort_name": p.get("sort_name"),
+                    "gender": p.get("gender"),
+                    "image": p.get("image"),
+                    "id": p.get("id"),
+                }
+                for p in persons[:100]  # Limit to 100 per legislature
+            ],
+        })
+
+    return result
