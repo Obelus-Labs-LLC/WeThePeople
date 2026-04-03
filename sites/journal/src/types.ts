@@ -21,7 +21,9 @@ export type StoryCategory =
   | 'committee_stock_trade'
   | 'penalty_contract_ratio'
   | 'prolific_trader'
-  | 'enforcement_immunity';
+  | 'enforcement_immunity'
+  | 'foreign_lobbying'
+  | 'regulatory_capture';
 
 export interface StoryCitation {
   index: number;
@@ -85,6 +87,8 @@ export const CATEGORY_META: Record<string, { label: string; color: string; bgCol
   penalty_contract_ratio: { label: 'Penalty Gap', color: 'text-red-400', bgColor: 'bg-red-400/15' },
   prolific_trader: { label: 'Prolific Trader', color: 'text-emerald-400', bgColor: 'bg-emerald-400/15' },
   enforcement_immunity: { label: 'Zero Enforcement', color: 'text-yellow-400', bgColor: 'bg-yellow-400/15' },
+  foreign_lobbying: { label: 'Foreign Lobbying', color: 'text-blue-400', bgColor: 'bg-blue-400/15' },
+  regulatory_capture: { label: 'Regulatory Capture', color: 'text-teal-400', bgColor: 'bg-teal-400/15' },
 };
 
 export const SECTOR_LABELS: Record<string, string> = {
