@@ -62,8 +62,8 @@ export default function InfluenceNetworkScreen() {
       if (!contractRes.ok) throw new Error(`Contracts HTTP ${contractRes.status}`);
       const lobbyData = await lobbyRes.json();
       const contractData = await contractRes.json();
-      setLobbying(lobbyData.results || lobbyData.data || lobbyData || []);
-      setContracts(contractData.results || contractData.data || contractData || []);
+      setLobbying(lobbyData.leaders || lobbyData.results || lobbyData.data || lobbyData || []);
+      setContracts(contractData.leaders || contractData.results || contractData.data || contractData || []);
       setError('');
     } catch (e: any) {
       setError(e.message || 'Failed to load influence data');
