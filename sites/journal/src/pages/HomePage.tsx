@@ -69,12 +69,12 @@ export default function HomePage() {
         )}
 
         {/* Empty */}
-        {!loading && !error && stories.length === 0 && (
+        {!loading && !error && displayStories.length === 0 && (
           <EmptyState />
         )}
 
         {/* Stories */}
-        {!loading && !error && stories.length > 0 && (
+        {!loading && !error && displayStories.length > 0 && (
           <>
             {/* Featured story */}
             {featured && (
