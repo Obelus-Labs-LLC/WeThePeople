@@ -68,7 +68,7 @@ export default function HomeScreen() {
       >
         {/* Gradient Hero Banner */}
         <LinearGradient
-          colors={['#1B7A3D', '#15693A', '#0F5831']}
+          colors={['#0D1117', '#111827', '#1A1A2E']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.heroBanner, { paddingTop: insets.top + 24 }]}
@@ -108,16 +108,17 @@ export default function HomeScreen() {
                 onPress={() => handleSectorPress(sector)}
                 style={styles.cardWrapper}
               >
-                <LinearGradient
-                  colors={[sector.gradientStart, sector.gradientEnd]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.card}
-                >
+                <View style={styles.card}>
+                  <LinearGradient
+                    colors={[sector.gradientStart + '30', sector.gradientEnd + '15']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
                   <Text style={styles.cardIcon}>{sector.icon}</Text>
                   <Text style={styles.cardName}>{sector.name}</Text>
                   <Text style={styles.cardTagline}>{sector.tagline}</Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -137,19 +138,20 @@ export default function HomeScreen() {
                     onPress={() => handleSectorPress(sector)}
                     style={styles.cardWrapper}
                   >
-                    <LinearGradient
-                      colors={[sector.gradientStart, sector.gradientEnd]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={[styles.card, { opacity: 0.7 }]}
-                    >
+                    <View style={[styles.card, styles.cardComingSoon]}>
+                      <LinearGradient
+                        colors={[sector.gradientStart + '20', sector.gradientEnd + '08']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={StyleSheet.absoluteFill}
+                      />
                       <View style={styles.soonBadge}>
                         <Text style={styles.soonText}>SOON</Text>
                       </View>
                       <Text style={styles.cardIcon}>{sector.icon}</Text>
                       <Text style={styles.cardName}>{sector.name}</Text>
                       <Text style={styles.cardTagline}>{sector.tagline}</Text>
-                    </LinearGradient>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -164,118 +166,28 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Quick Tools</Text>
           </View>
           <View style={styles.quickToolsGrid}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('CongressionalTrades')}
-              style={styles.quickToolWrapper}
-            >
-              <LinearGradient
-                colors={['#2563EB', '#1D4ED8']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.quickToolCard}
+            {[
+              { screen: 'CongressionalTrades', icon: 'trending-up' as const, name: 'Congressional Trades', desc: 'Stock trades by members of Congress', accent: '#3B82F6' },
+              { screen: 'ZipLookup', icon: 'location' as const, name: 'ZIP Code Lookup', desc: 'Find your representatives', accent: '#10B981' },
+              { screen: 'Stories', icon: 'newspaper' as const, name: 'Stories', desc: 'AI-generated investigations', accent: '#059669' },
+              { screen: 'Anomalies', icon: 'warning' as const, name: 'Anomalies', desc: 'Suspicious patterns detected', accent: '#EF4444' },
+              { screen: 'StateExplorer', icon: 'map' as const, name: 'State Explorer', desc: 'All 50 states\' data', accent: '#3B82F6' },
+              { screen: 'ChatAgent', icon: 'chatbubble-ellipses' as const, name: 'Ask WTP', desc: 'AI-powered data assistant', accent: '#7C3AED' },
+              { screen: 'InfluenceNetwork', icon: 'git-network' as const, name: 'Influence Network', desc: 'Follow the money', accent: '#7C3AED' },
+            ].map((tool) => (
+              <TouchableOpacity
+                key={tool.screen}
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate(tool.screen)}
+                style={styles.quickToolWrapper}
               >
-                <Ionicons name="trending-up" size={28} color="#FFFFFF" />
-                <Text style={styles.quickToolName}>Congressional Trades</Text>
-                <Text style={styles.quickToolDesc}>Stock trades by members of Congress</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('ZipLookup')}
-              style={styles.quickToolWrapper}
-            >
-              <LinearGradient
-                colors={['#10B981', '#059669']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.quickToolCard}
-              >
-                <Ionicons name="location" size={28} color="#FFFFFF" />
-                <Text style={styles.quickToolName}>ZIP Code Lookup</Text>
-                <Text style={styles.quickToolDesc}>Find your representatives</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('Stories')}
-              style={styles.quickToolWrapper}
-            >
-              <LinearGradient
-                colors={['#059669', '#047857']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.quickToolCard}
-              >
-                <Ionicons name="newspaper" size={28} color="#FFFFFF" />
-                <Text style={styles.quickToolName}>Stories</Text>
-                <Text style={styles.quickToolDesc}>AI-generated investigations</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('Anomalies')}
-              style={styles.quickToolWrapper}
-            >
-              <LinearGradient
-                colors={['#DC2626', '#EA580C']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.quickToolCard}
-              >
-                <Ionicons name="warning" size={28} color="#FFFFFF" />
-                <Text style={styles.quickToolName}>Anomalies</Text>
-                <Text style={styles.quickToolDesc}>Suspicious patterns detected</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('StateExplorer')}
-              style={styles.quickToolWrapper}
-            >
-              <LinearGradient
-                colors={['#1E40AF', '#1D4ED8']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.quickToolCard}
-              >
-                <Ionicons name="map" size={28} color="#FFFFFF" />
-                <Text style={styles.quickToolName}>State Explorer</Text>
-                <Text style={styles.quickToolDesc}>All 50 states' data</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('ChatAgent')}
-              style={styles.quickToolWrapper}
-            >
-              <LinearGradient
-                colors={['#7C3AED', '#6D28D9']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.quickToolCard}
-              >
-                <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
-                <Text style={styles.quickToolName}>Ask WTP</Text>
-                <Text style={styles.quickToolDesc}>AI-powered data assistant</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('InfluenceNetwork')}
-              style={styles.quickToolWrapper}
-            >
-              <LinearGradient
-                colors={['#7C3AED', '#5B21B6']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.quickToolCard}
-              >
-                <Ionicons name="git-network" size={28} color="#FFFFFF" />
-                <Text style={styles.quickToolName}>Influence Network</Text>
-                <Text style={styles.quickToolDesc}>Follow the money</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+                <View style={styles.quickToolCard}>
+                  <Ionicons name={tool.icon} size={28} color={tool.accent} />
+                  <Text style={styles.quickToolName}>{tool.name}</Text>
+                  <Text style={styles.quickToolDesc}>{tool.desc}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -312,7 +224,7 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(197,160,68,0.06)',
   },
   orbGold: {
     position: 'absolute',
@@ -321,7 +233,7 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: 'rgba(197,150,12,0.1)',
+    backgroundColor: 'rgba(197,160,68,0.08)',
   },
   heroContent: {
     position: 'relative',
@@ -336,25 +248,25 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: UI_COLORS.GOLD,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(197,160,68,0.5)',
   },
   brandIconText: {
-    color: '#FFFFFF',
+    color: '#0A0F1A',
     fontSize: 17,
     fontWeight: '900',
   },
   brandTitle: {
-    color: '#FFFFFF',
+    color: UI_COLORS.TEXT_PRIMARY,
     fontSize: 30,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
   heroSubtitle: {
-    color: 'rgba(255,255,255,0.9)',
+    color: UI_COLORS.TEXT_SECONDARY,
     fontSize: 16,
     lineHeight: 23,
     maxWidth: 300,
@@ -365,26 +277,26 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   pillOutline: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: UI_COLORS.GLASS,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: UI_COLORS.BORDER_LIGHT,
   },
   pillText: {
-    color: '#FFFFFF',
+    color: UI_COLORS.TEXT_SECONDARY,
     fontSize: 12,
     fontWeight: '600',
   },
   pillGold: {
-    backgroundColor: 'rgba(197,150,12,0.9)',
+    backgroundColor: UI_COLORS.GOLD,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 6,
   },
   pillGoldText: {
-    color: '#FFFFFF',
+    color: '#0A0F1A',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -405,23 +317,33 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 18,
     minHeight: 140,
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderWidth: 1,
+    borderColor: UI_COLORS.BORDER,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
+  },
+  cardComingSoon: {
+    opacity: 0.6,
   },
   soonBadge: {
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: UI_COLORS.GOLD_LIGHT,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: UI_COLORS.GOLD + '40',
+    zIndex: 1,
   },
   soonText: {
-    color: 'rgba(255,255,255,0.8)',
+    color: UI_COLORS.GOLD,
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 1,
@@ -431,13 +353,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cardName: {
-    color: '#FFFFFF',
+    color: UI_COLORS.TEXT_PRIMARY,
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
   },
   cardTagline: {
-    color: 'rgba(255,255,255,0.8)',
+    color: UI_COLORS.TEXT_SECONDARY,
     fontSize: 12,
     lineHeight: 16,
   },
@@ -468,6 +390,7 @@ const styles = StyleSheet.create({
   },
   quickToolsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: CARD_GAP,
   },
   quickToolWrapper: {
@@ -477,21 +400,24 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 18,
     minHeight: 120,
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderWidth: 1,
+    borderColor: UI_COLORS.BORDER,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   quickToolName: {
-    color: '#FFFFFF',
+    color: UI_COLORS.TEXT_PRIMARY,
     fontSize: 15,
     fontWeight: '700',
     marginTop: 10,
     marginBottom: 4,
   },
   quickToolDesc: {
-    color: 'rgba(255,255,255,0.8)',
+    color: UI_COLORS.TEXT_MUTED,
     fontSize: 12,
     lineHeight: 16,
   },
