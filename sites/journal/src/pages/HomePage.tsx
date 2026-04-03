@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { StoryCard } from '../components/StoryCard';
 import { NewsletterCTA } from '../components/NewsletterCTA';
@@ -15,26 +14,11 @@ const categories: StoryCategory[] = [
 ];
 
 export default function HomePage() {
-  const { stories, loading, error } = useStories({ limit: 10 });
-  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  const { stories: displayStories, loading, error } = useStories({ limit: 10 });
+  const { stories: allStories } = useStories({ limit: 200 });
 
-  // Fetch real category counts from all stories, not just the 10 loaded
-  useEffect(() => {
-    const base = import.meta.env.VITE_API_BASE_URL || '/api';
-    fetch(`${base}/stories/latest?limit=200`)
-      .then((r) => r.json())
-      .then((data) => {
-        const counts: Record<string, number> = {};
-        for (const s of data.stories || []) {
-          counts[s.category] = (counts[s.category] || 0) + 1;
-        }
-        setCategoryCounts(counts);
-      })
-      .catch(() => {});
-  }, []);
-
-  const featured = stories.find((s) => s.featured) ?? stories[0] ?? null;
-  const rest = stories.filter((s) => s !== featured);
+  const featured = displayStories.find((s) => s.featured) ?? displayStories[0] ?? null;
+  const rest = displayStories.filter((s) => s !== featured);
 
   return (
     <main className="flex-1 px-4 py-10 sm:py-16">
@@ -129,7 +113,7 @@ export default function HomePage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {categories.map((cat) => {
                   const meta = CATEGORY_META[cat];
-                  const count = categoryCounts[cat] || 0;
+                  const count = allStories.filter((s) => s.category === cat).length;
                   return (
                     <Link
                       key={cat}
