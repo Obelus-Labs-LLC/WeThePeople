@@ -699,3 +699,41 @@ async def world_politicians_by_country(country_code: str):
         })
 
     return result
+
+
+# ── Earmarks (Congressionally Directed Spending) ─────────────────────────
+
+
+@router.get("/earmarks")
+async def earmarks_search(
+    state: Optional[str] = Query(None, description="2-letter state code"),
+    keyword: Optional[str] = Query(None, description="Award description keyword"),
+    member: Optional[str] = Query(None, description="Congress member name"),
+    year: Optional[str] = Query(None, description="Fiscal year"),
+    limit: int = Query(25, ge=1, le=100),
+):
+    """Search USASpending.gov for congressionally directed spending (earmarks).
+
+    If a member name is provided, searches for awards referencing that member.
+    Otherwise, searches grants/direct payments by state, keyword, and year.
+    """
+    from connectors.earmarks import search_earmarks, fetch_member_earmarks
+
+    fiscal_year = None
+    if year:
+        try:
+            fiscal_year = int(year)
+        except ValueError:
+            pass
+
+    if member and member.strip():
+        awards = fetch_member_earmarks(member.strip(), limit=limit)
+    else:
+        awards = search_earmarks(
+            state=state,
+            keyword=keyword,
+            year=fiscal_year,
+            limit=limit,
+        )
+
+    return {"total": len(awards), "awards": awards}
