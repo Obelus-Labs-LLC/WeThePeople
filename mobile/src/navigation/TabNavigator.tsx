@@ -46,6 +46,9 @@ import StateExplorerScreen from '../screens/StateExplorerScreen';
 import ChatAgentScreen from '../screens/ChatAgentScreen';
 import InfluenceNetworkScreen from '../screens/InfluenceNetworkScreen';
 import CompareScreen from '../screens/CompareScreen';
+import LegislationTrackerScreen from '../screens/LegislationTrackerScreen';
+import CommitteesScreen from '../screens/CommitteesScreen';
+import ActivityFeedScreen from '../screens/ActivityFeedScreen';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -203,6 +206,21 @@ function HomeStackScreen() {
         name="Compare"
         component={CompareScreen}
         options={{ title: 'Compare' }}
+      />
+      <HomeStack.Screen
+        name="LegislationTracker"
+        component={LegislationTrackerScreen}
+        options={{ title: 'Legislation Tracker' }}
+      />
+      <HomeStack.Screen
+        name="Committees"
+        component={CommitteesScreen}
+        options={{ title: 'Committees' }}
+      />
+      <HomeStack.Screen
+        name="ActivityFeed"
+        component={ActivityFeedScreen}
+        options={{ title: 'Activity Feed' }}
       />
     </HomeStack.Navigator>
   );
