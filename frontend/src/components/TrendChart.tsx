@@ -12,6 +12,7 @@ const DEFAULT_COLORS: Record<string, string> = {
   enforcement: "#EF4444",
   trades: "#F59E0B",
   donations: "#8B5CF6",
+  donations_received: "#8B5CF6",
   patents: "#06B6D4",
   votes: "#EC4899",
   bills: "#6366F1",
@@ -19,7 +20,21 @@ const DEFAULT_COLORS: Record<string, string> = {
   emissions: "#F97316",
 };
 
-export default function TrendChart({ data, height = 120, colors = {} }: TrendChartProps) {
+const DISPLAY_NAMES: Record<string, string> = {
+  lobbying: "Lobbying",
+  contracts: "Contracts",
+  enforcement: "Enforcement",
+  trades: "Trades",
+  donations: "Donations",
+  donations_received: "Donations Received",
+  patents: "Patents",
+  votes: "Votes",
+  bills: "Bills",
+  trials: "Trials",
+  emissions: "Emissions",
+};
+
+export default function TrendChart({ data, height = 160, colors = {} }: TrendChartProps) {
   const { years, series } = data;
   if (!years?.length) return null;
 
@@ -52,23 +67,23 @@ export default function TrendChart({ data, height = 120, colors = {} }: TrendCha
         {lines.map(({ name, color, areaPath, path }) => (
           <g key={name}>
             <path d={areaPath} fill={color} fillOpacity={0.1} />
-            <path d={path} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+            <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
           </g>
         ))}
         {years.map((yr, i) => {
           const x = padding.left + (i / Math.max(years.length - 1, 1)) * innerW;
-          return i % Math.max(1, Math.floor(years.length / 5)) === 0 ? (
+          return (
             <text key={yr} x={x} y={chartH - 4} textAnchor="middle" fill="#71717A" fontSize={7} fontFamily="sans-serif">
               {yr}
             </text>
-          ) : null;
+          );
         })}
       </svg>
       <div className="mt-2 flex flex-wrap gap-3">
         {lines.map(({ name, color }) => (
           <div key={name} className="flex items-center gap-1.5 text-xs text-zinc-400">
             <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-            <span className="capitalize">{name}</span>
+            <span>{DISPLAY_NAMES[name] || name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
           </div>
         ))}
       </div>
