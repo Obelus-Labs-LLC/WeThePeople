@@ -413,7 +413,7 @@ def generate_story_tweet():
 
 def generate_anomaly_tweet() -> tuple:
     """Generate a tweet from detected anomalies (trade-committee overlaps, lobbying spikes, etc.)."""
-    data = api_get("/influence/anomalies", {"limit": 10})
+    data = api_get("/anomalies", {"limit": 10})
     anomalies = data.get("anomalies", data.get("items", []))
     if not anomalies:
         return None, "anomaly"
