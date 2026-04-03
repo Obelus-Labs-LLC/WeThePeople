@@ -36,16 +36,6 @@ export const SECTORS: Sector[] = [
     route: "/health",
     available: true,
   },
-  // Future sectors - not yet implemented
-  {
-    slug: "chemicals",
-    name: "Chemicals",
-    tagline: "Chemical industry lobbying and EPA enforcement",
-    icon: "\u2697\uFE0F",
-    gradient: "from-amber-500 to-orange-700",
-    route: "/chemicals",
-    available: false,
-  },
   {
     slug: "energy",
     name: "Oil, Gas & Energy",
