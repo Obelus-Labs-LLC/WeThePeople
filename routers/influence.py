@@ -169,12 +169,10 @@ def get_influence_stats(db: Session = Depends(get_db)):
     agriculture_enforcement = db.query(func.count(AgricultureEnforcement.id)).scalar() or 0
     total_enforcement = finance_enforcement + health_enforcement + tech_enforcement + energy_enforcement + transport_enforcement + defense_enforcement + chemicals_enforcement + agriculture_enforcement
 
-    # Politicians connected (via donations, fallback to tracked members)
-    politicians_connected = db.query(func.count(func.distinct(CompanyDonation.person_id))).filter(
-        CompanyDonation.person_id.isnot(None)
+    # Politicians tracked (all active members)
+    politicians_connected = db.query(func.count(TrackedMember.id)).filter(
+        TrackedMember.is_active == 1
     ).scalar() or 0
-    if politicians_connected == 0:
-        politicians_connected = db.query(func.count(TrackedMember.id)).scalar() or 0
 
     return {
         "total_lobbying_spend": total_lobbying,
