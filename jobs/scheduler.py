@@ -309,7 +309,7 @@ JOB_REGISTRY: List[JobDef] = [
         name="sync_samgov",
         script="jobs/sync_samgov.py",
         interval_hours=24,
-        timeout_sec=600,
+        timeout_sec=1800,
         description="SAM.gov exclusions + entity registrations (10 req/day budget)",
     ),
     JobDef(
