@@ -117,13 +117,14 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=1800,
         description="Senate roll-call votes from senate.gov XML",
     ),
-    JobDef(
-        name="sync_congressional_trades",
-        script="jobs/sync_congressional_trades.py",
-        interval_hours=24,
-        timeout_sec=1800,
-        description="Congressional stock trades from Quiver Quantitative",
-    ),
+    # Quiver trade sync disabled - using House Clerk PDFs directly instead (more reliable, no API key needed)
+    # JobDef(
+    #     name="sync_congressional_trades",
+    #     script="jobs/sync_congressional_trades.py",
+    #     interval_hours=24,
+    #     timeout_sec=1800,
+    #     description="Congressional stock trades from Quiver Quantitative",
+    # ),
 
     # ── Every 48 hours ───────────────────────────────────────────
     JobDef(
@@ -273,9 +274,9 @@ JOB_REGISTRY: List[JobDef] = [
     JobDef(
         name="sync_trades_from_disclosures",
         script="jobs/sync_trades_from_disclosures.py",
-        interval_hours=168,
+        interval_hours=24,
         timeout_sec=3600,
-        description="Congressional trades from House financial disclosure PDFs",
+        description="Congressional trades from House financial disclosure PDFs (primary source)",
     ),
 
     JobDef(
