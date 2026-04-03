@@ -1062,7 +1062,7 @@ def get_person_full(person_id: str):
         "votes": f"/people/{person_id}/votes?limit=50",
         "finance": f"/people/{person_id}/finance",
         "trends": f"/people/{person_id}/trends",
-        "donors": f"/politics/people/{person_id}/industry-donors?limit=100",
+        "donors": f"/people/{person_id}/industry-donors?limit=100",
         "trades": f"/people/{person_id}/trades?limit=50",
     }
 
