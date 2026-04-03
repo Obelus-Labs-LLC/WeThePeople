@@ -2,13 +2,17 @@
 Zip Code Lookup — Rich representative profiles by zip code.
 
 GET /lookup/{zip_code}
-  Maps zip → state, finds all TrackedMembers, returns trades, donors,
+  Maps zip → district via whoismyrepresentative.com, finds matching
+  TrackedMembers (district rep + senators), returns trades, donors,
   committees, anomalies, and votes for each — all in batch queries.
 """
 
 import logging
+import time
+import requests
 from datetime import date, timedelta, datetime, timezone
-from typing import Optional, Dict, Any, List
+from difflib import SequenceMatcher
+from typing import Optional, Dict, Any, List, Tuple
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import func, desc
@@ -30,6 +34,84 @@ router = APIRouter(tags=["lookup"])
 log = logging.getLogger("lookup")
 
 
+# ── District lookup cache (zip -> (results, timestamp)) ──
+_district_cache: Dict[str, Tuple[list, float]] = {}
+_CACHE_TTL = 3600  # 1 hour
+
+
+def _cached_district_lookup(zip_code: str) -> Optional[list]:
+    """
+    Look up congressional district via whoismyrepresentative.com.
+    Returns list of {"name", "party", "state", "district"} or None on failure.
+    Caches results for 1 hour.
+    """
+    now = time.time()
+    if zip_code in _district_cache:
+        results, ts = _district_cache[zip_code]
+        if now - ts < _CACHE_TTL:
+            return results
+
+    try:
+        resp = requests.get(
+            f"https://whoismyrepresentative.com/getall_mems.php?zip={zip_code}&output=json",
+            timeout=5,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        results = data.get("results", [])
+        _district_cache[zip_code] = (results, now)
+        return results
+    except Exception as e:
+        log.warning("whoismyrepresentative.com lookup failed for %s: %s", zip_code, e)
+        return None
+
+
+def _name_similarity(a: str, b: str) -> float:
+    """Case-insensitive similarity ratio between two names."""
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+def _filter_members_by_district(
+    all_state_members: list,
+    district_results: list,
+) -> list:
+    """
+    Given all active TrackedMembers for a state and whoismyrepresentative results,
+    return only the senators + the specific district representative.
+    """
+    # Extract district number(s) from the API results
+    districts = set()
+    api_names = []
+    for r in district_results:
+        dist = str(r.get("district", "")).strip()
+        if dist:
+            districts.add(dist)
+        name = r.get("name", "").strip()
+        if name:
+            api_names.append(name)
+
+    matched = []
+    for m in all_state_members:
+        # Always include senators
+        if m.chamber and m.chamber.lower() == "senate":
+            matched.append(m)
+            continue
+
+        # For House members: match by district number first
+        member_district = str(m.district).strip() if m.district else ""
+        if member_district and member_district in districts:
+            matched.append(m)
+            continue
+
+        # Fallback: match by name similarity to API results
+        if api_names and m.display_name:
+            best = max(_name_similarity(m.display_name, n) for n in api_names)
+            if best >= 0.6:
+                matched.append(m)
+
+    return matched
+
+
 # ── Zip → State (reuse the digest fallback map) ──
 
 def _zip_to_state(zip_code: str) -> Optional[str]:
@@ -48,9 +130,10 @@ def _zip_to_state(zip_code: str) -> Optional[str]:
 @router.get("/lookup/{zip_code}")
 def zip_lookup(zip_code: str, db: Session = Depends(get_db)):
     """
-    Full zip code lookup: maps zip to state, finds reps, returns
-    trades, donors, committees, anomalies, and votes for each member.
-    All queries are batched to avoid N+1.
+    Full zip code lookup: maps zip to district via whoismyrepresentative.com,
+    finds the specific district rep + senators, returns trades, donors,
+    committees, anomalies, and votes for each member.
+    Falls back to all state members if district lookup fails.
     """
     cleaned = "".join(c for c in zip_code if c.isdigit())[:5]
     if len(cleaned) < 5:
@@ -61,12 +144,23 @@ def zip_lookup(zip_code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"No state mapping found for zip code {cleaned}")
 
     # ── 1. Find all active members for this state ──
-    members = (
+    all_state_members = (
         db.query(TrackedMember)
         .filter(TrackedMember.state == state, TrackedMember.is_active == 1)
         .order_by(TrackedMember.chamber, TrackedMember.display_name)
         .all()
     )
+
+    # ── 1b. Try district-specific filtering via whoismyrepresentative.com ──
+    district_results = _cached_district_lookup(cleaned)
+    if district_results:
+        members = _filter_members_by_district(all_state_members, district_results)
+        if not members:
+            # If filtering produced nothing, fall back to all state members
+            log.warning("District filter returned 0 members for %s, falling back to state", cleaned)
+            members = all_state_members
+    else:
+        members = all_state_members
 
     if not members:
         return {
