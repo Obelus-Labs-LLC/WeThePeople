@@ -599,9 +599,12 @@ def _match_entity_in_tweet(tweet_text: str) -> Optional[dict]:
         "revolving door", "congressional disclosure", "financial disclosure",
         "Pentagon contract", "defense contract", "pharma lobbying",
     ]
+    import re as _re
     text_lower = tweet_text.lower()
     for kw in TOPIC_KEYWORDS:
-        if kw.lower() in text_lower:
+        # Use word boundary matching to avoid false positives (e.g. "impact" matching "PAC")
+        pattern = r'\b' + _re.escape(kw.lower()) + r'\b'
+        if _re.search(pattern, text_lower):
             return {"type": "topic", "keyword": kw, "entity_id": None, "entity_type": "general"}
 
     return None
