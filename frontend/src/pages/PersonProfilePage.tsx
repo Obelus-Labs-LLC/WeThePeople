@@ -206,156 +206,90 @@ export default function PersonProfilePage() {
     setLoadedTabs((prev) => new Set(prev).add(t));
   }, []);
 
-  // ── Load basic person info ──
-  useEffect(() => {
-    if (!person_id) return;
-    let cancelled = false;
-    apiClient
-      .getPeople({ q: person_id, limit: 1 })
-      .then((res) => {
-        if (cancelled) return;
-        const match = res.people.find((p) => p.person_id === person_id);
-        if (match) setPerson(match);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [person_id]);
-
-  // ── Load overview data on mount ──
+  // ── Single combined fetch for all person data ──
   useEffect(() => {
     if (!person_id) return;
     let cancelled = false;
     setOverviewLoading(true);
 
-    const profileP = apiClient
-      .getPersonProfile(person_id)
-      .then((r) => {
+    fetch(`${getApiBaseUrl()}/people/${person_id}/full`)
+      .then((r) => r.json())
+      .then((data) => {
         if (cancelled) return;
-        setProfile(r);
-        setProfileError(false);
+
+        // Person basic info
+        if (data.person) {
+          setPerson(data.person);
+        }
+
+        // Profile
+        if (data.profile) {
+          setProfile(data.profile);
+          setProfileError(false);
+        } else {
+          setProfileError(true);
+        }
+
+        // Performance
+        if (data.performance) {
+          setPerformance(data.performance);
+          setPerformanceError(false);
+        } else {
+          setPerformanceError(true);
+        }
+
+        // Stats
+        if (data.stats) setStats(data.stats);
+
+        // Committees
+        if (data.committees) setCommittees(data.committees.committees || []);
+
+        // Activity
+        if (data.activity) {
+          setActivity(data.activity);
+          setActivityEntries(data.activity.entries || []);
+          markLoaded('legislation');
+        }
+
+        // Votes
+        if (data.votes) {
+          setVotesData(data.votes);
+          setVoteEntries(data.votes.votes || []);
+          markLoaded('votes');
+        }
+
+        // Trends
+        if (data.trends) setTrends(data.trends);
+
+        // Finance
+        if (data.finance) {
+          setFinance(data.finance);
+          markLoaded('finance');
+        }
+
+        // Trades
+        if (data.trades) {
+          setTrades(data.trades.trades || []);
+          markLoaded('trades');
+        }
+
+        // Donors
+        if (data.donors) {
+          setDonors(data.donors);
+          markLoaded('donors');
+        }
+
+        // Graph
+        if (data.graph) setGraph(data.graph);
       })
-      .catch(() => { if (!cancelled) setProfileError(true); });
-
-    const perfP = apiClient
-      .getPersonPerformance(person_id)
-      .then((r) => {
-        if (cancelled) return;
-        setPerformance(r);
-        setPerformanceError(false);
+      .catch(() => {
+        setProfileError(true);
+        setPerformanceError(true);
       })
-      .catch(() => { if (!cancelled) setPerformanceError(true); });
+      .finally(() => { if (!cancelled) setOverviewLoading(false); });
 
-    const statsP = apiClient.getPersonStats(person_id).then((r) => { if (!cancelled) setStats(r); }).catch(() => {});
-
-    const graphP = apiClient.getPersonGraph(person_id, 5).then((r) => { if (!cancelled) setGraph(r); }).catch(() => {});
-
-    const committeesP = apiClient
-      .getPersonCommittees(person_id)
-      .then((res) => { if (!cancelled) setCommittees(res.committees || []); })
-      .catch(() => {});
-
-    // Eagerly load activity + votes for stat pills in header
-    const actP = apiClient
-      .getPersonActivity(person_id, { limit: 50 })
-      .then((res) => {
-        if (cancelled) return;
-        setActivity(res);
-        setActivityEntries(res.entries || []);
-        markLoaded('legislation');
-      })
-      .catch(() => {});
-
-    const votesP = apiClient
-      .getPersonVotes(person_id, { limit: 50 })
-      .then((res) => {
-        if (cancelled) return;
-        setVotesData(res);
-        setVoteEntries(res.votes || []);
-        markLoaded('votes');
-      })
-      .catch(() => {});
-
-    // Fetch trends
-    const trendsP = fetch(`${getApiBaseUrl()}/people/${person_id}/trends`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (!cancelled && d) setTrends(d); })
-      .catch(() => {});
-
-    Promise.all([profileP, perfP, statsP, graphP, committeesP, actP, votesP, trendsP]).finally(() => { if (!cancelled) setOverviewLoading(false); });
     return () => { cancelled = true; };
-  }, [person_id]);
-
-  // ── Lazy load: legislation ──
-  useEffect(() => {
-    if (tab !== 'legislation' || !person_id || loadedTabs.has('legislation')) return;
-    setActivityLoading(true);
-    apiClient
-      .getPersonActivity(person_id, { limit: 50 })
-      .then((res) => {
-        setActivity(res);
-        setActivityEntries(res.entries || []);
-        markLoaded('legislation');
-      })
-      .catch(() => {})
-      .finally(() => setActivityLoading(false));
-  }, [tab, person_id, loadedTabs, markLoaded]);
-
-  // ── Lazy load: votes ──
-  useEffect(() => {
-    if (tab !== 'votes' || !person_id || loadedTabs.has('votes')) return;
-    setVotesLoading(true);
-    apiClient
-      .getPersonVotes(person_id, { limit: 50 })
-      .then((res) => {
-        setVotesData(res);
-        setVoteEntries(res.votes || []);
-        markLoaded('votes');
-      })
-      .catch(() => {})
-      .finally(() => setVotesLoading(false));
-  }, [tab, person_id, loadedTabs, markLoaded]);
-
-  // ── Lazy load: finance ──
-  useEffect(() => {
-    if (tab !== 'finance' || !person_id || loadedTabs.has('finance')) return;
-    setFinanceLoading(true);
-    apiClient
-      .getPersonFinance(person_id)
-      .then((res) => {
-        setFinance(res);
-        markLoaded('finance');
-      })
-      .catch(() => {})
-      .finally(() => setFinanceLoading(false));
-  }, [tab, person_id, loadedTabs, markLoaded]);
-
-  // ── Lazy load: trades ──
-  useEffect(() => {
-    if (tab !== 'trades' || !person_id || loadedTabs.has('trades')) return;
-    setTradesLoading(true);
-    fetch(`${getApiBaseUrl()}/people/${person_id}/trades?limit=50`)
-      .then((r) => r.json())
-      .then((data) => {
-        setTrades(data.trades || []);
-        markLoaded('trades');
-      })
-      .catch(() => setTrades([]))
-      .finally(() => setTradesLoading(false));
-  }, [tab, person_id, loadedTabs, markLoaded]);
-
-  // ── Lazy load: donors ──
-  useEffect(() => {
-    if (tab !== 'donors' || !person_id || loadedTabs.has('donors')) return;
-    setDonorsLoading(true);
-    fetch(`${getApiBaseUrl()}/politics/people/${person_id}/industry-donors?limit=100`)
-      .then((r) => r.json())
-      .then((data) => {
-        setDonors(data);
-        markLoaded('donors');
-      })
-      .catch(() => setDonors(null))
-      .finally(() => setDonorsLoading(false));
-  }, [tab, person_id, loadedTabs, markLoaded]);
+  }, [person_id, markLoaded]);
 
   // ── Load more: legislation ──
   const loadMoreActivity = useCallback(() => {

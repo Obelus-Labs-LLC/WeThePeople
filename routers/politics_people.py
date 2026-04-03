@@ -1037,3 +1037,48 @@ def get_person_committees(person_id: str):
         }
     finally:
         db.close()
+
+
+@router.get("/people/{person_id}/full")
+def get_person_full(person_id: str):
+    """Combined endpoint: returns person, profile, stats, committees, activity,
+    votes, trades, finance, donors, and trends in a single response.
+
+    Eliminates 12 separate API calls from the frontend profile page.
+    """
+    import concurrent.futures
+    import httpx
+
+    base = "http://localhost:8006"
+    results: Dict[str, Any] = {"person_id": person_id}
+
+    paths = {
+        "person": f"/people/{person_id}",
+        "profile": f"/people/{person_id}/profile",
+        "stats": f"/people/{person_id}/stats",
+        "performance": f"/people/{person_id}/performance",
+        "committees": f"/people/{person_id}/committees",
+        "activity": f"/people/{person_id}/activity?limit=50",
+        "votes": f"/people/{person_id}/votes?limit=50",
+        "finance": f"/people/{person_id}/finance",
+        "trends": f"/people/{person_id}/trends",
+        "donors": f"/politics/people/{person_id}/industry-donors?limit=100",
+        "trades": f"/people/{person_id}/trades?limit=50",
+    }
+
+    def _fetch(key: str, path: str):
+        try:
+            r = httpx.get(f"{base}{path}", timeout=10.0)
+            if r.status_code == 200:
+                return key, r.json()
+        except Exception:
+            pass
+        return key, None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(_fetch, k, p) for k, p in paths.items()]
+        for future in concurrent.futures.as_completed(futures, timeout=15):
+            key, data = future.result()
+            results[key] = data
+
+    return results
