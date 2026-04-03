@@ -28,6 +28,10 @@ try:
         resolve_evidence_tier,
         auto_classify_claim,
         get_profile,
+        contains_gate_signal,
+        contains_claim_signal,
+        STOPWORDS_BASE,
+        CATEGORY_PROFILES,
     )
 except ImportError:
     logger.info("wtp-core not installed. Using stub matchers.")
@@ -81,6 +85,13 @@ except ImportError:
         return "general"
 
     CATEGORY_PROFILES = {}
+    STOPWORDS_BASE = set()
 
     def get_profile(category):
         return {}
+
+    def contains_gate_signal(text):
+        return False
+
+    def contains_claim_signal(text):
+        return False
