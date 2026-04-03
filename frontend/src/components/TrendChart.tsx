@@ -43,8 +43,8 @@ export default function TrendChart({ data, height = 160, colors = {} }: TrendCha
 
   const allValues = seriesEntries.flatMap(([, vals]) => vals);
   const maxVal = Math.max(...allValues, 1);
-  const padding = { top: 10, right: 10, bottom: 24, left: 10 };
-  const chartW = 100; // percent-based, SVG viewBox handles it
+  const padding = { top: 10, right: 16, bottom: 30, left: 16 };
+  const chartW = 300; // wider viewBox for better label spacing
   const chartH = height;
   const innerW = chartW - padding.left - padding.right;
   const innerH = chartH - padding.top - padding.bottom;
@@ -73,7 +73,7 @@ export default function TrendChart({ data, height = 160, colors = {} }: TrendCha
         {years.map((yr, i) => {
           const x = padding.left + (i / Math.max(years.length - 1, 1)) * innerW;
           return (
-            <text key={yr} x={x} y={chartH - 4} textAnchor="middle" fill="#71717A" fontSize={7} fontFamily="sans-serif">
+            <text key={yr} x={x} y={chartH - 6} textAnchor="middle" fill="#94A3B8" fontSize={14} fontFamily="sans-serif" fontWeight="500">
               {yr}
             </text>
           );
