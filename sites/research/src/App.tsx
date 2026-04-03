@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import { EcosystemNav } from './components/EcosystemNav'
 import {
   Search,
@@ -351,6 +352,7 @@ export default function App() {
         {/* Catch-all back to home */}
         <Route path="*" element={<HomePage />} />
       </Routes>
+      <Analytics />
     </BrowserRouter>
   )
 }

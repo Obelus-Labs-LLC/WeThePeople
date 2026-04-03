@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { EcosystemNav } from './components/EcosystemNav';
 import { Footer } from './components/Footer';
 
@@ -53,6 +54,7 @@ export default function App() {
         {/* Catch-all back to home */}
         <Route path="*" element={<Layout><HomePage /></Layout>} />
       </Routes>
+      <Analytics />
     </BrowserRouter>
   );
 }
