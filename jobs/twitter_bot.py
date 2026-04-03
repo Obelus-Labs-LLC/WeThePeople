@@ -99,7 +99,16 @@ def posts_today(session) -> int:
     NOTE: Uses UTC midnight as the boundary. If the bot runs near midnight UTC,
     some tweets may count toward the next day's total."""
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    return session.query(TweetLog).filter(TweetLog.posted_at >= today).count()
+    for attempt in range(3):
+        try:
+            return session.query(TweetLog).filter(TweetLog.posted_at >= today).count()
+        except Exception as e:
+            if attempt < 2:
+                log.warning("DB locked on posts_today, retry %d/3: %s", attempt + 1, e)
+                time.sleep(3)
+            else:
+                log.error("Failed posts_today after 3 attempts, assuming 0: %s", e)
+                return 0
 
 
 # ── Tweet Generators ──
@@ -301,12 +310,23 @@ def generate_thread() -> tuple:
     if lobby_total <= 0:
         return None, "thread"
 
-    tweets = [
-        f"{name} spent {_fmt_money(lobby_total)} lobbying Congress. Where'd that money go?\n\n#FollowTheMoney",
-        f"We track every dollar — from lobbying filings to government contracts to stock trades by the politicians they target.",
-    ]
+    # Try to get contracts for this company to make a richer thread
+    sector = company.get("sector", "")
+    entity_id = company.get("entity_id", company.get("id", ""))
+    contracts_total = company.get("total_contracts", 0)
+    enforcement_count = company.get("enforcement_count", 0)
 
-    return (tweets, f"{SITE}/influence/network"), "thread"
+    tweet1 = f"{name} spent {_fmt_money(lobby_total)} lobbying Congress.\n\n#FollowTheMoney"
+
+    if contracts_total > 0:
+        tweet2 = f"They also received {_fmt_money(contracts_total)} in government contracts. That's a {int(contracts_total / max(lobby_total, 1)):,}-to-1 return on lobbying spend.\n\nData: Senate LDA Filings, USASpending.gov"
+    else:
+        tweet2 = f"That's {_fmt_money(lobby_total)} spent influencing the laws that govern their industry. We track every dollar from lobbying filings to government contracts.\n\nData: Senate LDA Filings"
+
+    tweets = [tweet1, tweet2]
+    link = f"{SITE}/{sector}/{entity_id}" if sector and entity_id else f"{SITE}/influence/network"
+
+    return (tweets, link), "thread"
 
 
 # ── Category Rotation ──

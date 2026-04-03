@@ -60,6 +60,11 @@ AUTO_QUOTE_ACCOUNTS = [
     "OpenSecrets",       # Campaign finance / lobbying tracker
     "ProPublica",        # Investigative journalism
     "CapitolTrades",     # Capitol Trades (congressional trades)
+    "unusual_whales",    # Congressional trades + options
+    "JuddLegum",        # Popular Information newsletter (corporate influence)
+    "walaborshauf",      # Walter Shaub (former ethics chief)
+    "WSJ",               # Wall Street Journal politics
+    "Reuters",           # Reuters politics
 ]
 
 # Well-known entity names to look for in tweets from monitored accounts
@@ -577,6 +582,19 @@ def _match_entity_in_tweet(tweet_text: str) -> Optional[dict]:
     for name in names:
         if name.upper() in _ENTITY_CACHE:
             return _ENTITY_CACHE[name.upper()]
+
+    # Third: keyword match - if the tweet is about topics we cover, match generically
+    TOPIC_KEYWORDS = [
+        "lobbying", "lobbyist", "stock trade", "insider trading", "STOCK Act",
+        "congressional trade", "government contract", "enforcement action",
+        "campaign finance", "PAC", "super PAC", "dark money", "corporate influence",
+        "revolving door", "congressional disclosure", "financial disclosure",
+        "Pentagon contract", "defense contract", "pharma lobbying",
+    ]
+    text_lower = tweet_text.lower()
+    for kw in TOPIC_KEYWORDS:
+        if kw.lower() in text_lower:
+            return {"type": "topic", "keyword": kw, "entity_id": None, "entity_type": "general"}
 
     return None
 
