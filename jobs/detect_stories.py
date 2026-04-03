@@ -154,22 +154,11 @@ def _generate_story_text(evidence: Dict[str, Any], category: str) -> Optional[Di
 
         client = Anthropic(api_key=api_key)
 
-        system = (
-            "You are a data journalist at a civic transparency platform. Write factual, "
-            "compelling narratives based on government records. No speculation. Every claim "
-            "must be traceable to a specific data point. Write in the style of ProPublica or "
-            "The Intercept: direct, clear, no filler, no dashes.\n\n"
-            "IMPORTANT RULES:\n"
-            "- Never claim causation from correlation. If lobbying precedes a contract, say "
-            "'the timing raises questions' not 'lobbying led to the contract.'\n"
-            "- Always acknowledge that contracts go through competitive bidding processes and "
-            "that lobbying is legal advocacy. The story is about the pattern, not a crime.\n"
-            "- Include a brief contextual note when possible: what percentage of total sector "
-            "spending does this represent? Is this company's lobbying above or below average?\n"
-            "- Name the specific government data sources (Senate LDA filings, USASpending.gov, "
-            "SEC EDGAR, Federal Register, FEC, House financial disclosures).\n"
-            "- Do not use em dashes. Use commas or periods instead."
+        _DEFAULT_STORY_PROMPT = (
+            "You are a data journalist. Write factual narratives from government records. "
+            "No speculation. Cite data sources. No em dashes."
         )
+        system = os.getenv("STORY_SYSTEM_PROMPT", _DEFAULT_STORY_PROMPT).replace("\\n", "\n")
 
         user_prompt = (
             f"Category: {category}\n\n"

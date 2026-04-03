@@ -98,3 +98,4 @@ frontend/tsconfig.tsbuildinfo
 # Alembic generated readme
 alembic/README
 wallet_wtpdb/
+prompts.env

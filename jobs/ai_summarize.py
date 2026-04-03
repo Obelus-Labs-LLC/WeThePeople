@@ -310,45 +310,14 @@ def save_batch_summaries(conn, table: str, id_col: str,
 # Summarizers
 # ═══════════════════════════════════════════════════════════
 
-VOTE_SYSTEM = """You are a civic transparency assistant. Summarize congressional votes
-in plain English for everyday citizens. Be concise (1-2 sentences max).
-Explain what the vote was actually about and why it matters.
-Do not use jargon. Do not be partisan.
+_DEFAULT_SUMMARIZE = "Summarize the following in plain English. Return JSON array with id and summary fields."
 
-When given a batch of votes as JSON, return a JSON array of objects with
-"id" and "summary" fields. Match the order of the input."""
-
-ENFORCEMENT_SYSTEM = """You are a regulatory transparency assistant. Summarize enforcement
-actions in plain English. Explain what happened, who was involved, and the consequence.
-Be concise (2-3 sentences max). Include the penalty amount if available.
-
-When given a batch of enforcement actions as JSON, return a JSON array of objects with
-"id" and "summary" fields. Match the order of the input."""
-
-CONTRACT_SYSTEM = """You are a government spending transparency assistant. Describe
-government contracts in plain English. Explain what was purchased, by which agency,
-and the value. Be concise (1-2 sentences max).
-
-When given a batch of contracts as JSON, return a JSON array of objects with
-"id" and "summary" fields. Match the order of the input."""
-
-LOBBYING_SYSTEM = """You are a lobbying transparency assistant. Decode lobbying disclosures
-into plain English. Explain what issues the company lobbied on and which government
-entities they targeted. Be concise (1-2 sentences max). Translate issue codes and
-legalese into everyday language.
-
-When given a batch of lobbying records as JSON, return a JSON array of objects with
-"id" and "summary" fields. Match the order of the input."""
-
-POLITICIAN_PROFILE_SYSTEM = """You are a civic transparency assistant. Write a 2-3 sentence
-political fingerprint for a member of Congress. Include their party, state, committee
-assignments, and notable patterns (voting alignment, top donor industries, legislative focus).
-Be factual and non-partisan. Use the data provided — do not infer or speculate beyond it."""
-
-COMPANY_PROFILE_SYSTEM = """You are a corporate political influence analyst. Write a 2-3
-sentence political risk narrative for a company. Summarize their lobbying posture,
-government contract volume, enforcement history, and donation patterns.
-Be factual and analytical. Use the data provided — do not speculate."""
+VOTE_SYSTEM = os.getenv("VOTE_SUMMARY_PROMPT", _DEFAULT_SUMMARIZE).replace("\\n", "\n")
+ENFORCEMENT_SYSTEM = os.getenv("ENFORCEMENT_SUMMARY_PROMPT", _DEFAULT_SUMMARIZE).replace("\\n", "\n")
+CONTRACT_SYSTEM = os.getenv("CONTRACT_SUMMARY_PROMPT", _DEFAULT_SUMMARIZE).replace("\\n", "\n")
+LOBBYING_SYSTEM = os.getenv("LOBBYING_SUMMARY_PROMPT", _DEFAULT_SUMMARIZE).replace("\\n", "\n")
+POLITICIAN_PROFILE_SYSTEM = os.getenv("POLITICIAN_PROFILE_PROMPT", _DEFAULT_SUMMARIZE).replace("\\n", "\n")
+COMPANY_PROFILE_SYSTEM = os.getenv("COMPANY_PROFILE_PROMPT", _DEFAULT_SUMMARIZE).replace("\\n", "\n")
 
 
 def summarize_votes(conn, limit: int = 0, dry_run: bool = False) -> int:
