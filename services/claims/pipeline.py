@@ -202,7 +202,7 @@ def _verify_single_claim(db, claim: Claim, entity_id: str, entity_type: str) -> 
         except Exception as e:
             logger.warning("Committee matching failed: %s", e)
 
-    if entity_type in ("tech", "finance", "health", "energy"):
+    if entity_type in ("tech", "finance", "health", "energy", "defense", "transportation", "chemicals", "agriculture"):
         # Company-specific matchers
         try:
             lobbying_matches = match_against_lobbying(
@@ -340,6 +340,22 @@ def _resolve_entity_name(db, entity_id: str, entity_type: str) -> str:
     elif entity_type == "energy":
         from models.energy_models import TrackedEnergyCompany
         company = db.query(TrackedEnergyCompany).filter(TrackedEnergyCompany.company_id == entity_id).first()
+        return company.display_name if company else entity_id
+    elif entity_type == "defense":
+        from models.defense_models import TrackedDefenseCompany
+        company = db.query(TrackedDefenseCompany).filter(TrackedDefenseCompany.company_id == entity_id).first()
+        return company.display_name if company else entity_id
+    elif entity_type == "transportation":
+        from models.transportation_models import TrackedTransportationCompany
+        company = db.query(TrackedTransportationCompany).filter(TrackedTransportationCompany.company_id == entity_id).first()
+        return company.display_name if company else entity_id
+    elif entity_type == "chemicals":
+        from models.chemicals_models import TrackedChemicalCompany
+        company = db.query(TrackedChemicalCompany).filter(TrackedChemicalCompany.company_id == entity_id).first()
+        return company.display_name if company else entity_id
+    elif entity_type == "agriculture":
+        from models.agriculture_models import TrackedAgricultureCompany
+        company = db.query(TrackedAgricultureCompany).filter(TrackedAgricultureCompany.company_id == entity_id).first()
         return company.display_name if company else entity_id
     return entity_id
 

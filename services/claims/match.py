@@ -1365,6 +1365,18 @@ def match_against_lobbying(claim_text: str, entity_id: str, entity_type: str, db
     elif entity_type == "energy":
         from models.energy_models import EnergyLobbyingRecord as LobbyModel
         fk_col = LobbyModel.company_id
+    elif entity_type == "defense":
+        from models.defense_models import DefenseLobbyingRecord as LobbyModel
+        fk_col = LobbyModel.company_id
+    elif entity_type == "transportation":
+        from models.transportation_models import TransportationLobbyingRecord as LobbyModel
+        fk_col = LobbyModel.company_id
+    elif entity_type == "chemicals":
+        from models.chemicals_models import ChemicalLobbyingRecord as LobbyModel
+        fk_col = LobbyModel.company_id
+    elif entity_type == "agriculture":
+        from models.agriculture_models import AgricultureLobbyingRecord as LobbyModel
+        fk_col = LobbyModel.company_id
     else:
         return []
 
@@ -1429,6 +1441,18 @@ def match_against_contracts(claim_text: str, entity_id: str, entity_type: str, d
         fk_col = ContractModel.company_id
     elif entity_type == "energy":
         from models.energy_models import EnergyGovernmentContract as ContractModel
+        fk_col = ContractModel.company_id
+    elif entity_type == "defense":
+        from models.defense_models import DefenseGovernmentContract as ContractModel
+        fk_col = ContractModel.company_id
+    elif entity_type == "transportation":
+        from models.transportation_models import TransportationGovernmentContract as ContractModel
+        fk_col = ContractModel.company_id
+    elif entity_type == "chemicals":
+        from models.chemicals_models import ChemicalGovernmentContract as ContractModel
+        fk_col = ContractModel.company_id
+    elif entity_type == "agriculture":
+        from models.agriculture_models import AgricultureGovernmentContract as ContractModel
         fk_col = ContractModel.company_id
     else:
         return []
@@ -1504,6 +1528,18 @@ def match_against_enforcement(claim_text: str, entity_id: str, entity_type: str,
         fk_col = EnfModel.company_id
     elif entity_type == "energy":
         from models.energy_models import EnergyEnforcement as EnfModel
+        fk_col = EnfModel.company_id
+    elif entity_type == "defense":
+        from models.defense_models import DefenseEnforcement as EnfModel
+        fk_col = EnfModel.company_id
+    elif entity_type == "transportation":
+        from models.transportation_models import TransportationEnforcement as EnfModel
+        fk_col = EnfModel.company_id
+    elif entity_type == "chemicals":
+        from models.chemicals_models import ChemicalEnforcement as EnfModel
+        fk_col = EnfModel.company_id
+    elif entity_type == "agriculture":
+        from models.agriculture_models import AgricultureEnforcement as EnfModel
         fk_col = EnfModel.company_id
     else:
         return []
