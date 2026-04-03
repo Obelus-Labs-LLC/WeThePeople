@@ -504,10 +504,17 @@ def ingest_senate_vote(
 
             member_name = f"{first_name} {last_name}".strip() or None
 
+            # Look up bioguide_id from tracked_members if we matched a person_id
+            bio_id = None
+            if person_id:
+                member_obj = db.query(TrackedMember).filter(TrackedMember.person_id == person_id).first()
+                if member_obj:
+                    bio_id = member_obj.bioguide_id
+
             mv = MemberVote(
                 vote_id=vote.id,
                 person_id=person_id,
-                bioguide_id=None,  # Senate XML uses lis_member_id, not bioguide
+                bioguide_id=bio_id,
                 position=position,
                 member_name=member_name,
                 party=party or None,
