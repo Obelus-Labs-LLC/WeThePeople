@@ -165,6 +165,8 @@ export default function PeoplePage() {
   const [chamberFilter, setChamberFilter] = useState<ChamberFilter>('all');
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [zipCode, setZipCode] = useState('');
+  const [zipRepIds, setZipRepIds] = useState<string[]>([]);
 
   const headerRef = React.useRef<HTMLDivElement>(null);
   useInView(headerRef, { once: true, amount: 0.1 });
@@ -176,6 +178,26 @@ export default function PeoplePage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // ZIP code lookup
+  const handleZipSearch = () => {
+    if (zipCode.length < 5) return;
+    fetch(`/api/representatives?zip=${zipCode}`)
+      .then(r => r.json())
+      .then(data => {
+        const reps = data.representatives || data.results || [];
+        const ids = reps.map((r: any) => r.person_id).filter(Boolean);
+        setZipRepIds(ids);
+        setStateFilter('all');
+        setCurrentPage(1);
+      })
+      .catch(() => setZipRepIds([]));
+  };
+
+  const clearZip = () => {
+    setZipCode('');
+    setZipRepIds([]);
+  };
 
   // Reset page on filter change
   useEffect(() => { setCurrentPage(1); }, [search, partyFilter, chamberFilter, stateFilter]);
@@ -203,8 +225,11 @@ export default function PeoplePage() {
     if (stateFilter !== 'all') {
       result = result.filter((p) => p.state === stateFilter);
     }
+    if (zipRepIds.length > 0) {
+      result = result.filter((p) => zipRepIds.includes(p.person_id));
+    }
     return result;
-  }, [people, search, partyFilter, chamberFilter, stateFilter]);
+  }, [people, search, partyFilter, chamberFilter, stateFilter, zipRepIds]);
 
   const partyCounts = useMemo(() => {
     const counts = { D: 0, R: 0, I: 0 };
@@ -382,6 +407,36 @@ export default function PeoplePage() {
               </option>
             ))}
           </select>
+
+          <div className="w-px bg-white/10 mx-1" />
+
+          {/* ZIP code filter */}
+          <div className="flex items-center gap-1">
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+              <input
+                type="text"
+                value={zipCode}
+                onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                onKeyDown={(e) => e.key === 'Enter' && handleZipSearch()}
+                placeholder="ZIP"
+                className="w-[80px] rounded-full border px-3 py-2 pl-8 font-body text-sm font-medium transition-all duration-200 bg-transparent outline-none"
+                style={{
+                  borderColor: zipRepIds.length > 0 ? '#10B981' : 'rgba(255,255,255,0.1)',
+                  backgroundColor: zipRepIds.length > 0 ? '#10B98115' : 'transparent',
+                  color: zipRepIds.length > 0 ? '#10B981' : 'rgba(255,255,255,0.5)',
+                }}
+              />
+            </div>
+            {zipRepIds.length > 0 && (
+              <button
+                onClick={clearZip}
+                className="rounded-full border border-white/10 p-1.5 text-zinc-400 hover:text-white hover:border-white/30 transition-all"
+              >
+                <SearchX className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </motion.div>
 
         {/* CSV Export */}
