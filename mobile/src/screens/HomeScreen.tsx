@@ -260,6 +260,22 @@ export default function HomeScreen() {
                 <Text style={styles.quickToolDesc}>AI-powered data assistant</Text>
               </LinearGradient>
             </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('InfluenceNetwork')}
+              style={styles.quickToolWrapper}
+            >
+              <LinearGradient
+                colors={['#7C3AED', '#5B21B6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.quickToolCard}
+              >
+                <Ionicons name="git-network" size={28} color="#FFFFFF" />
+                <Text style={styles.quickToolName}>Influence Network</Text>
+                <Text style={styles.quickToolDesc}>Follow the money</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         </View>
 

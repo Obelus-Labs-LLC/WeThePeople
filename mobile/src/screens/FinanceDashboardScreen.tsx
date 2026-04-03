@@ -11,6 +11,8 @@ import { apiClient } from '../api/client';
 import type { FinanceDashboardStats, Institution } from '../api/types';
 import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
 import { SectorTypeBadge } from '../components/ui';
+import SimpleBarChart from '../components/SimpleBarChart';
+import type { BarChartDataPoint } from '../components/SimpleBarChart';
 
 const SECTOR_COLORS: Record<string, string> = {
   bank: '#2563EB',
@@ -29,15 +31,25 @@ export default function FinanceDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contractData, setContractData] = useState<BarChartDataPoint[]>([]);
 
   const loadData = async () => {
     try {
-      const [statsRes, instRes] = await Promise.all([
+      const [statsRes, instRes, contractsRes] = await Promise.all([
         apiClient.getFinanceDashboardStats(),
         apiClient.getInstitutions({ limit: 6 }),
+        fetch('https://api.wethepeopleforus.com/influence/top-contracts?limit=5')
+          .then(r => r.ok ? r.json() : [])
+          .catch(() => []),
       ]);
       setStats(statsRes);
       setInstitutions(instRes.institutions || []);
+      setContractData(
+        (contractsRes as any[]).map((d: any) => ({
+          label: d.display_name?.length > 14 ? d.display_name.slice(0, 13) + '...' : d.display_name || '',
+          value: d.total_contracts || 0,
+        }))
+      );
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load finance data');
@@ -106,6 +118,13 @@ export default function FinanceDashboardScreen() {
           <View style={styles.statHalf}>
             <StatCard label="Complaints" value={stats.total_complaints} accent="red" />
           </View>
+        </View>
+      )}
+
+      {/* Top Contract Recipients chart */}
+      {contractData.length > 0 && (
+        <View style={styles.section}>
+          <SimpleBarChart data={contractData} title="Top Contract Recipients" />
         </View>
       )}
 
