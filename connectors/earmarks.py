@@ -59,8 +59,13 @@ def search_earmarks(
     url = f"{USASPENDING_BASE}/search/spending_by_award/"
     page_size = min(limit, 100)
 
+    from datetime import datetime
+
     filters: Dict[str, Any] = {
         "award_type_codes": ["07", "08"],  # Direct payments + Grants
+        "time_period": [
+            {"start_date": "2023-10-01", "end_date": f"{datetime.now().strftime('%Y-%m-%d')}"}
+        ],
     }
 
     if keyword:
