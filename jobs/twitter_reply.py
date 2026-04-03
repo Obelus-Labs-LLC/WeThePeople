@@ -59,7 +59,7 @@ OUR_USERNAME = "WTPForUs"
 AUTO_QUOTE_ACCOUNTS = [
     "OpenSecrets",       # Campaign finance / lobbying tracker
     "ProPublica",        # Investigative journalism
-    "capitaborseusa",    # Capitol Trades (congressional trades)
+    "CapitolTrades",     # Capitol Trades (congressional trades)
 ]
 
 # Well-known entity names to look for in tweets from monitored accounts
@@ -192,7 +192,7 @@ def quotes_this_hour(session) -> int:
 
 def find_politician(name: str) -> Optional[dict]:
     """Search for a politician by name. Returns dict with data or None."""
-    data = api_get("/politics/people", {"q": name, "limit": 5})
+    data = api_get("/people", {"q": name, "limit": 5})
     people = data.get("people", data.get("items", data.get("results", [])))
     if not people:
         # Try as a list response
@@ -209,7 +209,7 @@ def find_politician(name: str) -> Optional[dict]:
     # Fetch profile detail for richer data
     detail = {}
     if person_id:
-        detail = api_get(f"/politics/people/{person_id}")
+        detail = api_get(f"/people/{person_id}")
 
     # Gather data points
     lobbying_total = detail.get("total_lobbying", 0)
@@ -542,7 +542,7 @@ def _load_entity_cache():
         return
 
     # Load politicians
-    data = api_get("/politics/people", {"limit": 200})
+    data = api_get("/people", {"limit": 200})
     people = data.get("people", data.get("items", []))
     for p in people:
         name = p.get("display_name", p.get("name", ""))
