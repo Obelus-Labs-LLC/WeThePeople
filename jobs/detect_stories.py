@@ -1725,16 +1725,18 @@ def detect_foreign_lobbying(db) -> List[Dict[str, Any]]:
             else:
                 score = 8
 
+            country_id = country.lower().replace(" ", "-").replace(",", "").replace(".", "")
             stories.append({
                 "category": "foreign_lobbying",
                 "score": score,
                 "evidence": {
                     "country": country,
+                    "company_id": country_id,
                     "foreign_principals_count": count,
                     "sector": "politics",
                     "source_tables": "fara_foreign_principals",
                     "data_sources": ["fara_foreign_principals"],
-                    "entity_ids": [],
+                    "entity_ids": [country_id],
                 },
             })
 
@@ -1756,18 +1758,20 @@ def detect_foreign_lobbying(db) -> List[Dict[str, Any]]:
             firm = row[0]
             country_count = row[1]
             score = min(10, 7 + country_count // 2)
+            firm_id = firm.lower().replace(" ", "-").replace(",", "").replace(".", "")[:50]
 
             stories.append({
                 "category": "foreign_lobbying",
                 "score": score,
                 "evidence": {
                     "firm_name": firm,
+                    "company_id": firm_id,
                     "countries_represented": country_count,
                     "total_registrations": row[2],
                     "sector": "politics",
                     "source_tables": "fara_registrants",
                     "data_sources": ["fara_registrants"],
-                    "entity_ids": [],
+                    "entity_ids": [firm_id],
                 },
             })
 
