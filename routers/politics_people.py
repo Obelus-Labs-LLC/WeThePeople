@@ -1064,6 +1064,7 @@ def get_person_full(person_id: str):
         "trends": f"/people/{person_id}/trends",
         "donors": f"/people/{person_id}/industry-donors?limit=100",
         "trades": f"/people/{person_id}/trades?limit=50",
+        "graph": f"/graph/person/{person_id}?limit=20",
     }
 
     import logging
