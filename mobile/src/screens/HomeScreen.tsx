@@ -196,6 +196,70 @@ export default function HomeScreen() {
                 <Text style={styles.quickToolDesc}>Find your representatives</Text>
               </LinearGradient>
             </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('Stories')}
+              style={styles.quickToolWrapper}
+            >
+              <LinearGradient
+                colors={['#059669', '#047857']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.quickToolCard}
+              >
+                <Ionicons name="newspaper" size={28} color="#FFFFFF" />
+                <Text style={styles.quickToolName}>Stories</Text>
+                <Text style={styles.quickToolDesc}>AI-generated investigations</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('Anomalies')}
+              style={styles.quickToolWrapper}
+            >
+              <LinearGradient
+                colors={['#DC2626', '#EA580C']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.quickToolCard}
+              >
+                <Ionicons name="warning" size={28} color="#FFFFFF" />
+                <Text style={styles.quickToolName}>Anomalies</Text>
+                <Text style={styles.quickToolDesc}>Suspicious patterns detected</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('StateExplorer')}
+              style={styles.quickToolWrapper}
+            >
+              <LinearGradient
+                colors={['#1E40AF', '#1D4ED8']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.quickToolCard}
+              >
+                <Ionicons name="map" size={28} color="#FFFFFF" />
+                <Text style={styles.quickToolName}>State Explorer</Text>
+                <Text style={styles.quickToolDesc}>All 50 states' data</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('ChatAgent')}
+              style={styles.quickToolWrapper}
+            >
+              <LinearGradient
+                colors={['#7C3AED', '#6D28D9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.quickToolCard}
+              >
+                <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
+                <Text style={styles.quickToolName}>Ask WTP</Text>
+                <Text style={styles.quickToolDesc}>AI-powered data assistant</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         </View>
 
