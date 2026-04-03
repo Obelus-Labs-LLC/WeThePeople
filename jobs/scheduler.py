@@ -305,6 +305,15 @@ JOB_REGISTRY: List[JobDef] = [
         description="Haiku summaries for new unsummarized votes, enforcement, contracts, lobbying (50/run cap)",
     ),
 
+    # ── Weekly digest ──────────────────────────────────────────────
+    JobDef(
+        name="generate_digest",
+        script="jobs/generate_digest.py",
+        interval_hours=168,  # weekly
+        timeout_sec=600,
+        description="Weekly subscriber digest: personalized rep activity, trades, votes, anomalies",
+    ),
+
     # ── New data source syncs ──────────────────────────────────────
     JobDef(
         name="sync_samgov",
