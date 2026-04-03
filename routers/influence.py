@@ -23,6 +23,12 @@ from models.tech_models import TrackedTechCompany, LobbyingRecord, GovernmentCon
 from models.energy_models import (
     TrackedEnergyCompany, EnergyLobbyingRecord, EnergyGovernmentContract, EnergyEnforcement,
 )
+from models.transportation_models import (
+    TrackedTransportationCompany, TransportationLobbyingRecord, TransportationGovernmentContract, TransportationEnforcement,
+)
+from models.defense_models import (
+    TrackedDefenseCompany, DefenseLobbyingRecord, DefenseGovernmentContract, DefenseEnforcement,
+)
 from models.chemicals_models import (
     TrackedChemicalCompany, ChemicalLobbyingRecord, ChemicalGovernmentContract, ChemicalEnforcement,
 )
@@ -135,21 +141,33 @@ def get_influence_stats(db: Session = Depends(get_db)):
     health_lobbying = db.query(func.sum(HealthLobbyingRecord.income)).scalar() or 0
     tech_lobbying = db.query(func.sum(LobbyingRecord.income)).scalar() or 0
     energy_lobbying = db.query(func.sum(EnergyLobbyingRecord.income)).scalar() or 0
-    total_lobbying = finance_lobbying + health_lobbying + tech_lobbying + energy_lobbying
+    transport_lobbying = db.query(func.sum(TransportationLobbyingRecord.income)).scalar() or 0
+    defense_lobbying = db.query(func.sum(DefenseLobbyingRecord.income)).scalar() or 0
+    chemicals_lobbying = db.query(func.sum(ChemicalLobbyingRecord.income)).scalar() or 0
+    agriculture_lobbying = db.query(func.sum(AgricultureLobbyingRecord.income)).scalar() or 0
+    total_lobbying = finance_lobbying + health_lobbying + tech_lobbying + energy_lobbying + transport_lobbying + defense_lobbying + chemicals_lobbying + agriculture_lobbying
 
     # Contract totals
     finance_contracts = db.query(func.sum(FinanceGovernmentContract.award_amount)).scalar() or 0
     health_contracts = db.query(func.sum(HealthGovernmentContract.award_amount)).scalar() or 0
     tech_contracts = db.query(func.sum(GovernmentContract.award_amount)).scalar() or 0
     energy_contracts = db.query(func.sum(EnergyGovernmentContract.award_amount)).scalar() or 0
-    total_contracts = finance_contracts + health_contracts + tech_contracts + energy_contracts
+    transport_contracts = db.query(func.sum(TransportationGovernmentContract.award_amount)).scalar() or 0
+    defense_contracts = db.query(func.sum(DefenseGovernmentContract.award_amount)).scalar() or 0
+    chemicals_contracts = db.query(func.sum(ChemicalGovernmentContract.award_amount)).scalar() or 0
+    agriculture_contracts = db.query(func.sum(AgricultureGovernmentContract.award_amount)).scalar() or 0
+    total_contracts = finance_contracts + health_contracts + tech_contracts + energy_contracts + transport_contracts + defense_contracts + chemicals_contracts + agriculture_contracts
 
     # Enforcement totals
     finance_enforcement = db.query(func.count(FinanceEnforcement.id)).scalar() or 0
     health_enforcement = db.query(func.count(HealthEnforcement.id)).scalar() or 0
     tech_enforcement = db.query(func.count(FTCEnforcement.id)).scalar() or 0
     energy_enforcement = db.query(func.count(EnergyEnforcement.id)).scalar() or 0
-    total_enforcement = finance_enforcement + health_enforcement + tech_enforcement + energy_enforcement
+    transport_enforcement = db.query(func.count(TransportationEnforcement.id)).scalar() or 0
+    defense_enforcement = db.query(func.count(DefenseEnforcement.id)).scalar() or 0
+    chemicals_enforcement = db.query(func.count(ChemicalEnforcement.id)).scalar() or 0
+    agriculture_enforcement = db.query(func.count(AgricultureEnforcement.id)).scalar() or 0
+    total_enforcement = finance_enforcement + health_enforcement + tech_enforcement + energy_enforcement + transport_enforcement + defense_enforcement + chemicals_enforcement + agriculture_enforcement
 
     # Politicians connected (via donations, fallback to tracked members)
     politicians_connected = db.query(func.count(func.distinct(CompanyDonation.person_id))).filter(
@@ -168,6 +186,10 @@ def get_influence_stats(db: Session = Depends(get_db)):
             "health": {"lobbying": health_lobbying, "contracts": health_contracts, "enforcement": health_enforcement},
             "tech": {"lobbying": tech_lobbying, "contracts": tech_contracts, "enforcement": tech_enforcement},
             "energy": {"lobbying": energy_lobbying, "contracts": energy_contracts, "enforcement": energy_enforcement},
+            "transportation": {"lobbying": transport_lobbying, "contracts": transport_contracts, "enforcement": transport_enforcement},
+            "defense": {"lobbying": defense_lobbying, "contracts": defense_contracts, "enforcement": defense_enforcement},
+            "chemicals": {"lobbying": chemicals_lobbying, "contracts": chemicals_contracts, "enforcement": chemicals_enforcement},
+            "agriculture": {"lobbying": agriculture_lobbying, "contracts": agriculture_contracts, "enforcement": agriculture_enforcement},
         },
     }
 

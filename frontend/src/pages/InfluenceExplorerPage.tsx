@@ -21,6 +21,10 @@ const SECTOR_COLORS: Record<string, string> = {
   health: 'text-rose-400',
   tech: 'text-violet-400',
   energy: 'text-orange-400',
+  transportation: 'text-blue-400',
+  defense: 'text-red-400',
+  chemicals: 'text-teal-400',
+  agriculture: 'text-lime-400',
 };
 
 const SECTOR_ROUTES: Record<string, string> = {
@@ -28,6 +32,10 @@ const SECTOR_ROUTES: Record<string, string> = {
   health: '/health',
   tech: '/technology',
   energy: '/energy',
+  transportation: '/transportation',
+  defense: '/defense',
+  chemicals: '/chemicals',
+  agriculture: '/agriculture',
 };
 
 const SECTOR_ENTITY_ROUTES: Record<string, string> = {
@@ -35,6 +43,10 @@ const SECTOR_ENTITY_ROUTES: Record<string, string> = {
   health: '/health',
   tech: '/technology',
   energy: '/energy',
+  transportation: '/transportation',
+  defense: '/defense',
+  chemicals: '/chemicals',
+  agriculture: '/agriculture',
 };
 
 function LeaderRow({ leader, rank, metric }: { leader: InfluenceLeader; rank: number; metric: 'lobbying' | 'contracts' }) {
