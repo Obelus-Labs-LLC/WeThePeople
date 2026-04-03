@@ -40,6 +40,10 @@ import AgricultureCompaniesScreen from '../screens/AgricultureCompaniesScreen';
 import AgricultureCompanyScreen from '../screens/AgricultureCompanyScreen';
 import CongressionalTradesScreen from '../screens/CongressionalTradesScreen';
 import ZipLookupScreen from '../screens/ZipLookupScreen';
+import StoriesScreen from '../screens/StoriesScreen';
+import AnomaliesScreen from '../screens/AnomaliesScreen';
+import StateExplorerScreen from '../screens/StateExplorerScreen';
+import ChatAgentScreen from '../screens/ChatAgentScreen';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -167,6 +171,26 @@ function HomeStackScreen() {
         name="ZipLookup"
         component={ZipLookupScreen}
         options={{ title: 'ZIP Code Lookup' }}
+      />
+      <HomeStack.Screen
+        name="Stories"
+        component={StoriesScreen}
+        options={{ title: 'Stories' }}
+      />
+      <HomeStack.Screen
+        name="Anomalies"
+        component={AnomaliesScreen}
+        options={{ title: 'Anomalies' }}
+      />
+      <HomeStack.Screen
+        name="StateExplorer"
+        component={StateExplorerScreen}
+        options={{ title: 'State Explorer' }}
+      />
+      <HomeStack.Screen
+        name="ChatAgent"
+        component={ChatAgentScreen}
+        options={{ title: 'Ask WTP' }}
       />
     </HomeStack.Navigator>
   );
