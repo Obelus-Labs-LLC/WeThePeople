@@ -17,6 +17,7 @@ import {
   Building2,
   ArrowRightLeft,
   DollarSign,
+  Landmark,
 } from 'lucide-react'
 
 // ── Lazy-loaded pages ──
@@ -35,6 +36,7 @@ const GovSalaryPage = lazy(() => import('./pages/GovSalaryPage'))
 const RevolvingDoorPage = lazy(() => import('./pages/RevolvingDoorPage'))
 const CampaignFinancePage = lazy(() => import('./pages/CampaignFinancePage'))
 const BillTextPage = lazy(() => import('./pages/BillTextPage'))
+const EarmarksPage = lazy(() => import('./pages/EarmarksPage'))
 
 // ── Loading fallback ──
 
@@ -169,6 +171,14 @@ const tools: ToolCard[] = [
     icon: FileSearch,
     path: '/bill-text',
     iconClass: 'text-amber-400', bgClass: 'bg-amber-400/15',
+    available: true,
+  },
+  {
+    title: 'Earmarks Tracker',
+    description: 'Search congressionally directed spending from USASpending.gov. Find federal grants and direct payments by state, keyword, or congress member.',
+    icon: Landmark,
+    path: '/earmarks',
+    iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
     available: true,
   },
 ]
@@ -349,6 +359,7 @@ export default function App() {
         <Route path="/revolving-door" element={<ToolLayout><RevolvingDoorPage /></ToolLayout>} />
         <Route path="/campaign-finance" element={<ToolLayout><CampaignFinancePage /></ToolLayout>} />
         <Route path="/bill-text" element={<ToolLayout><BillTextPage /></ToolLayout>} />
+        <Route path="/earmarks" element={<ToolLayout><EarmarksPage /></ToolLayout>} />
         {/* Catch-all back to home */}
         <Route path="*" element={<HomePage />} />
       </Routes>
