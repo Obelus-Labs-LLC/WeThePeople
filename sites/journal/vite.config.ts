@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '../..', 'WTP_')
-  const apiTarget = env.WTP_API_URL || 'http://localhost:8006'
+  const apiTarget = env.WTP_API_URL || 'https://api.wethepeopleforus.com'
 
   return {
     plugins: [tailwindcss(), react()],
