@@ -62,7 +62,7 @@ def search_earmarks(
     from datetime import datetime
 
     filters: Dict[str, Any] = {
-        "award_type_codes": ["07", "08"],  # Direct payments + Grants
+        "award_type_codes": ["02", "03", "04", "05"],  # Block grants, project grants, cooperative agreements
         "time_period": [
             {"start_date": "2023-10-01", "end_date": f"{datetime.now().strftime('%Y-%m-%d')}"}
         ],
