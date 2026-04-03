@@ -37,7 +37,7 @@ WeThePeople is an open-source civic transparency platform that tracks how corpor
 | **[WeThePeople](https://wethepeopleforus.com)** | Live | The core lobbying and influence tracker. Congressional trades, money flows, enforcement actions, lobbying filings, government contracts. 1,000+ tracked entities across 9 sectors. |
 | **[WTP Research](https://research.wethepeopleforus.com)** | Live | 14 deep-dive research tools: patent explorer, drug lookup, clinical trials, insider trades, FDA recalls, toxic releases, foreign lobbying (FARA), revolving door tracker, campaign finance, government salaries, bill text analysis, market movers, regulatory news. |
 | **[The Influence Journal](https://journal.wethepeopleforus.com)** | Live | AI-generated data investigations powered by 14 detection patterns. STOCK Act violations, committee-stock conflicts, enforcement immunity, penalty-to-contract ratios. 25+ published stories with verification pipeline. |
-| **Mobile App** | In development | iOS and Android via Expo. Currently covers 4 sectors (Politics, Finance, Health, Tech). Remaining 5 sectors and advanced features in progress. |
+| **Mobile App** | In development | iOS and Android via Expo. 40+ screens covering all 9 sectors, congressional trades, ZIP lookup, stories, anomalies, state explorer, influence network, chat agent, and company comparison. Available via Expo Go during preview. |
 
 ---
 
@@ -77,7 +77,7 @@ Frontend:   React 19 + Vite + TypeScript + Tailwind CSS 4
             3 sites: main, research, journal
 
 Mobile:     Expo SDK 54 + React Native
-            4 sectors live, 5 in progress
+            40+ screens, all 9 sectors + tools
 
 Infra:      Hetzner Cloud (ARM, $3.99/mo) + Vercel
             Let's Encrypt TLS, GitHub Actions CI
@@ -105,7 +105,7 @@ WeThePeople/
 │   ├── research/            # WTP Research site (14 tools)
 │   ├── journal/             # The Influence Journal (data stories)
 │   └── shared/              # Shared components across sites
-├── mobile/                  # React Native / Expo (4 sectors live)
+├── mobile/                  # React Native / Expo (40+ screens, all 9 sectors)
 ├── deploy/                  # Docker, deploy scripts, TLS docs
 └── tests/                   # Backend test suite
 ```
