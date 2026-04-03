@@ -56,16 +56,24 @@ MAX_QUOTES_PER_HOUR = 2
 OUR_USERNAME = "WTPForUs"
 
 # Accounts to monitor for auto-quote-tweeting
+# Media/watchdog accounts (quote when they mention entities we track)
 AUTO_QUOTE_ACCOUNTS = [
     "OpenSecrets",       # Campaign finance / lobbying tracker
     "ProPublica",        # Investigative journalism
     "CapitolTrades",     # Capitol Trades (congressional trades)
     "unusual_whales",    # Congressional trades + options
     "JuddLegum",        # Popular Information newsletter (corporate influence)
-    "walaborshauf",      # Walter Shaub (former ethics chief)
+    "waborshauf",        # Walter Shaub (former ethics chief)
     "WSJ",               # Wall Street Journal politics
     "Reuters",           # Reuters politics
 ]
+
+# Politician accounts to monitor (quote their tweets with our data about them)
+# These are loaded dynamically from the database at runtime
+AUTO_QUOTE_POLITICIANS = True  # Enable politician account monitoring
+
+# Company accounts to monitor (quote their tweets with our lobbying/contract data)
+AUTO_QUOTE_COMPANIES = True  # Enable company account monitoring
 
 # Well-known entity names to look for in tweets from monitored accounts
 # These are populated from the WTP API at runtime
@@ -650,21 +658,30 @@ def run_auto_quote(dry_run: bool = False):
             if not matched:
                 continue
 
-            entity_name = matched["name"]
-            entity_type = matched["type"]
-            log.info("Matched entity '%s' (%s) in tweet %s from @%s",
-                     entity_name, entity_type, tweet_id, account)
+            # Topic-based match (no specific entity, but relevant topic)
+            if matched.get("type") == "topic":
+                keyword = matched.get("keyword", "")
+                log.info("Topic match '%s' in tweet %s from @%s", keyword, tweet_id, account)
+                quote_text = (
+                    f"We track this. {keyword.title()} data across 9 sectors, "
+                    f"1,000+ companies, 537 politicians.\n\n"
+                    f"wethepeopleforus.com\n\n#FollowTheMoney"
+                )
+            else:
+                # Entity-specific match
+                entity_name = matched.get("name", "")
+                entity_type = matched.get("type", "")
+                log.info("Matched entity '%s' (%s) in tweet %s from @%s",
+                         entity_name, entity_type, tweet_id, account)
 
-            # Look up full entity data
-            entity = find_entity(entity_name, entity_type)
-            if not entity:
-                log.warning("Entity '%s' not found in WTP data despite being in cache.", entity_name)
-                continue
+                entity = find_entity(entity_name, entity_type)
+                if not entity:
+                    log.warning("Entity '%s' not found in WTP data despite being in cache.", entity_name)
+                    continue
 
-            # Compose the quote-tweet text
-            quote_text = compose_reply(entity)
-            if not quote_text:
-                continue
+                quote_text = compose_reply(entity)
+                if not quote_text:
+                    continue
 
             if dry_run:
                 print(f"\n[DRY RUN] Auto-quote @{account} tweet {tweet_id}:")
