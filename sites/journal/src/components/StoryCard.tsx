@@ -49,11 +49,11 @@ export function StoryCard({ story, featured = false }: StoryCardProps) {
                 <span>{formatDate(story.published_at)}</span>
                 <span className="flex items-center gap-1">
                   <Clock size={14} />
-                  {story.read_time_minutes} min read
+                  {story.read_time_minutes || Math.max(1, Math.ceil(((story.body || story.content || '').split(/\s+/).length) / 200))} min
                 </span>
                 <span className="flex items-center gap-1">
                   <FileText size={14} />
-                  {story.citations?.length ?? 0} cited sources
+                  {story.data_sources?.length ?? story.citations?.length ?? 0} sources
                 </span>
               </div>
             </div>
