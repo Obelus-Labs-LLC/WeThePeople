@@ -1895,16 +1895,29 @@ def main():
             score = candidate.get("score", 0)
 
             # Check if similar story already exists (within 7 days)
+            # Match by category + primary entity to prevent near-duplicate stories
+            # (e.g., 14 Lockheed contract_windfall stories with slightly different amounts)
             company_id = evidence.get("company_id", "")
             person_id = evidence.get("person_id", "")
-            entity_key = company_id or person_id or category
-            slug_prefix = f"{category}-{entity_key}"
-            existing = db.query(Story).filter(
-                Story.slug.like(f"{slug_prefix}%"),
-                Story.created_at >= text(datetime_now_minus_days(7)),
-            ).first()
+            entity_key = company_id or person_id or ""
+
+            if entity_key:
+                # Check for any story with same category that mentions this entity
+                existing = db.query(Story).filter(
+                    Story.category == category,
+                    Story.entity_ids.like(f'%{entity_key}%'),
+                    Story.created_at >= text(datetime_now_minus_days(7)),
+                ).first()
+            else:
+                # Fallback: check by category alone for entity-less patterns
+                slug_prefix = f"{category}"
+                existing = db.query(Story).filter(
+                    Story.category == category,
+                    Story.created_at >= text(datetime_now_minus_days(7)),
+                ).first()
+
             if existing:
-                logger.info("Skipping %s — similar story exists: %s", category, existing.slug)
+                logger.info("Skipping %s for %s — similar story exists: %s", category, entity_key, existing.slug)
                 continue
 
             # Generate story text via Claude Haiku
