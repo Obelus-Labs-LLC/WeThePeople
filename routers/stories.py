@@ -79,7 +79,7 @@ def list_stories(
 
 
 @router.get("/latest", response_model=StoriesListResponse)
-def latest_stories(limit: int = Query(5, ge=1, le=20), db: Session = Depends(get_db)):
+def latest_stories(limit: int = Query(5, ge=1, le=200), db: Session = Depends(get_db)):
     """Get the N most recent published stories (for landing page, digest, Twitter)."""
     try:
         stories = (
