@@ -44,6 +44,8 @@ import StoriesScreen from '../screens/StoriesScreen';
 import AnomaliesScreen from '../screens/AnomaliesScreen';
 import StateExplorerScreen from '../screens/StateExplorerScreen';
 import ChatAgentScreen from '../screens/ChatAgentScreen';
+import InfluenceNetworkScreen from '../screens/InfluenceNetworkScreen';
+import CompareScreen from '../screens/CompareScreen';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -191,6 +193,16 @@ function HomeStackScreen() {
         name="ChatAgent"
         component={ChatAgentScreen}
         options={{ title: 'Ask WTP' }}
+      />
+      <HomeStack.Screen
+        name="InfluenceNetwork"
+        component={InfluenceNetworkScreen}
+        options={{ title: 'Influence Network' }}
+      />
+      <HomeStack.Screen
+        name="Compare"
+        component={CompareScreen}
+        options={{ title: 'Compare' }}
       />
     </HomeStack.Navigator>
   );

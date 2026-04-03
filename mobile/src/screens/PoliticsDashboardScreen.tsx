@@ -18,6 +18,8 @@ import { apiClient } from '../api/client';
 import type { DashboardStats, Person, RecentAction } from '../api/types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LoadingSpinner, StatCard, PartyBadge, ChamberBadge, EmptyState } from '../components/ui';
+import SimpleBarChart from '../components/SimpleBarChart';
+import type { BarChartDataPoint } from '../components/SimpleBarChart';
 
 // ── Activity type color coding ──
 const ACTIVITY_TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -135,17 +137,27 @@ export default function PoliticsDashboardScreen() {
 
   // Modal state for tappable stats
   const [statModal, setStatModal] = useState<'claims' | 'match' | null>(null);
+  const [lobbyingData, setLobbyingData] = useState<BarChartDataPoint[]>([]);
 
   const loadData = async () => {
     try {
-      const [statsRes, peopleRes, actionsRes] = await Promise.all([
+      const [statsRes, peopleRes, actionsRes, lobbyingRes] = await Promise.all([
         apiClient.getDashboardStats(),
         apiClient.getPeople({ has_ledger: true, limit: 6 }),
         apiClient.getRecentActions(8),
+        fetch('https://api.wethepeopleforus.com/influence/top-lobbying?limit=5')
+          .then(r => r.ok ? r.json() : [])
+          .catch(() => []),
       ]);
       setStats(statsRes);
       setPeople(peopleRes.people || []);
       setActions(actionsRes || []);
+      setLobbyingData(
+        (lobbyingRes as any[]).map((d: any) => ({
+          label: d.display_name?.length > 14 ? d.display_name.slice(0, 13) + '...' : d.display_name || '',
+          value: d.total_lobbying || 0,
+        }))
+      );
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load dashboard');
@@ -229,6 +241,11 @@ export default function PoliticsDashboardScreen() {
               </TouchableOpacity>
             </View>
           </View>
+        )}
+
+        {/* Top Lobbying Spenders chart */}
+        {lobbyingData.length > 0 && (
+          <SimpleBarChart data={lobbyingData} title="Top Lobbying Spenders" />
         )}
 
         {/* Featured members */}
