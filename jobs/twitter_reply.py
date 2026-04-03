@@ -684,9 +684,11 @@ def run_auto_quote(dry_run: bool = False):
                     continue
 
             if dry_run:
+                entity_label = matched.get("name") or matched.get("keyword") or "topic"
+                entity_type_label = matched.get("type", "?")
                 print(f"\n[DRY RUN] Auto-quote @{account} tweet {tweet_id}:")
                 print(f"  Original: {tweet_text[:120]}...")
-                print(f"  Entity: {entity['name']} ({entity['type']})")
+                print(f"  Match: {entity_label} ({entity_type_label})")
                 print(f"  Quote ({len(quote_text)} chars):")
                 print(f"  ---")
                 print(f"  {quote_text}")
