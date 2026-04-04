@@ -21,7 +21,7 @@ export function useStories(opts?: UseStoriesOptions): UseStoriesResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const limit = opts?.limit ?? 10;
+  const limit = opts?.limit ?? (opts?.category ? 50 : 10);
   const category = opts?.category;
 
   useEffect(() => {

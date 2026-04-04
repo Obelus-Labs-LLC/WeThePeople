@@ -13,6 +13,8 @@ import {
   DefenseSectorHeader,
   ChemicalsSectorHeader,
   AgricultureSectorHeader,
+  TelecomSectorHeader,
+  EducationSectorHeader,
 } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum } from '../utils/format';
@@ -95,6 +97,20 @@ const SECTOR_MAP: Record<string, SectorConfig> = {
     aggregateEndpoint: `${API_BASE}/aggregate/agriculture/lobbying?limit=1000`,
     entityKey: 'companies',
     profilePath: (id) => `/agriculture/${id}`,
+  },
+  telecom: {
+    key: 'telecom', label: 'Telecommunications', accent: '#06B6D4', accentRGB: '6,182,212',
+    Header: TelecomSectorHeader,
+    aggregateEndpoint: `${API_BASE}/aggregate/telecom/lobbying?limit=1000`,
+    entityKey: 'companies',
+    profilePath: (id) => `/telecom/${id}`,
+  },
+  education: {
+    key: 'education', label: 'Education', accent: '#A855F7', accentRGB: '168,85,247',
+    Header: EducationSectorHeader,
+    aggregateEndpoint: `${API_BASE}/aggregate/education/lobbying?limit=1000`,
+    entityKey: 'companies',
+    profilePath: (id) => `/education/${id}`,
   },
 };
 

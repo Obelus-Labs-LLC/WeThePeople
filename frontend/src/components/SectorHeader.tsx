@@ -22,6 +22,8 @@ const SECTOR_COLORS: Record<string, { bg: string; activeBg: string; activeText: 
   verify: { bg: 'bg-emerald-500', activeBg: 'bg-emerald-500/20', activeText: 'text-emerald-400' },
   chemicals: { bg: 'bg-purple-500', activeBg: 'bg-purple-500/20', activeText: 'text-purple-400' },
   agriculture: { bg: 'bg-green-600', activeBg: 'bg-green-600/20', activeText: 'text-green-400' },
+  telecom: { bg: 'bg-cyan-500', activeBg: 'bg-cyan-500/20', activeText: 'text-cyan-400' },
+  education: { bg: 'bg-purple-500', activeBg: 'bg-purple-500/20', activeText: 'text-purple-400' },
 };
 
 export default function SectorHeader({ sector, links }: SectorHeaderProps) {
@@ -208,4 +210,32 @@ const AGRICULTURE_LINKS: NavLink[] = [
 
 export function AgricultureSectorHeader() {
   return <SectorHeader sector="agriculture" links={AGRICULTURE_LINKS} />;
+}
+
+const TELECOM_LINKS: NavLink[] = [
+  { label: 'Sectors', to: '/' },
+  { label: 'Dashboard', to: '/telecom' },
+  { label: 'Companies', to: '/telecom/companies' },
+  { label: 'Lobbying', to: '/telecom/lobbying' },
+  { label: 'Contracts', to: '/telecom/contracts' },
+  { label: 'Enforcement', to: '/telecom/enforcement' },
+  { label: 'Compare', to: '/telecom/compare' },
+];
+
+export function TelecomSectorHeader() {
+  return <SectorHeader sector="telecom" links={TELECOM_LINKS} />;
+}
+
+const EDUCATION_LINKS: NavLink[] = [
+  { label: 'Sectors', to: '/' },
+  { label: 'Dashboard', to: '/education' },
+  { label: 'Companies', to: '/education/companies' },
+  { label: 'Lobbying', to: '/education/lobbying' },
+  { label: 'Contracts', to: '/education/contracts' },
+  { label: 'Enforcement', to: '/education/enforcement' },
+  { label: 'Compare', to: '/education/compare' },
+];
+
+export function EducationSectorHeader() {
+  return <SectorHeader sector="education" links={EDUCATION_LINKS} />;
 }
