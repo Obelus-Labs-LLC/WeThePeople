@@ -737,3 +737,171 @@ async def earmarks_search(
         )
 
     return {"total": len(awards), "awards": awards}
+
+
+# ── FCC Consumer Complaints (Telecom) ────────────────────────────────────────
+
+
+@router.get("/fcc-complaints")
+async def fcc_complaints(
+    company: Optional[str] = Query(None, description="Company name filter"),
+    issue: Optional[str] = Query(None, description="Issue category filter"),
+    state: Optional[str] = Query(None, description="2-letter state code"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Search FCC consumer complaint data by company, issue, or state."""
+    try:
+        from connectors.fcc_complaints import search_complaints
+
+        results = search_complaints(
+            company=company,
+            issue=issue,
+            state=state,
+            limit=limit,
+        )
+        return {"total": len(results), "complaints": results}
+    except ImportError:
+        logger.warning("connectors.fcc_complaints not available")
+        return {"total": 0, "complaints": []}
+    except Exception as exc:
+        logger.warning("FCC complaints search error: %s", exc)
+        return {"total": 0, "complaints": []}
+
+
+# ── FCC License Search (Telecom) ─────────────────────────────────────────────
+
+
+@router.get("/fcc-licenses")
+async def fcc_licenses(
+    query: str = Query(..., min_length=1, description="License search term"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Search FCC license database for broadcast, wireless, and spectrum licenses."""
+    try:
+        from connectors.fcc_license import search_licenses
+
+        results = search_licenses(query=query, limit=limit)
+        return {"total": len(results), "licenses": results}
+    except ImportError:
+        logger.warning("connectors.fcc_license not available")
+        return {"total": 0, "licenses": []}
+    except Exception as exc:
+        logger.warning("FCC license search error: %s", exc)
+        return {"total": 0, "licenses": []}
+
+
+# ── College Scorecard (Education) ────────────────────────────────────────────
+
+
+@router.get("/college-scorecard")
+async def college_scorecard(
+    name: Optional[str] = Query(None, description="School name search"),
+    state: Optional[str] = Query(None, description="2-letter state code"),
+    for_profit: Optional[bool] = Query(None, description="Filter for-profit institutions"),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """Search the College Scorecard for institution data including costs, outcomes, and demographics."""
+    try:
+        from connectors import college_scorecard as cs
+
+        results = cs.search_schools(
+            name=name,
+            state=state,
+            for_profit=for_profit,
+            limit=limit,
+        )
+        return {"total": len(results), "schools": results}
+    except ImportError:
+        logger.warning("connectors.college_scorecard not available")
+        return {"total": 0, "schools": []}
+    except Exception as exc:
+        logger.warning("College Scorecard search error: %s", exc)
+        return {"total": 0, "schools": []}
+
+
+# ── Federal Grant Opportunities (Budget) ─────────────────────────────────────
+
+
+@router.get("/federal-grants")
+async def federal_grants(
+    keyword: Optional[str] = Query(None, description="Grant keyword search"),
+    agency: Optional[str] = Query(None, description="Funding agency filter"),
+    limit: int = Query(25, ge=1, le=100),
+):
+    """Search Grants.gov for federal grant opportunities by keyword or agency."""
+    try:
+        from connectors.grants_gov import search_grants
+
+        results = search_grants(
+            keyword=keyword,
+            agency=agency,
+            limit=limit,
+        )
+        return {"total": len(results), "grants": results}
+    except ImportError:
+        logger.warning("connectors.grants_gov not available")
+        return {"total": 0, "grants": []}
+    except Exception as exc:
+        logger.warning("Federal grants search error: %s", exc)
+        return {"total": 0, "grants": []}
+
+
+# ── Treasury Fiscal Data (Budget/Tax) ────────────────────────────────────────
+
+
+@router.get("/treasury-data")
+async def treasury_data(
+    dataset: str = Query(
+        ...,
+        description="Dataset type: debt, revenue, or spending",
+        regex="^(debt|revenue|spending)$",
+    ),
+    year: Optional[int] = Query(None, description="Filter by fiscal year"),
+):
+    """Fetch Treasury fiscal data (national debt, federal revenue, or spending)."""
+    try:
+        from connectors import treasury_fiscal
+
+        if dataset == "debt":
+            data = treasury_fiscal.get_debt(year=year)
+        elif dataset == "revenue":
+            data = treasury_fiscal.get_revenue(year=year)
+        elif dataset == "spending":
+            data = treasury_fiscal.get_spending(year=year)
+        else:
+            data = []
+
+        return {"dataset": dataset, "data": data}
+    except ImportError:
+        logger.warning("connectors.treasury_fiscal not available")
+        return {"dataset": dataset, "data": []}
+    except Exception as exc:
+        logger.warning("Treasury fiscal data error: %s", exc)
+        return {"dataset": dataset, "data": []}
+
+
+# ── FCC ECFS Proceedings (Telecom Regulatory) ────────────────────────────────
+
+
+@router.get("/fcc-proceedings")
+async def fcc_proceedings(
+    proceeding: Optional[str] = Query(None, description="Proceeding/docket number"),
+    filer: Optional[str] = Query(None, description="Filer name search"),
+    limit: int = Query(25, ge=1, le=100),
+):
+    """Search FCC Electronic Comment Filing System (ECFS) for regulatory proceedings and filings."""
+    try:
+        from connectors.fcc_ecfs import search_filings
+
+        results = search_filings(
+            proceeding=proceeding,
+            filer=filer,
+            limit=limit,
+        )
+        return {"total": len(results), "filings": results}
+    except ImportError:
+        logger.warning("connectors.fcc_ecfs not available")
+        return {"total": 0, "filings": []}
+    except Exception as exc:
+        logger.warning("FCC proceedings search error: %s", exc)
+        return {"total": 0, "filings": []}
