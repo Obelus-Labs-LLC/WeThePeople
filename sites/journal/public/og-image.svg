@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0c0f1a"/>
+  <rect x="0" y="0" width="1200" height="4" fill="#d4a843"/>
+  <text x="100" y="260" font-family="Georgia, serif" font-size="56" font-weight="bold" fill="#f1f5f9">The Influence Journal</text>
+  <text x="100" y="330" font-family="Georgia, serif" font-size="28" fill="#94a3b8">Data-Driven Civic Investigations</text>
+  <line x1="100" y1="370" x2="400" y2="370" stroke="#d4a843" stroke-width="3"/>
+  <text x="100" y="420" font-family="Arial, sans-serif" font-size="20" fill="#64748b">Lobbying | Contracts | Trades | Donations | Enforcement</text>
+  <text x="100" y="460" font-family="Arial, sans-serif" font-size="20" fill="#64748b">Every claim cited. Every dollar traced.</text>
+  <text x="100" y="560" font-family="Arial, sans-serif" font-size="16" fill="#475569">journal.wethepeopleforus.com</text>
+</svg>
