@@ -305,6 +305,7 @@ def _send_email(to: str, subject: str, html: str) -> bool:
                 "to": [to],
                 "subject": subject,
                 "html": html,
+                "reply_to": "wethepeopleforus@gmail.com",
             },
             timeout=15,
         )
