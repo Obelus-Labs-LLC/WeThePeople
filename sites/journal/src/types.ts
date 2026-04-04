@@ -26,7 +26,11 @@ export type StoryCategory =
   | 'regulatory_capture'
   | 'lobbying_breakdown'
   | 'cross_sector'
-  | 'fara_lobbying_spike';
+  | 'fara_lobbying_spike'
+  | 'tax_lobbying'
+  | 'budget_influence'
+  | 'regulatory_loop'
+  | 'education_pipeline';
 
 export interface StoryCitation {
   index: number;
@@ -95,6 +99,10 @@ export const CATEGORY_META: Record<string, { label: string; color: string; bgCol
   lobbying_breakdown: { label: 'Lobbying Breakdown', color: 'text-amber-400', bgColor: 'bg-amber-400/15' },
   cross_sector: { label: 'Cross-Sector', color: 'text-indigo-400', bgColor: 'bg-indigo-400/15' },
   fara_lobbying_spike: { label: 'FARA Lobbying', color: 'text-blue-400', bgColor: 'bg-blue-400/15' },
+  tax_lobbying: { label: 'Tax Lobbying', color: 'text-amber-500', bgColor: 'bg-amber-500/15' },
+  budget_influence: { label: 'Budget Influence', color: 'text-indigo-400', bgColor: 'bg-indigo-400/15' },
+  regulatory_loop: { label: 'Regulatory Loop', color: 'text-teal-400', bgColor: 'bg-teal-400/15' },
+  education_pipeline: { label: 'Education Pipeline', color: 'text-purple-400', bgColor: 'bg-purple-400/15' },
 };
 
 export const SECTOR_LABELS: Record<string, string> = {

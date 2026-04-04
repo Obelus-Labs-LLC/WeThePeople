@@ -459,6 +459,545 @@ def generate_cross_sector_story(db):
     )
 
 
+def generate_tax_budget_stories(db):
+    """Generate 4 cross-cutting story types: tax lobbying ROI, budget influence,
+    telecom regulatory loop, and education loan pipeline."""
+    stories = []
+
+    # ── 1. Tax Lobbying ROI ──
+    log.info("  Generating tax lobbying ROI story...")
+    tax_sector_rows = []
+    for sector_key, cfg in SECTORS.items():
+        lobbying_table = cfg["lobbying_table"]
+        contracts_table = cfg["contracts_table"]
+        entity_table = cfg["entity_table"]
+        id_col = cfg["entity_id_col"]
+        try:
+            rows = db.execute(text(
+                f"SELECT {id_col}, lobbying_issues, government_entities, income "
+                f"FROM {lobbying_table} "
+                f"WHERE lobbying_issues IS NOT NULL AND lobbying_issues LIKE '%Taxation%'"
+            )).fetchall()
+        except Exception:
+            continue
+
+        if not rows:
+            continue
+
+        # Get display names
+        company_names = {}
+        try:
+            name_rows = db.execute(text(
+                f"SELECT {id_col}, display_name FROM {entity_table}"
+            )).fetchall()
+            for cid, name in name_rows:
+                company_names[cid] = name
+        except Exception:
+            pass
+
+        # Get Treasury contracts
+        treasury_contracts = {}
+        try:
+            crows = db.execute(text(
+                f"SELECT {id_col}, COUNT(*) as cnt, COALESCE(SUM(award_amount), 0) as total "
+                f"FROM {contracts_table} "
+                f"WHERE awarding_agency LIKE '%Treasury%' "
+                f"GROUP BY {id_col}"
+            )).fetchall()
+            for cid, cnt, total in crows:
+                treasury_contracts[cid] = {"count": cnt, "total": float(total)}
+        except Exception:
+            pass
+
+        company_tax_spend = defaultdict(float)
+        company_entities = defaultdict(set)
+        sector_total = 0
+        for cid, issues_str, entities_str, income in rows:
+            inc = float(income) if income else 0
+            issues = [i.strip() for i in issues_str.split(",") if i.strip()]
+            per_issue = inc / max(len(issues), 1)
+            company_tax_spend[cid] += per_issue
+            sector_total += per_issue
+            if entities_str:
+                for e in entities_str.split(","):
+                    company_entities[cid].add(e.strip())
+
+        tax_sector_rows.append({
+            "sector": sector_key,
+            "label": cfg["label"],
+            "total": sector_total,
+            "filings": len(rows),
+            "companies": company_tax_spend,
+            "company_names": company_names,
+            "company_entities": company_entities,
+            "treasury_contracts": treasury_contracts,
+        })
+
+    if tax_sector_rows:
+        grand_total = sum(s["total"] for s in tax_sector_rows)
+        title = f"Corporate America Spent {fmt_money(grand_total)} Lobbying on Tax Policy"
+
+        summary = (
+            f"Companies across {len(tax_sector_rows)} sectors spent {fmt_money(grand_total)} "
+            f"lobbying specifically on taxation issues, targeting Treasury, House Ways and Means, "
+            f"and Senate Finance Committee."
+        )
+
+        body = "## The Big Picture\n\n"
+        body += (
+            f"Taxation is one of the most heavily lobbied policy areas in Washington. "
+            f"Across {len(tax_sector_rows)} sectors, companies filed lobbying disclosures "
+            f"totaling an estimated {fmt_money(grand_total)} directed at tax policy. "
+            f"The lobbying targets include the Department of the Treasury, the House Ways "
+            f"and Means Committee, and the Senate Finance Committee.\n\n"
+        )
+
+        body += "## Tax Lobbying by Sector\n\n"
+        body += "| Sector | Est. Tax Lobbying | Filings | Companies |\n"
+        body += "|--------|-------------------|---------|----------|\n"
+        for sd in sorted(tax_sector_rows, key=lambda x: -x["total"]):
+            body += (
+                f"| {sd['label']} | {fmt_money(sd['total'])} | "
+                f"{sd['filings']:,} | {len(sd['companies'])} |\n"
+            )
+        body += "\n"
+
+        body += "## Top Companies Lobbying on Taxation\n\n"
+        all_companies = []
+        all_names = {}
+        all_entities = {}
+        all_treasury = {}
+        for sd in tax_sector_rows:
+            for cid, spend in sd["companies"].items():
+                all_companies.append((cid, spend, sd["label"]))
+                all_names.update(sd["company_names"])
+                all_entities.update(sd["company_entities"])
+                all_treasury.update(sd["treasury_contracts"])
+
+        top_tax = sorted(all_companies, key=lambda x: -x[1])[:15]
+        body += "| Company | Sector | Tax Lobbying | Gov Targets | Treasury Contracts |\n"
+        body += "|---------|--------|-------------|-------------|-------------------|\n"
+        for cid, spend, sector_label in top_tax:
+            name = all_names.get(cid, str(cid))
+            entities = all_entities.get(cid, set())
+            tax_targets = [e for e in entities if any(
+                kw in e.lower() for kw in ["treasury", "ways and means", "finance committee", "senate finance"]
+            )]
+            target_str = ", ".join(tax_targets[:2]) if tax_targets else "Various"
+            tc = all_treasury.get(cid)
+            tc_str = f"{tc['count']} ({fmt_money(tc['total'])})" if tc else "None found"
+            body += f"| {name} | {sector_label} | {fmt_money(spend)} | {target_str} | {tc_str} |\n"
+        body += "\n"
+
+        body += "## Data Sources\n\n"
+        body += "- **Lobbying disclosures**: Senate Lobbying Disclosure Act filings (senate.gov)\n"
+        body += "- **Government contracts**: USASpending.gov\n"
+        body += "- **Tax lobbying filter**: Filings where lobbying_issues contains \"Taxation\"\n\n"
+        body += (
+            "*Spend is estimated by dividing each filing's reported income evenly across "
+            "the issues listed. Treasury contract matches are based on awarding agency.*"
+        )
+
+        s = Story(
+            title=title,
+            slug=slug(title),
+            summary=summary,
+            body=body,
+            category="tax_lobbying",
+            sector=None,
+            entity_ids=[cid for cid, _, _ in top_tax[:10]],
+            data_sources=["Senate LDA (senate.gov)", "USASpending.gov"],
+            evidence={
+                "grand_total": grand_total,
+                "sector_count": len(tax_sector_rows),
+                "sectors": {s["sector"]: s["total"] for s in tax_sector_rows},
+            },
+            status="published",
+            published_at=datetime.now(timezone.utc),
+        )
+        stories.append(s)
+
+    # ── 2. Budget Appropriation Influence ──
+    log.info("  Generating budget appropriation influence story...")
+    budget_sector_rows = []
+    for sector_key, cfg in SECTORS.items():
+        lobbying_table = cfg["lobbying_table"]
+        contracts_table = cfg["contracts_table"]
+        entity_table = cfg["entity_table"]
+        id_col = cfg["entity_id_col"]
+        try:
+            rows = db.execute(text(
+                f"SELECT {id_col}, lobbying_issues, government_entities, income "
+                f"FROM {lobbying_table} "
+                f"WHERE lobbying_issues IS NOT NULL "
+                f"AND (lobbying_issues LIKE '%Budget%' OR lobbying_issues LIKE '%Appropriations%')"
+            )).fetchall()
+        except Exception:
+            continue
+
+        if not rows:
+            continue
+
+        company_names = {}
+        try:
+            name_rows = db.execute(text(
+                f"SELECT {id_col}, display_name FROM {entity_table}"
+            )).fetchall()
+            for cid, name in name_rows:
+                company_names[cid] = name
+        except Exception:
+            pass
+
+        # Get all contracts grouped by agency
+        agency_contracts = {}
+        try:
+            crows = db.execute(text(
+                f"SELECT awarding_agency, COUNT(*) as cnt, COALESCE(SUM(award_amount), 0) as total "
+                f"FROM {contracts_table} "
+                f"WHERE awarding_agency IS NOT NULL "
+                f"GROUP BY awarding_agency ORDER BY total DESC"
+            )).fetchall()
+            for agency, cnt, total in crows:
+                agency_contracts[agency] = {"count": cnt, "total": float(total)}
+        except Exception:
+            pass
+
+        company_budget_spend = defaultdict(float)
+        company_agencies = defaultdict(set)
+        sector_total = 0
+        for cid, issues_str, entities_str, income in rows:
+            inc = float(income) if income else 0
+            issues = [i.strip() for i in issues_str.split(",") if i.strip()]
+            per_issue = inc / max(len(issues), 1)
+            company_budget_spend[cid] += per_issue
+            sector_total += per_issue
+            if entities_str:
+                for e in entities_str.split(","):
+                    e_clean = e.strip()
+                    mapped = ENTITY_TO_AGENCY.get(e_clean)
+                    if mapped:
+                        company_agencies[cid].add(mapped)
+
+        budget_sector_rows.append({
+            "sector": sector_key,
+            "label": cfg["label"],
+            "total": sector_total,
+            "filings": len(rows),
+            "companies": company_budget_spend,
+            "company_names": company_names,
+            "company_agencies": company_agencies,
+            "agency_contracts": agency_contracts,
+        })
+
+    if budget_sector_rows:
+        grand_total = sum(s["total"] for s in budget_sector_rows)
+        n_sectors = len(budget_sector_rows)
+        title = f"Who Lobbies Congress on the Federal Budget: {fmt_money(grand_total)} Across {n_sectors} Sectors"
+
+        summary = (
+            f"Companies across {n_sectors} sectors spent an estimated {fmt_money(grand_total)} "
+            f"lobbying on budget and appropriations issues, often targeting the same agencies "
+            f"that award them contracts."
+        )
+
+        body = "## The Big Picture\n\n"
+        body += (
+            f"Budget and appropriations lobbying is how companies influence where federal "
+            f"dollars flow. Across {n_sectors} sectors, companies filed lobbying disclosures "
+            f"totaling an estimated {fmt_money(grand_total)} on budget-related issues. "
+            f"Many of these same companies then receive contracts from the agencies they lobbied.\n\n"
+        )
+
+        body += "## Sector-by-Sector Breakdown\n\n"
+        for sd in sorted(budget_sector_rows, key=lambda x: -x["total"]):
+            body += f"### {sd['label']} ({fmt_money(sd['total'])})\n\n"
+            body += f"*{sd['filings']:,} filings from {len(sd['companies'])} companies*\n\n"
+            top_cos = sorted(sd["companies"].items(), key=lambda x: -x[1])[:5]
+            for cid, spend in top_cos:
+                name = sd["company_names"].get(cid, str(cid))
+                agencies = sd["company_agencies"].get(cid, set())
+                agency_str = ", ".join(list(agencies)[:2]) if agencies else "Various"
+                # Check if they got contracts from lobbied agencies
+                contract_match = []
+                for ag in agencies:
+                    if ag in sd["agency_contracts"]:
+                        ac = sd["agency_contracts"][ag]
+                        contract_match.append(f"{ag}: {ac['count']} contracts ({fmt_money(ac['total'])})")
+                match_str = "; ".join(contract_match[:2]) if contract_match else "No direct match found"
+                body += f"- **{name}**: {fmt_money(spend)} lobbying -> {agency_str} | Contracts: {match_str}\n"
+            body += "\n"
+
+        body += "## Data Sources\n\n"
+        body += "- **Lobbying disclosures**: Senate Lobbying Disclosure Act filings (senate.gov)\n"
+        body += "- **Government contracts**: USASpending.gov\n"
+        body += "- **Budget lobbying filter**: Filings where lobbying_issues contains \"Budget\" or \"Appropriations\"\n\n"
+        body += (
+            "*Spend is estimated by dividing each filing's reported income evenly across "
+            "the issues listed. Contract matches are sector-wide, not company-specific.*"
+        )
+
+        s = Story(
+            title=title,
+            slug=slug(title),
+            summary=summary,
+            body=body,
+            category="budget_influence",
+            sector=None,
+            entity_ids=[],
+            data_sources=["Senate LDA (senate.gov)", "USASpending.gov"],
+            evidence={
+                "grand_total": grand_total,
+                "sector_count": n_sectors,
+                "sectors": {s["sector"]: s["total"] for s in budget_sector_rows},
+            },
+            status="published",
+            published_at=datetime.now(timezone.utc),
+        )
+        stories.append(s)
+
+    # ── 3. Telecom Regulatory Loop ──
+    log.info("  Generating telecom regulatory loop story...")
+    if "telecom" in SECTORS:
+        tcfg = SECTORS["telecom"]
+        lobbying_table = tcfg["lobbying_table"]
+        contracts_table = tcfg["contracts_table"]
+        entity_table = tcfg["entity_table"]
+        id_col = tcfg["entity_id_col"]
+
+        try:
+            rows = db.execute(text(
+                f"SELECT {id_col}, lobbying_issues, government_entities, income "
+                f"FROM {lobbying_table} "
+                f"WHERE lobbying_issues IS NOT NULL "
+                f"AND lobbying_issues LIKE '%Telecommunications%'"
+            )).fetchall()
+        except Exception:
+            rows = []
+
+        if rows:
+            company_names = {}
+            try:
+                name_rows = db.execute(text(
+                    f"SELECT {id_col}, display_name FROM {entity_table}"
+                )).fetchall()
+                for cid, name in name_rows:
+                    company_names[cid] = name
+            except Exception:
+                pass
+
+            # FCC-related contracts
+            fcc_contracts = {}
+            try:
+                crows = db.execute(text(
+                    f"SELECT {id_col}, COUNT(*) as cnt, COALESCE(SUM(award_amount), 0) as total "
+                    f"FROM {contracts_table} "
+                    f"WHERE awarding_agency LIKE '%Communications%' OR awarding_agency LIKE '%FCC%' "
+                    f"GROUP BY {id_col}"
+                )).fetchall()
+                for cid, cnt, total in crows:
+                    fcc_contracts[cid] = {"count": cnt, "total": float(total)}
+            except Exception:
+                pass
+
+            company_spend = defaultdict(float)
+            company_fcc_filings = defaultdict(int)
+            total_telecom_spend = 0
+            for cid, issues_str, entities_str, income in rows:
+                inc = float(income) if income else 0
+                issues = [i.strip() for i in issues_str.split(",") if i.strip()]
+                per_issue = inc / max(len(issues), 1)
+                company_spend[cid] += per_issue
+                total_telecom_spend += per_issue
+                if entities_str and "FCC" in entities_str.upper():
+                    company_fcc_filings[cid] += 1
+
+            title = f"Telecom Companies Spend {fmt_money(total_telecom_spend)} Lobbying the Agency That Regulates Them"
+
+            summary = (
+                f"Telecommunications companies spent an estimated {fmt_money(total_telecom_spend)} "
+                f"lobbying on telecom issues, with many filings targeting the FCC directly -- "
+                f"the same agency responsible for regulating them."
+            )
+
+            body = "## The Big Picture\n\n"
+            body += (
+                f"The Federal Communications Commission regulates the telecommunications industry, "
+                f"setting rules on spectrum allocation, net neutrality, mergers, and consumer protection. "
+                f"Yet the companies subject to these regulations spent an estimated "
+                f"{fmt_money(total_telecom_spend)} lobbying on telecommunications issues, "
+                f"often targeting the FCC itself.\n\n"
+            )
+
+            body += "## Telecom Companies Lobbying on Telecom Issues\n\n"
+            body += "| Company | Telecom Lobbying | FCC Filings | FCC Contracts |\n"
+            body += "|---------|-----------------|-------------|---------------|\n"
+            top_telecom = sorted(company_spend.items(), key=lambda x: -x[1])[:15]
+            for cid, spend in top_telecom:
+                name = company_names.get(cid, str(cid))
+                fcc_f = company_fcc_filings.get(cid, 0)
+                fc = fcc_contracts.get(cid)
+                fc_str = f"{fc['count']} ({fmt_money(fc['total'])})" if fc else "None found"
+                body += f"| {name} | {fmt_money(spend)} | {fcc_f} | {fc_str} |\n"
+            body += "\n"
+
+            body += (
+                "When companies lobby the agency that regulates them, it raises questions about "
+                "regulatory capture -- whether the regulator is serving the public interest or "
+                "the interests of the industry it oversees.\n\n"
+            )
+
+            body += "## Data Sources\n\n"
+            body += "- **Lobbying disclosures**: Senate Lobbying Disclosure Act filings (senate.gov)\n"
+            body += "- **FCC contract data**: USASpending.gov\n"
+            body += "- **Telecom lobbying filter**: Filings where lobbying_issues contains \"Telecommunications\"\n\n"
+            body += (
+                "*Spend is estimated by dividing each filing's reported income evenly across "
+                "the issues listed. FCC filing count is based on government_entities field mentioning FCC.*"
+            )
+
+            s = Story(
+                title=title,
+                slug=slug(title),
+                summary=summary,
+                body=body,
+                category="regulatory_loop",
+                sector="telecom",
+                entity_ids=[cid for cid, _ in top_telecom[:10]],
+                data_sources=["Senate LDA (senate.gov)"],
+                evidence={
+                    "total_telecom_lobbying": total_telecom_spend,
+                    "companies": len(company_spend),
+                    "fcc_filers": len(company_fcc_filings),
+                },
+                status="published",
+                published_at=datetime.now(timezone.utc),
+            )
+            stories.append(s)
+
+    # ── 4. Education Loan Pipeline ──
+    log.info("  Generating education loan pipeline story...")
+    if "education" in SECTORS:
+        ecfg = SECTORS["education"]
+        lobbying_table = ecfg["lobbying_table"]
+        contracts_table = ecfg["contracts_table"]
+        entity_table = ecfg["entity_table"]
+        id_col = ecfg["entity_id_col"]
+
+        try:
+            rows = db.execute(text(
+                f"SELECT {id_col}, lobbying_issues, government_entities, income "
+                f"FROM {lobbying_table} "
+                f"WHERE lobbying_issues IS NOT NULL "
+                f"AND lobbying_issues LIKE '%Education%'"
+            )).fetchall()
+        except Exception:
+            rows = []
+
+        if rows:
+            company_names = {}
+            try:
+                name_rows = db.execute(text(
+                    f"SELECT {id_col}, display_name FROM {entity_table}"
+                )).fetchall()
+                for cid, name in name_rows:
+                    company_names[cid] = name
+            except Exception:
+                pass
+
+            # Dept of Education contracts
+            doe_contracts = {}
+            try:
+                crows = db.execute(text(
+                    f"SELECT {id_col}, COUNT(*) as cnt, COALESCE(SUM(award_amount), 0) as total "
+                    f"FROM {contracts_table} "
+                    f"WHERE awarding_agency LIKE '%Education%' "
+                    f"GROUP BY {id_col}"
+                )).fetchall()
+                for cid, cnt, total in crows:
+                    doe_contracts[cid] = {"count": cnt, "total": float(total)}
+            except Exception:
+                pass
+
+            company_spend = defaultdict(float)
+            company_doe_filings = defaultdict(int)
+            total_ed_spend = 0
+            for cid, issues_str, entities_str, income in rows:
+                inc = float(income) if income else 0
+                issues = [i.strip() for i in issues_str.split(",") if i.strip()]
+                per_issue = inc / max(len(issues), 1)
+                company_spend[cid] += per_issue
+                total_ed_spend += per_issue
+                if entities_str and "Education" in entities_str:
+                    company_doe_filings[cid] += 1
+
+            title = f"Student Loan Companies Spend {fmt_money(total_ed_spend)} Lobbying the Department That Awards Their Contracts"
+
+            summary = (
+                f"Education companies spent an estimated {fmt_money(total_ed_spend)} lobbying on "
+                f"education issues, with many filings targeting the Department of Education -- "
+                f"the same agency that awards student lending and servicing contracts."
+            )
+
+            body = "## The Big Picture\n\n"
+            body += (
+                f"The Department of Education oversees federal student loans, awarding contracts "
+                f"to private companies for loan servicing, collections, and financial aid processing. "
+                f"These same companies spent an estimated {fmt_money(total_ed_spend)} lobbying on "
+                f"education issues, frequently targeting the department that controls their revenue.\n\n"
+            )
+
+            body += "## Education Companies Lobbying on Education Issues\n\n"
+            body += "| Company | Education Lobbying | DoE Filings | DoE Contracts |\n"
+            body += "|---------|-------------------|-------------|---------------|\n"
+            top_ed = sorted(company_spend.items(), key=lambda x: -x[1])[:15]
+            for cid, spend in top_ed:
+                name = company_names.get(cid, str(cid))
+                doe_f = company_doe_filings.get(cid, 0)
+                dc = doe_contracts.get(cid)
+                dc_str = f"{dc['count']} ({fmt_money(dc['total'])})" if dc else "None found"
+                body += f"| {name} | {fmt_money(spend)} | {doe_f} | {dc_str} |\n"
+            body += "\n"
+
+            body += (
+                "The pipeline is straightforward: companies lobby the Department of Education "
+                "on education policy, then receive contracts from that same department to service "
+                "student loans. This creates an incentive for companies to shape the very policies "
+                "that determine how much money flows through their contracts.\n\n"
+            )
+
+            body += "## Data Sources\n\n"
+            body += "- **Lobbying disclosures**: Senate Lobbying Disclosure Act filings (senate.gov)\n"
+            body += "- **DoE contract data**: USASpending.gov\n"
+            body += "- **Education lobbying filter**: Filings where lobbying_issues contains \"Education\"\n\n"
+            body += (
+                "*Spend is estimated by dividing each filing's reported income evenly across "
+                "the issues listed. DoE filing count is based on government_entities field mentioning "
+                "Department of Education.*"
+            )
+
+            s = Story(
+                title=title,
+                slug=slug(title),
+                summary=summary,
+                body=body,
+                category="education_pipeline",
+                sector="education",
+                entity_ids=[cid for cid, _ in top_ed[:10]],
+                data_sources=["Senate LDA (senate.gov)", "USASpending.gov"],
+                evidence={
+                    "total_education_lobbying": total_ed_spend,
+                    "companies": len(company_spend),
+                    "doe_filers": len(company_doe_filings),
+                    "doe_contracts_found": len(doe_contracts),
+                },
+                status="published",
+                published_at=datetime.now(timezone.utc),
+            )
+            stories.append(s)
+
+    return stories
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate lobbying breakdown stories")
     parser.add_argument("--dry-run", action="store_true", help="Print stories without saving")
@@ -485,6 +1024,12 @@ def main():
         cross = generate_cross_sector_story(db)
         if cross:
             stories.append(cross)
+
+    # Tax/budget/regulatory loop stories
+    if not args.sector:
+        log.info("Generating tax, budget, regulatory loop, and education pipeline stories...")
+        tax_budget = generate_tax_budget_stories(db)
+        stories.extend(tax_budget)
 
     log.info(f"\nGenerated {len(stories)} stories:")
     for s in stories:
