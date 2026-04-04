@@ -16,6 +16,7 @@ import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
+import WatchlistButton from '../components/WatchlistButton';
 import {
   getTransportationCompanyDetail,
   getTransportationCompanyContracts,
@@ -303,7 +304,10 @@ export default function TransportationCompanyProfilePage() {
           className="mb-6 flex items-center gap-6 rounded-xl border border-white/10 bg-white/[0.03] p-6 shrink-0">
           <CompanyLogo id={detail.company_id} name={detail.display_name} logoUrl={detail.logo_url} size={64} iconFallback />
           <div className="min-w-0 flex-1">
-            <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">{detail.display_name}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">{detail.display_name}</h1>
+              <WatchlistButton entityType="company" entityId={detail.company_id || companyId || ""} entityName={detail.display_name} sector="transportation" />
+            </div>
             <div className="mt-2 flex items-center gap-3 flex-wrap">
               {detail.ticker && <span className="rounded bg-blue-500/20 px-3 py-1 font-mono text-sm font-bold text-blue-400">{detail.ticker}</span>}
               <span className="rounded bg-white/10 px-3 py-1 font-mono text-xs uppercase tracking-wider text-white/60">{detail.sector_type.replace(/_/g, ' ')}</span>

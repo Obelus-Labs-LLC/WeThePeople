@@ -15,6 +15,7 @@ import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
 import TrendChart from '../components/TrendChart';
 import ShareButton from '../components/ShareButton';
+import WatchlistButton from '../components/WatchlistButton';
 import {
   getTechCompanyDetail,
   getTechCompanyPatents,
@@ -272,9 +273,12 @@ export default function TechCompanyProfilePage() {
             iconFallback
           />
           <div className="min-w-0 flex-1">
-            <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">
-              {detail.display_name}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">
+                {detail.display_name}
+              </h1>
+              <WatchlistButton entityType="company" entityId={detail.company_id || companyId || ""} entityName={detail.display_name} sector="tech" />
+            </div>
             <div className="mt-2 flex items-center gap-3 flex-wrap">
               {detail.ticker && (
                 <span className="rounded bg-[#8B5CF6]/20 px-3 py-1 font-mono text-sm font-bold text-[#A78BFA]">

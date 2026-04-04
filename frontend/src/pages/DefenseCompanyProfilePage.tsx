@@ -15,6 +15,7 @@ import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
+import WatchlistButton from '../components/WatchlistButton';
 import {
   getDefenseCompanyDetail,
   getDefenseCompanyContracts,
@@ -222,6 +223,7 @@ export default function DefenseCompanyProfilePage() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="font-heading text-3xl font-bold text-white">{detail.display_name}</h1>
+                <WatchlistButton entityType="company" entityId={detail.company_id || companyId || ""} entityName={detail.display_name} sector="defense" />
                 {detail.ticker && <span className="font-mono text-lg text-white/40">{detail.ticker}</span>}
                 <SanctionsBadge status={detail.sanctions_status} />
                 <AnomalyBadge entityType="company" entityId={detail.company_id} />
