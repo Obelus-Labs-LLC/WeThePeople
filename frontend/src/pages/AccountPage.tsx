@@ -48,7 +48,10 @@ export default function AccountPage() {
   return (
     <div className="min-h-screen px-4 py-12" style={{ background: '#0A0F1A' }}>
       <div className="max-w-3xl mx-auto space-y-8">
-        <h1 className="text-3xl font-bold text-white">Your Account</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-white">Your Account</h1>
+          <Link to="/" className="text-sm text-zinc-400 hover:text-white transition-colors">Back to home</Link>
+        </div>
 
         {/* Profile */}
         <div className="rounded-xl border border-zinc-800 bg-white/[0.03] p-6">
@@ -106,7 +109,7 @@ export default function AccountPage() {
               <Shield className="w-5 h-5 text-amber-400" />
               <h2 className="text-lg font-semibold text-amber-400">Upgrade to Enterprise</h2>
             </div>
-            <p className="text-sm text-zinc-400 mb-4">Get full API access, the verification pipeline, bulk data exports, and priority story detection.</p>
+            <p className="text-sm text-zinc-400 mb-4">Get full API access, the verification pipeline, and bulk data exports.</p>
             <button className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400 transition-colors">
               Coming Soon
             </button>
