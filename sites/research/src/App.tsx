@@ -18,6 +18,12 @@ import {
   ArrowRightLeft,
   DollarSign,
   Landmark,
+  Radio,
+  Signal,
+  GraduationCap,
+  BookOpen,
+  HandCoins,
+  Banknote,
 } from 'lucide-react'
 
 // ── Lazy-loaded pages ──
@@ -37,6 +43,12 @@ const RevolvingDoorPage = lazy(() => import('./pages/RevolvingDoorPage'))
 const CampaignFinancePage = lazy(() => import('./pages/CampaignFinancePage'))
 const BillTextPage = lazy(() => import('./pages/BillTextPage'))
 const EarmarksPage = lazy(() => import('./pages/EarmarksPage'))
+const FccComplaintsPage = lazy(() => import('./pages/FccComplaintsPage'))
+const SpectrumSearchPage = lazy(() => import('./pages/SpectrumSearchPage'))
+const CollegeScorecardPage = lazy(() => import('./pages/CollegeScorecardPage'))
+const StudentLoanPage = lazy(() => import('./pages/StudentLoanPage'))
+const FederalGrantsPage = lazy(() => import('./pages/FederalGrantsPage'))
+const TreasuryDataPage = lazy(() => import('./pages/TreasuryDataPage'))
 
 // ── Loading fallback ──
 
@@ -178,6 +190,54 @@ const tools: ToolCard[] = [
     description: 'Search congressionally directed spending from USASpending.gov. Find federal grants and direct payments by state, keyword, or congress member.',
     icon: Landmark,
     path: '/earmarks',
+    iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
+    available: true,
+  },
+  {
+    title: 'FCC Complaint Lookup',
+    description: 'Search FCC consumer complaints by company, issue type, or state. Track telecom and broadband complaint trends across carriers.',
+    icon: Radio,
+    path: '/fcc-complaints',
+    iconClass: 'text-cyan-400', bgClass: 'bg-cyan-400/15',
+    available: true,
+  },
+  {
+    title: 'Spectrum / License Search',
+    description: 'Search FCC spectrum licenses by company or entity. View call signs, frequencies, service types, grant and expiration dates.',
+    icon: Signal,
+    path: '/spectrum',
+    iconClass: 'text-blue-400', bgClass: 'bg-blue-400/15',
+    available: true,
+  },
+  {
+    title: 'College Scorecard',
+    description: 'Explore Department of Education data on colleges and universities. Compare tuition, graduation rates, default rates, and post-graduation earnings.',
+    icon: GraduationCap,
+    path: '/college-scorecard',
+    iconClass: 'text-purple-400', bgClass: 'bg-purple-400/15',
+    available: true,
+  },
+  {
+    title: 'Student Loan Servicers',
+    description: 'Track student loan servicers and lending companies. View government contracts, lobbying spend, enforcement actions, and borrower outcomes.',
+    icon: BookOpen,
+    path: '/student-loans',
+    iconClass: 'text-amber-400', bgClass: 'bg-amber-400/15',
+    available: true,
+  },
+  {
+    title: 'Federal Grants Explorer',
+    description: 'Search federal grant opportunities by keyword and agency. Find funding amounts, deadlines, eligibility requirements, and grant categories.',
+    icon: HandCoins,
+    path: '/federal-grants',
+    iconClass: 'text-green-400', bgClass: 'bg-green-400/15',
+    available: true,
+  },
+  {
+    title: 'Treasury / Budget Data',
+    description: 'Explore U.S. Treasury data including national debt trends, federal revenue sources, and government spending breakdowns over time.',
+    icon: Banknote,
+    path: '/treasury',
     iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
     available: true,
   },
@@ -360,6 +420,12 @@ export default function App() {
         <Route path="/campaign-finance" element={<ToolLayout><CampaignFinancePage /></ToolLayout>} />
         <Route path="/bill-text" element={<ToolLayout><BillTextPage /></ToolLayout>} />
         <Route path="/earmarks" element={<ToolLayout><EarmarksPage /></ToolLayout>} />
+        <Route path="/fcc-complaints" element={<ToolLayout><FccComplaintsPage /></ToolLayout>} />
+        <Route path="/spectrum" element={<ToolLayout><SpectrumSearchPage /></ToolLayout>} />
+        <Route path="/college-scorecard" element={<ToolLayout><CollegeScorecardPage /></ToolLayout>} />
+        <Route path="/student-loans" element={<ToolLayout><StudentLoanPage /></ToolLayout>} />
+        <Route path="/federal-grants" element={<ToolLayout><FederalGrantsPage /></ToolLayout>} />
+        <Route path="/treasury" element={<ToolLayout><TreasuryDataPage /></ToolLayout>} />
         {/* Catch-all back to home */}
         <Route path="*" element={<HomePage />} />
       </Routes>
