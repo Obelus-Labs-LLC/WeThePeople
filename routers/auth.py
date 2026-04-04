@@ -66,7 +66,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 class RegisterRequest(BaseModel):
-    email: str = Field(..., min_length=5, max_length=255, description="User email")
+    email: EmailStr = Field(..., description="User email")
     password: str = Field(..., min_length=8, max_length=128, description="Password (min 8 chars)")
     display_name: Optional[str] = Field(None, max_length=255)
 
@@ -529,7 +529,7 @@ async def stripe_webhook(request: Request):
             event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
         else:
             event = stripe.Event.construct_from(json.loads(payload), stripe_key)
-    except (ValueError, stripe.error.SignatureVerificationError) as e:
+    except Exception as e:
         logger.error("Stripe webhook verification failed: %s", e)
         raise HTTPException(status_code=400, detail="Invalid webhook")
 
