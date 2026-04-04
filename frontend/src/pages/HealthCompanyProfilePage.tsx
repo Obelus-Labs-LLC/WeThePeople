@@ -39,6 +39,7 @@ import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
 import TrendChart from '../components/TrendChart';
 import ShareButton from '../components/ShareButton';
+import WatchlistButton from '../components/WatchlistButton';
 import { LOCAL_LOGOS } from '../data/healthLogos';
 import { getLogoUrl } from '../utils/logos';
 import CompanyLogo from '../components/CompanyLogo';
@@ -1093,12 +1094,15 @@ export default function HealthCompanyProfilePage() {
           </div>
 
           {/* Name */}
-          <h2
-            className="text-4xl font-bold leading-tight mb-1 text-center"
-            style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}
-          >
-            {company.display_name}
-          </h2>
+          <div className="flex items-center justify-center gap-3">
+            <h2
+              className="text-4xl font-bold leading-tight mb-1 text-center"
+              style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}
+            >
+              {company.display_name}
+            </h2>
+            <WatchlistButton entityType="company" entityId={company.company_id || companyId || ""} entityName={company.display_name} sector="health" />
+          </div>
           {company.headquarters && (
             <p className="text-sm text-center mb-6" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
               {company.headquarters}

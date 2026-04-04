@@ -42,6 +42,7 @@ import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
 import TrendChart from '../components/TrendChart';
 import ShareButton from '../components/ShareButton';
+import WatchlistButton from '../components/WatchlistButton';
 
 // ── Helpers ──
 
@@ -299,7 +300,10 @@ export default function InstitutionPage() {
             iconFallback
           />
           <div className="min-w-0 flex-1">
-            <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">{detail.display_name}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">{detail.display_name}</h1>
+              <WatchlistButton entityType="company" entityId={detail.institution_id || institution_id || ""} entityName={detail.display_name} sector="finance" />
+            </div>
             <div className="mt-2 flex items-center gap-3 flex-wrap">
               {detail.ticker && <span className="rounded bg-white/10 px-3 py-1 font-mono text-sm text-white">{detail.ticker}</span>}
               <span className="font-mono text-xs uppercase tracking-wider text-white/40">{detail.sector_type.replace(/_/g, ' ')}</span>
