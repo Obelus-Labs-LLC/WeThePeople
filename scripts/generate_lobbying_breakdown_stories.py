@@ -141,8 +141,9 @@ def generate_sector_breakdown(db, sector_key, cfg):
     contracts_table = cfg["contracts_table"]
 
     # 1. Get all lobbying filings with issues
+    id_col = cfg["entity_id_col"]
     rows = db.execute(text(
-        f"SELECT lobbying_issues, government_entities, income, company_id "
+        f"SELECT lobbying_issues, government_entities, income, {id_col} "
         f"FROM {lobbying_table} "
         f"WHERE lobbying_issues IS NOT NULL AND lobbying_issues != ''"
     )).fetchall()
