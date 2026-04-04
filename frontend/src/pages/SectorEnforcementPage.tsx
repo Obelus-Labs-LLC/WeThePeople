@@ -11,6 +11,8 @@ import {
   EnergySectorHeader,
   TransportationSectorHeader,
   DefenseSectorHeader,
+  ChemicalsSectorHeader,
+  AgricultureSectorHeader,
 } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
@@ -79,6 +81,20 @@ const SECTOR_MAP: Record<string, SectorConfig> = {
     aggregateEndpoint: `${API_BASE}/aggregate/defense/enforcement?limit=1000`,
     entityKey: 'companies',
     profilePath: (id) => `/defense/${id}`,
+  },
+  chemicals: {
+    key: 'chemicals', label: 'Chemicals', accent: '#A855F7', accentRGB: '168,85,247',
+    Header: ChemicalsSectorHeader,
+    aggregateEndpoint: `${API_BASE}/aggregate/chemicals/enforcement?limit=1000`,
+    entityKey: 'companies',
+    profilePath: (id) => `/chemicals/${id}`,
+  },
+  agriculture: {
+    key: 'agriculture', label: 'Agriculture', accent: '#16A34A', accentRGB: '22,163,74',
+    Header: AgricultureSectorHeader,
+    aggregateEndpoint: `${API_BASE}/aggregate/agriculture/enforcement?limit=1000`,
+    entityKey: 'companies',
+    profilePath: (id) => `/agriculture/${id}`,
   },
 };
 
@@ -237,8 +253,13 @@ export default function SectorEnforcementPage() {
       }
     }
 
-    return Array.from(statsMap.values())
-      .sort((a, b) => b.totalPenalties - a.totalPenalties);
+    const arr = Array.from(statsMap.values());
+    // If no meaningful penalty data, sort by action count instead
+    const hasPenalties = arr.some((c) => c.totalPenalties > 0);
+    return arr.sort((a, b) => hasPenalties
+      ? b.totalPenalties - a.totalPenalties
+      : b.actionCount - a.actionCount
+    );
   }, [allActions]);
 
   // Severity counts
@@ -254,7 +275,9 @@ export default function SectorEnforcementPage() {
   const totalPenalties = allActions.reduce((sum, a) => sum + (a.penalty_amount || 0), 0);
   const totalActionsCount = allActions.length;
   const uniqueCompanies = new Set(allActions.map((a) => a.entity_id)).size;
+  const hasPenaltyData = totalPenalties > 0;
   const maxCompanyPenalty = companyStats.length > 0 ? companyStats[0].totalPenalties : 0;
+  const maxCompanyActions = companyStats.length > 0 ? companyStats[0].actionCount : 0;
 
   const SectorHeaderComp = config.Header;
 
@@ -355,7 +378,7 @@ export default function SectorEnforcementPage() {
                   <span className="font-heading text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">Total Penalties</span>
                   <TrendingUp size={18} className="text-zinc-500" />
                 </div>
-                <span className="font-mono text-3xl font-semibold text-zinc-100">{fmtDollar(totalPenalties)}</span>
+                <span className="font-mono text-3xl font-semibold text-zinc-100">{hasPenaltyData ? fmtDollar(totalPenalties) : 'N/A'}</span>
               </motion.div>
               <motion.div
                 variants={itemVariants}
@@ -394,17 +417,19 @@ export default function SectorEnforcementPage() {
           {!loading && companyStats.length > 0 && (
             <motion.div variants={itemVariants}>
               <h2 className="font-heading text-2xl font-bold tracking-tight uppercase text-zinc-50 mb-2">
-                Penalties by {config.entityKey === 'institutions' ? 'Institution' : 'Company'}
+                {hasPenaltyData ? 'Penalties' : 'Actions'} by {config.entityKey === 'institutions' ? 'Institution' : 'Company'}
               </h2>
               <p className="font-body text-sm text-zinc-500 mb-6">
-                {config.entityKey === 'institutions' ? 'Institutions' : 'Companies'} ranked by total penalty amounts
+                {config.entityKey === 'institutions' ? 'Institutions' : 'Companies'} ranked by {hasPenaltyData ? 'total penalty amounts' : 'enforcement action count'}
               </p>
 
               <div className="flex flex-col gap-2">
                 {companyStats.slice(0, 10).map((comp, idx) => {
-                  const pct = maxCompanyPenalty > 0 ? (comp.totalPenalties / maxCompanyPenalty) * 100 : 0;
-                  const severity = getSeverity(comp.totalPenalties);
-                  const color = getSeverityColor(severity);
+                  const pct = hasPenaltyData
+                    ? (maxCompanyPenalty > 0 ? (comp.totalPenalties / maxCompanyPenalty) * 100 : 0)
+                    : (maxCompanyActions > 0 ? (comp.actionCount / maxCompanyActions) * 100 : 0);
+                  const severity = hasPenaltyData ? getSeverity(comp.totalPenalties) : 'low';
+                  const color = hasPenaltyData ? getSeverityColor(severity) : config.accent;
                   const isCompanyExpanded = expandedId === `company-${comp.entity_id}`;
                   const companyActions = isCompanyExpanded
                     ? allActions.filter((a) => a.entity_id === comp.entity_id).sort((a, b) => (b.penalty_amount || 0) - (a.penalty_amount || 0))
@@ -432,7 +457,7 @@ export default function SectorEnforcementPage() {
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">
                           <span className="font-mono text-xs text-white/40">{comp.actionCount} actions</span>
-                          <span className="font-mono text-sm font-bold" style={{ color }}>{fmtDollar(comp.totalPenalties)}</span>
+                          <span className="font-mono text-sm font-bold" style={{ color }}>{comp.totalPenalties > 0 ? fmtDollar(comp.totalPenalties) : ''}</span>
                           {isCompanyExpanded ? (
                             <ChevronUp size={16} className="text-white/30" />
                           ) : (

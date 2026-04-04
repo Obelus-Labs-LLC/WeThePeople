@@ -20,6 +20,8 @@ const SECTOR_COLORS: Record<string, { bg: string; activeBg: string; activeText: 
   transportation: { bg: 'bg-blue-500', activeBg: 'bg-blue-500/20', activeText: 'text-blue-400' },
   defense: { bg: 'bg-red-600', activeBg: 'bg-red-600/20', activeText: 'text-red-400' },
   verify: { bg: 'bg-emerald-500', activeBg: 'bg-emerald-500/20', activeText: 'text-emerald-400' },
+  chemicals: { bg: 'bg-purple-500', activeBg: 'bg-purple-500/20', activeText: 'text-purple-400' },
+  agriculture: { bg: 'bg-green-600', activeBg: 'bg-green-600/20', activeText: 'text-green-400' },
 };
 
 export default function SectorHeader({ sector, links }: SectorHeaderProps) {
@@ -27,7 +29,7 @@ export default function SectorHeader({ sector, links }: SectorHeaderProps) {
   const colors = SECTOR_COLORS[sector] || SECTOR_COLORS.politics;
 
   return (
-    <nav className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-8">
+    <nav className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-8 sm:pr-44">
       {/* Left: WP logo + sector name — links back to landing */}
       <Link to="/" className="flex items-center gap-2 no-underline shrink-0">
         <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${colors.bg} font-heading text-sm font-black text-white`}>
@@ -194,7 +196,8 @@ export function ChemicalsSectorHeader() {
   return <SectorHeader sector="chemicals" links={CHEMICALS_LINKS} />;
 }
 
-const AGRICULTURE_LINKS = [
+const AGRICULTURE_LINKS: NavLink[] = [
+  { label: 'Sectors', to: '/' },
   { label: 'Dashboard', to: '/agriculture' },
   { label: 'Companies', to: '/agriculture/companies' },
   { label: 'Lobbying', to: '/agriculture/lobbying' },
