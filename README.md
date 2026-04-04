@@ -272,7 +272,11 @@ All integration code is original.
 
 ## License
 
-All rights reserved. Contact [Obelus Labs LLC](https://github.com/Obelus-Labs-LLC) for licensing inquiries.
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+
+You are free to use, modify, and distribute this software. If you run a modified version as a network service, you must make your source code available under the same license. This ensures that improvements to the platform benefit everyone.
+
+Some proprietary components (detection engine, verification pipeline) are maintained in a separate private repository and are not covered by this license. See the enterprise tier for access.
 
 ---
 
