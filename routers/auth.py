@@ -18,7 +18,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field, EmailStr
 from sqlalchemy.orm import Session
 
@@ -357,3 +357,111 @@ def revoke_api_key(
     )
 
     return None
+
+
+# ── Watchlist ──────────────────────────────────────────────────────────
+
+
+class WatchlistAddRequest(BaseModel):
+    entity_type: str  # politician, company, bill, sector
+    entity_id: str
+    entity_name: str = ""
+    sector: str = ""
+
+
+@router.post("/watchlist", status_code=201)
+def add_to_watchlist(
+    body: WatchlistAddRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Add an entity to the user's watchlist. Requires Member (free) tier or above."""
+    from models.auth_models import UserWatchlistItem
+
+    existing = db.query(UserWatchlistItem).filter(
+        UserWatchlistItem.user_id == user.id,
+        UserWatchlistItem.entity_type == body.entity_type,
+        UserWatchlistItem.entity_id == body.entity_id,
+    ).first()
+    if existing:
+        return {"status": "already_watching", "id": existing.id}
+
+    item = UserWatchlistItem(
+        user_id=user.id,
+        entity_type=body.entity_type,
+        entity_id=body.entity_id,
+        entity_name=body.entity_name,
+        sector=body.sector,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return {"status": "added", "id": item.id}
+
+
+@router.get("/watchlist")
+def get_watchlist(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List all entities the user is tracking."""
+    from models.auth_models import UserWatchlistItem
+
+    items = (
+        db.query(UserWatchlistItem)
+        .filter(UserWatchlistItem.user_id == user.id)
+        .order_by(UserWatchlistItem.created_at.desc())
+        .all()
+    )
+    return {
+        "total": len(items),
+        "items": [
+            {
+                "id": item.id,
+                "entity_type": item.entity_type,
+                "entity_id": item.entity_id,
+                "entity_name": item.entity_name,
+                "sector": item.sector,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+            }
+            for item in items
+        ],
+    }
+
+
+@router.delete("/watchlist/{item_id}", status_code=204)
+def remove_from_watchlist(
+    item_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Remove an entity from the user's watchlist."""
+    from models.auth_models import UserWatchlistItem
+
+    item = db.query(UserWatchlistItem).filter(
+        UserWatchlistItem.id == item_id,
+        UserWatchlistItem.user_id == user.id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    db.delete(item)
+    db.commit()
+    return None
+
+
+@router.get("/watchlist/check")
+def check_watchlist(
+    entity_type: str = Query(...),
+    entity_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Quick check if an entity is in the user's watchlist."""
+    from models.auth_models import UserWatchlistItem
+
+    exists = db.query(UserWatchlistItem).filter(
+        UserWatchlistItem.user_id == user.id,
+        UserWatchlistItem.entity_type == entity_type,
+        UserWatchlistItem.entity_id == entity_id,
+    ).first()
+    return {"watching": exists is not None, "item_id": exists.id if exists else None}
