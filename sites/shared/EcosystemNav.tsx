@@ -25,24 +25,32 @@ const sites = [
 export function EcosystemNav({ active }: EcosystemNavProps) {
   return (
     <nav className="w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm">
-      <div className="max-w-7xl mx-auto px-4 flex items-center h-10 gap-1 text-sm">
-        {sites.map((site, i) => (
-          <React.Fragment key={site.key}>
-            {i > 0 && <span className="text-zinc-700 mx-1">|</span>}
-            {site.key === active ? (
-              <span className="text-white font-medium px-2 py-1">
-                {site.label}
-              </span>
-            ) : (
-              <a
-                href={site.href}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1"
-              >
-                {site.label}
-              </a>
-            )}
-          </React.Fragment>
-        ))}
+      <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-10 text-sm">
+        <div className="flex items-center gap-1">
+          {sites.map((site, i) => (
+            <React.Fragment key={site.key}>
+              {i > 0 && <span className="text-zinc-700 mx-1">|</span>}
+              {site.key === active ? (
+                <span className="text-white font-medium px-2 py-1">
+                  {site.label}
+                </span>
+              ) : (
+                <a
+                  href={site.href}
+                  className="text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1"
+                >
+                  {site.label}
+                </a>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+        <a
+          href="https://wethepeopleforus.com/login"
+          className="text-zinc-500 hover:text-amber-400 transition-colors px-2 py-1"
+        >
+          Log in
+        </a>
       </div>
     </nav>
   )
