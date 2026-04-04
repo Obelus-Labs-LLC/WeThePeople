@@ -141,8 +141,12 @@ def global_search(q: str = Query(..., min_length=1, max_length=200), db: Session
             "sector": "defense",
         })
 
+    # Sanitize query in response to prevent XSS if rendered as HTML
+    import html as _html
+    safe_q = _html.escape(q)
+
     return {
         "politicians": politicians,
         "companies": companies,
-        "query": q,
+        "query": safe_q,
     }
