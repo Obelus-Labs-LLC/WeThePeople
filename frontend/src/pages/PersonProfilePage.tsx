@@ -8,6 +8,7 @@ import TradeTimeline from '../components/TradeTimeline';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
 import TrendChart from '../components/TrendChart';
+import WatchlistButton from '../components/WatchlistButton';
 import ShareButton from '../components/ShareButton';
 import type { TradeMarker } from '../api/influence';
 import type {
@@ -422,9 +423,12 @@ export default function PersonProfilePage() {
 
           {/* Info */}
           <div className="min-w-0 flex-1">
-            <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white">
-              {displayName}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white">
+                {displayName}
+              </h1>
+              <WatchlistButton entityType="politician" entityId={person_id || ''} entityName={displayName} />
+            </div>
             <p className="mt-1 font-mono text-sm text-white/40">
               {state}{chamber ? ` \u00B7 ${chamberLabel(chamber)}` : ''}
             </p>
