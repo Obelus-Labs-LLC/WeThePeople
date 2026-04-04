@@ -45,6 +45,14 @@ from models.agriculture_models import (
     TrackedAgricultureCompany, AgricultureEnforcement,
     AgricultureLobbyingRecord, AgricultureGovernmentContract,
 )
+from models.telecom_models import (
+    TrackedTelecomCompany, TelecomEnforcement,
+    TelecomLobbyingRecord, TelecomGovernmentContract,
+)
+from models.education_models import (
+    TrackedEducationCompany, EducationEnforcement,
+    EducationLobbyingRecord, EducationGovernmentContract,
+)
 
 router = APIRouter(prefix="/aggregate", tags=["aggregate"])
 
@@ -109,6 +117,20 @@ SECTOR_MODELS = {
         "enforcement": AgricultureEnforcement,
         "lobbying": AgricultureLobbyingRecord,
         "contracts": AgricultureGovernmentContract,
+    },
+    "telecom": {
+        "entity": TrackedTelecomCompany,
+        "entity_id_col": "company_id",
+        "enforcement": TelecomEnforcement,
+        "lobbying": TelecomLobbyingRecord,
+        "contracts": TelecomGovernmentContract,
+    },
+    "education": {
+        "entity": TrackedEducationCompany,
+        "entity_id_col": "company_id",
+        "enforcement": EducationEnforcement,
+        "lobbying": EducationLobbyingRecord,
+        "contracts": EducationGovernmentContract,
     },
 }
 
@@ -256,6 +278,16 @@ def agriculture_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Sess
     return _query_enforcement("agriculture", limit, db)
 
 
+@router.get("/telecom/enforcement")
+def telecom_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_enforcement("telecom", limit, db)
+
+
+@router.get("/education/enforcement")
+def education_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_enforcement("education", limit, db)
+
+
 # ── Lobbying endpoints ──
 
 @router.get("/finance/lobbying")
@@ -298,6 +330,16 @@ def agriculture_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session
     return _query_lobbying("agriculture", limit, db)
 
 
+@router.get("/telecom/lobbying")
+def telecom_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_lobbying("telecom", limit, db)
+
+
+@router.get("/education/lobbying")
+def education_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_lobbying("education", limit, db)
+
+
 # ── Contracts endpoints ──
 
 @router.get("/finance/contracts")
@@ -338,3 +380,13 @@ def chemicals_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session 
 @router.get("/agriculture/contracts")
 def agriculture_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
     return _query_contracts("agriculture", limit, db)
+
+
+@router.get("/telecom/contracts")
+def telecom_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_contracts("telecom", limit, db)
+
+
+@router.get("/education/contracts")
+def education_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+    return _query_contracts("education", limit, db)

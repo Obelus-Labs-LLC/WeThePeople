@@ -79,16 +79,21 @@ def list_stories(
 
 
 @router.get("/latest", response_model=StoriesListResponse)
-def latest_stories(limit: int = Query(5, ge=1, le=200), db: Session = Depends(get_db)):
-    """Get the N most recent published stories (for landing page, digest, Twitter)."""
+def latest_stories(
+    limit: int = Query(5, ge=1, le=200),
+    category: Optional[str] = Query(None),
+    sector: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Get the N most recent published stories (for landing page, digest, Twitter).
+    Optionally filter by category or sector."""
     try:
-        stories = (
-            db.query(Story)
-            .filter(Story.status == "published")
-            .order_by(desc(Story.published_at))
-            .limit(limit)
-            .all()
-        )
+        query = db.query(Story).filter(Story.status == "published")
+        if category:
+            query = query.filter(Story.category == category)
+        if sector:
+            query = query.filter(Story.sector == sector)
+        stories = query.order_by(desc(Story.published_at)).limit(limit).all()
     except Exception as e:
         logger.warning("stories query failed (table may not exist): %s", e)
         return {"stories": []}

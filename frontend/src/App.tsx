@@ -11,6 +11,8 @@ import TransportationLayout from "./layouts/TransportationLayout";
 import DefenseLayout from "./layouts/DefenseLayout";
 import ChemicalsLayout from "./layouts/ChemicalsLayout";
 import AgricultureLayout from "./layouts/AgricultureLayout";
+import TelecomLayout from "./layouts/TelecomLayout";
+import EducationLayout from "./layouts/EducationLayout";
 import VerifyLayout from "./layouts/VerifyLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -80,6 +82,14 @@ const AgricultureDashboardPage = React.lazy(() => import("./pages/AgricultureDas
 const AgricultureCompaniesPage = React.lazy(() => import("./pages/AgricultureCompaniesPage"));
 const AgricultureCompanyProfilePage = React.lazy(() => import("./pages/AgricultureCompanyProfilePage"));
 const AgricultureComparePage = React.lazy(() => import("./pages/AgricultureComparePage"));
+const TelecomDashboardPage = React.lazy(() => import("./pages/TelecomDashboardPage"));
+const TelecomCompaniesPage = React.lazy(() => import("./pages/TelecomCompaniesPage"));
+const TelecomCompanyProfilePage = React.lazy(() => import("./pages/TelecomCompanyProfilePage"));
+const TelecomComparePage = React.lazy(() => import("./pages/TelecomComparePage"));
+const EducationDashboardPage = React.lazy(() => import("./pages/EducationDashboardPage"));
+const EducationCompaniesPage = React.lazy(() => import("./pages/EducationCompaniesPage"));
+const EducationCompanyProfilePage = React.lazy(() => import("./pages/EducationCompanyProfilePage"));
+const EducationComparePage = React.lazy(() => import("./pages/EducationComparePage"));
 const CongressionalTradesPage = React.lazy(() => import("./pages/CongressionalTradesPage"));
 const StateExplorerPage = React.lazy(() => import("./pages/StateExplorerPage"));
 const StateDashboardPage = React.lazy(() => import("./pages/StateDashboardPage"));
@@ -249,6 +259,24 @@ const App: React.FC = () => (
           <Route path="/agriculture/contracts" element={<AgricultureLayout><SectorContractsPage /></AgricultureLayout>} />
           <Route path="/agriculture/enforcement" element={<AgricultureLayout><SectorEnforcementPage /></AgricultureLayout>} />
           <Route path="/agriculture/:companyId" element={<AgricultureLayout><AgricultureCompanyProfilePage /></AgricultureLayout>} />
+
+          {/* Telecommunications section — all wrapped in TelecomLayout */}
+          <Route path="/telecom" element={<TelecomLayout><TelecomDashboardPage /></TelecomLayout>} />
+          <Route path="/telecom/companies" element={<TelecomLayout><TelecomCompaniesPage /></TelecomLayout>} />
+          <Route path="/telecom/compare" element={<TelecomLayout><TelecomComparePage /></TelecomLayout>} />
+          <Route path="/telecom/lobbying" element={<TelecomLayout><SectorLobbyingPage /></TelecomLayout>} />
+          <Route path="/telecom/contracts" element={<TelecomLayout><SectorContractsPage /></TelecomLayout>} />
+          <Route path="/telecom/enforcement" element={<TelecomLayout><SectorEnforcementPage /></TelecomLayout>} />
+          <Route path="/telecom/:companyId" element={<TelecomLayout><TelecomCompanyProfilePage /></TelecomLayout>} />
+
+          {/* Education section — all wrapped in EducationLayout */}
+          <Route path="/education" element={<EducationLayout><EducationDashboardPage /></EducationLayout>} />
+          <Route path="/education/companies" element={<EducationLayout><EducationCompaniesPage /></EducationLayout>} />
+          <Route path="/education/compare" element={<EducationLayout><EducationComparePage /></EducationLayout>} />
+          <Route path="/education/lobbying" element={<EducationLayout><SectorLobbyingPage /></EducationLayout>} />
+          <Route path="/education/contracts" element={<EducationLayout><SectorContractsPage /></EducationLayout>} />
+          <Route path="/education/enforcement" element={<EducationLayout><SectorEnforcementPage /></EducationLayout>} />
+          <Route path="/education/:companyId" element={<EducationLayout><EducationCompanyProfilePage /></EducationLayout>} />
 
           {/* Claim Verification section — wrapped in VerifyLayout */}
           <Route path="/verify" element={<VerifyLayout><VerifyDashboardPage /></VerifyLayout>} />

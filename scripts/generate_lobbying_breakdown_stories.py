@@ -80,6 +80,22 @@ SECTORS = {
         "entity_id_col": "company_id",
         "enforcement_table": "defense_enforcement_actions",
     },
+    "telecom": {
+        "label": "Telecommunications",
+        "lobbying_table": "telecom_lobbying_records",
+        "contracts_table": "telecom_government_contracts",
+        "entity_table": "tracked_telecom_companies",
+        "entity_id_col": "company_id",
+        "enforcement_table": "telecom_enforcement_actions",
+    },
+    "education": {
+        "label": "Education",
+        "lobbying_table": "education_lobbying_records",
+        "contracts_table": "education_government_contracts",
+        "entity_table": "tracked_education_companies",
+        "entity_id_col": "company_id",
+        "enforcement_table": "education_enforcement_actions",
+    },
 }
 
 # Map government entities from LDA to awarding agencies from USASpending

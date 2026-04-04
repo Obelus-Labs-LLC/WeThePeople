@@ -91,4 +91,22 @@ export const SECTORS: Sector[] = [
     route: "/agriculture",
     available: true,
   },
+  {
+    slug: "telecom",
+    name: "Telecommunications",
+    tagline: "Telecom lobbying, FCC enforcement, and government contracts",
+    icon: "\u{1F4F6}",
+    gradient: "from-cyan-500 to-blue-700",
+    route: "/telecom",
+    available: true,
+  },
+  {
+    slug: "education",
+    name: "Education",
+    tagline: "Education lobbying, student lending, and enforcement actions",
+    icon: "\u{1F393}",
+    gradient: "from-purple-500 to-violet-700",
+    route: "/education",
+    available: true,
+  },
 ];

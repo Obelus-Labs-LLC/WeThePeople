@@ -23,7 +23,10 @@ export type StoryCategory =
   | 'prolific_trader'
   | 'enforcement_immunity'
   | 'foreign_lobbying'
-  | 'regulatory_capture';
+  | 'regulatory_capture'
+  | 'lobbying_breakdown'
+  | 'cross_sector'
+  | 'fara_lobbying_spike';
 
 export interface StoryCitation {
   index: number;
@@ -89,14 +92,22 @@ export const CATEGORY_META: Record<string, { label: string; color: string; bgCol
   enforcement_immunity: { label: 'Zero Enforcement', color: 'text-yellow-400', bgColor: 'bg-yellow-400/15' },
   foreign_lobbying: { label: 'Foreign Lobbying', color: 'text-blue-400', bgColor: 'bg-blue-400/15' },
   regulatory_capture: { label: 'Regulatory Capture', color: 'text-teal-400', bgColor: 'bg-teal-400/15' },
+  lobbying_breakdown: { label: 'Lobbying Breakdown', color: 'text-amber-400', bgColor: 'bg-amber-400/15' },
+  cross_sector: { label: 'Cross-Sector', color: 'text-indigo-400', bgColor: 'bg-indigo-400/15' },
+  fara_lobbying_spike: { label: 'FARA Lobbying', color: 'text-blue-400', bgColor: 'bg-blue-400/15' },
 };
 
 export const SECTOR_LABELS: Record<string, string> = {
   finance: 'Finance',
   health: 'Health',
   technology: 'Technology',
+  tech: 'Technology',
   energy: 'Energy',
   transportation: 'Transportation',
   defense: 'Defense',
   politics: 'Politics',
+  chemicals: 'Chemicals',
+  agriculture: 'Agriculture',
+  telecom: 'Telecommunications',
+  education: 'Education',
 };
