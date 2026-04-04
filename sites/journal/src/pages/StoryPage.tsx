@@ -349,12 +349,33 @@ export default function StoryPage() {
                 <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">Entities Referenced</h3>
                 <div className="flex flex-wrap gap-2">
                   {story.entity_ids.map((eid, i) => {
-                    const sectorPath = story.sector || 'influence';
+                    // Detect person IDs (underscore-separated names like josh_gottheimer)
+                    // vs company IDs (dash-separated like nvidia, lockheed-martin)
+                    const isPerson = eid.includes('_') && !eid.includes('-');
+                    // Map DB sector names to frontend route prefixes
+                    const sectorRouteMap: Record<string, string> = {
+                      tech: 'technology',
+                      technology: 'technology',
+                      finance: 'finance',
+                      health: 'health',
+                      energy: 'energy',
+                      transportation: 'transportation',
+                      defense: 'defense',
+                      chemicals: 'chemicals',
+                      agriculture: 'agriculture',
+                      telecom: 'telecom',
+                      education: 'education',
+                      politics: 'politics',
+                    };
+                    const sectorRoute = sectorRouteMap[story.sector || ''] || 'influence';
+                    const href = isPerson
+                      ? `https://wethepeopleforus.com/politics/people/${eid}`
+                      : `https://wethepeopleforus.com/${sectorRoute}/${eid}`;
                     const displayName = eid.replace(/-/g, ' ').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
                     return (
                       <a
                         key={i}
-                        href={`https://wethepeopleforus.com/${sectorPath}/${eid}`}
+                        href={href}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/30 text-xs text-zinc-300 hover:text-white hover:border-amber-500/30 transition-colors"
