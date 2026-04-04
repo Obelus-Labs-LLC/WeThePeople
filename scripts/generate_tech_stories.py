@@ -16,7 +16,8 @@ import sys
 import os
 import hashlib
 import json
-from datetime import datetime
+import time
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -52,7 +53,7 @@ def make_story(title, summary, body, category, sector, entity_ids, data_sources,
         data_sources=data_sources,
         evidence=evidence,
         status="published",
-        published_at=datetime.utcnow(),
+        published_at=datetime.now(timezone.utc),
     )
 
 
@@ -505,10 +506,23 @@ def main():
                 print(f"  SKIP  {s.slug} (already exists)")
                 skipped += 1
             else:
-                db.add(s)
-                db.commit()
-                print(f"  NEW   {s.title[:80]}")
-                inserted += 1
+                # Retry on DB lock (sync jobs may hold write lock)
+                for attempt in range(5):
+                    try:
+                        db.add(s)
+                        db.commit()
+                        print(f"  NEW   {s.title[:80]}")
+                        inserted += 1
+                        break
+                    except Exception as e:
+                        db.rollback()
+                        if "locked" in str(e).lower() and attempt < 4:
+                            import time
+                            print(f"  RETRY {s.slug} (DB locked, attempt {attempt + 1})")
+                            time.sleep(3)
+                        else:
+                            print(f"  ERROR {s.slug}: {e}")
+                            break
         print(f"\nDone: {inserted} new stories, {skipped} skipped (already existed)")
     finally:
         db.close()
