@@ -110,8 +110,22 @@ export default function AccountPage() {
               <h2 className="text-lg font-semibold text-amber-400">Upgrade to Enterprise</h2>
             </div>
             <p className="text-sm text-zinc-400 mb-4">Get full API access, the verification pipeline, and bulk data exports.</p>
-            <button className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400 transition-colors">
-              Coming Soon
+            <button
+              onClick={async () => {
+                const token = localStorage.getItem('wtp_access_token');
+                try {
+                  const r = await fetch('/api/auth/checkout/enterprise', {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  const d = await r.json();
+                  if (d.checkout_url) window.location.href = d.checkout_url;
+                  else alert(d.detail || 'Checkout unavailable');
+                } catch { alert('Checkout unavailable'); }
+              }}
+              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400 transition-colors"
+            >
+              Upgrade - $29/mo (7-day free trial)
             </button>
           </div>
         )}

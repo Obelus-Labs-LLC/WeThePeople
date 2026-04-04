@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field, EmailStr
 from sqlalchemy.orm import Session
 
-from models.database import get_db
+from models.database import get_db, SessionLocal
 from models.auth_models import User, APIKeyRecord
 from services.jwt_auth import (
     create_access_token,
@@ -465,3 +465,105 @@ def check_watchlist(
         UserWatchlistItem.entity_id == entity_id,
     ).first()
     return {"watching": exists is not None, "item_id": exists.id if exists else None}
+
+
+# ── Stripe Checkout ────────────────────────────────────────────────────
+
+
+@router.post("/checkout/enterprise")
+def create_enterprise_checkout(
+    user: User = Depends(get_current_user),
+    request: Request = None,
+):
+    """Create a Stripe Checkout session for Enterprise upgrade."""
+    import stripe
+
+    stripe_key = os.getenv("STRIPE_SECRET_KEY")
+    price_id = os.getenv("STRIPE_WTP_ENTERPRISE_PRICE_ID")
+
+    if not stripe_key or not price_id:
+        raise HTTPException(status_code=503, detail="Payment system not configured")
+
+    stripe.api_key = stripe_key
+
+    # Determine base URL for redirects
+    origin = "https://wethepeopleforus.com"
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            payment_method_types=["card"],
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=f"{origin}/account?upgraded=true",
+            cancel_url=f"{origin}/account?cancelled=true",
+            client_reference_id=str(user.id),
+            customer_email=user.email,
+            subscription_data={
+                "trial_period_days": 7,
+                "metadata": {"user_id": str(user.id), "project": "wethepeople"},
+            },
+            metadata={"user_id": str(user.id), "project": "wethepeople"},
+        )
+        return {"checkout_url": session.url}
+    except stripe.error.StripeError as e:
+        logger.error("Stripe checkout failed: %s", e)
+        raise HTTPException(status_code=502, detail="Payment service error")
+
+
+@router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events to upgrade/downgrade user roles."""
+    import stripe
+
+    stripe_key = os.getenv("STRIPE_SECRET_KEY")
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    if not stripe_key:
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+
+    stripe.api_key = stripe_key
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+
+    try:
+        if webhook_secret:
+            event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
+        else:
+            event = stripe.Event.construct_from(json.loads(payload), stripe_key)
+    except (ValueError, stripe.error.SignatureVerificationError) as e:
+        logger.error("Stripe webhook verification failed: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid webhook")
+
+    db = SessionLocal()
+    try:
+        if event["type"] == "checkout.session.completed":
+            session = event["data"]["object"]
+            user_id = session.get("client_reference_id") or session.get("metadata", {}).get("user_id")
+            if user_id:
+                user = db.query(User).filter(User.id == int(user_id)).first()
+                if user:
+                    user.role = "enterprise"
+                    db.commit()
+                    logger.info("User %s upgraded to enterprise via Stripe", user.email)
+
+        elif event["type"] in ("customer.subscription.deleted", "customer.subscription.updated"):
+            sub = event["data"]["object"]
+            user_id = sub.get("metadata", {}).get("user_id")
+            if user_id:
+                user = db.query(User).filter(User.id == int(user_id)).first()
+                if user and sub.get("status") in ("canceled", "unpaid", "past_due"):
+                    user.role = "free"
+                    db.commit()
+                    logger.info("User %s downgraded to free (sub %s)", user.email, sub.get("status"))
+
+        elif event["type"] == "invoice.payment_failed":
+            invoice = event["data"]["object"]
+            customer_email = invoice.get("customer_email")
+            if customer_email:
+                user = db.query(User).filter(User.email == customer_email).first()
+                if user:
+                    logger.warning("Payment failed for user %s", user.email)
+
+    finally:
+        db.close()
+
+    return {"status": "ok"}
