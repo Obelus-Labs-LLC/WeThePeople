@@ -68,6 +68,29 @@ class APIKeyRecord(Base):
     user = relationship("User", back_populates="api_keys")
 
 
+class UserWatchlistItem(Base):
+    """User's tracked entities (politicians, companies, bills, sectors)."""
+
+    __tablename__ = "user_watchlist"
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "entity_type", "entity_id", name="uq_watchlist_user_entity"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    entity_type = Column(String(50), nullable=False, index=True)  # politician, company, bill, sector
+    entity_id = Column(String(255), nullable=False, index=True)   # person_id, company_id, bill_id, sector slug
+    entity_name = Column(String(500), nullable=True)              # Display name for quick rendering
+    sector = Column(String(50), nullable=True)                    # Sector for company entities
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    user = relationship("User", backref="watchlist_items")
+
+
 class AuditLog(Base):
     """Immutable security audit trail."""
 

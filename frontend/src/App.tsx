@@ -1,6 +1,7 @@
 import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
+import { AuthProvider } from "./contexts/AuthContext";
 import PoliticsLayout from "./layouts/PoliticsLayout";
 import FinanceLayout from "./layouts/FinanceLayout";
 import TechLayout from "./layouts/TechLayout";
@@ -100,6 +101,9 @@ const VerifyResultPage = React.lazy(() => import("./pages/VerifyResultPage"));
 const VerifyEntityPage = React.lazy(() => import("./pages/VerifyEntityPage"));
 const VerifyMethodologyPage = React.lazy(() => import("./pages/VerifyMethodologyPage"));
 const DigestSignupPage = React.lazy(() => import("./pages/DigestSignupPage"));
+const LoginPage = React.lazy(() => import("./pages/LoginPage"));
+const SignupPage = React.lazy(() => import("./pages/SignupPage"));
+const AccountPage = React.lazy(() => import("./pages/AccountPage"));
 const ZipLookupPage = React.lazy(() => import("./pages/ZipLookupPage"));
 const StoriesPage = React.lazy(() => import("./pages/StoriesPage"));
 const StoryDetailPage = React.lazy(() => import("./pages/StoryDetailPage"));
@@ -113,6 +117,7 @@ const MethodologyPage = React.lazy(() => import("./pages/MethodologyPage"));
 
 const App: React.FC = () => (
   <ErrorBoundary>
+    <AuthProvider>
     <BrowserRouter>
       <GlobalSearch />
       <ChatAgent />
@@ -257,6 +262,9 @@ const App: React.FC = () => (
 
           {/* Digest signup */}
           <Route path="/digest" element={<DigestSignupPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/account" element={<AccountPage />} />
 
           {/* Legal / Info pages */}
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
@@ -274,6 +282,7 @@ const App: React.FC = () => (
       </Suspense>
       <Analytics />
     </BrowserRouter>
+    </AuthProvider>
   </ErrorBoundary>
 );
 
