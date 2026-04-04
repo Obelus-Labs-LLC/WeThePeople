@@ -423,8 +423,39 @@ def generate_story_tweet():
     if not title:
         return generate_data_tweet()
 
-    # Build tweet: title + summary + first 1-2 body paragraphs (the hook).
-    # Don't include the full article — save the analysis for the journal page.
+    # ── Lobbying breakdown: tease-and-link pattern ──
+    # Pose the question, hint at the answer, link to the full breakdown.
+    if category == "lobbying_breakdown":
+        evidence = story.get("evidence", {})
+        total = evidence.get("total_lobbying_spend", 0)
+        issue_count = evidence.get("issue_count", 0)
+        top_issue = evidence.get("top_issue", "")
+        top_spend = evidence.get("top_issue_spend", 0)
+        sector_label = (story.get("sector") or "corporate").capitalize()
+
+        if total and top_issue:
+            fmt_total = f"${total / 1e6:.0f}M" if total >= 1e6 else f"${total / 1e3:.0f}K"
+            fmt_top = f"${top_spend / 1e6:.0f}M" if top_spend >= 1e6 else f"${top_spend / 1e3:.0f}K"
+            remaining = total - top_spend
+            fmt_remaining = f"${remaining / 1e6:.0f}M" if remaining >= 1e6 else f"${remaining / 1e3:.0f}K"
+
+            parts = [
+                f"{sector_label} companies filed thousands of lobbying disclosures "
+                f"totaling {fmt_total} across {issue_count} policy areas.",
+                f"{top_issue} was the top target at {fmt_top}.",
+                f"Where did the other {fmt_remaining} go?",
+                f"Full breakdown with government sources:",
+            ]
+        else:
+            parts = [title, "Where does the lobbying money actually go? We broke it down by issue, agency, and company."]
+
+        journal_url = "journal.wethepeopleforus.com"
+        link = f"{journal_url}/story/{slug}" if slug else journal_url
+        parts.append("#FollowTheMoney #CorporateLobbying")
+        text = "\n\n".join(parts)
+        return (text, link), "story"
+
+    # ── Standard stories: title + summary + body excerpt ──
     excerpt_paras = []
     if body:
         paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
@@ -456,6 +487,7 @@ def generate_story_tweet():
         "defense_lobbying_records": "Senate LDA Filings",
         "chemical_lobbying_records": "Senate LDA Filings",
         "agriculture_lobbying_records": "Senate LDA Filings",
+        "transportation_lobbying_records": "Senate LDA Filings",
         "government_contracts": "USASpending.gov",
         "health_government_contracts": "USASpending.gov",
         "finance_government_contracts": "USASpending.gov",
@@ -463,6 +495,7 @@ def generate_story_tweet():
         "energy_government_contracts": "USASpending.gov",
         "chemical_government_contracts": "USASpending.gov",
         "agriculture_government_contracts": "USASpending.gov",
+        "transportation_government_contracts": "USASpending.gov",
         "congressional_trades": "House Financial Disclosures",
         "company_donations": "FEC Campaign Finance Data",
         "committees": "congress-legislators (CC0)",
@@ -491,6 +524,12 @@ def generate_story_tweet():
         "enforcement_gap": "#Accountability",
         "contract_windfall": "#FollowTheMoney",
         "full_influence_loop": "#FollowTheMoney",
+        "lobbying_breakdown": "#CorporateLobbying",
+        "enforcement_immunity": "#Accountability",
+        "penalty_contract_ratio": "#Accountability",
+        "prolific_trader": "#CongressTrades",
+        "stock_act_violation": "#CongressTrades",
+        "committee_stock_trade": "#CongressTrades",
     }.get(category, "#FollowTheMoney")
     parts.append(hashtag)
 
