@@ -535,8 +535,12 @@ async def stripe_webhook(request: Request):
 
     db = SessionLocal()
     try:
-        if event["type"] == "checkout.session.completed":
-            session = event["data"]["object"]
+        event_type = event.get("type", "") if isinstance(event, dict) else getattr(event, "type", "")
+        event_data = event.get("data", {}) if isinstance(event, dict) else getattr(event, "data", {})
+        event_obj = event_data.get("object", {}) if isinstance(event_data, dict) else getattr(event_data, "object", {})
+
+        if event_type == "checkout.session.completed":
+            session = event_obj
             user_id = session.get("client_reference_id") or session.get("metadata", {}).get("user_id")
             if user_id:
                 user = db.query(User).filter(User.id == int(user_id)).first()
@@ -545,8 +549,8 @@ async def stripe_webhook(request: Request):
                     db.commit()
                     logger.info("User %s upgraded to enterprise via Stripe", user.email)
 
-        elif event["type"] in ("customer.subscription.deleted", "customer.subscription.updated"):
-            sub = event["data"]["object"]
+        elif event_type in ("customer.subscription.deleted", "customer.subscription.updated"):
+            sub = event_obj
             user_id = sub.get("metadata", {}).get("user_id")
             if user_id:
                 user = db.query(User).filter(User.id == int(user_id)).first()
@@ -555,8 +559,8 @@ async def stripe_webhook(request: Request):
                     db.commit()
                     logger.info("User %s downgraded to free (sub %s)", user.email, sub.get("status"))
 
-        elif event["type"] == "invoice.payment_failed":
-            invoice = event["data"]["object"]
+        elif event_type == "invoice.payment_failed":
+            invoice = event_obj
             customer_email = invoice.get("customer_email")
             if customer_email:
                 user = db.query(User).filter(User.email == customer_email).first()
