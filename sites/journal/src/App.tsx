@@ -46,6 +46,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Layout><HomePage /></Layout>} />
         <Route path="/story/:slug" element={<Layout><StoryPage /></Layout>} />
+        <Route path="/stories/:slug" element={<Layout><StoryPage /></Layout>} />
         <Route path="/category/:category" element={<Layout><CategoryPage /></Layout>} />
         <Route path="/about" element={<Layout><AboutPage /></Layout>} />
         <Route path="/subscribe" element={<Layout><SubscribePage /></Layout>} />
