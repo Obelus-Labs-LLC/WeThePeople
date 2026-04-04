@@ -73,6 +73,26 @@ def already_posted(session, text: str) -> bool:
     return session.query(TweetLog).filter_by(content_hash=h).first() is not None
 
 
+def entity_tweeted_recently(session, entity_name: str, days: int = 3) -> bool:
+    """Check if we tweeted about this entity in the last N days.
+
+    Prevents repetitive tweets about the same company/person across consecutive days.
+    Searches the tweet text for the entity name (case-insensitive).
+    """
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    recent = (
+        session.query(TweetLog)
+        .filter(TweetLog.posted_at >= cutoff)
+        .all()
+    )
+    name_lower = entity_name.lower()
+    for tweet in recent:
+        if tweet.text and name_lower in tweet.text.lower():
+            return True
+    return False
+
+
 def log_tweet(session, tweet_id: str, category: str, text: str):
     """Log a posted tweet. Retries on DB lock since syncs may be writing."""
     for attempt in range(3):
@@ -138,11 +158,15 @@ def generate_data_tweet() -> tuple:
     contract_items = contract_data if isinstance(contract_data, list) else contract_data.get("leaders", [])
 
     # Find companies that appear in BOTH top lobbying AND top contracts
+    # Skip entities we tweeted about in the last 3 days
+    _dedup_session = SessionLocal()
     lobby_map = {i.get("entity_id"): i for i in lobby_items}
     for ci in contract_items:
         eid = ci.get("entity_id")
         if eid in lobby_map:
             name = ci.get("display_name", "A company")
+            if entity_tweeted_recently(_dedup_session, name, days=3):
+                continue
             lobby = lobby_map[eid].get("total_lobbying", 0)
             contracts = ci.get("total_contracts", 0)
             sector = ci.get("sector", "")
@@ -243,6 +267,8 @@ def generate_data_tweet() -> tuple:
                 f"{SITE}/{sector}/{eid}"
             ))
 
+    _dedup_session.close()
+
     if not options:
         return None, "data"
 
@@ -303,7 +329,20 @@ def generate_thread() -> tuple:
     if not items:
         return None, "thread"
 
-    company = random.choice(items[:3])
+    # Filter out companies we tweeted about in the last 3 days
+    session = SessionLocal()
+    try:
+        candidates = [
+            c for c in items
+            if not entity_tweeted_recently(session, c.get("display_name", c.get("name", "")), days=3)
+        ]
+    finally:
+        session.close()
+
+    if not candidates:
+        candidates = items  # Fall back to all if everything was recent
+
+    company = random.choice(candidates[:5])
     name = company.get("display_name", company.get("name", "A major corporation"))
     lobby_total = company.get("total_lobbying", 0)
 
@@ -337,13 +376,42 @@ def generate_story_tweet():
     The tweet IS the story, just truncated. Links to the full investigation
     on the journal site. This is the primary content type.
     """
-    data = api_get("/stories/latest", {"limit": 10})
+    data = api_get("/stories/latest", {"limit": 50})
     stories = data.get("stories", [])
     if not stories:
         # Fall back to data tweet if no stories published yet
         return generate_data_tweet()
 
-    story = random.choice(stories[:5])
+    # Filter out stories about entities we tweeted about in the last 3 days
+    session = SessionLocal()
+    try:
+        candidates = []
+        for s in stories:
+            title = s.get("title", "")
+            # Extract key entity name from title (first proper noun sequence)
+            entity_ids = s.get("entity_ids", [])
+            recently_covered = False
+            for eid in entity_ids:
+                display = eid.replace("_", " ").replace("-", " ")
+                if entity_tweeted_recently(session, display, days=3):
+                    recently_covered = True
+                    break
+            # Also check title keywords against recent tweets
+            if not recently_covered and title:
+                # Check if the main subject was tweeted recently
+                for word in title.split():
+                    if len(word) > 5 and word[0].isupper() and entity_tweeted_recently(session, word, days=3):
+                        recently_covered = True
+                        break
+            if not recently_covered:
+                candidates.append(s)
+    finally:
+        session.close()
+
+    if not candidates:
+        candidates = stories  # Fall back to all if everything was recent
+
+    story = random.choice(candidates[:10])
     title = story.get("title", "")
     summary = story.get("summary", "")
     body = story.get("body", "") or story.get("content", "")
