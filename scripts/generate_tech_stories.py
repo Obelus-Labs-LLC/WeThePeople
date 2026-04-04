@@ -72,9 +72,8 @@ def generate_stories(db):
 
     mullin_committees = db.execute(text("""
         SELECT c.name FROM committees c
-        JOIN committee_memberships cm ON cm.committee_id = c.id
-        JOIN tracked_members tm ON tm.bioguide_id = cm.bioguide_id
-        WHERE tm.person_id = 'markwayne_mullin'
+        JOIN committee_memberships cm ON cm.committee_thomas_id = c.thomas_id
+        WHERE cm.person_id = 'markwayne_mullin'
     """)).fetchall()
 
     msft_contracts = db.execute(text("""
