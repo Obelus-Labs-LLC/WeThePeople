@@ -122,7 +122,7 @@ const App: React.FC = () => (
     <BrowserRouter>
       <GlobalSearch />
       <ChatAgent />
-      <div className="fixed top-4 right-20 z-50">
+      <div className="fixed top-3 right-32 z-50">
         <UserMenu />
       </div>
       <Suspense fallback={
