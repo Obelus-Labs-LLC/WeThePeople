@@ -25,14 +25,44 @@ function shareOnTwitter(title: string) {
 }
 
 /**
- * Very basic content renderer. If the story content contains markdown-style
- * paragraphs (double newlines), we split and render each as a <p>. Otherwise
- * render as a single block.
+ * Render inline markdown: **bold**, *italic*, and [links](url).
+ */
+function renderInline(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // Bold: **text**
+    const boldMatch = remaining.match(/^(.*?)\*\*(.+?)\*\*(.*)/s);
+    if (boldMatch) {
+      if (boldMatch[1]) parts.push(<span key={key++}>{boldMatch[1]}</span>);
+      parts.push(<strong key={key++} className="text-white font-semibold">{boldMatch[2]}</strong>);
+      remaining = boldMatch[3];
+      continue;
+    }
+    // Italic: *text*
+    const italicMatch = remaining.match(/^(.*?)\*(.+?)\*(.*)/s);
+    if (italicMatch) {
+      if (italicMatch[1]) parts.push(<span key={key++}>{italicMatch[1]}</span>);
+      parts.push(<em key={key++} className="text-zinc-400 italic">{italicMatch[2]}</em>);
+      remaining = italicMatch[3];
+      continue;
+    }
+    // No more matches
+    parts.push(<span key={key++}>{remaining}</span>);
+    break;
+  }
+  return parts;
+}
+
+/**
+ * Content renderer that handles markdown headings, bullet lists, bold, and italic.
  */
 function renderContent(content: string) {
   const blocks = content.split(/\n{2,}/).filter(Boolean);
-  if (blocks.length <= 1) {
-    return <p className="text-zinc-300 leading-[1.85] text-base">{content}</p>;
+  if (blocks.length <= 1 && !content.includes('\n- ') && !content.includes('\n**')) {
+    return <p className="text-zinc-300 leading-[1.85] text-base">{renderInline(content)}</p>;
   }
   return blocks.map((block, i) => {
     // Handle markdown ## headings
@@ -52,9 +82,24 @@ function renderContent(content: string) {
         </h3>
       );
     }
+    // Handle bullet lists (lines starting with -)
+    const lines = block.split('\n');
+    const isList = lines.every(line => line.trim().startsWith('- ') || line.trim() === '');
+    if (isList && lines.some(line => line.trim().startsWith('- '))) {
+      return (
+        <ul key={i} className="mb-6 space-y-2 ml-1">
+          {lines.filter(line => line.trim().startsWith('- ')).map((line, j) => (
+            <li key={j} className="flex gap-2 text-zinc-300 leading-[1.85] text-base">
+              <span className="text-amber-400 shrink-0 mt-0.5">&#8226;</span>
+              <span>{renderInline(line.trim().slice(2))}</span>
+            </li>
+          ))}
+        </ul>
+      );
+    }
     return (
       <p key={i} className="text-zinc-300 leading-[1.85] text-base mb-6">
-        {block}
+        {renderInline(block)}
       </p>
     );
   });
