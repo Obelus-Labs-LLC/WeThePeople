@@ -11,6 +11,8 @@ import {
   EnergySectorHeader,
   TransportationSectorHeader,
   DefenseSectorHeader,
+  ChemicalsSectorHeader,
+  AgricultureSectorHeader,
 } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
@@ -79,6 +81,20 @@ const SECTOR_MAP: Record<string, SectorConfig> = {
     aggregateEndpoint: `${API_BASE}/aggregate/defense/contracts?limit=1000`,
     entityKey: 'companies',
     profilePath: (id) => `/defense/${id}`,
+  },
+  chemicals: {
+    key: 'chemicals', label: 'Chemicals', accent: '#A855F7', accentRGB: '168,85,247',
+    Header: ChemicalsSectorHeader,
+    aggregateEndpoint: `${API_BASE}/aggregate/chemicals/contracts?limit=1000`,
+    entityKey: 'companies',
+    profilePath: (id) => `/chemicals/${id}`,
+  },
+  agriculture: {
+    key: 'agriculture', label: 'Agriculture', accent: '#16A34A', accentRGB: '22,163,74',
+    Header: AgricultureSectorHeader,
+    aggregateEndpoint: `${API_BASE}/aggregate/agriculture/contracts?limit=1000`,
+    entityKey: 'companies',
+    profilePath: (id) => `/agriculture/${id}`,
   },
 };
 

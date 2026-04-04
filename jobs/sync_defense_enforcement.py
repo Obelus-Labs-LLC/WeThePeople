@@ -112,7 +112,7 @@ def extract_penalty(title: str, abstract: str = "") -> float:
                 return amount * 1_000_000
             else:
                 return amount
-    return 0.0
+    return None
 
 
 def classify_enforcement_type(title: str, abstract: str = "") -> str:
