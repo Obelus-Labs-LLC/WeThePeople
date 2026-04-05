@@ -19,7 +19,8 @@ from typing import Optional, List, Dict, Any
 log = logging.getLogger(__name__)
 
 SCORECARD_BASE = "https://api.data.gov/ed/collegescorecard/v1/schools"
-API_KEY = os.environ.get("DATA_GOV_API_KEY") or os.environ.get("DATAGOV_API_KEY") or "DEMO_KEY"
+def _get_api_key() -> str:
+    return os.environ.get("DATA_GOV_API_KEY") or os.environ.get("DATAGOV_API_KEY") or "DEMO_KEY"
 
 POLITE_DELAY = 0.5
 
@@ -45,9 +46,7 @@ DEFAULT_FIELDS = ",".join([
 
 def _build_params(**kwargs) -> Dict[str, Any]:
     """Build base params with API key and extra filters."""
-    params: Dict[str, Any] = {}
-    if API_KEY:
-        params["api_key"] = API_KEY
+    params: Dict[str, Any] = {"api_key": _get_api_key()}
     params.update(kwargs)
     return params
 
