@@ -19,8 +19,8 @@ from typing import Optional, List, Dict, Any
 
 log = logging.getLogger(__name__)
 
-LICENSE_BASE = "http://data.fcc.gov/api/license-view/basicSearch/getLicenses"
-SPECTRUM_BASE = "http://data.fcc.gov/api/spectrum-view/services/advancedSearch/getSpectrumBands"
+LICENSE_BASE = "https://data.fcc.gov/api/license-view/basicSearch/getLicenses"
+SPECTRUM_BASE = "https://data.fcc.gov/api/spectrum-view/services/advancedSearch/getSpectrumBands"
 
 POLITE_DELAY = 0.5
 

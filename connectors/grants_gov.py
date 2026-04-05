@@ -71,8 +71,9 @@ def search_grants(
         log.error("Grants.gov search failed: %s", e)
         return []
 
-    # Response structure may vary; try common keys
-    results = data.get("oppHits", data.get("opportunities", data.get("results", [])))
+    # Response: {"errorcode": 0, "data": {"oppHits": [...], ...}}
+    inner = data.get("data", data)
+    results = inner.get("oppHits", inner.get("opportunities", inner.get("results", [])))
     if isinstance(results, dict):
         results = results.get("oppHit", [])
 

@@ -1,10 +1,13 @@
 """
-FCC Consumer Complaints Connector — via Socrata SODA API
+FCC Consumer Complaints Connector -- via Socrata SODA API
 
 Fetch consumer complaint data filed with the Federal Communications Commission.
 Covers issues like robocalls, billing disputes, service quality, and accessibility.
 
-API docs: https://opendata.fcc.gov/resource/3xyp-aqkj
+Dataset: https://opendata.fcc.gov/resource/3xyp-aqkj
+Columns: id, ticket_created, date_created, issue_time, issue_type, method, issue,
+         caller_id_number, city, state, zip, type_of_call_or_messge
+
 Rate limit: 1,000 requests/hour without app token, higher with token
 Auth: Optional Socrata app token (env var SOCRATA_APP_TOKEN) for higher rate limits
 """
@@ -24,7 +27,6 @@ POLITE_DELAY = 0.5
 
 
 def _build_headers() -> Dict[str, str]:
-    """Build request headers, including Socrata app token if available."""
     headers: Dict[str, str] = {"Accept": "application/json"}
     if APP_TOKEN:
         headers["X-App-Token"] = APP_TOKEN
@@ -32,8 +34,9 @@ def _build_headers() -> Dict[str, str]:
 
 
 def search_complaints(
-    company: Optional[str] = None,
+    issue_type: Optional[str] = None,
     issue: Optional[str] = None,
+    method: Optional[str] = None,
     state: Optional[str] = None,
     limit: int = 100,
 ) -> List[Dict[str, Any]]:
@@ -41,25 +44,30 @@ def search_complaints(
     Search FCC consumer complaints with optional filters.
 
     Args:
-        company: Company/provider name to filter (case-insensitive LIKE match)
-        issue: Issue category (e.g. 'Robocalls', 'Billing', 'Internet')
+        issue_type: Type filter (e.g. 'Phone', 'Internet', 'TV')
+        issue: Issue category (e.g. 'Unwanted Calls', 'Billing', 'Service')
+        method: Method (e.g. 'Wired', 'Wireless', 'Cable', 'Satellite')
         state: Two-letter state code (e.g. 'CA', 'NY')
-        limit: Max results to return (default 100, Socrata max 50000)
+        limit: Max results to return (default 100)
 
     Returns:
-        List of complaint dicts with fields from the FCC dataset
+        List of complaint dicts
     """
     params: Dict[str, Any] = {
         "$limit": min(limit, 50000),
-        "$order": "date_of_issue DESC",
+        "$order": "ticket_created DESC",
     }
 
-    # Build SoQL $where clauses
     where_clauses = []
-    if company:
-        where_clauses.append(f"upper(company_name) like '%{company.upper()}%'")
+    if issue_type:
+        safe = issue_type.replace("'", "''")
+        where_clauses.append(f"upper(issue_type) like '%{safe.upper()}%'")
     if issue:
-        where_clauses.append(f"upper(issue) like '%{issue.upper()}%'")
+        safe = issue.replace("'", "''")
+        where_clauses.append(f"upper(issue) like '%{safe.upper()}%'")
+    if method:
+        safe = method.replace("'", "''")
+        where_clauses.append(f"upper(method) like '%{safe.upper()}%'")
     if state:
         where_clauses.append(f"state='{state.upper()}'")
 
@@ -85,20 +93,15 @@ def search_complaints(
         return []
 
     log.info(
-        "FCC complaints search (company=%s, issue=%s, state=%s): %d results",
-        company, issue, state, len(results),
+        "FCC complaints search (issue_type=%s, issue=%s, state=%s): %d results",
+        issue_type, issue, state, len(results),
     )
     return results
 
 
-def get_complaint_stats(
-    company: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+def get_complaint_stats() -> List[Dict[str, Any]]:
     """
     Get aggregate complaint statistics grouped by issue type.
-
-    Args:
-        company: Optional company name to filter stats for
 
     Returns:
         List of dicts with 'issue' and 'count' keys, sorted by count descending
@@ -107,11 +110,8 @@ def get_complaint_stats(
         "$select": "issue, count(*) as count",
         "$group": "issue",
         "$order": "count DESC",
-        "$limit": 100,
+        "$limit": 50,
     }
-
-    if company:
-        params["$where"] = f"upper(company_name) like '%{company.upper()}%'"
 
     try:
         time.sleep(POLITE_DELAY)
@@ -131,25 +131,18 @@ def get_complaint_stats(
         log.error("FCC complaint stats failed: %s", e)
         return []
 
-    log.info(
-        "FCC complaint stats (company=%s): %d issue categories",
-        company, len(results),
-    )
+    log.info("FCC complaint stats: %d issue categories", len(results))
     return results
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-
-    print("=== Testing FCC Complaints Connector ===\n")
-
-    print("--- Search complaints (AT&T, limit 5) ---")
-    complaints = search_complaints(company="AT&T", limit=5)
+    print("--- Search complaints (state=CA, limit 5) ---")
+    complaints = search_complaints(state="CA", limit=5)
     for c in complaints[:3]:
-        print(f"  {c.get('date_of_issue', 'N/A')}: {c.get('issue', 'N/A')} - {c.get('company_name', 'N/A')}")
-    print(f"  Total returned: {len(complaints)}\n")
-
-    print("--- Complaint stats (all companies) ---")
+        print(f"  {c.get('ticket_created', 'N/A')}: {c.get('issue', 'N/A')} ({c.get('issue_type', 'N/A')})")
+    print(f"  Total: {len(complaints)}")
+    print("\n--- Complaint stats ---")
     stats = get_complaint_stats()
     for s in stats[:5]:
         print(f"  {s.get('issue', 'N/A')}: {s.get('count', 0)}")
