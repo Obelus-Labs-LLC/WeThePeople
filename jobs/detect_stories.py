@@ -758,6 +758,781 @@ def detect_budget_lobbying(db, sector_idx=None):
     return stories
 
 
+# ══════════════════════════════════════════════════════════════
+# INVESTIGATIVE PATTERNS — Cross-dataset anomaly detection
+# ══════════════════════════════════════════════════════════════
+
+
+# ── Pattern 8: Trade-Before-Legislation ──
+
+def detect_trade_before_legislation(db):
+    """Find congress members who traded stock within 30 days before/after
+    a bill they sponsored/cosponsored had action. Cross-references
+    congressional_trades dates against bill_actions dates."""
+    stories = []
+    try:
+        # Find trades where the member also sponsored/cosponsored a bill
+        # and a bill action happened within 30 days of the trade
+        rows = db.execute(text("""
+            SELECT
+                ct.person_id,
+                tm.display_name, tm.party, tm.state, tm.chamber,
+                ct.ticker, ct.asset_name, ct.transaction_type, ct.amount_range,
+                ct.transaction_date,
+                pb.bill_id, pb.relationship_type,
+                ba.action_text, ba.action_date,
+                b.title as bill_title,
+                ABS(JULIANDAY(ct.transaction_date) - JULIANDAY(ba.action_date)) as day_gap
+            FROM congressional_trades ct
+            JOIN tracked_members tm ON tm.person_id = ct.person_id
+            JOIN person_bills pb ON pb.person_id = ct.person_id
+            JOIN bill_actions ba ON ba.bill_id = pb.bill_id
+            JOIN bills b ON b.bill_id = pb.bill_id
+            WHERE ct.transaction_date IS NOT NULL
+              AND ba.action_date IS NOT NULL
+              AND ABS(JULIANDAY(ct.transaction_date) - JULIANDAY(ba.action_date)) <= 30
+              AND ct.transaction_date >= '2024-01-01'
+            ORDER BY day_gap ASC
+            LIMIT 50
+        """)).fetchall()
+    except Exception as e:
+        log.warning("Trade-before-legislation query failed: %s", e)
+        return stories
+
+    # Group by person to find the most suspicious patterns
+    person_hits = defaultdict(list)
+    for r in rows:
+        person_hits[r[0]].append({
+            "name": r[1], "party": r[2], "state": r[3], "chamber": r[4],
+            "ticker": r[5], "asset": r[6], "tx_type": r[7], "amount": r[8],
+            "trade_date": str(r[9]), "bill_id": r[10], "relationship": r[11],
+            "action": r[12], "action_date": str(r[13]),
+            "bill_title": r[14], "day_gap": int(r[15]),
+        })
+
+    for pid, hits in sorted(person_hits.items(), key=lambda x: -len(x[1])):
+        if len(hits) < 1:
+            continue
+        h = hits[0]
+        name = h["name"]
+        title = "%s Traded %s Stock %d Days %s %s Bill Action" % (
+            name, h["ticker"], h["day_gap"],
+            "Before" if h["trade_date"] <= h["action_date"] else "After",
+            h["relationship"].lower()
+        )
+        if story_exists(db, slug(title)):
+            continue
+
+        body = "## The Timeline\n\n"
+        for hit in hits[:8]:
+            direction = "before" if hit["trade_date"] <= hit["action_date"] else "after"
+            body += "- **%s**: %s %s %s (%s) on %s\n" % (
+                hit["ticker"], hit["tx_type"], hit["asset"] or hit["ticker"],
+                hit["amount"] or "", hit["trade_date"],
+                ""
+            )
+            body += "  - **%d days %s**: Bill %s (%s) had action: \"%s\" on %s\n" % (
+                hit["day_gap"], direction, hit["bill_id"],
+                hit["relationship"], (hit["action"] or "")[:100], hit["action_date"]
+            )
+            if hit["bill_title"]:
+                body += "  - Bill: *%s*\n" % hit["bill_title"][:120]
+            body += "\n"
+
+        # Get committee assignments
+        try:
+            comms = db.execute(text(
+                "SELECT c.name FROM committees c "
+                "JOIN committee_memberships cm ON cm.committee_thomas_id = c.thomas_id "
+                "WHERE cm.person_id = :pid"
+            ), {"pid": pid}).fetchall()
+            if comms:
+                body += "## Committee Assignments\n\n"
+                for c in comms[:6]:
+                    body += "- %s\n" % c[0]
+                body += "\n"
+        except Exception:
+            pass
+
+        body += "## Why This Matters\n\n"
+        body += "The STOCK Act requires members of Congress to disclose stock trades within 45 days. "
+        body += "When trades coincide with legislative action on bills a member sponsors, it raises questions "
+        body += "about whether nonpublic information influenced the trading decision.\n\n"
+        body += "## Data Sources\n\n"
+        body += "- **Stock trades**: House Financial Disclosures / Senate STOCK Act filings\n"
+        body += "- **Bill actions**: Congress.gov via congress-legislators (CC0)\n"
+        body += "- **Committee data**: congress-legislators (CC0)\n"
+        body += "\n*All data from public government records. No allegations of wrongdoing are made.*"
+
+        tickers = list(set(h["ticker"] for h in hits if h["ticker"]))
+        stories.append(make_story(
+            title=title,
+            summary="%s traded %s stock within %d days of legislative action on a bill they %s." % (
+                name, hits[0]["ticker"], hits[0]["day_gap"], hits[0]["relationship"].lower()
+            ),
+            body=body,
+            category="trade_timing",
+            sector=None,
+            entity_ids=[pid] + [h["bill_id"] for h in hits[:3]],
+            data_sources=["congressional_trades", "bill_actions", "person_bills", "House Financial Disclosures", "Congress.gov"],
+            evidence={
+                "person": name, "party": h["party"], "state": h["state"],
+                "overlap_count": len(hits), "min_gap_days": min(x["day_gap"] for x in hits),
+                "tickers": tickers[:5],
+            },
+        ))
+        if len(stories) >= 2:
+            break
+
+    return stories
+
+
+# ── Pattern 9: Lobby-Then-Win ──
+
+def detect_lobby_then_win(db, sector_idx=None):
+    """Find companies that increased lobbying spend targeting a specific agency,
+    then received contracts from that same agency within 6 months."""
+    stories = []
+    idx = sector_idx if sector_idx is not None else random.randint(0, len(LOBBYING_TABLES) - 1)
+    l_table, sector, id_col, entity_table = LOBBYING_TABLES[idx]
+    c_table = CONTRACT_TABLES[idx][0]
+
+    # Map lobbying government_entities to contract awarding_agency
+    AGENCY_MAP = {
+        "Defense, Dept of": "Department of Defense",
+        "Health & Human Services, Dept of (HHS)": "Department of Health and Human Services",
+        "Health and Human Services, Dept of (HHS)": "Department of Health and Human Services",
+        "Energy, Dept of": "Department of Energy",
+        "Transportation, Dept of (DOT)": "Department of Transportation",
+        "Homeland Security, Dept of (DHS)": "Department of Homeland Security",
+        "Veterans Affairs, Dept of (VA)": "Department of Veterans Affairs",
+        "Commerce, Dept of (DOC)": "Department of Commerce",
+        "Treasury, Dept of": "Department of the Treasury",
+        "Justice, Dept of (DOJ)": "Department of Justice",
+        "Agriculture, Dept of": "Department of Agriculture",
+        "Interior, Dept of": "Department of the Interior",
+        "Education, Dept of": "Department of Education",
+        "Labor, Dept of": "Department of Labor",
+    }
+
+    try:
+        # Get lobbying filings with government entities
+        lob_rows = db.execute(text(
+            "SELECT %s, government_entities, income, filing_year FROM %s "
+            "WHERE government_entities IS NOT NULL AND income > 0"
+            % (id_col, l_table)
+        )).fetchall()
+    except Exception as e:
+        log.warning("Lobby-then-win query failed for %s: %s", sector, e)
+        return stories
+
+    # Build per-company, per-agency lobbying totals
+    company_agency_lobby = defaultdict(lambda: defaultdict(float))
+    for eid, entities_str, income, year in lob_rows:
+        inc = float(income) if income else 0
+        entities = [e.strip() for e in entities_str.split(",") if e.strip()]
+        per_ent = inc / max(len(entities), 1)
+        for ent in entities:
+            mapped = AGENCY_MAP.get(ent)
+            if mapped:
+                company_agency_lobby[eid][mapped] += per_ent
+
+    # Now check which companies got contracts from those same agencies
+    for eid, agencies in company_agency_lobby.items():
+        for agency, lobby_spend in sorted(agencies.items(), key=lambda x: -x[1]):
+            if lobby_spend < 50000:
+                continue
+            try:
+                cr = db.execute(text(
+                    "SELECT SUM(award_amount), COUNT(*) FROM %s "
+                    "WHERE %s = :eid AND awarding_agency = :agency"
+                    % (c_table, id_col)
+                ), {"eid": eid, "agency": agency}).fetchone()
+            except Exception:
+                continue
+
+            if not cr or not cr[0] or cr[0] < 100000:
+                continue
+
+            contract_total = float(cr[0])
+            contract_count = int(cr[1])
+            name = get_entity_name(db, eid, entity_table, id_col)
+
+            title = "%s Lobbied %s With %s, Then Received %s in Contracts" % (
+                name, agency.replace("Department of ", ""), fmt_money(lobby_spend), fmt_money(contract_total)
+            )
+            if story_exists(db, slug(title)):
+                continue
+
+            # Get what they lobbied for
+            try:
+                issue_rows = db.execute(text(
+                    "SELECT lobbying_issues, income FROM %s "
+                    "WHERE %s = :eid AND government_entities LIKE :agency_pat AND lobbying_issues IS NOT NULL"
+                    % (l_table, id_col)
+                ), {"eid": eid, "agency_pat": "%" + agency.split(" of ")[-1].strip()[:15] + "%"}).fetchall()
+            except Exception:
+                issue_rows = []
+            issue_spend = defaultdict(float)
+            for issues_str, income in issue_rows:
+                inc = float(income) if income else 0
+                issues = [i.strip() for i in issues_str.split(",") if i.strip()]
+                per = inc / max(len(issues), 1)
+                for iss in issues:
+                    issue_spend[iss] += per
+            top_issues = sorted(issue_spend.items(), key=lambda x: -x[1])[:5]
+
+            body = "## The Pattern\n\n"
+            body += "%s spent an estimated **%s** lobbying the **%s** directly.\n\n" % (name, fmt_money(lobby_spend), agency)
+            body += "The same agency then awarded %s **%s** across **%d contracts**.\n\n" % (name, fmt_money(contract_total), contract_count)
+
+            if top_issues:
+                body += "## What They Lobbied %s About\n\n" % agency.replace("Department of ", "")
+                body += "| Issue | Est. Spend |\n"
+                body += "|-------|----------|\n"
+                for iss, spend in top_issues:
+                    body += "| %s | %s |\n" % (iss, fmt_money(spend))
+                body += "\n"
+
+            ratio = contract_total / lobby_spend if lobby_spend > 0 else 0
+            body += "## The Return\n\n"
+            body += "For every **$1** spent lobbying this agency, %s received **$%.0f** in contracts.\n\n" % (name, ratio)
+
+            body += "## Data Sources\n\n"
+            body += "- **Lobbying**: Senate LDA filings (senate.gov)\n"
+            body += "- **Contracts**: USASpending.gov\n"
+            body += "\n*All data from public government records. Correlation does not imply causation.*"
+
+            stories.append(make_story(
+                title=title,
+                summary="%s spent %s lobbying %s, which then awarded them %s in %d contracts. A %s:1 return." % (
+                    name, fmt_money(lobby_spend), agency, fmt_money(contract_total), contract_count, f"{ratio:,.0f}"
+                ),
+                body=body,
+                category="regulatory_loop",
+                sector=sector,
+                entity_ids=[eid],
+                data_sources=[l_table, c_table, "Senate LDA (senate.gov)", "USASpending.gov"],
+                evidence={
+                    "lobby_spend": lobby_spend, "contract_total": contract_total,
+                    "contract_count": contract_count, "agency": agency,
+                    "return_ratio": ratio, "top_issues": dict(top_issues),
+                },
+            ))
+            if len(stories) >= 1:
+                return stories
+
+    return stories
+
+
+# ── Pattern 10: Enforcement Disappearance ──
+
+def detect_enforcement_disappearance(db, sector_idx=None):
+    """Find companies that had enforcement actions, then lobbied heavily,
+    and enforcement dropped to zero."""
+    stories = []
+    idx = sector_idx if sector_idx is not None else random.randint(0, len(ENFORCEMENT_TABLES) - 1)
+    e_table, sector, id_col, entity_table = ENFORCEMENT_TABLES[idx]
+    l_table = LOBBYING_TABLES[idx][0]
+
+    try:
+        # Companies with enforcement actions in earlier years but none recently
+        rows = db.execute(text(
+            "SELECT %s, COUNT(*) as total_actions, "
+            "SUM(CASE WHEN case_date < '2023-01-01' THEN 1 ELSE 0 END) as old_actions, "
+            "SUM(CASE WHEN case_date >= '2023-01-01' THEN 1 ELSE 0 END) as recent_actions "
+            "FROM %s WHERE case_date IS NOT NULL "
+            "GROUP BY %s HAVING old_actions >= 3 AND recent_actions = 0 "
+            "ORDER BY old_actions DESC LIMIT 10"
+            % (id_col, e_table, id_col)
+        )).fetchall()
+    except Exception as e:
+        log.warning("Enforcement disappearance query failed for %s: %s", sector, e)
+        return stories
+
+    for eid, total, old, recent in rows:
+        name = get_entity_name(db, eid, entity_table, id_col)
+
+        # Check if they also lobby
+        try:
+            lr = db.execute(text(
+                "SELECT SUM(income), COUNT(*) FROM %s WHERE %s = :eid" % (l_table, id_col)
+            ), {"eid": eid}).fetchone()
+            lobby_total = float(lr[0] or 0) if lr else 0
+            lobby_count = int(lr[1] or 0) if lr else 0
+        except Exception:
+            lobby_total = 0
+            lobby_count = 0
+
+        if lobby_total < 10000:
+            continue  # Not interesting without lobbying
+
+        title = "%s Had %d Enforcement Actions, Then Lobbied %s, Now Zero Penalties" % (name, old, fmt_money(lobby_total))
+        if story_exists(db, slug(title)):
+            continue
+
+        # Get the old enforcement actions
+        try:
+            old_rows = db.execute(text(
+                "SELECT case_title, case_date, enforcement_type, penalty_amount FROM %s "
+                "WHERE %s = :eid AND case_date < '2023-01-01' ORDER BY case_date DESC LIMIT 5"
+                % (e_table, id_col)
+            ), {"eid": eid}).fetchall()
+        except Exception:
+            old_rows = []
+
+        body = "## The Pattern\n\n"
+        body += "%s faced **%d enforcement actions** before 2023. Since then, **zero**.\n\n" % (name, old)
+        body += "During this same period, they filed **%d lobbying disclosures** totaling **%s**.\n\n" % (lobby_count, fmt_money(lobby_total))
+
+        if old_rows:
+            body += "## Previous Enforcement Actions\n\n"
+            body += "| Date | Type | Title |\n"
+            body += "|------|------|-------|\n"
+            for case_title, case_date, etype, penalty in old_rows:
+                body += "| %s | %s | %s |\n" % (
+                    str(case_date)[:10] if case_date else "N/A",
+                    etype or "Unknown",
+                    (case_title or "")[:60]
+                )
+            body += "\n"
+
+        body += "## The Question\n\n"
+        body += "Did %s clean up its practices, or did lobbying influence reduce regulatory scrutiny? " % name
+        body += "The public record shows both the enforcement history and the lobbying spend. Draw your own conclusions.\n\n"
+
+        body += "## Data Sources\n\n"
+        body += "- **Enforcement**: Federal Register\n"
+        body += "- **Lobbying**: Senate LDA filings (senate.gov)\n"
+        body += "\n*All data from public government records.*"
+
+        stories.append(make_story(
+            title=title,
+            summary="%s had %d enforcement actions before 2023, then spent %s lobbying, and now faces zero penalties." % (name, old, fmt_money(lobby_total)),
+            body=body,
+            category="enforcement_immunity",
+            sector=sector,
+            entity_ids=[eid],
+            data_sources=[e_table, l_table, "Federal Register", "Senate LDA (senate.gov)"],
+            evidence={"old_actions": old, "recent_actions": 0, "lobby_total": lobby_total, "lobby_count": lobby_count},
+        ))
+        if len(stories) >= 1:
+            break
+
+    return stories
+
+
+# ── Pattern 11: PAC-to-Committee Pipeline ──
+
+def detect_pac_committee_pipeline(db):
+    """Find companies that direct >80% of PAC money to members of their
+    oversight committee, suggesting targeted influence."""
+    stories = []
+
+    # For each sector's donations, check committee overlap
+    sector_committees = {
+        "tech": ["Commerce, Science, and Transportation", "Energy and Commerce", "Science, Space, and Technology", "Judiciary"],
+        "finance": ["Banking, Housing, and Urban Affairs", "Financial Services", "Finance"],
+        "health": ["Health, Education, Labor, and Pensions", "Energy and Commerce"],
+        "energy": ["Energy and Natural Resources", "Energy and Commerce", "Environment and Public Works"],
+        "defense": ["Armed Services", "Appropriations"],
+    }
+
+    try:
+        # Get all donations with person committee data
+        rows = db.execute(text("""
+            SELECT cd.entity_type, cd.entity_id, cd.person_id, cd.amount,
+                   cd.candidate_name, cm.committee_thomas_id, c.name as committee_name
+            FROM company_donations cd
+            LEFT JOIN committee_memberships cm ON cm.person_id = cd.person_id
+            LEFT JOIN committees c ON c.thomas_id = cm.committee_thomas_id
+            WHERE cd.amount > 0 AND cd.person_id IS NOT NULL
+        """)).fetchall()
+    except Exception as e:
+        log.warning("PAC-committee pipeline query failed: %s", e)
+        return stories
+
+    # Group by company
+    company_donations = defaultdict(lambda: {"total": 0, "committee_total": 0, "committee_names": set(), "recipients": set(), "entity_type": ""})
+    for entity_type, entity_id, person_id, amount, cand_name, comm_id, comm_name in rows:
+        amt = float(amount) if amount else 0
+        key = entity_id
+        company_donations[key]["total"] += amt
+        company_donations[key]["entity_type"] = entity_type
+        company_donations[key]["recipients"].add(person_id)
+        if comm_name:
+            relevant_comms = sector_committees.get(entity_type, [])
+            for rc in relevant_comms:
+                if rc.lower() in comm_name.lower():
+                    company_donations[key]["committee_total"] += amt
+                    company_donations[key]["committee_names"].add(comm_name)
+                    break
+
+    for eid, data in sorted(company_donations.items(), key=lambda x: -x[1]["committee_total"]):
+        if data["total"] < 5000 or data["committee_total"] < 2000:
+            continue
+        pct = (data["committee_total"] / data["total"]) * 100 if data["total"] > 0 else 0
+        if pct < 60:  # At least 60% going to oversight committee members
+            continue
+
+        sector = data["entity_type"]
+        entity_table = None
+        id_col = "company_id"
+        for lt, s, ic, et in LOBBYING_TABLES:
+            if s == sector:
+                entity_table = et
+                id_col = ic
+                break
+        if not entity_table:
+            continue
+
+        name = get_entity_name(db, eid, entity_table, id_col)
+        title = "%s Directed %.0f%% of PAC Money to Its Oversight Committee Members" % (name, pct)
+        if story_exists(db, slug(title)):
+            continue
+
+        body = "## The Pipeline\n\n"
+        body += "%s donated a total of **%s** to politicians through PAC contributions.\n\n" % (name, fmt_money(data["total"]))
+        body += "Of that, **%s (%.0f%%)** went specifically to members of committees that oversee the %s industry.\n\n" % (
+            fmt_money(data["committee_total"]), pct, sector
+        )
+
+        if data["committee_names"]:
+            body += "## Targeted Committees\n\n"
+            for cn in sorted(data["committee_names"]):
+                body += "- %s\n" % cn
+            body += "\n"
+
+        body += "## The Numbers\n\n"
+        body += "| Metric | Amount |\n"
+        body += "|--------|--------|\n"
+        body += "| Total PAC donations | %s |\n" % fmt_money(data["total"])
+        body += "| To oversight committee members | %s |\n" % fmt_money(data["committee_total"])
+        body += "| Percentage to oversight | %.0f%% |\n" % pct
+        body += "| Total recipients | %d |\n\n" % len(data["recipients"])
+
+        body += "## Why This Matters\n\n"
+        body += "When a company directs the majority of its political donations to the specific lawmakers "
+        body += "who regulate their industry, it raises questions about targeted influence versus broad civic participation.\n\n"
+
+        body += "## Data Sources\n\n"
+        body += "- **PAC donations**: FEC Campaign Finance Data\n"
+        body += "- **Committee memberships**: congress-legislators (CC0)\n"
+        body += "\n*All data from public government records.*"
+
+        stories.append(make_story(
+            title=title,
+            summary="%s sent %.0f%% of %s in PAC money to members of its oversight committees." % (name, pct, fmt_money(data["total"])),
+            body=body,
+            category="bipartisan_buying",
+            sector=sector,
+            entity_ids=[eid],
+            data_sources=["company_donations", "committee_memberships", "FEC", "congress-legislators"],
+            evidence={"total_donations": data["total"], "committee_donations": data["committee_total"], "pct": pct, "committees": list(data["committee_names"])},
+        ))
+        if len(stories) >= 2:
+            break
+
+    return stories
+
+
+# ── Pattern 12: Contract Timing Anomaly ──
+
+def detect_contract_timing(db, sector_idx=None):
+    """Find government contracts awarded within 90 days of the same company
+    making PAC donations to appropriations committee members."""
+    stories = []
+    idx = sector_idx if sector_idx is not None else random.randint(0, len(CONTRACT_TABLES) - 1)
+    c_table, sector, id_col, entity_table = CONTRACT_TABLES[idx]
+
+    try:
+        # Get contracts with start dates
+        contracts = db.execute(text(
+            "SELECT %s, start_date, award_amount, awarding_agency, description FROM %s "
+            "WHERE start_date IS NOT NULL AND award_amount > 1000000 "
+            "ORDER BY award_amount DESC LIMIT 100"
+            % (id_col, c_table)
+        )).fetchall()
+    except Exception as e:
+        log.warning("Contract timing query failed for %s: %s", sector, e)
+        return stories
+
+    for eid, start_date, amount, agency, desc in contracts:
+        # Check if this company made donations within 90 days of contract start
+        try:
+            donation_rows = db.execute(text("""
+                SELECT cd.amount, cd.donation_date, cd.candidate_name, cd.person_id,
+                       cm.committee_thomas_id, c.name as committee_name
+                FROM company_donations cd
+                LEFT JOIN committee_memberships cm ON cm.person_id = cd.person_id
+                LEFT JOIN committees c ON c.thomas_id = cm.committee_thomas_id
+                WHERE cd.entity_id = :eid
+                  AND cd.donation_date IS NOT NULL
+                  AND ABS(JULIANDAY(cd.donation_date) - JULIANDAY(:start_date)) <= 90
+                  AND c.name LIKE '%Appropriations%'
+            """), {"eid": eid, "start_date": str(start_date)}).fetchall()
+        except Exception:
+            continue
+
+        if not donation_rows:
+            continue
+
+        name = get_entity_name(db, eid, entity_table, id_col)
+        total_donations = sum(float(r[0]) for r in donation_rows if r[0])
+        recipients = list(set(r[2] for r in donation_rows if r[2]))
+
+        title = "%s Donated %s to Appropriations Members Within 90 Days of %s Contract" % (
+            name, fmt_money(total_donations), fmt_money(float(amount))
+        )
+        if story_exists(db, slug(title)):
+            continue
+
+        body = "## The Timeline\n\n"
+        body += "**Contract**: %s received a **%s** contract from %s, starting %s.\n\n" % (
+            name, fmt_money(float(amount)), agency or "a federal agency", str(start_date)[:10]
+        )
+        body += "**Donations**: Within 90 days of this contract, %s made **%s** in PAC donations " % (name, fmt_money(total_donations))
+        body += "to **%d members** of Appropriations committees:\n\n" % len(recipients)
+        for r in donation_rows[:6]:
+            body += "- **%s**: %s on %s\n" % (r[2] or "Unknown", fmt_money(float(r[0] or 0)), str(r[1])[:10])
+        body += "\n"
+
+        if desc:
+            body += "## Contract Details\n\n"
+            body += "%s\n\n" % (desc or "")[:300]
+
+        body += "## Data Sources\n\n"
+        body += "- **Contracts**: USASpending.gov\n"
+        body += "- **PAC donations**: FEC Campaign Finance Data\n"
+        body += "- **Committee memberships**: congress-legislators (CC0)\n"
+        body += "\n*All data from public government records. Timing correlation does not prove causation.*"
+
+        stories.append(make_story(
+            title=title,
+            summary="%s donated %s to Appropriations committee members within 90 days of receiving a %s federal contract." % (
+                name, fmt_money(total_donations), fmt_money(float(amount))
+            ),
+            body=body,
+            category="trade_timing",
+            sector=sector,
+            entity_ids=[eid] + [r[3] for r in donation_rows[:3] if r[3]],
+            data_sources=[c_table, "company_donations", "committee_memberships", "USASpending.gov", "FEC"],
+            evidence={
+                "contract_amount": float(amount), "donation_total": total_donations,
+                "agency": agency, "days_window": 90, "recipient_count": len(recipients),
+            },
+        ))
+        if len(stories) >= 1:
+            break
+
+    return stories
+
+
+# ── Pattern 13: Foreign Agent + Domestic Lobbying Overlap ──
+
+def detect_fara_domestic_overlap(db):
+    """Find lobbying firms registered as foreign agents (FARA) that also lobby
+    for domestic companies. Same firm, two masters, potentially coordinating."""
+    stories = []
+
+    try:
+        # Get active FARA registrant names
+        fara_firms = db.execute(text(
+            "SELECT DISTINCT registrant_name FROM fara_registrants "
+            "WHERE status = 'Active' AND registrant_name IS NOT NULL"
+        )).fetchall()
+        fara_names = set(r[0].strip().lower() for r in fara_firms if r[0])
+    except Exception as e:
+        log.warning("FARA overlap query failed: %s", e)
+        return stories
+
+    if not fara_names:
+        return stories
+
+    # Search all lobbying tables for matching registrant names
+    matches = []
+    for l_table, sector, id_col, entity_table in LOBBYING_TABLES:
+        try:
+            rows = db.execute(text(
+                "SELECT DISTINCT registrant_name, %s, SUM(income), COUNT(*) FROM %s "
+                "WHERE registrant_name IS NOT NULL "
+                "GROUP BY registrant_name, %s "
+                "HAVING SUM(income) > 10000"
+                % (id_col, l_table, id_col)
+            )).fetchall()
+        except Exception:
+            continue
+
+        for reg_name, eid, income, filings in rows:
+            if reg_name and reg_name.strip().lower() in fara_names:
+                name = get_entity_name(db, eid, entity_table, id_col)
+                # Get which foreign principals this firm represents
+                try:
+                    fp_rows = db.execute(text(
+                        "SELECT foreign_principal_name, country FROM fara_foreign_principals "
+                        "WHERE LOWER(registrant_name) = :rname AND status = 'Active'"
+                    ), {"rname": reg_name.strip().lower()}).fetchall()
+                except Exception:
+                    fp_rows = []
+
+                matches.append({
+                    "firm": reg_name, "company": name, "company_id": eid,
+                    "sector": sector, "income": float(income or 0), "filings": filings,
+                    "foreign_principals": [(fp[0], fp[1]) for fp in fp_rows[:5]],
+                })
+
+    if not matches:
+        return stories
+
+    # Sort by income and take the most interesting
+    matches.sort(key=lambda x: -x["income"])
+
+    for m in matches[:3]:
+        title = "%s Lobbies for %s While Registered as Foreign Agent" % (m["firm"], m["company"])
+        if story_exists(db, slug(title)):
+            continue
+
+        body = "## The Dual Registration\n\n"
+        body += "**%s** is registered as a foreign agent under FARA while simultaneously " % m["firm"]
+        body += "lobbying Congress on behalf of **%s** (%s sector).\n\n" % (m["company"], m["sector"])
+        body += "The firm filed **%d lobbying disclosures** totaling **%s** for %s.\n\n" % (
+            m["filings"], fmt_money(m["income"]), m["company"]
+        )
+
+        if m["foreign_principals"]:
+            body += "## Foreign Clients (FARA)\n\n"
+            body += "The same firm represents these foreign principals:\n\n"
+            for fp_name, country in m["foreign_principals"]:
+                body += "- **%s** (%s)\n" % (fp_name, country or "Unknown")
+            body += "\n"
+
+        body += "## Why This Matters\n\n"
+        body += "When one lobbying firm represents both foreign governments and domestic corporations, "
+        body += "there is potential for policy positions to align in ways that serve multiple interests simultaneously. "
+        body += "FARA exists specifically to ensure transparency around foreign influence in U.S. policy.\n\n"
+
+        body += "## Data Sources\n\n"
+        body += "- **Foreign agent registrations**: FARA.gov (Department of Justice)\n"
+        body += "- **Domestic lobbying**: Senate LDA filings (senate.gov)\n"
+        body += "\n*All data from public government records.*"
+
+        stories.append(make_story(
+            title=title,
+            summary="%s is a FARA-registered foreign agent that also lobbied %s for %s in the %s sector." % (
+                m["firm"], fmt_money(m["income"]), m["company"], m["sector"]
+            ),
+            body=body,
+            category="foreign_lobbying",
+            sector=m["sector"],
+            entity_ids=[m["company_id"]],
+            data_sources=["fara_registrants", "fara_foreign_principals", m["firm"], "Senate LDA (senate.gov)", "FARA.gov"],
+            evidence={
+                "firm": m["firm"], "company": m["company"], "income": m["income"],
+                "foreign_principals": [fp[0] for fp in m["foreign_principals"]],
+            },
+        ))
+        if len(stories) >= 1:
+            break
+
+    return stories
+
+
+# ── Pattern 14: Revolving Door ──
+
+def detect_revolving_door(db):
+    """Find lobbying firms whose government_entities field matches agency names
+    they previously worked at. Approximation: if a firm lobbies the same agency
+    that appears frequently in their filings, it suggests inside knowledge."""
+    stories = []
+
+    # Find registrant names that overwhelmingly target one specific agency
+    for l_table, sector, id_col, entity_table in LOBBYING_TABLES:
+        try:
+            rows = db.execute(text(
+                "SELECT registrant_name, government_entities, COUNT(*) as cnt "
+                "FROM %s WHERE registrant_name IS NOT NULL AND government_entities IS NOT NULL "
+                "GROUP BY registrant_name, government_entities "
+                "HAVING cnt >= 5 "
+                "ORDER BY cnt DESC LIMIT 20" % l_table
+            )).fetchall()
+        except Exception:
+            continue
+
+        firm_agencies = defaultdict(lambda: defaultdict(int))
+        for reg_name, entities_str, cnt in rows:
+            entities = [e.strip() for e in entities_str.split(",") if e.strip()]
+            for ent in entities:
+                if ent not in ("HOUSE OF REPRESENTATIVES", "SENATE"):
+                    firm_agencies[reg_name][ent] += cnt
+
+        for firm, agencies in firm_agencies.items():
+            if not agencies:
+                continue
+            top_agency = max(agencies.items(), key=lambda x: x[1])
+            total_filings = sum(agencies.values())
+            if total_filings < 10:
+                continue
+            concentration = top_agency[1] / total_filings if total_filings > 0 else 0
+            if concentration < 0.5:
+                continue  # Not concentrated enough
+
+            # Get total income for this firm
+            try:
+                inc_row = db.execute(text(
+                    "SELECT SUM(income), COUNT(DISTINCT %s) FROM %s WHERE registrant_name = :firm"
+                    % (id_col, l_table)
+                ), {"firm": firm}).fetchone()
+                total_income = float(inc_row[0] or 0)
+                client_count = int(inc_row[1] or 0)
+            except Exception:
+                continue
+
+            if total_income < 50000:
+                continue
+
+            title = "Lobbying Firm %s Targets %s in %.0f%% of Filings" % (firm, top_agency[0], concentration * 100)
+            if story_exists(db, slug(title)):
+                continue
+
+            body = "## The Concentration\n\n"
+            body += "**%s** filed lobbying disclosures that targeted **%s** in **%.0f%%** of filings " % (firm, top_agency[0], concentration * 100)
+            body += "(%d of %d total filings).\n\n" % (top_agency[1], total_filings)
+            body += "The firm earned **%s** lobbying for **%d clients** in the %s sector.\n\n" % (fmt_money(total_income), client_count, sector)
+
+            body += "## Agency Targeting Breakdown\n\n"
+            body += "| Agency | Filings | Share |\n"
+            body += "|--------|---------|-------|\n"
+            for agency, cnt in sorted(agencies.items(), key=lambda x: -x[1])[:6]:
+                body += "| %s | %d | %.0f%% |\n" % (agency, cnt, (cnt / total_filings) * 100)
+            body += "\n"
+
+            body += "## Why This Matters\n\n"
+            body += "When a lobbying firm overwhelmingly targets one specific agency, it often indicates "
+            body += "specialized expertise or prior employment at that agency (the 'revolving door'). "
+            body += "This concentration pattern is worth tracking.\n\n"
+
+            body += "## Data Sources\n\n"
+            body += "- **Lobbying disclosures**: Senate LDA filings (senate.gov)\n"
+            body += "\n*All data from public government records.*"
+
+            stories.append(make_story(
+                title=title,
+                summary="Lobbying firm %s targets %s in %.0f%% of its filings, earning %s from %d clients." % (
+                    firm, top_agency[0], concentration * 100, fmt_money(total_income), client_count
+                ),
+                body=body,
+                category="revolving_door",
+                sector=sector,
+                entity_ids=[],
+                data_sources=[l_table, "Senate LDA (senate.gov)"],
+                evidence={"firm": firm, "top_agency": top_agency[0], "concentration": concentration, "total_income": total_income},
+            ))
+            if len(stories) >= 1:
+                return stories
+
+    return stories
+
+
 # ── Main ──
 
 def main():
@@ -779,16 +1554,20 @@ def main():
     log.info("Running story detection (target: %d stories)...", target)
 
     # Run each pattern across shuffled sectors until we hit target
-    patterns = [
+    # Sector-indexed patterns (run across all sectors)
+    sector_patterns = [
         ("top_spender", detect_top_spender),
         ("contract_windfall", detect_contract_windfall),
         ("penalty_gap", detect_penalty_gap),
         ("lobby_contract_loop", detect_lobby_contract_loop),
         ("tax_lobbying", detect_tax_lobbying),
         ("budget_lobbying", detect_budget_lobbying),
+        ("lobby_then_win", detect_lobby_then_win),
+        ("enforcement_disappearance", detect_enforcement_disappearance),
+        ("contract_timing", detect_contract_timing),
     ]
 
-    for pattern_name, detect_fn in patterns:
+    for pattern_name, detect_fn in sector_patterns:
         if len(all_stories) >= target:
             break
         for si in sector_order:
@@ -803,16 +1582,26 @@ def main():
             except Exception as e:
                 log.warning("Pattern %s failed for sector %d: %s", pattern_name, si, e)
 
-    # Trade cluster (no sector index)
-    if len(all_stories) < target:
+    # Non-sector patterns (run once, cross-sector)
+    global_patterns = [
+        ("trade_cluster", detect_trade_cluster),
+        ("trade_before_legislation", detect_trade_before_legislation),
+        ("pac_committee_pipeline", detect_pac_committee_pipeline),
+        ("fara_domestic_overlap", detect_fara_domestic_overlap),
+        ("revolving_door", detect_revolving_door),
+    ]
+
+    for pattern_name, detect_fn in global_patterns:
+        if len(all_stories) >= target:
+            break
         try:
-            found = detect_trade_cluster(db)
+            found = detect_fn(db)
             for s in found:
                 if not story_exists(db, s.slug):
                     all_stories.append(s)
-                    log.info("  [trade_cluster] %s", s.title[:60])
+                    log.info("  [%s] [%s] %s", pattern_name, s.sector or "cross", s.title[:60])
         except Exception as e:
-            log.warning("Trade cluster detection failed: %s", e)
+            log.warning("Pattern %s failed: %s", pattern_name, e)
 
     log.info("\nGenerated %d stories", len(all_stories))
 
