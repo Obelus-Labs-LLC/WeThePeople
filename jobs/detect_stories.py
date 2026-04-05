@@ -95,6 +95,56 @@ def _quality_gate(skeleton):
     return True, "OK"
 
 
+def _verify_story_numbers(db, story):
+    """Cross-check key numbers in a story against the actual database.
+
+    CRITICAL: Anomaly records are cross-products (each trade x each vote = one record).
+    Always query the actual source tables for counts, never use raw anomaly counts
+    as if they represent unique events.
+
+    Returns (is_valid, issues_list).
+    """
+    issues = []
+    evidence = story.evidence if isinstance(story.evidence, dict) else {}
+    body = story.body or ""
+
+    # Check trade counts against actual congressional_trades table
+    entity_ids = story.entity_ids if isinstance(story.entity_ids, list) else []
+    for eid in entity_ids:
+        # If the story mentions trade counts, verify against the source table
+        try:
+            row = db.execute(text(
+                "SELECT COUNT(*) FROM congressional_trades WHERE person_id = :eid"
+            ), {"eid": eid}).fetchone()
+            if row:
+                actual_trades = row[0]
+                # Check if the body claims a higher number than exists
+                import re
+                # Look for patterns like "547 stock trades" or "executed 547"
+                for match in re.finditer(r'(\d+)\s+(?:stock\s+)?trades?', body):
+                    claimed = int(match.group(1))
+                    if claimed > actual_trades * 1.1:  # Allow 10% margin for rounding
+                        issues.append(
+                            "Claimed %d trades for %s but DB has %d" % (claimed, eid, actual_trades)
+                        )
+        except Exception:
+            pass
+
+    # Check lobbying spend totals
+    for key in ["total_spend", "lobby_total", "total_lobbying_spend"]:
+        if key in evidence and evidence[key]:
+            claimed_spend = evidence[key]
+            # Verify it's a reasonable number (not negative, not obviously wrong)
+            if claimed_spend < 0:
+                issues.append("Negative lobbying spend: %s" % claimed_spend)
+
+    if issues:
+        log.warning("Story verification FAILED for '%s': %s", story.title[:50], "; ".join(issues))
+        return False, issues
+
+    return True, []
+
+
 def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
     """Use Opus to write narrative paragraphs for a story skeleton.
 
@@ -1851,13 +1901,20 @@ def main():
     elif opus_remaining == 0:
         log.info("Opus daily cap reached (%d/%d), skipping enhancement", opus_used, OPUS_DAILY_CAP)
 
-    # ── Save stories ──
+    # ── Verify and save stories ──
     saved = 0
+    rejected = 0
     seen_slugs = set()
     for s in all_stories:
         if s.slug in seen_slugs:
             continue  # Skip in-batch duplicates (e.g., RTX in both defense and transportation)
         if not story_exists(db, s.slug):
+            # Verify numbers before publishing
+            is_valid, issues = _verify_story_numbers(db, s)
+            if not is_valid:
+                log.warning("REJECTED story (bad numbers): %s | Issues: %s", s.title[:50], "; ".join(issues))
+                rejected += 1
+                continue
             try:
                 db.add(s)
                 db.flush()  # Catch constraint violations immediately
@@ -1868,9 +1925,9 @@ def main():
                 log.warning("Skipping duplicate story: %s", s.slug)
     if saved:
         db.commit()
-        log.info("Saved %d new stories", saved)
+        log.info("Saved %d new stories (%d rejected for bad numbers)", saved, rejected)
     else:
-        log.info("No new stories to save (all duplicates)")
+        log.info("No new stories to save (%d rejected for bad numbers)" % rejected if rejected else "No new stories to save (all duplicates)")
 
     db.close()
 
