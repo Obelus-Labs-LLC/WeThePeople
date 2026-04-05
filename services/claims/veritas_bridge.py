@@ -373,24 +373,22 @@ def run_verification(db: Session, text: str, source_url: Optional[str] = None) -
         try:
             from veritas.evidence_sources.base import build_search_query
             try:
-                query = build_search_query(claim_text, claim_category)
-            except TypeError:
-                # Veritas build_search_query has a type bug with max_terms
-                # Fall back to using the claim text directly as query
+                query = build_search_query(claim_text)
+            except Exception:
                 query = " ".join(claim_text.split()[:10])
             # Run a subset of Veritas sources for speed
             from veritas.evidence_sources import (
-                congress, fec, usaspending, sec_edgar, wikipedia_source
+                congress, fec, usaspending, wikipedia_source
             )
-            for src_name, src_mod in [
-                ("congress", congress),
-                ("fec", fec),
-                ("usaspending", usaspending),
-                ("sec_edgar", sec_edgar),
-                ("wikipedia", wikipedia_source),
-            ]:
+            source_fns = [
+                ("congress", congress, "search_congress"),
+                ("fec", fec, "search_fec"),
+                ("usaspending", usaspending, "search_usaspending"),
+                ("wikipedia", wikipedia_source, "search_wikipedia"),
+            ]
+            for src_name, src_mod, fn_name in source_fns:
                 try:
-                    search_fn = getattr(src_mod, "search", None)
+                    search_fn = getattr(src_mod, fn_name, None)
                     if search_fn:
                         ext_results = search_fn(query)
                         for r in (ext_results or [])[:3]:
