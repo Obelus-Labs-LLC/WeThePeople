@@ -46,7 +46,7 @@ export default function VaultPage() {
 
   useEffect(() => {
     setLoading(true);
-    apiFetch<VaultResponse>('/v1/claims/verifications', {
+    apiFetch<VaultResponse>('/api/v1/claims/verified', {
       params: { limit, offset },
     })
       .then((data) => {
