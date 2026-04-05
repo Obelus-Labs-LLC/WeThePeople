@@ -806,12 +806,10 @@ async def college_scorecard(
     try:
         from connectors import college_scorecard as cs
 
-        results = cs.search_schools(
-            name=name,
-            state=state,
-            for_profit=for_profit,
-            limit=limit,
-        )
+        if for_profit:
+            results = cs.get_for_profit_schools(state=state, limit=limit)
+        else:
+            results = cs.search_schools(name=name, state=state, limit=limit)
         return {"total": len(results), "schools": results}
     except ImportError:
         logger.warning("connectors.college_scorecard not available")
