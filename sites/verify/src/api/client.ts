@@ -5,7 +5,7 @@
  * In dev: proxied through Vite at /api
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 export function getApiBase(): string {
   return API_BASE.replace(/\/$/, '');

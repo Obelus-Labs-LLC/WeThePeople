@@ -43,7 +43,7 @@ export default function HomePage() {
   // Fetch dashboard stats on mount
   useEffect(() => {
     const controller = new AbortController();
-    apiFetch<DashboardStats>('/v1/claims/dashboard/stats', { signal: controller.signal })
+    apiFetch<DashboardStats>('/api/v1/stats', { signal: controller.signal })
       .then(setStats)
       .catch(() => {}); // Silent fail -- stats are optional
     return () => controller.abort();
@@ -64,9 +64,9 @@ export default function HomePage() {
       let result;
 
       if (detected === 'URL' || detected === 'YOUTUBE') {
-        result = await apiPost('/v1/claims/verify-url', { url: trimmed });
+        result = await apiPost('/api/v1/sources/ingest-url', { url: trimmed });
       } else {
-        result = await apiPost('/v1/claims/verify', { text: trimmed });
+        result = await apiPost('/api/v1/claims/extract', { text: trimmed, title: '' });
       }
 
       // Navigate to results page with the data in state
