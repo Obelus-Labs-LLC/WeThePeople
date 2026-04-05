@@ -744,18 +744,20 @@ async def earmarks_search(
 
 @router.get("/fcc-complaints")
 async def fcc_complaints(
-    company: Optional[str] = Query(None, description="Company name filter"),
-    issue: Optional[str] = Query(None, description="Issue category filter"),
+    issue_type: Optional[str] = Query(None, description="Type filter (Phone, Internet, TV)"),
+    issue: Optional[str] = Query(None, description="Issue category (Unwanted Calls, Billing, Service)"),
+    method: Optional[str] = Query(None, description="Method (Wired, Wireless, Cable, Satellite)"),
     state: Optional[str] = Query(None, description="2-letter state code"),
     limit: int = Query(50, ge=1, le=200),
 ):
-    """Search FCC consumer complaint data by company, issue, or state."""
+    """Search FCC consumer complaint data by issue type, issue, method, or state."""
     try:
         from connectors.fcc_complaints import search_complaints
 
         results = search_complaints(
-            company=company,
+            issue_type=issue_type,
             issue=issue,
+            method=method,
             state=state,
             limit=limit,
         )
@@ -863,11 +865,11 @@ async def treasury_data(
         from connectors import treasury_fiscal
 
         if dataset == "debt":
-            data = treasury_fiscal.get_debt(year=year)
+            data = treasury_fiscal.get_debt_to_penny()
         elif dataset == "revenue":
-            data = treasury_fiscal.get_revenue(year=year)
+            data = treasury_fiscal.get_revenue_by_source(year=year)
         elif dataset == "spending":
-            data = treasury_fiscal.get_spending(year=year)
+            data = treasury_fiscal.get_monthly_treasury_statement(year=year)
         else:
             data = []
 

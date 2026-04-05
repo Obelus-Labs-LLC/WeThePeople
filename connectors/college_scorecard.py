@@ -19,7 +19,7 @@ from typing import Optional, List, Dict, Any
 log = logging.getLogger(__name__)
 
 SCORECARD_BASE = "https://api.data.gov/ed/collegescorecard/v1/schools"
-API_KEY = os.environ.get("DATA_GOV_API_KEY") or os.environ.get("DATAGOV_API_KEY", "")
+API_KEY = os.environ.get("DATA_GOV_API_KEY") or os.environ.get("DATAGOV_API_KEY") or "DEMO_KEY"
 
 POLITE_DELAY = 0.5
 

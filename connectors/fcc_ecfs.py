@@ -11,6 +11,7 @@ Auth: None required (free public API)
 """
 
 import logging
+import os
 import time
 import requests
 from typing import Optional, List, Dict, Any
@@ -42,6 +43,7 @@ def search_filings(
     params: Dict[str, Any] = {
         "limit": min(limit, 100),
         "sort": "date_received,DESC",
+        "api_key": os.environ.get("FCC_API_KEY", "DEMO_KEY"),
     }
 
     if proceeding:
@@ -62,7 +64,7 @@ def search_filings(
         log.error("FCC ECFS filings search failed: %s", e)
         return []
 
-    results = data.get("filings", data.get("results", []))
+    results = data.get("filing", data.get("filings", data.get("results", [])))
 
     log.info(
         "FCC ECFS filings (proceeding=%s, filer=%s): %d results",
