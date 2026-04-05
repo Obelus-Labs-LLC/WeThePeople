@@ -29,10 +29,13 @@ import random
 import hashlib
 import argparse
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
 from models.database import SessionLocal, Base, engine, CongressionalTrade
 from models.stories_models import Story
@@ -40,6 +43,81 @@ from sqlalchemy import text, func, desc
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("detect_stories")
+
+# ── Opus daily cap: max 2 AI-enhanced stories per day ──
+OPUS_DAILY_CAP = 2
+OPUS_MODEL = "claude-opus-4-20250514"
+
+
+def _opus_stories_today(db):
+    """Count how many Opus-generated stories were published today."""
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    return db.query(Story).filter(
+        Story.published_at >= today_start,
+        Story.body.contains("<!-- opus-generated -->"),
+    ).count()
+
+
+def _write_opus_narrative(skeleton, story_context):
+    """Use Opus to write narrative paragraphs for a story skeleton.
+
+    Returns the full article with {NARRATIVE_*} placeholders replaced,
+    or None if the API call fails or daily cap is reached.
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        log.warning("ANTHROPIC_API_KEY not set, skipping Opus narrative")
+        return None
+
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
+    except ImportError:
+        log.warning("anthropic package not installed, skipping Opus narrative")
+        return None
+
+    prompt = (
+        "You are a data journalist for WeThePeople, a nonpartisan civic transparency platform. "
+        "Below is a pre-formatted investigative article skeleton with real data from public government records. "
+        "Write ONLY the narrative paragraphs for each {NARRATIVE_*} placeholder.\n\n"
+        "RULES:\n"
+        "- Never use dashes or em-dashes anywhere. Use commas, periods, or semicolons instead.\n"
+        "- Never editorialize or speculate. Let the data speak.\n"
+        "- Never accuse anyone of wrongdoing. Present the public record and let readers draw conclusions.\n"
+        "- Always use specific dollar amounts, dates, filing counts, and names from the skeleton data.\n"
+        "- Include a note that lobbying is legal, contracts follow competitive bidding, and correlation does not prove causation.\n"
+        "- Never use phrases like 'raises eyebrows', 'begs the question', or 'it remains to be seen'.\n"
+        "- Write in a direct, factual tone similar to ProPublica or The Intercept data journalism.\n"
+        "- No fluff, no filler, no throat clearing. Lead with the most significant finding.\n"
+        "- NARRATIVE_LEAD: 2 paragraphs. Open with the single most surprising data point. Provide context.\n"
+        "- NARRATIVE_ISSUES: 1-2 paragraphs. Analyze what the lobbying issue breakdown reveals.\n"
+        "- NARRATIVE_CONNECTION: 2 paragraphs. Connect lobbying spend to contract awards. Calculate ratios. Note what questions the data raises.\n"
+        "- Do NOT repeat numbers that are already in tables. Reference them but add analysis.\n"
+        "- Do NOT change, remove, or reformat any markdown headings (##), tables, bullet points, or source citations.\n"
+        "- Return the COMPLETE article with your narrative replacing {NARRATIVE_*} placeholders.\n\n"
+        "CONTEXT: %s\n\n"
+        "SKELETON:\n%s"
+    ) % (story_context, skeleton)
+
+    try:
+        response = client.messages.create(
+            model=OPUS_MODEL,
+            max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        result = response.content[0].text
+        cost = (response.usage.input_tokens * 15 / 1e6) + (response.usage.output_tokens * 75 / 1e6)
+        log.info("  Opus narrative: %d chars, $%.4f (%d in, %d out)",
+                 len(result), cost, response.usage.input_tokens, response.usage.output_tokens)
+
+        # Add hidden marker so we can count Opus stories for daily cap
+        if "<!-- opus-generated -->" not in result:
+            result += "\n\n<!-- opus-generated -->"
+
+        return result
+    except Exception as e:
+        log.warning("Opus narrative generation failed: %s", e)
+        return None
 
 # All lobbying tables with their sector label and entity ID column
 LOBBYING_TABLES = [
@@ -1611,6 +1689,80 @@ def main():
         db.close()
         return
 
+    # ── Opus enhancement: upgrade the best 2 stories per day ──
+    opus_used = _opus_stories_today(db)
+    opus_remaining = max(0, OPUS_DAILY_CAP - opus_used)
+    if opus_remaining > 0 and all_stories:
+        log.info("Opus daily cap: %d/%d used, enhancing up to %d stories", opus_used, OPUS_DAILY_CAP, opus_remaining)
+        # Prioritize investigative patterns for Opus enhancement
+        investigative_categories = {
+            "trade_timing", "regulatory_loop", "enforcement_immunity",
+            "cross_sector", "revolving_door", "foreign_lobbying",
+        }
+        # Sort: investigative first, then by body length (shorter = more room for improvement)
+        candidates = sorted(all_stories, key=lambda s: (
+            0 if s.category in investigative_categories else 1,
+            len(s.body or ""),
+        ))
+
+        enhanced = 0
+        for s in candidates:
+            if enhanced >= opus_remaining:
+                break
+            # Build context string for Opus
+            evidence = s.evidence if isinstance(s.evidence, dict) else {}
+            context = "Category: %s. Sector: %s. Title: %s. Summary: %s." % (
+                s.category, s.sector or "cross-sector", s.title, s.summary or ""
+            )
+
+            # Build skeleton with narrative placeholders
+            body = s.body or ""
+            # Insert {NARRATIVE_LEAD} after first ## heading
+            sections = body.split("\n## ")
+            if len(sections) >= 2:
+                # Rebuild with narrative placeholders
+                skeleton = sections[0]  # Everything before first ##
+                skeleton += "\n## " + sections[1]  # First section header
+                # Insert NARRATIVE_LEAD after the first data paragraph
+                first_section_lines = sections[1].split("\n\n", 1)
+                if len(first_section_lines) > 1:
+                    skeleton = "## " + first_section_lines[0] + "\n\n{NARRATIVE_LEAD}\n\n" + first_section_lines[1]
+                else:
+                    skeleton = "## " + sections[1] + "\n\n{NARRATIVE_LEAD}"
+
+                # Add remaining sections
+                for i, sec in enumerate(sections[2:], 2):
+                    skeleton += "\n\n## " + sec
+
+                # Insert NARRATIVE_ISSUES after issue table
+                if "Spend estimated" in skeleton or "Est. Spend" in skeleton:
+                    skeleton = skeleton.replace(
+                        "*Spend estimated by dividing each filing",
+                        "{NARRATIVE_ISSUES}\n\n*Spend estimated by dividing each filing"
+                    )
+                    if "{NARRATIVE_ISSUES}" not in skeleton:
+                        skeleton = skeleton.replace(
+                            "income across its listed issues.*",
+                            "income across its listed issues.*\n\n{NARRATIVE_ISSUES}"
+                        )
+
+                # Insert NARRATIVE_CONNECTION before Data Sources
+                skeleton = skeleton.replace(
+                    "## Data Sources",
+                    "{NARRATIVE_CONNECTION}\n\n## Data Sources"
+                )
+
+                opus_body = _write_opus_narrative(skeleton, context)
+                if opus_body:
+                    s.body = opus_body
+                    enhanced += 1
+                    log.info("  [OPUS] Enhanced: %s", s.title[:60])
+
+        log.info("Opus enhancement complete: %d stories upgraded", enhanced)
+    elif opus_remaining == 0:
+        log.info("Opus daily cap reached (%d/%d), skipping enhancement", opus_used, OPUS_DAILY_CAP)
+
+    # ── Save stories ──
     saved = 0
     seen_slugs = set()
     for s in all_stories:
