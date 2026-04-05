@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  background-color: #0a0a0f;
+  color: #fafafa;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Oswald headings utility */
+.font-oswald {
+  font-family: 'Oswald', sans-serif;
+}
+
+/* Monospace data readout */
+.font-mono {
+  font-family: 'Fira Code', ui-monospace, monospace;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Selection color */
+::selection {
+  background-color: rgba(251, 191, 36, 0.25);
+  color: #fafafa;
+}
+
+/* Pulse animation for loading */
+@keyframes pulse-amber {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.animate-pulse-amber {
+  animation: pulse-amber 1.5s ease-in-out infinite;
+}
+
+/* Verdict banner shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* Card hover lift */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
