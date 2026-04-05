@@ -141,6 +141,8 @@ def detect_top_spender(db, sector_idx=None):
         log.warning("Top spender query failed for %s: %s", sector, e)
         return stories
 
+    c_table = CONTRACT_TABLES[idx][0]
+
     for eid, total_spend, filing_count in rows:
         if not total_spend or total_spend < 100000:
             continue
@@ -149,42 +151,93 @@ def detect_top_spender(db, sector_idx=None):
         if story_exists(db, slug(title)):
             continue
 
-        # Get top issues
+        # Get top issues with spend breakdown
         try:
             issue_rows = db.execute(text(
-                "SELECT lobbying_issues FROM %s WHERE %s = :eid AND lobbying_issues IS NOT NULL"
+                "SELECT lobbying_issues, income, government_entities FROM %s WHERE %s = :eid AND lobbying_issues IS NOT NULL"
                 % (table, id_col)
             ), {"eid": eid}).fetchall()
         except Exception:
             issue_rows = []
 
-        issue_counts = defaultdict(int)
-        for (issues_str,) in issue_rows:
-            for iss in issues_str.split(","):
-                iss = iss.strip()
-                if iss:
-                    issue_counts[iss] += 1
-        top_issues = sorted(issue_counts.items(), key=lambda x: -x[1])[:5]
+        issue_spend = defaultdict(float)
+        issue_filings = defaultdict(int)
+        gov_entity_spend = defaultdict(float)
+        gov_entity_filings = defaultdict(int)
+        for issues_str, income, entities_str in issue_rows:
+            inc = float(income) if income else 0
+            issues = [i.strip() for i in issues_str.split(",") if i.strip()]
+            per_issue = inc / max(len(issues), 1)
+            for iss in issues:
+                issue_spend[iss] += per_issue
+                issue_filings[iss] += 1
+            if entities_str:
+                entities = [e.strip() for e in entities_str.split(",") if e.strip()]
+                per_ent = inc / max(len(entities), 1)
+                for ent in entities:
+                    gov_entity_spend[ent] += per_ent
+                    gov_entity_filings[ent] += 1
+
+        top_issues = sorted(issue_spend.items(), key=lambda x: -x[1])[:8]
+        top_gov = sorted(gov_entity_spend.items(), key=lambda x: -x[1])[:6]
+
+        # Get contract cross-reference
+        contract_total = 0
+        contract_count = 0
+        try:
+            cr = db.execute(text(
+                "SELECT SUM(award_amount), COUNT(*) FROM %s WHERE %s = :eid" % (c_table, id_col)
+            ), {"eid": eid}).fetchone()
+            if cr:
+                contract_total = float(cr[0] or 0)
+                contract_count = int(cr[1] or 0)
+        except Exception:
+            pass
 
         body = "## The Spending\n\n"
         body += "%s filed %d lobbying disclosures totaling %s with the U.S. Senate.\n\n" % (name, filing_count, fmt_money(total_spend))
+
         if top_issues:
             body += "## What They Lobbied For\n\n"
-            for iss, cnt in top_issues:
-                body += "- **%s** (%d filings)\n" % (iss, cnt)
+            body += "| Issue | Est. Spend | Filings |\n"
+            body += "|-------|-----------|--------|\n"
+            for iss, spend in top_issues:
+                body += "| %s | %s | %d |\n" % (iss, fmt_money(spend), issue_filings[iss])
+            body += "\n*Spend estimated by dividing each filing's income across its listed issues.*\n\n"
+
+        if top_gov:
+            body += "## Government Bodies Targeted\n\n"
+            for ent, spend in top_gov:
+                body += "- **%s**: %s (%d filings)\n" % (ent, fmt_money(spend), gov_entity_filings[ent])
             body += "\n"
+
+        if contract_total > 0:
+            body += "## The Contract Connection\n\n"
+            body += "%s also received **%s** across **%d government contracts** from federal agencies.\n\n" % (name, fmt_money(contract_total), contract_count)
+
         body += "## Data Sources\n\n"
-        body += "- Senate Lobbying Disclosure Act filings (senate.gov)\n"
+        body += "- **Lobbying disclosures**: Senate Lobbying Disclosure Act filings (senate.gov/legislative/Public_Disclosure/database_download.htm)\n"
+        if contract_total > 0:
+            body += "- **Government contracts**: USASpending.gov (usaspending.gov/search)\n"
+        body += "\n*All data from public government records.*"
 
         stories.append(make_story(
             title=title,
-            summary="%s filed %d lobbying disclosures totaling %s." % (name, filing_count, fmt_money(total_spend)),
+            summary="%s filed %d lobbying disclosures totaling %s, targeting %d policy areas including %s." % (
+                name, filing_count, fmt_money(total_spend), len(issue_spend),
+                top_issues[0][0] if top_issues else "various issues"
+            ),
             body=body,
             category="lobbying_spike",
             sector=sector,
             entity_ids=[eid],
-            data_sources=[table, "Senate LDA (senate.gov)"],
-            evidence={"total_spend": total_spend, "filings": filing_count, "top_issues": dict(top_issues)},
+            data_sources=[table, "Senate LDA (senate.gov)", c_table, "USASpending.gov"],
+            evidence={
+                "total_spend": total_spend, "filings": filing_count,
+                "issue_count": len(issue_spend),
+                "contract_total": contract_total, "contract_count": contract_count,
+                "top_issues": {k: v for k, v in top_issues[:5]},
+            },
         ))
         if len(stories) >= 1:
             break
@@ -226,14 +279,37 @@ def detect_contract_windfall(db, sector_idx=None):
         except Exception:
             agency_rows = []
 
+        # Cross-reference: did they also lobby?
+        l_table = LOBBYING_TABLES[idx][0]
+        lobby_total = 0
+        lobby_count = 0
+        try:
+            lr = db.execute(text(
+                "SELECT SUM(income), COUNT(*) FROM %s WHERE %s = :eid" % (l_table, id_col)
+            ), {"eid": eid}).fetchone()
+            if lr:
+                lobby_total = float(lr[0] or 0)
+                lobby_count = int(lr[1] or 0)
+        except Exception:
+            pass
+
         body = "## The Contracts\n\n"
-        body += "%s has received %s across %d government contract awards.\n\n" % (name, fmt_money(total_value), contract_count)
+        body += "%s has received **%s** across **%d government contract awards**.\n\n" % (name, fmt_money(total_value), contract_count)
         if agency_rows:
             body += "## Awarding Agencies\n\n"
+            body += "| Agency | Contract Value | Awards |\n"
+            body += "|--------|---------------|--------|\n"
             for agency, cnt, amt in agency_rows:
-                body += "- **%s**: %s (%d awards)\n" % (agency or "Unknown", fmt_money(amt or 0), cnt)
+                body += "| %s | %s | %d |\n" % (agency or "Unknown", fmt_money(amt or 0), cnt)
             body += "\n"
-        body += "## Data Sources\n\n- USASpending.gov\n"
+        if lobby_total > 0:
+            body += "## The Lobbying Connection\n\n"
+            body += "%s also spent **%s** on federal lobbying across **%d disclosures** with the Senate.\n\n" % (name, fmt_money(lobby_total), lobby_count)
+        body += "## Data Sources\n\n"
+        body += "- **Government contracts**: USASpending.gov (usaspending.gov/search)\n"
+        if lobby_total > 0:
+            body += "- **Lobbying disclosures**: Senate LDA filings (senate.gov)\n"
+        body += "\n*All data from public government records.*"
 
         stories.append(make_story(
             title=title,
@@ -280,9 +356,47 @@ def detect_penalty_gap(db, sector_idx=None):
         if story_exists(db, slug(title)):
             continue
 
+        # Get top contract agencies
+        try:
+            pa_rows = db.execute(text(
+                "SELECT awarding_agency, COUNT(*), SUM(award_amount) FROM %s "
+                "WHERE %s = :eid AND awarding_agency IS NOT NULL "
+                "GROUP BY awarding_agency ORDER BY SUM(award_amount) DESC LIMIT 5"
+                % (c_table, id_col)
+            ), {"eid": eid}).fetchall()
+        except Exception:
+            pa_rows = []
+
+        # Get lobbying spend
+        l_table = LOBBYING_TABLES[idx][0]
+        lobby_total = 0
+        try:
+            lr = db.execute(text(
+                "SELECT SUM(income) FROM %s WHERE %s = :eid" % (l_table, id_col)
+            ), {"eid": eid}).fetchone()
+            if lr and lr[0]:
+                lobby_total = float(lr[0])
+        except Exception:
+            pass
+
         body = "## The Gap\n\n"
-        body += "%s has received %s across %d government contracts, yet faces no enforcement penalties on record.\n\n" % (name, fmt_money(total_contracts), contract_count)
-        body += "## Data Sources\n\n- USASpending.gov (contracts)\n- Federal Register (enforcement)\n"
+        body += "%s has received **%s** across **%d government contracts**, yet faces no enforcement penalties with documented fines on record.\n\n" % (name, fmt_money(total_contracts), contract_count)
+        if pa_rows:
+            body += "## Where the Contracts Come From\n\n"
+            body += "| Agency | Contract Value | Awards |\n"
+            body += "|--------|---------------|--------|\n"
+            for agency, cnt, amt in pa_rows:
+                body += "| %s | %s | %d |\n" % (agency or "Unknown", fmt_money(amt or 0), cnt)
+            body += "\n"
+        if lobby_total > 0:
+            body += "## The Lobbying Spend\n\n"
+            body += "%s also spent **%s** lobbying the same government that awards its contracts.\n\n" % (name, fmt_money(lobby_total))
+        body += "## Data Sources\n\n"
+        body += "- **Government contracts**: USASpending.gov\n"
+        body += "- **Enforcement actions**: Federal Register\n"
+        if lobby_total > 0:
+            body += "- **Lobbying**: Senate LDA filings (senate.gov)\n"
+        body += "\n*All data from public government records.*"
 
         stories.append(make_story(
             title=title,
@@ -332,17 +446,55 @@ def detect_trade_cluster(db):
         except Exception:
             ticker_rows = []
 
+        # Get committee assignments
+        try:
+            comm_rows = db.execute(text(
+                "SELECT c.name FROM committees c "
+                "JOIN committee_memberships cm ON cm.committee_thomas_id = c.thomas_id "
+                "WHERE cm.person_id = :pid"
+            ), {"pid": pid}).fetchall()
+        except Exception:
+            comm_rows = []
+        committees = [c[0] for c in comm_rows] if comm_rows else []
+
+        # Get donations received
+        try:
+            don_rows = db.execute(text(
+                "SELECT SUM(amount), COUNT(*) FROM company_donations WHERE person_id = :pid"
+            ), {"pid": pid}).fetchone()
+            don_total = float(don_rows[0] or 0) if don_rows else 0
+            don_count = int(don_rows[1] or 0) if don_rows else 0
+        except Exception:
+            don_total = 0
+            don_count = 0
+
         body = "## The Trades\n\n"
-        body += "%s. %s (%s-%s, %s) executed %d stock trades across %d different companies.\n\n" % (
+        body += "%s. %s (%s-%s, %s) executed **%d stock trades** across **%d different companies** per STOCK Act disclosures.\n\n" % (
             "Sen" if chamber == "senate" else "Rep", name, party or "?", state or "?", chamber or "?",
             trade_count, ticker_count
         )
         if ticker_rows:
             body += "## Most Traded Tickers\n\n"
+            body += "| Ticker | Trades |\n"
+            body += "|--------|--------|\n"
             for ticker, cnt in ticker_rows:
-                body += "- **%s**: %d trades\n" % (ticker, cnt)
+                body += "| %s | %d |\n" % (ticker, cnt)
             body += "\n"
-        body += "## Data Sources\n\n- House Financial Disclosures / Senate STOCK Act filings\n"
+        if committees:
+            body += "## Committee Assignments\n\n"
+            body += "This member sits on committees that may oversee industries they trade in:\n\n"
+            for c in committees[:6]:
+                body += "- %s\n" % c
+            body += "\n"
+        if don_total > 0:
+            body += "## PAC Donations Received\n\n"
+            body += "%s received **%s** across **%d** corporate PAC donations.\n\n" % (name, fmt_money(don_total), don_count)
+        body += "## Data Sources\n\n"
+        body += "- **Stock trades**: House Financial Disclosures / Senate STOCK Act filings\n"
+        body += "- **Committees**: congress-legislators (congress.gov)\n"
+        if don_total > 0:
+            body += "- **PAC donations**: FEC Campaign Finance Data\n"
+        body += "\n*All data from public government records.*"
 
         stories.append(make_story(
             title=title,
@@ -392,11 +544,53 @@ def detect_lobby_contract_loop(db, sector_idx=None):
         if story_exists(db, slug(title)):
             continue
 
+        # Get lobbying issues
+        try:
+            li_rows = db.execute(text(
+                "SELECT lobbying_issues, income FROM %s WHERE %s = :eid AND lobbying_issues IS NOT NULL"
+                % (l_table, id_col)
+            ), {"eid": eid}).fetchall()
+        except Exception:
+            li_rows = []
+        issue_spend = defaultdict(float)
+        for issues_str, income in li_rows:
+            inc = float(income) if income else 0
+            issues = [i.strip() for i in issues_str.split(",") if i.strip()]
+            per = inc / max(len(issues), 1)
+            for iss in issues:
+                issue_spend[iss] += per
+        loop_top_issues = sorted(issue_spend.items(), key=lambda x: -x[1])[:5]
+
+        # Get top contract agencies
+        try:
+            ca_rows = db.execute(text(
+                "SELECT awarding_agency, SUM(award_amount) FROM %s WHERE %s = :eid "
+                "AND awarding_agency IS NOT NULL GROUP BY awarding_agency ORDER BY SUM(award_amount) DESC LIMIT 5"
+                % (c_table, id_col)
+            ), {"eid": eid}).fetchall()
+        except Exception:
+            ca_rows = []
+
         body = "## The Money Loop\n\n"
-        body += "%s spent %s on federal lobbying while receiving %s across %d government contracts.\n\n" % (
+        body += "%s spent **%s** on federal lobbying while receiving **%s** across **%d government contracts**.\n\n" % (
             name, fmt_money(lobby_total), fmt_money(contract_total), contract_count
         )
-        body += "## Data Sources\n\n- Senate LDA filings (senate.gov)\n- USASpending.gov\n"
+        if loop_top_issues:
+            body += "## What They Lobbied For\n\n"
+            body += "| Issue | Est. Spend |\n"
+            body += "|-------|----------|\n"
+            for iss, spend in loop_top_issues:
+                body += "| %s | %s |\n" % (iss, fmt_money(spend))
+            body += "\n"
+        if ca_rows:
+            body += "## Who Awarded the Contracts\n\n"
+            for agency, amt in ca_rows:
+                body += "- **%s**: %s\n" % (agency or "Unknown", fmt_money(amt or 0))
+            body += "\n"
+        body += "## Data Sources\n\n"
+        body += "- **Lobbying**: Senate LDA filings (senate.gov)\n"
+        body += "- **Contracts**: USASpending.gov\n"
+        body += "\n*All data from public government records.*"
 
         stories.append(make_story(
             title=title,
