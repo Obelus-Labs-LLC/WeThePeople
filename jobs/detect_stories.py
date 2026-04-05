@@ -1612,10 +1612,19 @@ def main():
         return
 
     saved = 0
+    seen_slugs = set()
     for s in all_stories:
+        if s.slug in seen_slugs:
+            continue  # Skip in-batch duplicates (e.g., RTX in both defense and transportation)
         if not story_exists(db, s.slug):
-            db.add(s)
-            saved += 1
+            try:
+                db.add(s)
+                db.flush()  # Catch constraint violations immediately
+                saved += 1
+                seen_slugs.add(s.slug)
+            except Exception as e:
+                db.rollback()
+                log.warning("Skipping duplicate story: %s", s.slug)
     if saved:
         db.commit()
         log.info("Saved %d new stories", saved)
