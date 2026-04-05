@@ -72,7 +72,7 @@ export default function CollegeScorecardPage() {
     setSearched(true);
 
     try {
-      const params: Record<string, string | boolean> = { limit: 20 };
+      const params: Record<string, string | boolean | number> = { limit: 20 };
       if (name.trim()) params.name = name.trim();
       if (state) params.state = state;
       if (forProfit) params.for_profit = true;
