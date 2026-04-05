@@ -15,8 +15,10 @@ from sqlalchemy.orm import Session
 
 from models.database import get_db, Claim, ClaimEvaluation, TrackedMember
 from services.auth import require_enterprise_or_rate_limit
-from services.claims.pipeline import run_verification, run_verification_from_url
-from models.response_schemas import VerificationResponse
+from services.claims.veritas_bridge import (
+    run_verification as veritas_verify,
+    run_verification_from_url as veritas_verify_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,54 +31,46 @@ router = APIRouter(tags=["claims"])
 
 class VerifyTextRequest(BaseModel):
     text: str = Field(..., min_length=20, max_length=100_000, description="Text to extract and verify claims from")
-    entity_id: str = Field(..., min_length=1, description="person_id or company_id")
-    entity_type: str = Field("politician", description="politician | tech | finance | health | energy")
     source_url: Optional[str] = Field(None, description="Optional source URL for the text")
 
 
 class VerifyUrlRequest(BaseModel):
     url: str = Field(..., min_length=10, description="URL to fetch and verify claims from")
-    entity_id: str = Field(..., min_length=1, description="person_id or company_id")
-    entity_type: str = Field("politician", description="politician | tech | finance | health | energy")
 
 
 # ---------------------------------------------------------------------------
 # POST endpoints (rate-limited)
 # ---------------------------------------------------------------------------
 
-@router.post("/verify", response_model=VerificationResponse)
+@router.post("/verify")
 def verify_text(
     body: VerifyTextRequest,
     auth: dict = Depends(require_enterprise_or_rate_limit),
     db: Session = Depends(get_db),
 ):
     """
-    Submit text + entity for claim verification.
+    Submit text for claim verification using the Veritas engine.
 
-    Extracts claims from the text using AI, then matches each claim against
-    the legislative record (votes, bills, trades, lobbying).
+    Claims are extracted deterministically (zero LLM, rule-based), then
+    verified against the WTP database (lobbying, contracts, trades,
+    committees, donations) and 29 external government APIs.
+
+    No entity_id required. The system auto-detects entities from the text.
 
     Rate limited: 5/day for free tier, unlimited with enterprise API key.
     """
-    logger.info("Claim verification request: entity_type=%s, entity_id=%s", body.entity_type, body.entity_id)
-    # Normalize entity_type — accept common aliases
-    type_aliases = {"person": "politician", "company": "tech", "institution": "finance", "transportation": "transportation"}
-    body.entity_type = type_aliases.get(body.entity_type, body.entity_type)
-    valid_types = {"politician", "tech", "finance", "health", "energy", "transportation"}
-    if body.entity_type not in valid_types:
-        raise HTTPException(status_code=400, detail=f"entity_type must be one of: {', '.join(valid_types)}")
+    logger.info("Veritas verification request: %d chars", len(body.text))
 
     try:
-        result = run_verification(
+        result = veritas_verify(
             db,
             text=body.text,
-            entity_id=body.entity_id,
-            entity_type=body.entity_type,
             source_url=body.source_url,
         )
         result["auth_tier"] = auth["tier"]
         return result
     except Exception as e:
+        logger.error("Verification failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)[:200]}")
 
 
@@ -87,29 +81,23 @@ def verify_url(
     db: Session = Depends(get_db),
 ):
     """
-    Submit URL + entity for claim verification.
+    Submit URL for claim verification using the Veritas engine.
 
-    Fetches the URL, extracts text, then runs the full verification pipeline.
+    Fetches the URL, extracts text, extracts claims deterministically
+    (zero LLM), then verifies against all data sources.
+
+    No entity_id required. The system auto-detects entities from the text.
 
     Rate limited: 5/day for free tier, unlimited with enterprise API key.
     """
-    # Normalize entity_type — accept common aliases
-    type_aliases = {"person": "politician", "company": "tech", "institution": "finance", "transportation": "transportation"}
-    body.entity_type = type_aliases.get(body.entity_type, body.entity_type)
-    valid_types = {"politician", "tech", "finance", "health", "energy", "transportation"}
-    if body.entity_type not in valid_types:
-        raise HTTPException(status_code=400, detail=f"entity_type must be one of: {', '.join(valid_types)}")
+    logger.info("Veritas URL verification request: %s", body.url)
 
     try:
-        result = run_verification_from_url(
-            db,
-            url=body.url,
-            entity_id=body.entity_id,
-            entity_type=body.entity_type,
-        )
+        result = veritas_verify_url(db, url=body.url)
         result["auth_tier"] = auth["tier"]
         return result
     except Exception as e:
+        logger.error("URL verification failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)[:200]}")
 
 
