@@ -51,6 +51,8 @@ LOBBYING_TABLES = [
     ("defense_lobbying_records", "defense", "company_id", "tracked_defense_companies"),
     ("chemical_lobbying_records", "chemicals", "company_id", "tracked_chemical_companies"),
     ("agriculture_lobbying_records", "agriculture", "company_id", "tracked_agriculture_companies"),
+    ("telecom_lobbying_records", "telecom", "company_id", "tracked_telecom_companies"),
+    ("education_lobbying_records", "education", "company_id", "tracked_education_companies"),
 ]
 
 CONTRACT_TABLES = [
@@ -62,6 +64,8 @@ CONTRACT_TABLES = [
     ("defense_government_contracts", "defense", "company_id", "tracked_defense_companies"),
     ("chemical_government_contracts", "chemicals", "company_id", "tracked_chemical_companies"),
     ("agriculture_government_contracts", "agriculture", "company_id", "tracked_agriculture_companies"),
+    ("telecom_government_contracts", "telecom", "company_id", "tracked_telecom_companies"),
+    ("education_government_contracts", "education", "company_id", "tracked_education_companies"),
 ]
 
 ENFORCEMENT_TABLES = [
@@ -73,6 +77,8 @@ ENFORCEMENT_TABLES = [
     ("defense_enforcement_actions", "defense", "company_id", "tracked_defense_companies"),
     ("chemical_enforcement_actions", "chemicals", "company_id", "tracked_chemical_companies"),
     ("agriculture_enforcement_actions", "agriculture", "company_id", "tracked_agriculture_companies"),
+    ("telecom_enforcement_actions", "telecom", "company_id", "tracked_telecom_companies"),
+    ("education_enforcement_actions", "education", "company_id", "tracked_education_companies"),
 ]
 
 
@@ -608,6 +614,150 @@ def detect_lobby_contract_loop(db, sector_idx=None):
     return stories
 
 
+# ── Pattern 6: Tax Lobbying by Sector ──
+
+def detect_tax_lobbying(db, sector_idx=None):
+    """Find sectors/companies spending big on tax policy lobbying."""
+    stories = []
+    idx = sector_idx if sector_idx is not None else random.randint(0, len(LOBBYING_TABLES) - 1)
+    table, sector, id_col, entity_table = LOBBYING_TABLES[idx]
+
+    try:
+        rows = db.execute(text(
+            "SELECT %s, lobbying_issues, income FROM %s "
+            "WHERE lobbying_issues LIKE '%%Taxation%%' AND income > 0"
+            % (id_col, table)
+        )).fetchall()
+    except Exception as e:
+        log.warning("Tax lobbying query failed for %s: %s", sector, e)
+        return stories
+
+    company_tax_spend = defaultdict(float)
+    company_filings = defaultdict(int)
+    for eid, issues_str, income in rows:
+        inc = float(income) if income else 0
+        issues = [i.strip() for i in issues_str.split(",") if i.strip()]
+        per_issue = inc / max(len(issues), 1)
+        company_tax_spend[eid] += per_issue
+        company_filings[eid] += 1
+
+    if not company_tax_spend:
+        return stories
+
+    total_tax_spend = sum(company_tax_spend.values())
+    top_companies = sorted(company_tax_spend.items(), key=lambda x: -x[1])[:8]
+
+    sector_label = sector.capitalize()
+    title = "%s Companies Spent %s Lobbying on Tax Policy" % (sector_label, fmt_money(total_tax_spend))
+    if story_exists(db, slug(title)):
+        return stories
+
+    body = "## Tax Policy Lobbying\n\n"
+    body += "%s sector companies spent an estimated **%s** specifically on tax policy lobbying " % (sector_label, fmt_money(total_tax_spend))
+    body += "across **%d filings** that listed Taxation/Internal Revenue Code as an issue.\n\n" % sum(company_filings.values())
+
+    body += "## Top Tax Lobbying Spenders\n\n"
+    body += "| Company | Est. Tax Lobbying | Filings |\n"
+    body += "|---------|------------------|--------|\n"
+    for eid, spend in top_companies:
+        name = get_entity_name(db, eid, entity_table, id_col)
+        body += "| %s | %s | %d |\n" % (name, fmt_money(spend), company_filings[eid])
+    body += "\n*Spend estimated by dividing each filing's income across all listed issues.*\n\n"
+
+    body += "## Data Sources\n\n"
+    body += "- **Lobbying disclosures**: Senate LDA filings (senate.gov)\n"
+    body += "\n*All data from public government records.*"
+
+    stories.append(make_story(
+        title=title,
+        summary="%s companies spent %s lobbying on tax policy across %d filings." % (sector_label, fmt_money(total_tax_spend), sum(company_filings.values())),
+        body=body,
+        category="tax_lobbying",
+        sector=sector,
+        entity_ids=[eid for eid, _ in top_companies[:5]],
+        data_sources=[table, "Senate LDA (senate.gov)"],
+        evidence={"total_tax_spend": total_tax_spend, "filing_count": sum(company_filings.values()), "company_count": len(company_tax_spend)},
+    ))
+    return stories
+
+
+# ── Pattern 7: Budget/Appropriations Influence ──
+
+def detect_budget_lobbying(db, sector_idx=None):
+    """Find companies lobbying on budget/appropriations and getting contracts."""
+    stories = []
+    idx = sector_idx if sector_idx is not None else random.randint(0, len(LOBBYING_TABLES) - 1)
+    table, sector, id_col, entity_table = LOBBYING_TABLES[idx]
+    c_table = CONTRACT_TABLES[idx][0]
+
+    try:
+        rows = db.execute(text(
+            "SELECT %s, lobbying_issues, income FROM %s "
+            "WHERE (lobbying_issues LIKE '%%Budget%%' OR lobbying_issues LIKE '%%Appropriation%%') AND income > 0"
+            % (id_col, table)
+        )).fetchall()
+    except Exception as e:
+        log.warning("Budget lobbying query failed for %s: %s", sector, e)
+        return stories
+
+    company_budget_spend = defaultdict(float)
+    company_filings = defaultdict(int)
+    for eid, issues_str, income in rows:
+        inc = float(income) if income else 0
+        issues = [i.strip() for i in issues_str.split(",") if i.strip()]
+        per_issue = inc / max(len(issues), 1)
+        company_budget_spend[eid] += per_issue
+        company_filings[eid] += 1
+
+    if not company_budget_spend:
+        return stories
+
+    total_budget_spend = sum(company_budget_spend.values())
+    top_companies = sorted(company_budget_spend.items(), key=lambda x: -x[1])[:8]
+
+    sector_label = sector.capitalize()
+    title = "%s Companies Spent %s Lobbying on Budget and Appropriations" % (sector_label, fmt_money(total_budget_spend))
+    if story_exists(db, slug(title)):
+        return stories
+
+    body = "## Budget Lobbying\n\n"
+    body += "%s sector companies spent an estimated **%s** lobbying on budget and appropriations, " % (sector_label, fmt_money(total_budget_spend))
+    body += "directly trying to influence how federal money gets allocated.\n\n"
+
+    body += "## Top Budget Lobbying Spenders\n\n"
+    body += "| Company | Est. Budget Lobbying | Filings |\n"
+    body += "|---------|---------------------|--------|\n"
+    for eid, spend in top_companies:
+        name = get_entity_name(db, eid, entity_table, id_col)
+        # Cross-reference contracts
+        try:
+            cr = db.execute(text(
+                "SELECT SUM(award_amount) FROM %s WHERE %s = :eid" % (c_table, id_col)
+            ), {"eid": eid}).fetchone()
+            ct = fmt_money(float(cr[0])) if cr and cr[0] else "N/A"
+        except Exception:
+            ct = "N/A"
+        body += "| %s | %s | %d |\n" % (name, fmt_money(spend), company_filings[eid])
+    body += "\n"
+
+    body += "## Data Sources\n\n"
+    body += "- **Lobbying disclosures**: Senate LDA filings (senate.gov)\n"
+    body += "- **Contracts**: USASpending.gov\n"
+    body += "\n*All data from public government records.*"
+
+    stories.append(make_story(
+        title=title,
+        summary="%s companies spent %s lobbying on federal budget and appropriations." % (sector_label, fmt_money(total_budget_spend)),
+        body=body,
+        category="budget_influence",
+        sector=sector,
+        entity_ids=[eid for eid, _ in top_companies[:5]],
+        data_sources=[table, c_table, "Senate LDA (senate.gov)", "USASpending.gov"],
+        evidence={"total_budget_spend": total_budget_spend, "filing_count": sum(company_filings.values())},
+    ))
+    return stories
+
+
 # ── Main ──
 
 def main():
@@ -634,6 +784,8 @@ def main():
         ("contract_windfall", detect_contract_windfall),
         ("penalty_gap", detect_penalty_gap),
         ("lobby_contract_loop", detect_lobby_contract_loop),
+        ("tax_lobbying", detect_tax_lobbying),
+        ("budget_lobbying", detect_budget_lobbying),
     ]
 
     for pattern_name, detect_fn in patterns:
