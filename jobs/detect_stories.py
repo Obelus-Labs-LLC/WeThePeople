@@ -52,17 +52,54 @@ OPUS_MODEL = "claude-opus-4-20250514"
 def _opus_stories_today(db):
     """Count how many Opus-generated stories were published today."""
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    return db.query(Story).filter(
+    opus_count = db.query(Story).filter(
         Story.published_at >= today_start,
         Story.body.contains("<!-- opus-generated -->"),
     ).count()
+    wtp_count = db.query(Story).filter(
+        Story.published_at >= today_start,
+        Story.body.contains("<!-- WeThePeople Influence Journal story -->"),
+    ).count()
+    return opus_count + wtp_count
 
 
-def _write_opus_narrative(skeleton, story_context):
+def _detect_story_shape(category):
+    """Determine story shape from category for the prompt."""
+    company_cats = {"lobbying_spike", "contract_windfall", "enforcement_immunity",
+                    "regulatory_loop", "regulatory_capture", "penalty_contract_ratio",
+                    "lobbying_breakdown"}
+    politician_cats = {"trade_cluster", "trade_timing", "prolific_trader",
+                       "stock_act_violation", "committee_stock_trade"}
+    sector_cats = {"tax_lobbying", "budget_influence"}
+    # Everything else is relationship-based
+    if category in company_cats:
+        return "company-focused"
+    elif category in politician_cats:
+        return "politician-focused"
+    elif category in sector_cats:
+        return "sector-wide"
+    else:
+        return "relationship-based"
+
+
+def _quality_gate(skeleton):
+    """Pre-check: is the skeleton rich enough for an Opus story?"""
+    if len(skeleton) < 800:
+        return False, "Skeleton too short (%d chars)" % len(skeleton)
+    has_dollars = "$" in skeleton
+    has_table = "|" in skeleton
+    if not has_dollars:
+        return False, "No dollar amounts found"
+    if not has_table:
+        return False, "No data tables found"
+    return True, "OK"
+
+
+def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
     """Use Opus to write narrative paragraphs for a story skeleton.
 
     Returns the full article with {NARRATIVE_*} placeholders replaced,
-    or None if the API call fails or daily cap is reached.
+    or None if the API call fails or quality gate rejects.
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -76,28 +113,80 @@ def _write_opus_narrative(skeleton, story_context):
         log.warning("anthropic package not installed, skipping Opus narrative")
         return None
 
+    # Quality gate
+    passed, reason = _quality_gate(skeleton)
+    if not passed:
+        log.info("  Quality gate SKIP: %s", reason)
+        return None
+
+    story_shape = _detect_story_shape(category)
+    now_utc = datetime.now(timezone.utc).isoformat()
+
+    # Shape-specific guidance
+    shape_guidance = {
+        "company-focused": "Emphasize that company's lobbying portfolio and linked contracts.",
+        "politician-focused": "Focus on the politician's disclosed ties or actions relative to the lobbying data.",
+        "sector-wide": "Highlight aggregate patterns across the sector.",
+        "relationship-based": "Trace specific connections between lobbyists, entities, and awards.",
+    }
+
     prompt = (
-        "You are a data journalist for WeThePeople, a nonpartisan civic transparency platform. "
-        "Below is a pre-formatted investigative article skeleton with real data from public government records. "
-        "Write ONLY the narrative paragraphs for each {NARRATIVE_*} placeholder.\n\n"
-        "RULES:\n"
-        "- Never use dashes or em-dashes anywhere. Use commas, periods, or semicolons instead.\n"
-        "- Never editorialize or speculate. Let the data speak.\n"
-        "- Never accuse anyone of wrongdoing. Present the public record and let readers draw conclusions.\n"
-        "- Always use specific dollar amounts, dates, filing counts, and names from the skeleton data.\n"
-        "- Include a note that lobbying is legal, contracts follow competitive bidding, and correlation does not prove causation.\n"
-        "- Never use phrases like 'raises eyebrows', 'begs the question', or 'it remains to be seen'.\n"
-        "- Write in a direct, factual tone similar to ProPublica or The Intercept data journalism.\n"
-        "- No fluff, no filler, no throat clearing. Lead with the most significant finding.\n"
-        "- NARRATIVE_LEAD: 2 paragraphs. Open with the single most surprising data point. Provide context.\n"
-        "- NARRATIVE_ISSUES: 1-2 paragraphs. Analyze what the lobbying issue breakdown reveals.\n"
-        "- NARRATIVE_CONNECTION: 2 paragraphs. Connect lobbying spend to contract awards. Calculate ratios. Note what questions the data raises.\n"
-        "- Do NOT repeat numbers that are already in tables. Reference them but add analysis.\n"
-        "- Do NOT change, remove, or reformat any markdown headings (##), tables, bullet points, or source citations.\n"
-        "- Return the COMPLETE article with your narrative replacing {NARRATIVE_*} placeholders.\n\n"
-        "CONTEXT: %s\n\n"
-        "SKELETON:\n%s"
-    ) % (story_context, skeleton)
+        "You are a senior data journalist at WeThePeople, a nonpartisan civic transparency platform. "
+        "Your mission is to turn raw public government records into clear, factual, high-quality "
+        "investigative articles that let the public record speak for itself.\n\n"
+        "You will receive:\n"
+        "- CONTEXT: {category, sector, title, summary}\n"
+        "- STORY_SHAPE: %s\n"
+        "- ENRICHED_SKELETON: A complete markdown document containing pre-built sections, data tables, "
+        "bullet points, and source citations.\n\n"
+        "STRICT RULES:\n\n"
+        "1. Preserve the skeleton structure 100%%. Replace ONLY the exact placeholders "
+        "{NARRATIVE_LEAD}, {NARRATIVE_ISSUES}, {NARRATIVE_CONNECTION}, and any other {NARRATIVE_*} "
+        "that appear. Do not add, remove, reorder, or modify any markdown headings (##), tables, "
+        "bullet points, source citations, or existing text outside the placeholders.\n"
+        "2. Never rewrite, summarize, or alter any table or data block. Reference the tables but "
+        "do not repeat the raw numbers inside the narrative paragraphs.\n"
+        "3. Write in a direct, neutral, factual tone modeled after ProPublica or The Intercept "
+        "data journalism. No spin, no partisanship, no editorializing, and no speculation.\n"
+        "4. Never accuse anyone of wrongdoing. Never imply corruption or improper influence.\n"
+        "5. Never use dashes or em-dashes anywhere in the article. Use commas, periods, or semicolons instead.\n"
+        "6. Never use forbidden phrases: \"raises eyebrows\", \"begs the question\", "
+        "\"it remains to be seen\", or any similar loaded language.\n"
+        "7. Always include this exact factual disclaimer exactly once, in the appropriate narrative section: "
+        "\"Lobbying is legal activity protected under the First Amendment. Government contracts are awarded "
+        "through competitive bidding processes. Correlation between lobbying expenditures and contract awards "
+        "does not prove causation.\"\n"
+        "8. Lead with the single most significant or surprising verifiable data point from the skeleton.\n"
+        "9. Use specific dollar amounts, dates, filing counts, and entity names exactly as they appear in the skeleton.\n"
+        "10. If any data appears inconsistent, incomplete, or anomalous (for example, $0 lobbying reported "
+        "for a company that files expenses rather than income), explicitly note the limitation in the "
+        "narrative without speculation.\n"
+        "11. For this %s story: %s\n"
+        "12. Keep narrative sections concise and dense: NARRATIVE_LEAD: exactly 2 paragraphs. "
+        "NARRATIVE_ISSUES: 1-2 paragraphs. NARRATIVE_CONNECTION: 2 paragraphs. "
+        "Any additional {NARRATIVE_*} placeholders: 1-2 paragraphs each.\n"
+        "13. Add analytical depth by connecting dots between datasets while remaining strictly factual. "
+        "Calculate simple ratios or percentages only when the skeleton already provides the underlying numbers.\n"
+        "14. If data required for meaningful analysis is missing or unclear, explicitly state the gap.\n"
+        "15. Do not add new sections, conclusions, or calls to action. End exactly where the skeleton ends.\n\n"
+        "OUTPUT REQUIREMENTS:\n"
+        "- Return the COMPLETE article as valid markdown.\n"
+        "- Include tracking comments at the top:\n"
+        "  <!-- WeThePeople Influence Journal story -->\n"
+        "  <!-- Generated: %s -->\n"
+        "  <!-- Story shape: %s -->\n"
+        "  <!-- Category: %s -->\n"
+        "- Replace every {NARRATIVE_*} placeholder with your written paragraphs.\n"
+        "- Do not add any extra text, explanations, or JSON outside the markdown article.\n\n"
+        "CONTEXT: %s\n"
+        "STORY_SHAPE: %s\n"
+        "ENRICHED_SKELETON:\n%s"
+    ) % (
+        story_shape,
+        story_shape, shape_guidance.get(story_shape, ""),
+        now_utc, story_shape, category,
+        story_context, story_shape, skeleton
+    )
 
     try:
         response = client.messages.create(
@@ -110,8 +199,8 @@ def _write_opus_narrative(skeleton, story_context):
         log.info("  Opus narrative: %d chars, $%.4f (%d in, %d out)",
                  len(result), cost, response.usage.input_tokens, response.usage.output_tokens)
 
-        # Add hidden marker so we can count Opus stories for daily cap
-        if "<!-- opus-generated -->" not in result:
+        # Ensure tracking marker exists for daily cap counting
+        if "<!-- opus-generated -->" not in result and "<!-- WeThePeople" not in result:
             result += "\n\n<!-- opus-generated -->"
 
         return result
@@ -1752,7 +1841,7 @@ def main():
                     "{NARRATIVE_CONNECTION}\n\n## Data Sources"
                 )
 
-                opus_body = _write_opus_narrative(skeleton, context)
+                opus_body = _write_opus_narrative(skeleton, context, category=s.category)
                 if opus_body:
                     s.body = opus_body
                     enhanced += 1
