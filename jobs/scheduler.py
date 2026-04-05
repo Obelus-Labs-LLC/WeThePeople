@@ -363,6 +363,15 @@ JOB_REGISTRY: List[JobDef] = [
     # NOTE: twitter_bot.py is NOT in the scheduler — it runs via cron at specific times
     # (4x/day at fixed hours for optimal engagement, not on an interval).
 
+    # ── Twitter Monitor (every 4h) ─────────────────────────────────
+    JobDef(
+        name="twitter_monitor",
+        script="jobs/twitter_monitor.py",
+        interval_hours=4,
+        timeout_sec=600,    # 10 min — API calls + DB queries + randomized post delay
+        description="Scan watchdog X accounts, match entities, auto-quote 1/day max",
+    ),
+
     # ── Compliance / Maintenance (weekly) ─────────────────────────
     JobDef(
         name="data_retention",
