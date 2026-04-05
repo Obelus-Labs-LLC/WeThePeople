@@ -372,7 +372,12 @@ def run_verification(db: Session, text: str, source_url: Optional[str] = None) -
         external_evidence = []
         try:
             from veritas.evidence_sources.base import build_search_query
-            query = build_search_query(claim_text, claim_category)
+            try:
+                query = build_search_query(claim_text, claim_category)
+            except TypeError:
+                # Veritas build_search_query has a type bug with max_terms
+                # Fall back to using the claim text directly as query
+                query = " ".join(claim_text.split()[:10])
             # Run a subset of Veritas sources for speed
             from veritas.evidence_sources import (
                 congress, fec, usaspending, sec_edgar, wikipedia_source
