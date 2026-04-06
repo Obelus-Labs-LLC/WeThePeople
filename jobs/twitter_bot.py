@@ -262,11 +262,11 @@ def generate_data_tweet() -> tuple:
     if stats and stats.get("by_sector"):
         sectors = stats["by_sector"]
         # Find the sector with highest lobbying spend-to-enforcement ratio
+        # NOTE: "lobbying" field is a DOLLAR AMOUNT, not a filing count
         best_ratio = None
         best_sector = None
         for sec_name, sec_data in sectors.items():
-            lobby_spend = sec_data.get("lobbying_spend", 0)
-            lobby_filings = sec_data.get("lobbying_filings", sec_data.get("lobbying", 0))
+            lobby_spend = sec_data.get("lobbying", 0)  # This is dollars, not filings
             enforcement = sec_data.get("enforcement", 0)
             if lobby_spend > 0 and enforcement > 0:
                 ratio = lobby_spend / enforcement
@@ -276,9 +276,8 @@ def generate_data_tweet() -> tuple:
 
         if best_sector:
             sec_name, sec_data = best_sector
-            lobby_spend = sec_data.get("lobbying_spend", 0)
+            lobby_spend = sec_data.get("lobbying", 0)
             enforcement_count = sec_data.get("enforcement", 0)
-            # Use dollar amounts (not raw counts which may be dollar values)
             if lobby_spend > 1000:
                 options.append((
                     f"The {sec_name} sector spent {_fmt_money(lobby_spend)} on lobbying "
