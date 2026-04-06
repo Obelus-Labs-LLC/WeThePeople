@@ -528,3 +528,92 @@ def db_stats(db: Session = Depends(get_db)):
             pass
 
     return stats
+
+
+# ---------------------------------------------------------------------------
+# Token Usage Tracking
+# ---------------------------------------------------------------------------
+
+@router.get("/token-usage")
+def get_token_usage(
+    days: int = 7,
+    feature: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Get token usage breakdown by feature and model.
+
+    Returns per-feature totals, per-model totals, daily totals,
+    and individual call log for the specified period.
+    """
+    try:
+        from models.token_usage import TokenUsageLog
+    except ImportError:
+        return {"error": "Token usage tracking not available"}
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    query = db.query(TokenUsageLog).filter(TokenUsageLog.created_at >= cutoff)
+    if feature:
+        query = query.filter(TokenUsageLog.feature == feature)
+
+    rows = query.order_by(TokenUsageLog.created_at.desc()).all()
+
+    # Aggregate by feature
+    by_feature: Dict[str, Any] = {}
+    by_model: Dict[str, Any] = {}
+    by_day: Dict[str, Any] = {}
+    total_cost = 0.0
+    total_tokens = 0
+
+    for r in rows:
+        # Per feature
+        if r.feature not in by_feature:
+            by_feature[r.feature] = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+        by_feature[r.feature]["calls"] += 1
+        by_feature[r.feature]["input_tokens"] += r.input_tokens
+        by_feature[r.feature]["output_tokens"] += r.output_tokens
+        by_feature[r.feature]["cost_usd"] = round(by_feature[r.feature]["cost_usd"] + r.cost_usd, 6)
+
+        # Per model
+        if r.model not in by_model:
+            by_model[r.model] = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+        by_model[r.model]["calls"] += 1
+        by_model[r.model]["input_tokens"] += r.input_tokens
+        by_model[r.model]["output_tokens"] += r.output_tokens
+        by_model[r.model]["cost_usd"] = round(by_model[r.model]["cost_usd"] + r.cost_usd, 6)
+
+        # Per day
+        day_key = r.created_at.strftime("%Y-%m-%d") if r.created_at else "unknown"
+        if day_key not in by_day:
+            by_day[day_key] = {"calls": 0, "tokens": 0, "cost_usd": 0.0}
+        by_day[day_key]["calls"] += 1
+        by_day[day_key]["tokens"] += r.total_tokens
+        by_day[day_key]["cost_usd"] = round(by_day[day_key]["cost_usd"] + r.cost_usd, 6)
+
+        total_cost += r.cost_usd
+        total_tokens += r.total_tokens
+
+    # Recent calls (last 20)
+    recent = [
+        {
+            "feature": r.feature,
+            "model": r.model,
+            "input_tokens": r.input_tokens,
+            "output_tokens": r.output_tokens,
+            "cost_usd": r.cost_usd,
+            "detail": r.detail,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows[:20]
+    ]
+
+    return {
+        "period_days": days,
+        "total_calls": len(rows),
+        "total_tokens": total_tokens,
+        "total_cost_usd": round(total_cost, 4),
+        "by_feature": by_feature,
+        "by_model": by_model,
+        "by_day": dict(sorted(by_day.items())),
+        "recent_calls": recent,
+    }
