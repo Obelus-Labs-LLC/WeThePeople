@@ -260,6 +260,16 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         if "<!-- opus-generated -->" not in result and "<!-- WeThePeople" not in result:
             result += "\n\n<!-- opus-generated -->"
 
+        # Strip any leftover {NARRATIVE_*} placeholders that Opus failed to replace
+        import re
+        leftover = re.findall(r'\{NARRATIVE_\w+\}', result)
+        if leftover:
+            log.warning("  Opus left %d unreplaced placeholders: %s", len(leftover), leftover)
+            for tag in leftover:
+                result = result.replace(tag, "")
+            # Clean up resulting double blank lines
+            result = re.sub(r'\n{3,}', '\n\n', result)
+
         return result
     except Exception as e:
         log.warning("Opus narrative generation failed: %s", e)
@@ -328,6 +338,29 @@ def story_exists(db, story_slug):
     return db.query(Story).filter(Story.slug == story_slug).first() is not None
 
 
+def entity_story_recent(db, entity_id, category, days=7):
+    """Check if a story about the same entity in the same category was published recently.
+
+    Prevents near-duplicate stories when data refreshes cause slight amount changes
+    (e.g., "$10.8M" one day, "$10.7M" the next — different slugs, same story).
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    try:
+        return db.query(Story).filter(
+            Story.category == category,
+            Story.published_at >= cutoff,
+            Story.entity_ids.contains(entity_id),
+        ).first() is not None
+    except Exception:
+        # Fallback: SQLite JSON contains may not work, do string match
+        like_pattern = f'%"{entity_id}"%'
+        return db.query(Story).filter(
+            Story.category == category,
+            Story.published_at >= cutoff,
+            func.cast(Story.entity_ids, text("TEXT")).like(like_pattern),
+        ).first() is not None
+
+
 def get_entity_name(db, entity_id, entity_table, id_col):
     try:
         row = db.execute(text(
@@ -375,6 +408,9 @@ def detect_top_spender(db, sector_idx=None):
 
     for eid, total_spend, filing_count in rows:
         if not total_spend or total_spend < 100000:
+            continue
+        # Skip if this entity already has a lobbying_spike story in the last 7 days
+        if entity_story_recent(db, eid, "lobbying_spike", days=7):
             continue
         name = get_entity_name(db, eid, entity_table, id_col)
         title = "%s Spent %s Lobbying Congress" % (name, fmt_money(total_spend))
@@ -483,16 +519,21 @@ def detect_contract_windfall(db, sector_idx=None):
     table, sector, id_col, entity_table = CONTRACT_TABLES[idx]
 
     try:
+        # Exclude contracts with start_date in the future (period-of-performance projections)
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         rows = db.execute(text(
             "SELECT %s, SUM(award_amount) as total, COUNT(*) as cnt "
-            "FROM %s GROUP BY %s HAVING total > 100000000 ORDER BY total DESC LIMIT 5"
+            "FROM %s WHERE start_date IS NULL OR start_date <= :today "
+            "GROUP BY %s HAVING total > 100000000 ORDER BY total DESC LIMIT 5"
             % (id_col, table, id_col)
-        )).fetchall()
+        ), {"today": today_str}).fetchall()
     except Exception as e:
         log.warning("Contract windfall query failed for %s: %s", sector, e)
         return stories
 
     for eid, total_value, contract_count in rows:
+        if entity_story_recent(db, eid, "contract_windfall", days=14):
+            continue
         name = get_entity_name(db, eid, entity_table, id_col)
         title = "%s Has %s in Government Contracts" % (name, fmt_money(total_value))
         if story_exists(db, slug(title)):
@@ -581,6 +622,8 @@ def detect_penalty_gap(db, sector_idx=None):
         return stories
 
     for eid, total_contracts, contract_count in rows:
+        if entity_story_recent(db, eid, "penalty_contract_ratio", days=14):
+            continue
         name = get_entity_name(db, eid, entity_table, id_col)
         title = "%s: %s in Contracts, Zero Penalties" % (name, fmt_money(total_contracts))
         if story_exists(db, slug(title)):
@@ -1219,18 +1262,21 @@ def detect_lobby_then_win(db, sector_idx=None):
                 body += "\n"
 
             ratio = contract_total / lobby_spend if lobby_spend > 0 else 0
-            body += "## The Return\n\n"
-            body += "For every **$1** spent lobbying this agency, %s received **$%.0f** in contracts.\n\n" % (name, ratio)
+            body += "## The Scale\n\n"
+            body += "The contract value is **%.0f times** the disclosed lobbying expenditure directed at this agency.\n\n" % ratio
+            body += "Lobbying is legal activity protected under the First Amendment. Government contracts are awarded "
+            body += "through competitive bidding processes. Correlation between lobbying expenditures and contract awards "
+            body += "does not prove causation.\n\n"
 
             body += "## Data Sources\n\n"
             body += "- **Lobbying**: Senate LDA filings (senate.gov)\n"
             body += "- **Contracts**: USASpending.gov\n"
-            body += "\n*All data from public government records. Correlation does not imply causation.*"
+            body += "\n*All data from public government records.*"
 
             stories.append(make_story(
                 title=title,
-                summary="%s spent %s lobbying %s, which then awarded them %s in %d contracts. A %s:1 return." % (
-                    name, fmt_money(lobby_spend), agency, fmt_money(contract_total), contract_count, f"{ratio:,.0f}"
+                summary="%s spent %s lobbying %s, which awarded them %s across %d contracts." % (
+                    name, fmt_money(lobby_spend), agency, fmt_money(contract_total), contract_count
                 ),
                 body=body,
                 category="regulatory_loop",
@@ -1470,13 +1516,15 @@ def detect_contract_timing(db, sector_idx=None):
     c_table, sector, id_col, entity_table = CONTRACT_TABLES[idx]
 
     try:
-        # Get contracts with start dates
+        # Get contracts with start dates — exclude future dates (period-of-performance projections)
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         contracts = db.execute(text(
             "SELECT %s, start_date, award_amount, awarding_agency, description FROM %s "
             "WHERE start_date IS NOT NULL AND award_amount > 1000000 "
+            "AND start_date <= :today "
             "ORDER BY award_amount DESC LIMIT 100"
             % (id_col, c_table)
-        )).fetchall()
+        ), {"today": today_str}).fetchall()
     except Exception as e:
         log.warning("Contract timing query failed for %s: %s", sector, e)
         return stories
@@ -1778,30 +1826,44 @@ def main():
     log.info("Running story detection (target: %d stories)...", target)
 
     # Run each pattern across shuffled sectors until we hit target
+    # Per-category caps prevent any single pattern from dominating the output
+    CATEGORY_CAPS = {
+        "lobbying_spike": 2,      # Was generating 10+ per run, drowning other patterns
+        "contract_windfall": 2,
+        "penalty_contract_ratio": 2,
+    }
+    category_counts = defaultdict(int)
+
     # Sector-indexed patterns (run across all sectors)
     sector_patterns = [
-        ("top_spender", detect_top_spender),
-        ("contract_windfall", detect_contract_windfall),
-        ("penalty_gap", detect_penalty_gap),
-        ("lobby_contract_loop", detect_lobby_contract_loop),
-        ("tax_lobbying", detect_tax_lobbying),
-        ("budget_lobbying", detect_budget_lobbying),
-        ("lobby_then_win", detect_lobby_then_win),
-        ("enforcement_disappearance", detect_enforcement_disappearance),
-        ("contract_timing", detect_contract_timing),
+        ("top_spender", detect_top_spender, "lobbying_spike"),
+        ("contract_windfall", detect_contract_windfall, "contract_windfall"),
+        ("penalty_gap", detect_penalty_gap, "penalty_contract_ratio"),
+        ("lobby_contract_loop", detect_lobby_contract_loop, None),
+        ("tax_lobbying", detect_tax_lobbying, None),
+        ("budget_lobbying", detect_budget_lobbying, None),
+        ("lobby_then_win", detect_lobby_then_win, None),
+        ("enforcement_disappearance", detect_enforcement_disappearance, None),
+        ("contract_timing", detect_contract_timing, None),
     ]
 
-    for pattern_name, detect_fn in sector_patterns:
+    for pattern_name, detect_fn, cap_category in sector_patterns:
         if len(all_stories) >= target:
             break
         for si in sector_order:
             if len(all_stories) >= target:
                 break
+            # Check per-category cap
+            if cap_category and category_counts[cap_category] >= CATEGORY_CAPS.get(cap_category, target):
+                break
             try:
                 found = detect_fn(db, sector_idx=si)
                 for s in found:
+                    if cap_category and category_counts[cap_category] >= CATEGORY_CAPS.get(cap_category, target):
+                        break
                     if not story_exists(db, s.slug):
                         all_stories.append(s)
+                        category_counts[s.category] += 1
                         log.info("  [%s] [%s] %s", pattern_name, s.sector or "cross", s.title[:60])
             except Exception as e:
                 log.warning("Pattern %s failed for sector %d: %s", pattern_name, si, e)
