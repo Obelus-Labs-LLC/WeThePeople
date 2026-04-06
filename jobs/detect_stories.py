@@ -245,9 +245,16 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
             messages=[{"role": "user", "content": prompt}],
         )
         result = response.content[0].text
-        cost = (response.usage.input_tokens * 15 / 1e6) + (response.usage.output_tokens * 75 / 1e6)
+        in_tok = response.usage.input_tokens
+        out_tok = response.usage.output_tokens
+        cost = (in_tok * 15 / 1e6) + (out_tok * 75 / 1e6)
         log.info("  Opus narrative: %d chars, $%.4f (%d in, %d out)",
-                 len(result), cost, response.usage.input_tokens, response.usage.output_tokens)
+                 len(result), cost, in_tok, out_tok)
+        try:
+            from services.budget import log_token_usage
+            log_token_usage("story_opus", OPUS_MODEL, in_tok, out_tok, cost, story_context[:100])
+        except Exception:
+            pass
 
         # Ensure tracking marker exists for daily cap counting
         if "<!-- opus-generated -->" not in result and "<!-- WeThePeople" not in result:
