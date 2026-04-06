@@ -234,9 +234,11 @@ def call_claude(system_prompt: str, user_prompt: str,
            (output_tokens * pricing["output"] / 1_000_000)
 
     record_spend(cost)
-    # NOTE: model.split('-')[1] extracts a short label (e.g., "sonnet" from
-    # "claude-sonnet-4-..."). Works for current naming convention; may need
-    # updating if Anthropic changes model ID format.
+    try:
+        from services.budget import log_token_usage
+        log_token_usage("ai_summarize", model, input_tokens, output_tokens, cost, user_prompt[:100])
+    except Exception:
+        pass
     logger.info(
         f"Claude ({model.split('-')[1]}): {elapsed:.1f}s, "
         f"{input_tokens} in / {output_tokens} out, ${cost:.4f}"

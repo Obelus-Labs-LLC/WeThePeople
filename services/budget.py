@@ -51,7 +51,39 @@ PRICING = {
     "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
     "claude-haiku-4-5-20251001": {"input": 1.0, "output": 5.0},
     "claude-opus-4-6": {"input": 15.0, "output": 75.0},
+    "claude-opus-4-20250514": {"input": 15.0, "output": 75.0},
 }
+
+
+def log_token_usage(feature: str, model: str, input_tokens: int, output_tokens: int,
+                    cost: float = 0.0, detail: str = "") -> None:
+    """Log a single API call to the token_usage_log table.
+
+    Call this after every Anthropic API call. The feature parameter
+    identifies what triggered the call.
+
+    Features: 'chat_agent', 'story_opus', 'ai_summarize',
+    'claims_pipeline', 'twitter_bot', 'enrichment', 'test'
+    """
+    try:
+        from models.database import SessionLocal
+        from models.token_usage import TokenUsageLog
+        db = SessionLocal()
+        if cost <= 0:
+            cost = compute_cost(model, input_tokens, output_tokens)
+        db.add(TokenUsageLog(
+            feature=feature,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+            cost_usd=round(cost, 6),
+            detail=(detail or "")[:500],
+        ))
+        db.commit()
+        db.close()
+    except Exception as e:
+        logger.warning("Failed to log token usage: %s", e)
 
 
 def load_ledger() -> Dict[str, Any]:

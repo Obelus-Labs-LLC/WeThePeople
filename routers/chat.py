@@ -178,12 +178,14 @@ def _call_haiku(question: str, context: Optional[dict] = None) -> dict:
         messages=[{"role": "user", "content": user_message}],
     )
 
-    # Record spend
+    # Record spend and log usage
     if hasattr(response, 'usage') and response.usage:
         in_tok = getattr(response.usage, 'input_tokens', 0) or 0
         out_tok = getattr(response.usage, 'output_tokens', 0) or 0
         cost = compute_cost(model, in_tok, out_tok)
         record_spend(cost, model, in_tok, out_tok)
+        from services.budget import log_token_usage
+        log_token_usage("chat_agent", model, in_tok, out_tok, cost, question[:100])
 
     text = response.content[0].text.strip()
 
