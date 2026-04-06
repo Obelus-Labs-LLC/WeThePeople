@@ -68,6 +68,40 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def strip_markdown(text: str) -> str:
+    """Strip markdown formatting that renders as raw text on Twitter/X.
+
+    Removes: **bold**, *italic*, | table | rows, markdown headings.
+    Preserves: $dollar amounts, #hashtags, plain text.
+    """
+    import re
+    # Remove markdown bold/italic
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    # Remove markdown table rows (lines starting with |)
+    lines = text.split('\n')
+    cleaned = []
+    for line in lines:
+        stripped = line.strip()
+        # Skip table separator rows (|---|---|)
+        if stripped and all(c in '|-: ' for c in stripped):
+            continue
+        # Convert table data rows to readable format
+        if stripped.startswith('|') and stripped.endswith('|'):
+            cells = [c.strip() for c in stripped.strip('|').split('|')]
+            cells = [c for c in cells if c]
+            if cells:
+                cleaned.append(' | '.join(cells))
+        else:
+            cleaned.append(line)
+    text = '\n'.join(cleaned)
+    # Remove markdown headings (## Heading -> Heading)
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    # Clean up excess whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
 def already_posted(session, text: str) -> bool:
     h = content_hash(text)
     return session.query(TweetLog).filter_by(content_hash=h).first() is not None
@@ -227,29 +261,32 @@ def generate_data_tweet() -> tuple:
     stats = api_get("/influence/stats")
     if stats and stats.get("by_sector"):
         sectors = stats["by_sector"]
-        # Find the sector with highest lobbying-to-enforcement ratio
+        # Find the sector with highest lobbying spend-to-enforcement ratio
         best_ratio = None
         best_sector = None
         for sec_name, sec_data in sectors.items():
-            lobby = sec_data.get("lobbying", 0)
+            lobby_spend = sec_data.get("lobbying_spend", 0)
+            lobby_filings = sec_data.get("lobbying_filings", sec_data.get("lobbying", 0))
             enforcement = sec_data.get("enforcement", 0)
-            if lobby > 0 and enforcement > 0:
-                ratio = lobby / enforcement
+            if lobby_spend > 0 and enforcement > 0:
+                ratio = lobby_spend / enforcement
                 if best_ratio is None or ratio > best_ratio:
                     best_ratio = ratio
                     best_sector = (sec_name, sec_data)
 
         if best_sector:
             sec_name, sec_data = best_sector
-            lobby_spend = sec_data.get("lobbying_spend", sec_data.get("lobbying", 0))
+            lobby_spend = sec_data.get("lobbying_spend", 0)
             enforcement_count = sec_data.get("enforcement", 0)
-            options.append((
-                f"The {sec_name} sector has {sec_data.get('lobbying', 0):,} lobbying filings "
-                f"and only {enforcement_count:,} enforcement actions.\n\n"
-                f"That's {sec_data.get('lobbying', 0) // max(enforcement_count, 1)} lobbying filings "
-                f"for every enforcement action.\n\n#FollowTheMoney",
-                f"{SITE}/{sec_name}"
-            ))
+            # Use dollar amounts (not raw counts which may be dollar values)
+            if lobby_spend > 1000:
+                options.append((
+                    f"The {sec_name} sector spent {_fmt_money(lobby_spend)} on lobbying "
+                    f"and faces only {enforcement_count:,} enforcement actions.\n\n"
+                    f"That's {_fmt_money(lobby_spend / max(enforcement_count, 1))} in lobbying "
+                    f"for every enforcement action.\n\n#FollowTheMoney",
+                    f"{SITE}/{sec_name}"
+                ))
 
     # --- Single company deep dive ---
     if lobby_items:
@@ -358,7 +395,7 @@ def generate_thread() -> tuple:
     tweet1 = f"{name} spent {_fmt_money(lobby_total)} lobbying Congress.\n\n#FollowTheMoney"
 
     if contracts_total > 0:
-        tweet2 = f"They also received {_fmt_money(contracts_total)} in government contracts. That's a {int(contracts_total / max(lobby_total, 1)):,}-to-1 return on lobbying spend.\n\nData: Senate LDA Filings, USASpending.gov"
+        tweet2 = f"They also received {_fmt_money(contracts_total)} in government contracts from the same government they lobbied.\n\nCorrelation, not causation. But the public record is worth seeing.\n\nData: Senate LDA Filings, USASpending.gov"
     else:
         tweet2 = f"That's {_fmt_money(lobby_total)} spent influencing the laws that govern their industry. We track every dollar from lobbying filings to government contracts.\n\nData: Senate LDA Filings"
 
@@ -681,9 +718,11 @@ def run(category: str = None, dry_run: bool = False):
 
     if is_thread:
         thread_tweets, link = result
+        thread_tweets = [strip_markdown(t) for t in thread_tweets]
         tweet_text = thread_tweets[0]
     else:
         tweet_text, link = result
+        tweet_text = strip_markdown(tweet_text)
 
     if dry_run:
         if is_thread:
