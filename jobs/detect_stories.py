@@ -297,6 +297,15 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
             # Clean up resulting double blank lines
             result = re.sub(r'\n{3,}', '\n\n', result)
 
+        # Post-process: replace dashes that slip past the prompt rule.
+        # Leave markdown table rows (starting with |) untouched.
+        def _strip_dashes(line):
+            if re.match(r'^\s*\|', line):
+                return line
+            line = line.replace('\u2014', ',').replace('\u2013', ',')
+            return re.sub(r'\s*--\s*', ', ', line)
+        result = '\n'.join(_strip_dashes(l) for l in result.splitlines())
+
         return result
     except Exception as e:
         log.warning("Opus narrative generation failed: %s", e)
@@ -398,6 +407,19 @@ def get_entity_name(db, entity_id, entity_table, id_col):
         return entity_id.replace("-", " ").title()
 
 
+_DISCLAIMER = (
+    "Lobbying is legal activity protected under the First Amendment. "
+    "Government contracts are awarded through competitive bidding processes. "
+    "Correlation between lobbying expenditures and contract awards does not prove causation."
+)
+_DISCLAIMER_CATEGORIES = {
+    "lobbying", "contract", "contract_windfall", "penalty_gap",
+    "lobby_contract_loop", "tax_lobbying", "budget_lobbying",
+    "lobby_then_win", "enforcement_disappearance", "pac_committee_pipeline",
+    "contract_timing",
+}
+
+
 def make_story(title, summary, body, category, sector, entity_ids, data_sources, evidence):
     """Build a Story row.
 
@@ -405,6 +427,9 @@ def make_story(title, summary, body, category, sector, entity_ids, data_sources,
     They enter the human review queue and only become published via
     /ops/story-queue approve. Nothing is posted automatically.
     """
+    # Inject disclaimer for lobbying/contract stories if not already present
+    if category in _DISCLAIMER_CATEGORIES and _DISCLAIMER not in body:
+        body = body.rstrip() + "\n\n" + _DISCLAIMER
     return Story(
         title=title,
         slug=slug(title),
