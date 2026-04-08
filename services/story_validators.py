@@ -177,13 +177,19 @@ def validate_draft(
             issues.append(Issue(CRITICAL, "template_leak",
                                 f"found unreplaced marker '{marker}'"))
 
+    # 1b. HTML comments (CRITICAL — the frontend renders them as visible text,
+    # so metadata blocks like '<!-- Generated: ... -->' leak into stories.)
+    if "<!--" in body or "<!--" in title or "<!--" in summary:
+        issues.append(Issue(CRITICAL, "html_comment",
+                            "HTML comments are not allowed in stories"))
+
     # 2. Dashes (CRITICAL — enforced style rule)
-    # Exempt from the dash check:
-    #   - Markdown table separators like "|------|------|"
-    #   - HTML comment lines like "<!-- Category: ... -->" (the '--' is syntax)
+    # Exempt from the dash check: markdown table separators like
+    # "|------|------|". HTML comments are already rejected above, so we no
+    # longer need to special-case them here.
     body_lines_for_dash = [
         ln for ln in body.split("\n")
-        if not _is_table_separator_line(ln) and not _is_html_comment_line(ln)
+        if not _is_table_separator_line(ln)
     ]
     body_no_tables = "\n".join(body_lines_for_dash)
     for dash in DASH_CHARS:
@@ -329,14 +335,6 @@ def _is_table_separator_line(line: str) -> bool:
     if "-" not in line:
         return False
     return bool(_TABLE_SEPARATOR_RE.match(line))
-
-
-def _is_html_comment_line(line: str) -> bool:
-    """An HTML/markdown comment like '<!-- Generated: 2026-04-08 -->'.
-    The '--' inside these is syntax, not prose, so it should be exempt
-    from the no-dashes style rule."""
-    s = line.strip()
-    return s.startswith("<!--") and s.endswith("-->")
 
 
 def _first_money(text: str) -> Optional[str]:

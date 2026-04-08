@@ -25,6 +25,7 @@ Usage:
 
 import sys
 import os
+import re
 import random
 import hashlib
 import argparse
@@ -50,17 +51,19 @@ OPUS_MODEL = "claude-opus-4-20250514"
 
 
 def _opus_stories_today(db):
-    """Count how many Opus-generated stories were published today."""
+    """Count how many Opus-generated stories were created today.
+
+    Opus-enhanced stories carry `evidence.generator = 'opus'` (set by
+    `detect_stories` at the call site, not by an HTML comment in the body).
+    We also count stories created today but still in draft status — the cap
+    is about API spend, not about publication.
+    """
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    opus_count = db.query(Story).filter(
-        Story.published_at >= today_start,
-        Story.body.contains("<!-- opus-generated -->"),
+    # SQLite JSON path: evidence is a JSON column, use json_extract.
+    return db.query(Story).filter(
+        Story.created_at >= today_start,
+        func.json_extract(Story.evidence, '$.generator') == 'opus',
     ).count()
-    wtp_count = db.query(Story).filter(
-        Story.published_at >= today_start,
-        Story.body.contains("<!-- WeThePeople Influence Journal story -->"),
-    ).count()
-    return opus_count + wtp_count
 
 
 def _detect_story_shape(category):
@@ -80,6 +83,26 @@ def _detect_story_shape(category):
         return "sector-wide"
     else:
         return "relationship-based"
+
+
+_HTML_COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
+
+
+def _strip_html_comments(text):
+    """Remove every HTML comment from a markdown string.
+
+    Stories must not contain tracking/metadata comments like
+    '<!-- Generated: ... -->' because the frontend renders them as visible
+    prose and readers see the raw syntax. This is the single canonical place
+    that enforces the rule, used both by the Opus post-processor and by the
+    retroactive cleanup of existing stories.
+    """
+    if not text:
+        return text
+    cleaned = _HTML_COMMENT_RE.sub('', text)
+    # Collapse any blank-line runs that the removal created.
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+    return cleaned.lstrip('\n')
 
 
 def _quality_gate(skeleton):
@@ -170,7 +193,6 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         return None
 
     story_shape = _detect_story_shape(category)
-    now_utc = datetime.now(timezone.utc).isoformat()
 
     # Shape-specific guidance
     shape_guidance = {
@@ -243,14 +265,13 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "The entire article body must be at least 900 words. Write thoroughly.\n"
         "R14. NO NEW SECTIONS. Do not add conclusions, calls to action, 'what this means' sections, "
         "or 'next steps'. End exactly where the skeleton ends.\n"
-        "R15. STORY SHAPE GUIDANCE. For this %s story: %s\n\n"
+        "R15. STORY SHAPE GUIDANCE. For this %s story: %s\n"
+        "R16. NO HTML COMMENTS. Never emit any HTML comment (lines starting with '<!--'). "
+        "Do not add a metadata block, generation timestamp, category marker, or tracking "
+        "comment of any kind. Return pure markdown only.\n\n"
         "OUTPUT REQUIREMENTS:\n"
         "- Return the COMPLETE article as valid markdown.\n"
-        "- Include these tracking comments at the top:\n"
-        "  <!-- WeThePeople Influence Journal story -->\n"
-        "  <!-- Generated: %s -->\n"
-        "  <!-- Story shape: %s -->\n"
-        "  <!-- Category: %s -->\n"
+        "- Start directly with the first markdown heading. No preamble, no HTML comments, no metadata.\n"
         "- Replace every {NARRATIVE_*} placeholder with your written paragraphs.\n"
         "- Do not add any extra text, explanations, or JSON outside the markdown article.\n\n"
         "CONTEXT: %s\n"
@@ -261,7 +282,6 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         datetime.now(timezone.utc).year,
         datetime.now(timezone.utc).year,
         story_shape, shape_guidance.get(story_shape, ""),
-        now_utc, story_shape, category,
         story_context, story_shape, skeleton
     )
 
@@ -283,10 +303,6 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         except Exception:
             pass
 
-        # Ensure tracking marker exists for daily cap counting
-        if "<!-- opus-generated -->" not in result and "<!-- WeThePeople" not in result:
-            result += "\n\n<!-- opus-generated -->"
-
         # Strip any leftover {NARRATIVE_*} placeholders that Opus failed to replace
         import re
         leftover = re.findall(r'\{NARRATIVE_\w+\}', result)
@@ -297,15 +313,15 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
             # Clean up resulting double blank lines
             result = re.sub(r'\n{3,}', '\n\n', result)
 
+        # Strip any HTML comments the model emitted despite R16.
+        # Handles both single-line (<!-- ... -->) and leading/trailing blank lines.
+        result = _strip_html_comments(result)
+
         # Post-process: replace dashes that slip past the prompt rule.
-        # Leave markdown table rows AND HTML comment lines untouched
-        # (HTML comments contain '--' as syntax markers, table separators
-        # use long runs of dashes for column widths).
+        # Leave markdown table rows untouched (they use long runs of dashes
+        # for column widths). HTML comments were already removed above.
         def _strip_dashes(line):
             if re.match(r'^\s*\|', line):
-                return line
-            stripped = line.strip()
-            if stripped.startswith("<!--") and stripped.endswith("-->"):
                 return line
             line = line.replace('\u2014', ',').replace('\u2013', ',')
             return re.sub(r'\s*--\s*', ', ', line)
@@ -2088,6 +2104,13 @@ def main():
                 opus_body = _write_opus_narrative(skeleton, context, category=s.category)
                 if opus_body:
                     s.body = opus_body
+                    # Tag the story so the daily-cap counter finds it.
+                    # Previously we used an HTML comment in the body, but those
+                    # render visibly on the frontend and readers saw the raw
+                    # '<!-- Generated: ... -->' syntax.
+                    if not isinstance(s.evidence, dict):
+                        s.evidence = {}
+                    s.evidence = {**s.evidence, "generator": "opus"}
                     enhanced += 1
                     log.info("  [OPUS] Enhanced: %s", s.title[:60])
 
