@@ -36,6 +36,8 @@ sys.path.insert(0, str(ROOT))
 from dotenv import load_dotenv
 load_dotenv(os.path.join(str(ROOT), ".env"))
 
+from sqlalchemy import or_
+
 from models.database import SessionLocal
 from models.stories_models import Story
 
@@ -43,10 +45,16 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("cleanup_story_html_comments")
 
 _HTML_COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
+# An earlier buggy dash post-processor replaced '--' with ', ' inside HTML
+# comments, producing lines like '<!, WeThePeople Influence Journal story, >'.
+# Match them too so retroactive cleanup gets both variants.
+_MANGLED_COMMENT_RE = re.compile(r'<!,[^>]*?,\s*>', re.DOTALL)
 
 OPUS_MARKERS = (
     "<!-- WeThePeople Influence Journal story -->",
     "<!-- opus-generated -->",
+    "<!, WeThePeople Influence Journal story",
+    "<!, opus-generated",
 )
 
 
@@ -54,6 +62,7 @@ def strip_html_comments(text: str) -> str:
     if not text:
         return text
     cleaned = _HTML_COMMENT_RE.sub('', text)
+    cleaned = _MANGLED_COMMENT_RE.sub('', cleaned)
     cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
     return cleaned.lstrip('\n')
 
@@ -67,7 +76,10 @@ def main():
     try:
         dirty = (
             db.query(Story)
-            .filter(Story.body.contains("<!--"))
+            .filter(or_(
+                Story.body.contains("<!--"),
+                Story.body.contains("<!,"),
+            ))
             .all()
         )
         log.info("Found %d story rows containing HTML comments", len(dirty))
