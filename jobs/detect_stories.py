@@ -298,9 +298,12 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
             result = re.sub(r'\n{3,}', '\n\n', result)
 
         # Post-process: replace dashes that slip past the prompt rule.
-        # Leave markdown table rows (starting with |) untouched.
+        # Leave markdown table rows AND HTML comment lines untouched
+        # (HTML comments contain '--' as syntax markers).
         def _strip_dashes(line):
             if re.match(r'^\s*\|', line):
+                return line
+            if re.match(r'^\s*<!--', line):
                 return line
             line = line.replace('\u2014', ',').replace('\u2013', ',')
             return re.sub(r'\s*--\s*', ', ', line)
@@ -395,6 +398,35 @@ def entity_story_recent(db, entity_id, category, days=7):
             Story.published_at >= cutoff,
             func.cast(Story.entity_ids, text("TEXT")).like(like_pattern),
         ).first() is not None
+
+
+def _parse_gov_entities(entities_str):
+    """Parse the government_entities field into a clean list of agency names.
+
+    Two storage formats are supported:
+      - New format: pipe-separated ("Treasury, Dept of | White House Office")
+      - Legacy format: comma-separated, where canonical Senate LDA names like
+        "Treasury, Dept of" or "Commerce, Dept of (DOC)" themselves contain commas.
+
+    For legacy rows we re-merge fragments that look like continuations of the
+    previous entry (anything starting with "Dept of", "Department of", "Office of",
+    or "Bureau of"), since those are partial agency-name suffixes, not standalone
+    entities.
+    """
+    if not entities_str:
+        return []
+    if " | " in entities_str:
+        return [e.strip() for e in entities_str.split(" | ") if e.strip()]
+    # Legacy comma-separated path with smart re-merge
+    raw = [e.strip() for e in entities_str.split(",") if e.strip()]
+    CONTINUATION_PREFIXES = ("Dept of", "Department of", "Office of", "Bureau of")
+    merged = []
+    for item in raw:
+        if merged and any(item.startswith(p) for p in CONTINUATION_PREFIXES):
+            merged[-1] = merged[-1] + ", " + item
+        else:
+            merged.append(item)
+    return merged
 
 
 def get_entity_name(db, entity_id, entity_table, id_col):
@@ -496,7 +528,7 @@ def detect_top_spender(db, sector_idx=None):
                 issue_spend[iss] += per_issue
                 issue_filings[iss] += 1
             if entities_str:
-                entities = [e.strip() for e in entities_str.split(",") if e.strip()]
+                entities = _parse_gov_entities(entities_str)
                 per_ent = inc / max(len(entities), 1)
                 for ent in entities:
                     gov_entity_spend[ent] += per_ent
@@ -1255,7 +1287,7 @@ def detect_lobby_then_win(db, sector_idx=None):
     company_agency_lobby = defaultdict(lambda: defaultdict(float))
     for eid, entities_str, income, year in lob_rows:
         inc = float(income) if income else 0
-        entities = [e.strip() for e in entities_str.split(",") if e.strip()]
+        entities = _parse_gov_entities(entities_str)
         per_ent = inc / max(len(entities), 1)
         for ent in entities:
             mapped = AGENCY_MAP.get(ent)
@@ -1790,7 +1822,7 @@ def detect_revolving_door(db):
 
         firm_agencies = defaultdict(lambda: defaultdict(int))
         for reg_name, entities_str, cnt in rows:
-            entities = [e.strip() for e in entities_str.split(",") if e.strip()]
+            entities = _parse_gov_entities(entities_str)
             for ent in entities:
                 if ent not in ("HOUSE OF REPRESENTATIVES", "SENATE"):
                     firm_agencies[reg_name][ent] += cnt

@@ -129,7 +129,9 @@ def fetch_lobbying_filings(
                     "registrant_name": registrant.get("name", ""),
                     "client_name": client.get("name", ""),
                     "lobbying_issues": ", ".join(sorted(set(issues))) if issues else None,
-                    "government_entities": ", ".join(sorted(gov_entities)) if gov_entities else None,
+                    # Use " | " separator: canonical agency names like "Treasury, Dept of"
+                    # contain commas, so a comma separator is ambiguous on read.
+                    "government_entities": " | ".join(sorted(gov_entities)) if gov_entities else None,
                     "specific_issues": " || ".join(descriptions) if descriptions else None,
                     "dedupe_hash": _compute_hash(filing_uuid),
                 })
