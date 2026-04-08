@@ -617,3 +617,172 @@ def get_token_usage(
         "by_day": dict(sorted(by_day.items())),
         "recent_calls": recent,
     }
+
+
+# ---------------------------------------------------------------------------
+# Gate 5 — Story Review Queue
+# ---------------------------------------------------------------------------
+# Every story that passes Gates 1-4 lands here as status='draft'. A human
+# approves or rejects before it becomes visible to the public. This is the
+# last line of defense after the April 2026 mass retraction.
+
+from pydantic import BaseModel
+from models.stories_models import Story
+
+
+class StoryReviewDecision(BaseModel):
+    reason: Optional[str] = None
+
+
+@router.get("/story-queue")
+def story_queue(
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    """List all draft stories awaiting human review, newest first.
+
+    Stories appear here after auto-generation passes Gates 1-4 but before
+    any public exposure. Frontend: pairs with /ops/story-queue/{id}/approve
+    and /ops/story-queue/{id}/reject.
+    """
+    try:
+        q = db.query(Story).filter(Story.status == "draft")
+        total = q.count()
+        rows = q.order_by(Story.created_at.desc()).offset(offset).limit(limit).all()
+    except Exception as exc:
+        logger.warning("story queue query failed: %s", exc)
+        return {"total": 0, "stories": []}
+
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "stories": [
+            {
+                "id": s.id,
+                "title": s.title,
+                "slug": s.slug,
+                "summary": s.summary,
+                "body": s.body,
+                "category": s.category,
+                "sector": s.sector,
+                "entity_ids": s.entity_ids,
+                "data_sources": s.data_sources,
+                "evidence": s.evidence,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            }
+            for s in rows
+        ],
+    }
+
+
+@router.get("/story-queue/stats")
+def story_queue_stats(db: Session = Depends(get_db)):
+    """Quick counts: how many drafts, how many published, how many retracted."""
+    try:
+        drafts = db.query(Story).filter(Story.status == "draft").count()
+        published = db.query(Story).filter(Story.status == "published").count()
+        retracted = db.query(Story).filter(Story.status == "retracted").count()
+    except Exception as exc:
+        logger.warning("story queue stats failed: %s", exc)
+        return {"drafts": 0, "published": 0, "retracted": 0}
+    return {"drafts": drafts, "published": published, "retracted": retracted}
+
+
+@router.post("/story-queue/{story_id}/approve")
+def story_queue_approve(
+    story_id: int,
+    decision: Optional[StoryReviewDecision] = None,
+    db: Session = Depends(get_db),
+):
+    """Human approves a draft story. Sets status='published' and published_at=now."""
+    try:
+        story = db.query(Story).filter(Story.id == story_id).first()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"DB error: {exc}")
+    if not story:
+        raise HTTPException(status_code=404, detail=f"Story {story_id} not found")
+    if story.status != "draft":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Story {story_id} is '{story.status}', not 'draft'",
+        )
+
+    story.status = "published"
+    story.published_at = datetime.now(timezone.utc)
+    db.commit()
+    logger.info("story-queue approve: id=%d slug=%s reason=%s",
+                story_id, story.slug, (decision.reason if decision else ""))
+    return {
+        "id": story.id,
+        "slug": story.slug,
+        "status": "published",
+        "published_at": story.published_at.isoformat(),
+    }
+
+
+@router.post("/story-queue/{story_id}/reject")
+def story_queue_reject(
+    story_id: int,
+    decision: Optional[StoryReviewDecision] = None,
+    db: Session = Depends(get_db),
+):
+    """Human rejects a draft story. Sets status='retracted' — retained in DB
+    for auditing but invisible to the public.
+    """
+    try:
+        story = db.query(Story).filter(Story.id == story_id).first()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"DB error: {exc}")
+    if not story:
+        raise HTTPException(status_code=404, detail=f"Story {story_id} not found")
+    if story.status not in ("draft", "published"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot reject a story in status '{story.status}'",
+        )
+
+    story.status = "retracted"
+    db.commit()
+    logger.info("story-queue reject: id=%d slug=%s reason=%s",
+                story_id, story.slug, (decision.reason if decision else ""))
+    return {
+        "id": story.id,
+        "slug": story.slug,
+        "status": "retracted",
+    }
+
+
+@router.post("/story-queue/{story_id}/edit")
+def story_queue_edit(
+    story_id: int,
+    patch: Dict[str, Any],
+    db: Session = Depends(get_db),
+):
+    """Human edits a draft before approving.
+
+    Accepts any of: title, summary, body, category, sector. Leaves the story
+    in 'draft' status so it can still be approved or rejected afterwards.
+    """
+    try:
+        story = db.query(Story).filter(Story.id == story_id).first()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"DB error: {exc}")
+    if not story:
+        raise HTTPException(status_code=404, detail=f"Story {story_id} not found")
+    if story.status != "draft":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Can only edit drafts, not '{story.status}'",
+        )
+
+    allowed = {"title", "summary", "body", "category", "sector"}
+    changed = []
+    for key, value in patch.items():
+        if key in allowed and isinstance(value, (str, type(None))):
+            setattr(story, key, value)
+            changed.append(key)
+    db.commit()
+    logger.info("story-queue edit: id=%d fields=%s", story_id, changed)
+    return {"id": story.id, "slug": story.slug, "changed": changed}

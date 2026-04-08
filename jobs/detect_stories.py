@@ -182,46 +182,61 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
 
     prompt = (
         "You are a senior data journalist at WeThePeople, a nonpartisan civic transparency platform. "
-        "Your mission is to turn raw public government records into clear, factual, high-quality "
-        "investigative articles that let the public record speak for itself.\n\n"
+        "Your mission is to turn raw public government records into clear, factual articles that "
+        "let the public record speak for itself. On 2026-04-08, WeThePeople retracted 100 of its "
+        "first 127 published stories because earlier drafts hallucinated numbers, editorialised, "
+        "used future-dated data, and conflated FARA 'foreign principals' with 'foreign agents'. "
+        "The rules below were written specifically to prevent those failures from recurring.\n\n"
         "You will receive:\n"
         "- CONTEXT: {category, sector, title, summary}\n"
         "- STORY_SHAPE: %s\n"
         "- ENRICHED_SKELETON: A complete markdown document containing pre-built sections, data tables, "
         "bullet points, and source citations.\n\n"
-        "STRICT RULES:\n\n"
-        "1. Preserve the skeleton structure 100%%. Replace ONLY the exact placeholders "
-        "{NARRATIVE_LEAD}, {NARRATIVE_ISSUES}, {NARRATIVE_CONNECTION}, and any other {NARRATIVE_*} "
-        "that appear. Do not add, remove, reorder, or modify any markdown headings (##), tables, "
-        "bullet points, source citations, or existing text outside the placeholders.\n"
-        "2. Never rewrite, summarize, or alter any table or data block. Reference the tables but "
-        "do not repeat the raw numbers inside the narrative paragraphs.\n"
-        "3. Write in a direct, neutral, factual tone modeled after ProPublica or The Intercept "
-        "data journalism. No spin, no partisanship, no editorializing, and no speculation.\n"
-        "4. Never accuse anyone of wrongdoing. Never imply corruption or improper influence.\n"
-        "5. Never use dashes or em-dashes anywhere in the article. Use commas, periods, or semicolons instead.\n"
-        "6. Never use forbidden phrases: \"raises eyebrows\", \"begs the question\", "
-        "\"it remains to be seen\", or any similar loaded language.\n"
-        "7. Always include this exact factual disclaimer exactly once, in the appropriate narrative section: "
-        "\"Lobbying is legal activity protected under the First Amendment. Government contracts are awarded "
-        "through competitive bidding processes. Correlation between lobbying expenditures and contract awards "
-        "does not prove causation.\"\n"
-        "8. Lead with the single most significant or surprising verifiable data point from the skeleton.\n"
-        "9. Use specific dollar amounts, dates, filing counts, and entity names exactly as they appear in the skeleton.\n"
-        "10. If any data appears inconsistent, incomplete, or anomalous (for example, $0 lobbying reported "
-        "for a company that files expenses rather than income), explicitly note the limitation in the "
-        "narrative without speculation.\n"
-        "11. For this %s story: %s\n"
-        "12. Keep narrative sections concise and dense: NARRATIVE_LEAD: exactly 2 paragraphs. "
-        "NARRATIVE_ISSUES: 1-2 paragraphs. NARRATIVE_CONNECTION: 2 paragraphs. "
-        "Any additional {NARRATIVE_*} placeholders: 1-2 paragraphs each.\n"
-        "13. Add analytical depth by connecting dots between datasets while remaining strictly factual. "
-        "Calculate simple ratios or percentages only when the skeleton already provides the underlying numbers.\n"
-        "14. If data required for meaningful analysis is missing or unclear, explicitly state the gap.\n"
-        "15. Do not add new sections, conclusions, or calls to action. End exactly where the skeleton ends.\n\n"
+        "ABSOLUTE RULES (a draft is rejected automatically if it violates ANY of these):\n\n"
+        "R1. DO NOT INVENT NUMBERS. Every dollar amount, count, ratio, percentage, and date "
+        "in your output must already appear verbatim in the ENRICHED_SKELETON. If a number is not "
+        "in the skeleton, you may not write it. This includes 'for context' numbers, 'historical "
+        "average' numbers, and 'industry comparison' numbers.\n"
+        "R2. DO NOT COMPUTE NEW RATIOS. Do not calculate contract-to-lobbying ratios, ROI figures, "
+        "'X dollars for every Y' comparisons, or any other derived metric. If the skeleton already "
+        "contains a ratio, you may reference it verbatim; otherwise, do not introduce one.\n"
+        "R3. NO EDITORIALISING. Forbidden phrases (any match rejects the draft): 'raises questions', "
+        "'raises eyebrows', 'begs the question', 'it remains to be seen', 'shocking', 'staggering', "
+        "'scandal', 'corrupt', 'kickback', 'pay-to-play', 'smoking gun', 'influence peddling', "
+        "'efficiency strategy', 'lobbying efficiency', 'return on lobbying', 'suggests either'.\n"
+        "R4. NO ACCUSATIONS. Never accuse any person or company of wrongdoing. Never imply that "
+        "lobbying caused a contract. Never imply that a donation caused a vote. State only what "
+        "the public record shows and note correlations without asserting causation.\n"
+        "R5. NO DASHES. Do not use em dashes, en dashes, or double hyphens anywhere. Use commas, "
+        "periods, or semicolons instead.\n"
+        "R6. FARA PRECISION. FARA tracks 'registered foreign principals' (entities represented). "
+        "These are NOT 'foreign agents on payroll'. Never write 'agents on payroll' or 'paid lobbyists' "
+        "when describing a FARA principal count. Use exactly 'registered foreign principals'.\n"
+        "R7. TIME WINDOW. Never reference a year later than %d. Never describe contracts, filings, "
+        "or trades occurring in the future. If a date in the skeleton is after %d, say 'the most recent "
+        "year on record' and do not state the year.\n"
+        "R8. REQUIRED DISCLAIMER. Include this sentence exactly once in NARRATIVE_CONNECTION: "
+        "'Lobbying is legal activity protected under the First Amendment. Government contracts are "
+        "awarded through competitive bidding processes. Correlation between lobbying expenditures "
+        "and contract awards does not prove causation.'\n"
+        "R9. PRESERVE STRUCTURE. Replace ONLY the {NARRATIVE_*} placeholders. Do not add, remove, "
+        "reorder, or edit any markdown headings, tables, bullet points, or source lines outside "
+        "the placeholders.\n"
+        "R10. NO UNREPLACED PLACEHOLDERS. Every {NARRATIVE_*} placeholder in the skeleton must be "
+        "replaced. Do not leave any curly-brace markers in the output.\n"
+        "R11. DATA LIMITATIONS. If the skeleton shows $0 lobbying, missing amounts, or obviously "
+        "incomplete data, note the limitation in one sentence without speculating about why.\n"
+        "R12. NAME THE ENTITY. Every narrative paragraph about a specific company or person must "
+        "name that entity at least once using the exact display name from the skeleton.\n"
+        "R13. PARAGRAPH LENGTHS. NARRATIVE_LEAD: exactly 2 paragraphs. NARRATIVE_ISSUES: 1-2 paragraphs. "
+        "NARRATIVE_CONNECTION: exactly 2 paragraphs (the disclaimer counts as one sentence, not one "
+        "paragraph). Any additional {NARRATIVE_*} placeholders: 1-2 paragraphs each.\n"
+        "R14. NO NEW SECTIONS. Do not add conclusions, calls to action, 'what this means' sections, "
+        "or 'next steps'. End exactly where the skeleton ends.\n"
+        "R15. STORY SHAPE GUIDANCE. For this %s story: %s\n\n"
         "OUTPUT REQUIREMENTS:\n"
         "- Return the COMPLETE article as valid markdown.\n"
-        "- Include tracking comments at the top:\n"
+        "- Include these tracking comments at the top:\n"
         "  <!-- WeThePeople Influence Journal story -->\n"
         "  <!-- Generated: %s -->\n"
         "  <!-- Story shape: %s -->\n"
@@ -233,6 +248,8 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "ENRICHED_SKELETON:\n%s"
     ) % (
         story_shape,
+        datetime.now(timezone.utc).year,
+        datetime.now(timezone.utc).year,
         story_shape, shape_guidance.get(story_shape, ""),
         now_utc, story_shape, category,
         story_context, story_shape, skeleton
@@ -372,6 +389,12 @@ def get_entity_name(db, entity_id, entity_table, id_col):
 
 
 def make_story(title, summary, body, category, sector, entity_ids, data_sources, evidence):
+    """Build a Story row.
+
+    As of Gate-5 rollout (2026-04-08), new stories default to status='draft'.
+    They enter the human review queue and only become published via
+    /ops/story-queue approve. Nothing is posted automatically.
+    """
     return Story(
         title=title,
         slug=slug(title),
@@ -382,8 +405,8 @@ def make_story(title, summary, body, category, sector, entity_ids, data_sources,
         entity_ids=entity_ids,
         data_sources=data_sources,
         evidence=evidence,
-        status="published",
-        published_at=datetime.now(timezone.utc),
+        status="draft",
+        published_at=None,
     )
 
 
@@ -1819,11 +1842,44 @@ def main():
     all_stories = []
     target = args.max_stories
 
-    # Rotate through sectors to spread coverage
-    sector_order = list(range(len(LOBBYING_TABLES)))
+    # ── Gate 1: pre-detector data quality ──
+    # Skip any sector whose underlying tables are stale, sparse, or have
+    # future-dated rows. The gate never raises; it just filters which sectors
+    # the detectors run against.
+    try:
+        from services.story_data_gates import gate_sector, gate_global, format_data_issues
+        global_ok, global_issues = gate_global(db)
+        if global_issues:
+            log.warning("Gate-1 global: %s", format_data_issues(global_issues))
+        if not global_ok:
+            log.error("Gate-1 global FAILED — cross-sector detectors will be skipped")
+    except Exception as e:
+        log.warning("Gate-1 init failed (continuing without data-quality gate): %s", e)
+        gate_sector = None
+        global_ok = True
+        global_issues = []
+
+    gated_sectors = set()
+    if gate_sector is not None:
+        for _, sector_name, _, _ in LOBBYING_TABLES:
+            try:
+                ok, issues = gate_sector(db, sector_name)
+                if not ok:
+                    from services.story_data_gates import format_data_issues
+                    log.warning("Gate-1 sector %s BLOCKED: %s", sector_name, format_data_issues(issues))
+                    gated_sectors.add(sector_name)
+                elif issues:
+                    from services.story_data_gates import format_data_issues
+                    log.info("Gate-1 sector %s OK with warnings: %s", sector_name, format_data_issues(issues))
+            except Exception as e:
+                log.warning("Gate-1 sector %s check errored: %s", sector_name, e)
+
+    # Rotate through sectors to spread coverage, skipping gated ones
+    sector_order = [i for i, (_, s, _, _) in enumerate(LOBBYING_TABLES) if s not in gated_sectors]
     random.shuffle(sector_order)
 
-    log.info("Running story detection (target: %d stories)...", target)
+    log.info("Running story detection (target: %d stories, %d sectors active)...",
+             target, len(sector_order))
 
     # Run each pattern across shuffled sectors until we hit target
     # Per-category caps prevent any single pattern from dominating the output
@@ -1970,33 +2026,80 @@ def main():
     elif opus_remaining == 0:
         log.info("Opus daily cap reached (%d/%d), skipping enhancement", opus_used, OPUS_DAILY_CAP)
 
-    # ── Verify and save stories ──
+    # ── Gate 3 + Gate 4: validate + fact-check every draft ──
+    # Stories that pass BOTH gates are saved with status='draft' for the
+    # human review queue (Gate 5). Nothing is published automatically.
+    try:
+        from services.story_validators import validate_draft, format_issues
+    except Exception as e:
+        log.error("Gate-3 validators unavailable — refusing to save any drafts: %s", e)
+        db.close()
+        return
+
+    try:
+        from services.story_fact_checker import fact_check, format_fact_issues
+    except Exception as e:
+        log.error("Gate-4 fact-checker unavailable — refusing to save any drafts: %s", e)
+        db.close()
+        return
+
     saved = 0
-    rejected = 0
+    rejected_validator = 0
+    rejected_factcheck = 0
+    rejected_dupe = 0
     seen_slugs = set()
+    seen_dedupe_hashes = set()
+
     for s in all_stories:
         if s.slug in seen_slugs:
-            continue  # Skip in-batch duplicates (e.g., RTX in both defense and transportation)
-        if not story_exists(db, s.slug):
-            # Verify numbers before publishing
-            is_valid, issues = _verify_story_numbers(db, s)
-            if not is_valid:
-                log.warning("REJECTED story (bad numbers): %s | Issues: %s", s.title[:50], "; ".join(issues))
-                rejected += 1
-                continue
-            try:
-                db.add(s)
-                db.flush()  # Catch constraint violations immediately
-                saved += 1
-                seen_slugs.add(s.slug)
-            except Exception as e:
-                db.rollback()
-                log.warning("Skipping duplicate story: %s", s.slug)
+            rejected_dupe += 1
+            continue
+        if story_exists(db, s.slug):
+            rejected_dupe += 1
+            continue
+
+        # Gate 3: deterministic validators
+        ok, v_issues = validate_draft(s, seen_dedupe_hashes=seen_dedupe_hashes)
+        if not ok:
+            log.warning("Gate-3 REJECT: %s | %s", s.title[:60], format_issues(v_issues))
+            rejected_validator += 1
+            continue
+        if v_issues:
+            log.info("Gate-3 warnings for %s: %s", s.title[:60], format_issues(v_issues))
+
+        # Gate 4: SQL fact-check
+        fc_ok, fc_issues = fact_check(db, s)
+        if not fc_ok:
+            log.warning("Gate-4 REJECT: %s | %s", s.title[:60], format_fact_issues(fc_issues))
+            rejected_factcheck += 1
+            continue
+        if fc_issues:
+            log.info("Gate-4 warnings for %s: %s", s.title[:60], format_fact_issues(fc_issues))
+
+        # Legacy number cross-check — kept as a third line of defence
+        legacy_ok, legacy_issues = _verify_story_numbers(db, s)
+        if not legacy_ok:
+            log.warning("Legacy REJECT: %s | %s", s.title[:60], "; ".join(legacy_issues))
+            rejected_factcheck += 1
+            continue
+
+        try:
+            db.add(s)
+            db.flush()
+            saved += 1
+            seen_slugs.add(s.slug)
+        except Exception as e:
+            db.rollback()
+            log.warning("Skipping DB-duplicate story: %s (%s)", s.slug, e)
+            rejected_dupe += 1
+
     if saved:
         db.commit()
-        log.info("Saved %d new stories (%d rejected for bad numbers)", saved, rejected)
-    else:
-        log.info("No new stories to save (%d rejected for bad numbers)" % rejected if rejected else "No new stories to save (all duplicates)")
+    log.info(
+        "Gate summary: %d drafts saved, %d rejected by Gate-3, %d rejected by Gate-4, %d dupes. "
+        "Drafts are NOT published until a human approves them via /ops/story-queue.",
+        saved, rejected_validator, rejected_factcheck, rejected_dupe,
+    )
 
     db.close()
 
