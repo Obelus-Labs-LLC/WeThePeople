@@ -722,6 +722,78 @@ def story_queue_approve(
     }
 
 
+@router.get("/story-queue/{story_id}/approve")
+def story_queue_approve_get(
+    story_id: int,
+    db: Session = Depends(get_db),
+    _auth: None = Depends(require_press_key),
+):
+    """GET version for email link taps — approves the story and returns a confirmation page."""
+    from fastapi.responses import HTMLResponse
+    try:
+        story = db.query(Story).filter(Story.id == story_id).first()
+    except Exception as exc:
+        return HTMLResponse(f"<h2>Error</h2><p>{exc}</p>", status_code=500)
+    if not story:
+        return HTMLResponse(f"<h2>Not found</h2><p>Story {story_id} not found.</p>", status_code=404)
+    if story.status == "published":
+        return HTMLResponse(
+            f"<h2 style='color:#16a34a'>Already published</h2>"
+            f"<p><strong>{story.title}</strong> was already approved.</p>",
+        )
+    if story.status != "draft":
+        return HTMLResponse(
+            f"<h2>Cannot approve</h2><p>Story is '{story.status}', not 'draft'.</p>",
+            status_code=400,
+        )
+    story.status = "published"
+    story.published_at = datetime.now(timezone.utc)
+    db.commit()
+    logger.info("story-queue approve (GET): id=%d slug=%s", story_id, story.slug)
+    return HTMLResponse(
+        f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
+        f"<h2 style='color:#16a34a'>&#10003; Published</h2>"
+        f"<p><strong>{story.title}</strong> is now live.</p>"
+        f"<p style='color:#64748b;font-size:14px'>Published at {story.published_at.strftime('%Y-%m-%d %H:%M UTC')}</p>"
+        f"</body></html>"
+    )
+
+
+@router.get("/story-queue/{story_id}/reject")
+def story_queue_reject_get(
+    story_id: int,
+    db: Session = Depends(get_db),
+    _auth: None = Depends(require_press_key),
+):
+    """GET version for email link taps — rejects the story and returns a confirmation page."""
+    from fastapi.responses import HTMLResponse
+    try:
+        story = db.query(Story).filter(Story.id == story_id).first()
+    except Exception as exc:
+        return HTMLResponse(f"<h2>Error</h2><p>{exc}</p>", status_code=500)
+    if not story:
+        return HTMLResponse(f"<h2>Not found</h2><p>Story {story_id} not found.</p>", status_code=404)
+    if story.status == "retracted":
+        return HTMLResponse(
+            f"<h2>Already rejected</h2><p><strong>{story.title}</strong> was already retracted.</p>",
+        )
+    if story.status not in ("draft", "published"):
+        return HTMLResponse(
+            f"<h2>Cannot reject</h2><p>Story is '{story.status}'.</p>",
+            status_code=400,
+        )
+    story.status = "retracted"
+    db.commit()
+    logger.info("story-queue reject (GET): id=%d slug=%s", story_id, story.slug)
+    return HTMLResponse(
+        f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
+        f"<h2 style='color:#dc2626'>&#10007; Rejected</h2>"
+        f"<p><strong>{story.title}</strong> has been retracted.</p>"
+        f"<p style='color:#64748b;font-size:14px'>Story is archived for audit purposes but not shown publicly.</p>"
+        f"</body></html>"
+    )
+
+
 @router.post("/story-queue/{story_id}/reject")
 def story_queue_reject(
     story_id: int,
