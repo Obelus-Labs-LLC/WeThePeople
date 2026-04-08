@@ -178,12 +178,12 @@ def validate_draft(
                                 f"found unreplaced marker '{marker}'"))
 
     # 2. Dashes (CRITICAL — enforced style rule)
-    # Markdown table separators are exempt: lines that contain only whitespace,
-    # pipes, hyphens, and colons (e.g. "|------|------|") are valid table syntax
-    # and not "dashes in prose".
+    # Exempt from the dash check:
+    #   - Markdown table separators like "|------|------|"
+    #   - HTML comment lines like "<!-- Category: ... -->" (the '--' is syntax)
     body_lines_for_dash = [
         ln for ln in body.split("\n")
-        if not _is_table_separator_line(ln)
+        if not _is_table_separator_line(ln) and not _is_html_comment_line(ln)
     ]
     body_no_tables = "\n".join(body_lines_for_dash)
     for dash in DASH_CHARS:
@@ -329,6 +329,14 @@ def _is_table_separator_line(line: str) -> bool:
     if "-" not in line:
         return False
     return bool(_TABLE_SEPARATOR_RE.match(line))
+
+
+def _is_html_comment_line(line: str) -> bool:
+    """An HTML/markdown comment like '<!-- Generated: 2026-04-08 -->'.
+    The '--' inside these is syntax, not prose, so it should be exempt
+    from the no-dashes style rule."""
+    s = line.strip()
+    return s.startswith("<!--") and s.endswith("-->")
 
 
 def _first_money(text: str) -> Optional[str]:
