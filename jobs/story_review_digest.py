@@ -45,7 +45,8 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 FROM_EMAIL = os.getenv("WTP_DIGEST_FROM", "digest@wethepeopleforus.com")
 TO_EMAIL = os.getenv("WTP_REVIEW_TO", "wethepeopleforus@gmail.com")
 API_BASE = os.getenv("WTP_API_BASE", "https://api.wethepeopleforus.com")
-PRESS_KEY = os.getenv("WTP_PRESS_KEY", "")
+# Aligned with services/auth.py — same env var as the rest of /ops/*
+PRESS_KEY = os.getenv("WTP_PRESS_API_KEY", os.getenv("WTP_PRESS_KEY", ""))
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -73,8 +74,13 @@ def _story_card(story: Story) -> str:
     entities = ", ".join(story.entity_ids or []) if isinstance(story.entity_ids, list) else ""
     sources = ", ".join(story.data_sources or []) if isinstance(story.data_sources, list) else ""
 
-    approve_url = f"{API_BASE}/ops/story-queue/{story.id}/approve"
-    reject_url = f"{API_BASE}/ops/story-queue/{story.id}/reject"
+    # Press-key is appended as a query param so the reviewer can click the
+    # button without pasting a header. It is a shared secret already in use
+    # for every /ops/* endpoint. `require_press_key` accepts either the
+    # X-Press-Key header OR a `?key=` query string.
+    key_suffix = f"?key={PRESS_KEY}" if PRESS_KEY else ""
+    approve_url = f"{API_BASE}/ops/story-queue/{story.id}/approve{key_suffix}"
+    reject_url = f"{API_BASE}/ops/story-queue/{story.id}/reject{key_suffix}"
 
     return f"""
     <div style="border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:24px;background:#fff;">
