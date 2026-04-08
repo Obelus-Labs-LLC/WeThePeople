@@ -736,10 +736,22 @@ def story_queue_approve_get(
         return HTMLResponse(f"<h2>Error</h2><p>{exc}</p>", status_code=500)
     if not story:
         return HTMLResponse(f"<h2>Not found</h2><p>Story {story_id} not found.</p>", status_code=404)
+
+    # Public URL lives on the journal subdomain. Must match sites/journal
+    # middleware.js SITE_URL and StoryCard <Link to="/story/${slug}">.
+    journal_base = os.getenv("WTP_JOURNAL_BASE", "https://journal.wethepeopleforus.com")
+    article_url = f"{journal_base}/story/{story.slug}" if story.slug else journal_base
+
     if story.status == "published":
         return HTMLResponse(
+            f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
             f"<h2 style='color:#16a34a'>Already published</h2>"
-            f"<p><strong>{story.title}</strong> was already approved.</p>",
+            f"<p><strong>{story.title}</strong> was already approved.</p>"
+            f"<p style='margin-top:24px'>"
+            f"<a href='{article_url}' style='display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600'>View Article &rarr;</a>"
+            f"</p>"
+            f"<p style='color:#64748b;font-size:12px;margin-top:16px'>{article_url}</p>"
+            f"</body></html>"
         )
     if story.status != "draft":
         return HTMLResponse(
@@ -755,6 +767,10 @@ def story_queue_approve_get(
         f"<h2 style='color:#16a34a'>&#10003; Published</h2>"
         f"<p><strong>{story.title}</strong> is now live.</p>"
         f"<p style='color:#64748b;font-size:14px'>Published at {story.published_at.strftime('%Y-%m-%d %H:%M UTC')}</p>"
+        f"<p style='margin-top:24px'>"
+        f"<a href='{article_url}' style='display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600'>View Article &rarr;</a>"
+        f"</p>"
+        f"<p style='color:#64748b;font-size:12px;margin-top:16px'>{article_url}</p>"
         f"</body></html>"
     )
 
