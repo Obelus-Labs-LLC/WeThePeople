@@ -41,6 +41,12 @@ log = logging.getLogger(__name__)
 API_BASE = os.getenv("WTP_API_URL", "http://localhost:8006")
 SITE = "wethepeopleforus.com"
 
+# Gate 5 enforcement (April 2026): when set, the bot will ONLY post tweets
+# derived from journal stories that a human approved via /ops/story-queue.
+# It will NOT fall back to raw data, anomaly, or thread tweets when no
+# approved story is available — it just skips the cycle.
+STORIES_ONLY = os.getenv("WTP_BOT_STORIES_ONLY", "1") == "1"
+
 
 # ── API Helpers ──
 
@@ -415,7 +421,11 @@ def generate_story_tweet():
     data = api_get("/stories/latest", {"limit": 50})
     stories = data.get("stories", [])
     if not stories:
-        # Fall back to data tweet if no stories published yet
+        if STORIES_ONLY:
+            # Gate 5: refuse to fall back to ungated data tweets
+            log.info("No published stories available; STORIES_ONLY mode skipping cycle")
+            return None, "story"
+        # Legacy behavior only
         return generate_data_tweet()
 
     # Filter out stories about entities we tweeted about in the last 3 days
@@ -457,6 +467,9 @@ def generate_story_tweet():
     data_sources = story.get("data_sources", [])
 
     if not title:
+        if STORIES_ONLY:
+            log.info("Selected story has no title; STORIES_ONLY mode skipping cycle")
+            return None, "story"
         return generate_data_tweet()
 
     # ── Lobbying breakdown: tease-and-link pattern ──
@@ -648,18 +661,32 @@ def generate_anomaly_tweet() -> tuple:
     return None, "anomaly"
 
 
-CATEGORIES = {
-    "story": (generate_story_tweet, 50),     # Journal excerpts — primary content
-    "data": (generate_data_tweet, 25),       # Cross-referenced data discoveries
-    "anomaly": (generate_anomaly_tweet, 15), # Suspicious patterns
-    "thread": (generate_thread, 10),         # Mini deep-dives
-    "engagement": (generate_engagement_tweet, 0),  # Disabled — no engagement fluff
-    "product": (generate_product_tweet, 0),  # Disabled — no self-promo
-}
+if STORIES_ONLY:
+    # Locked down per Gate 5: only human-approved journal stories go out.
+    CATEGORIES = {
+        "story": (generate_story_tweet, 100),
+        "data": (generate_data_tweet, 0),
+        "anomaly": (generate_anomaly_tweet, 0),
+        "thread": (generate_thread, 0),
+        "engagement": (generate_engagement_tweet, 0),
+        "product": (generate_product_tweet, 0),
+    }
+else:
+    # Legacy behavior — kept for emergency manual use only.
+    CATEGORIES = {
+        "story": (generate_story_tweet, 50),     # Journal excerpts — primary content
+        "data": (generate_data_tweet, 25),       # Cross-referenced data discoveries
+        "anomaly": (generate_anomaly_tweet, 15), # Suspicious patterns
+        "thread": (generate_thread, 10),         # Mini deep-dives
+        "engagement": (generate_engagement_tweet, 0),  # Disabled — no engagement fluff
+        "product": (generate_product_tweet, 0),  # Disabled — no self-promo
+    }
 
 
 def pick_category() -> str:
     """Weighted random category selection."""
+    if STORIES_ONLY:
+        return "story"
     choices = []
     for cat, (_, weight) in CATEGORIES.items():
         choices.extend([cat] * weight)
@@ -696,18 +723,24 @@ def run(category: str = None, dry_run: bool = False):
     if not api_up and cat in ("data", "thread", "anomaly"):
         cat = "story"
 
-    generator, _ = CATEGORIES.get(cat, (generate_product_tweet, 0))
+    # Gate 5: in STORIES_ONLY mode, force story category and refuse all
+    # other generators including --category overrides.
+    if STORIES_ONLY and cat != "story":
+        log.info("STORIES_ONLY mode: ignoring requested category '%s', using 'story'", cat)
+        cat = "story"
+
+    generator, _ = CATEGORIES.get(cat, (generate_story_tweet, 0))
 
     # Generate content — all generators return ((text, link), category)
     result, actual_cat = generator()
-    if result is None:
+    if result is None and not STORIES_ONLY:
         log.warning("Category '%s' returned no content. Trying story fallback.", cat)
         result, actual_cat = generate_story_tweet()
-    if result is None:
+    if result is None and not STORIES_ONLY:
         log.warning("Story fallback also empty. Trying data tweet.")
         result, actual_cat = generate_data_tweet()
     if result is None:
-        log.warning("No content available at all. Skipping this cycle.")
+        log.info("No approved-story content available. Skipping this cycle.")
         session.close()
         return
 

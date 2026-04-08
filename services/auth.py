@@ -17,7 +17,7 @@ import os
 import hmac
 from typing import Optional
 
-from fastapi import Header, HTTPException, Request, Depends
+from fastapi import Header, HTTPException, Query, Request, Depends
 from sqlalchemy.orm import Session
 
 from models.database import get_db
@@ -37,8 +37,14 @@ def _press_api_key() -> str:
 
 def require_press_key(
     x_wtp_api_key: str = Header(default=""),
+    key: str = Query(default=""),
 ) -> None:
-    """FastAPI dependency -- raises 401 if auth is required and key is wrong/missing."""
+    """FastAPI dependency -- raises 401 if auth is required and key is wrong/missing.
+
+    Accepts either the X-WTP-API-Key header (preferred) or a `?key=` query
+    parameter. The query parameter is used by the Gate 5 review-queue email
+    so reviewers can approve/reject with a single click from their inbox.
+    """
     if not _require_auth():
         return  # dev mode -- allow everything
 
@@ -47,7 +53,9 @@ def require_press_key(
         # Fail closed: if auth required but no key configured, block all PRESS requests.
         raise HTTPException(status_code=401, detail="unauthorized")
 
-    if not hmac.compare_digest(x_wtp_api_key, expected):
+    # Either source is acceptable; header wins when both are present.
+    provided = x_wtp_api_key or key
+    if not provided or not hmac.compare_digest(provided, expected):
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
