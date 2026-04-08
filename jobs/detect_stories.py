@@ -299,11 +299,13 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
 
         # Post-process: replace dashes that slip past the prompt rule.
         # Leave markdown table rows AND HTML comment lines untouched
-        # (HTML comments contain '--' as syntax markers).
+        # (HTML comments contain '--' as syntax markers, table separators
+        # use long runs of dashes for column widths).
         def _strip_dashes(line):
             if re.match(r'^\s*\|', line):
                 return line
-            if re.match(r'^\s*<!--', line):
+            stripped = line.strip()
+            if stripped.startswith("<!--") and stripped.endswith("-->"):
                 return line
             line = line.replace('\u2014', ',').replace('\u2013', ',')
             return re.sub(r'\s*--\s*', ', ', line)
