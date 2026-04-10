@@ -295,6 +295,15 @@ JOB_REGISTRY: List[JobDef] = [
         description="Detect interesting data patterns and generate story drafts via Claude",
     ),
 
+    # ── Daily story review email (Gate 5 — human approval) ────────
+    JobDef(
+        name="story_review_digest",
+        script="jobs/story_review_digest.py",
+        interval_hours=24,
+        timeout_sec=300,
+        description="Email pending draft stories to reviewer for approval via Resend",
+    ),
+
     # ── Daily AI summarization (runs after syncs, Haiku for bulk) ──
     JobDef(
         name="ai_summarize_daily",
@@ -309,6 +318,7 @@ JOB_REGISTRY: List[JobDef] = [
     JobDef(
         name="generate_digest",
         script="jobs/generate_digest.py",
+        args=["--send"],
         interval_hours=168,  # weekly
         timeout_sec=600,
         description="Weekly subscriber digest: personalized rep activity, trades, votes, anomalies",

@@ -10,10 +10,12 @@ Endpoints:
 
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timedelta, date, timezone
 from typing import Optional, List, Dict, Any
 
+import requests as http_requests
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -204,10 +206,34 @@ def subscribe_to_digest(req: SubscribeRequest, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Subscription failed: {str(e)}")
 
+    # Send verification email via Resend
+    resend_key = os.getenv("RESEND_API_KEY", "")
+    verify_url = f"https://api.wethepeopleforus.com/digest/verify/{verification_token}"
+    if resend_key:
+        try:
+            http_requests.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+                json={
+                    "from": os.getenv("WTP_DIGEST_FROM", "digest@wethepeopleforus.com"),
+                    "to": [req.email],
+                    "subject": "Verify your WeThePeople digest subscription",
+                    "html": (
+                        f"<p>Thanks for subscribing to the WeThePeople weekly digest for ZIP {cleaned}.</p>"
+                        f'<p><a href="{verify_url}">Click here to verify your subscription</a></p>'
+                        f"<p>If you didn't request this, you can ignore this email.</p>"
+                    ),
+                },
+                timeout=10,
+            )
+        except Exception as e:
+            logger.error("Failed to send verification email to %s: %s", req.email, e)
+    else:
+        logger.warning("RESEND_API_KEY not set — verification email not sent to %s", req.email)
+
     return {
         "status": "subscribed",
         "message": "Check your email to verify your subscription.",
-        "verification_token": verification_token,  # In production, this would be emailed, not returned
     }
 
 
