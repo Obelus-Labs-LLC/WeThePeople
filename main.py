@@ -110,6 +110,7 @@ from routers.ops import router as ops_router
 from routers.research_tools import router as research_tools_router
 from routers.fara import router as fara_router
 from routers.lookup import router as lookup_router
+from routers.civic import router as civic_router
 
 # --- Backward-compatible mounts (unprefixed, existing clients) ---
 app.include_router(auth_router)
@@ -146,6 +147,7 @@ app.include_router(ops_router)
 app.include_router(research_tools_router)
 app.include_router(fara_router)
 app.include_router(lookup_router)
+app.include_router(civic_router)
 
 _logger.info("WeThePeople API started, env=%s", os.getenv("WTP_ENV", "production"))
 
