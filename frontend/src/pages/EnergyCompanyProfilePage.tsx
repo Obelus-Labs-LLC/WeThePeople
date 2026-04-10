@@ -16,6 +16,7 @@ import { getApiBaseUrl } from '../api/client';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
 import TrendChart from '../components/TrendChart';
+import SpendingChart from '../components/SpendingChart';
 import ShareButton from '../components/ShareButton';
 import WatchlistButton from '../components/WatchlistButton';
 import {
@@ -436,34 +437,19 @@ export default function EnergyCompanyProfilePage() {
               )}
 
               {/* By Year */}
-              {emissionSummary && Object.keys(emissionSummary.by_year).length > 0 && (() => {
-                const BAR_COLORS = ['#EF4444', '#F59E0B', '#CDDC39', '#22D3EE', '#3B82F6', '#8B5CF6', '#EC4899', '#10B981'];
-                const years = Object.entries(emissionSummary.by_year).sort(([a], [b]) => a.localeCompare(b));
-                const maxE = Math.max(...years.map(([, d]) => d.total_emissions));
-                return (
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                    <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-6">Emissions Over the Years</h2>
-                    <div className="flex items-end gap-3 h-56">
-                      {years.map(([year, data], i) => {
-                        const pct = maxE > 0 ? (data.total_emissions / maxE) * 100 : 0;
-                        return (
-                          <div key={year} className="flex flex-col items-center flex-1 gap-0 h-full justify-end">
-                            <div
-                              className="w-full rounded-t-lg flex items-center justify-center transition-all duration-700 ease-out min-h-[28px]"
-                              style={{ height: `${Math.max(pct, 8)}%`, backgroundColor: BAR_COLORS[i % BAR_COLORS.length] }}
-                            >
-                              <span className="font-mono text-xs font-bold text-white drop-shadow-sm">
-                                {fmtEmissions(data.total_emissions)}
-                              </span>
-                            </div>
-                            <span className="font-mono text-xs text-white/50 mt-2">{year}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
+              {emissionSummary && Object.keys(emissionSummary.by_year).length > 0 && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
+                  <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-6">Emissions Over the Years</h2>
+                  <SpendingChart
+                    data={Object.entries(emissionSummary.by_year)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([year, d]) => ({ year: Number(year), total_emissions: d.total_emissions }))}
+                    valueKey="total_emissions"
+                    valueFormatter={fmtEmissions}
+                    countLabel="record"
+                  />
+                </div>
+              )}
 
               <SectionHeader title="Emission Records" icon={Flame} count={emissionTotal} />
               {!emissionsLoaded ? (
