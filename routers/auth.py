@@ -47,18 +47,10 @@ try:
     from passlib.context import CryptContext
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 except ImportError:
-    # Graceful fallback so the app still imports if passlib is not installed yet
-    import hashlib as _hl
-    logger.warning("passlib not installed — using SHA-256 fallback (NOT safe for production)")
-
-    class _FallbackContext:
-        def hash(self, password: str) -> str:
-            return _hl.sha256(password.encode()).hexdigest()
-
-        def verify(self, plain: str, hashed: str) -> bool:
-            return _hl.sha256(plain.encode()).hexdigest() == hashed
-
-    pwd_context = _FallbackContext()
+    raise RuntimeError(
+        "passlib is required for password hashing. "
+        "Install it with: pip install passlib[bcrypt]"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -524,11 +516,11 @@ async def stripe_webhook(request: Request):
     payload = await request.body()
     sig = request.headers.get("stripe-signature", "")
 
+    if not webhook_secret:
+        raise HTTPException(status_code=503, detail="Stripe webhook secret not configured")
+
     try:
-        if webhook_secret:
-            event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
-        else:
-            event = stripe.Event.construct_from(json.loads(payload), stripe_key)
+        event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
     except Exception as e:
         logger.error("Stripe webhook verification failed: %s", e)
         raise HTTPException(status_code=400, detail="Invalid webhook")

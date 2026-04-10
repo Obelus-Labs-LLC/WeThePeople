@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 from models.database import get_db
 from models.stories_models import Story
 from models.response_schemas import StoriesListResponse
+from services.jwt_auth import get_current_user
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -192,7 +193,7 @@ def get_story(slug: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{slug}/publish")
-def publish_story(slug: str, db: Session = Depends(get_db)):
+def publish_story(slug: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
     """Publish a draft story (sets status to published and published_at timestamp)."""
     try:
         story = db.query(Story).filter(Story.slug == slug).first()
