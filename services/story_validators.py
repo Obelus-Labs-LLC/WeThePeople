@@ -177,10 +177,16 @@ def validate_draft(
             issues.append(Issue(CRITICAL, "template_leak",
                                 f"found unreplaced marker '{marker}'"))
 
+    # 1b. HTML comments (CRITICAL — the frontend renders them as visible text,
+    # so metadata blocks like '<!-- Generated: ... -->' leak into stories.)
+    if "<!--" in body or "<!--" in title or "<!--" in summary:
+        issues.append(Issue(CRITICAL, "html_comment",
+                            "HTML comments are not allowed in stories"))
+
     # 2. Dashes (CRITICAL — enforced style rule)
-    # Markdown table separators are exempt: lines that contain only whitespace,
-    # pipes, hyphens, and colons (e.g. "|------|------|") are valid table syntax
-    # and not "dashes in prose".
+    # Exempt from the dash check: markdown table separators like
+    # "|------|------|". HTML comments are already rejected above, so we no
+    # longer need to special-case them here.
     body_lines_for_dash = [
         ln for ln in body.split("\n")
         if not _is_table_separator_line(ln)

@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
+import Breadcrumbs from '../components/Breadcrumbs';
 import TrendChart from '../components/TrendChart';
 import { DefenseSectorHeader } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
@@ -217,7 +218,11 @@ export default function DefenseCompanyProfilePage() {
 
         {/* Back + header */}
         <div className="mt-6 mb-8">
-          <BackButton to="/defense/companies" label="Back to Companies" />
+          <Breadcrumbs items={[
+            { label: 'Defense', to: '/defense' },
+            { label: 'Companies', to: '/defense/companies' },
+            { label: detail.display_name },
+          ]} />
           <div className="flex items-start gap-5 mt-4">
             <CompanyLogo id={detail.company_id} name={detail.display_name} logoUrl={detail.logo_url} size={64} iconFallback />
             <div className="min-w-0 flex-1">

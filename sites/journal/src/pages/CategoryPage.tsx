@@ -22,7 +22,7 @@ export default function CategoryPage() {
 
   if (!isValid) {
     return (
-      <main className="flex-1 px-4 py-20">
+      <main id="main-content" className="flex-1 px-4 py-20">
         <div className="max-w-xl mx-auto text-center">
           <h1
             className="text-3xl font-bold text-white mb-4"
@@ -46,7 +46,7 @@ export default function CategoryPage() {
   }
 
   return (
-    <main className="flex-1 px-4 py-10 sm:py-16">
+    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
       <div className="max-w-5xl mx-auto">
         {/* Back link */}
         <Link

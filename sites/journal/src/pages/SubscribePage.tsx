@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Mail, BarChart3, Shield, Zap } from 'lucide-reac
 
 export default function SubscribePage() {
   return (
-    <main className="flex-1 px-4 py-10 sm:py-16">
+    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
       <div className="max-w-[720px] mx-auto">
         {/* Back link */}
         <Link

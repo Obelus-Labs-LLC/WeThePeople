@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
+import Breadcrumbs from '../components/Breadcrumbs';
 import TrendChart from '../components/TrendChart';
 import { TransportationSectorHeader } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
@@ -297,7 +298,11 @@ export default function TransportationCompanyProfilePage() {
     <div className="flex h-screen flex-col overflow-hidden">
       <div className="flex flex-1 flex-col overflow-hidden px-8 py-6 lg:px-12">
         <div className="shrink-0"><TransportationSectorHeader /></div>
-        <div className="mb-4 shrink-0"><BackButton to="/transportation/companies" label="Companies" /></div>
+        <div className="mb-4 shrink-0"><Breadcrumbs items={[
+          { label: 'Transportation', to: '/transportation' },
+          { label: 'Companies', to: '/transportation/companies' },
+          { label: detail.display_name },
+        ]} /></div>
 
         {/* Company Banner */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}

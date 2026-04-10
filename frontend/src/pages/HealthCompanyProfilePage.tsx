@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BackButton from '../components/BackButton';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { HealthSectorHeader } from '../components/SectorHeader';
 import {
   getHealthCompanyDetail,
@@ -1046,7 +1047,11 @@ export default function HealthCompanyProfilePage() {
       <div className="relative z-10 px-6 pt-4 shrink-0">
         <HealthSectorHeader />
         <div className="mb-2">
-          <BackButton to="/health/companies" label="Companies" />
+          <Breadcrumbs items={[
+            { label: 'Healthcare', to: '/health' },
+            { label: 'Companies', to: '/health/companies' },
+            { label: detail.display_name },
+          ]} />
         </div>
       </div>
       {/* Top Bar — Patient Chart Style */}

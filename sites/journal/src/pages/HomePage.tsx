@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Search } from 'lucide-react';
 import { StoryCard } from '../components/StoryCard';
 import { NewsletterCTA } from '../components/NewsletterCTA';
 import { EmptyState } from '../components/EmptyState';
@@ -16,12 +17,20 @@ const categories: StoryCategory[] = [
 export default function HomePage() {
   const { stories: displayStories, loading, error } = useStories({ limit: 10 });
   const { stories: allStories } = useStories({ limit: 200 });
+  const [search, setSearch] = useState('');
 
-  const featured = displayStories.find((s) => s.featured) ?? displayStories[0] ?? null;
-  const rest = displayStories.filter((s) => s !== featured);
+  const q = search.trim().toLowerCase();
+  const filteredStories = q
+    ? allStories.filter(
+        (s) => s.title.toLowerCase().includes(q) || s.summary.toLowerCase().includes(q)
+      )
+    : displayStories;
+
+  const featured = q ? null : (filteredStories.find((s) => s.featured) ?? filteredStories[0] ?? null);
+  const rest = featured ? filteredStories.filter((s) => s !== featured) : filteredStories;
 
   return (
-    <main className="flex-1 px-4 py-10 sm:py-16">
+    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
       <div className="max-w-5xl mx-auto">
         {/* Masthead */}
         <header className="text-center mb-12 sm:mb-16">
@@ -39,6 +48,18 @@ export default function HomePage() {
             Every claim cited. Every dollar traced.
           </p>
         </header>
+
+        {/* Search bar */}
+        <div className="relative max-w-md mx-auto mb-8">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <input
+            type="search"
+            placeholder="Search stories..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+          />
+        </div>
 
         {/* Category pills */}
         <nav className="flex flex-wrap items-center justify-center gap-2 mb-10">
@@ -59,7 +80,7 @@ export default function HomePage() {
         {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" />
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" role="status"><span className="sr-only">Loading stories...</span></div>
           </div>
         )}
 
@@ -73,8 +94,15 @@ export default function HomePage() {
           <EmptyState />
         )}
 
+        {/* Search results count */}
+        {q && !loading && (
+          <p className="text-center text-sm text-zinc-500 mb-6">
+            {filteredStories.length} {filteredStories.length === 1 ? 'result' : 'results'} for "{search.trim()}"
+          </p>
+        )}
+
         {/* Stories */}
-        {!loading && !error && displayStories.length > 0 && (
+        {!loading && !error && filteredStories.length > 0 && (
           <>
             {/* Featured story */}
             {featured && (

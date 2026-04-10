@@ -193,6 +193,8 @@ def main():
                         help="Query drafts but do not send email")
     parser.add_argument("--preview", action="store_true",
                         help="Print HTML to stdout instead of sending")
+    parser.add_argument("--force", action="store_true",
+                        help="Send even if queue is empty (for layout testing)")
     args = parser.parse_args()
 
     db = SessionLocal()
@@ -216,7 +218,7 @@ def main():
             log.info("[dry-run] Would email %d draft(s) to %s", len(drafts), TO_EMAIL)
             return
 
-        if not drafts:
+        if not drafts and not args.force:
             log.info("Queue is empty — skipping email")
             return
 

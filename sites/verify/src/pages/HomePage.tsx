@@ -43,7 +43,7 @@ export default function HomePage() {
   // Fetch dashboard stats on mount
   useEffect(() => {
     const controller = new AbortController();
-    apiFetch<DashboardStats>('/api/v1/stats', { signal: controller.signal })
+    apiFetch<DashboardStats>('/claims/dashboard/stats', { signal: controller.signal })
       .then(setStats)
       .catch(() => {}); // Silent fail -- stats are optional
     return () => controller.abort();
@@ -51,8 +51,12 @@ export default function HomePage() {
 
   const handleVerify = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed || trimmed.length < 20) {
-      setError('Please enter at least 20 characters to verify.');
+    if (!trimmed) {
+      setError('Enter a claim, article text, or URL above to get started.');
+      return;
+    }
+    if (trimmed.length < 20) {
+      setError(`Text is too short (${trimmed.length} characters). Enter at least 20 characters so the engine can extract verifiable claims.`);
       return;
     }
 
@@ -64,15 +68,22 @@ export default function HomePage() {
       let result;
 
       if (detected === 'URL' || detected === 'YOUTUBE') {
-        result = await apiPost('/api/v1/sources/ingest-url', { url: trimmed });
+        result = await apiPost('/claims/verify-url', { url: trimmed });
       } else {
-        result = await apiPost('/api/v1/claims/extract', { text: trimmed, title: '' });
+        result = await apiPost('/claims/verify', { text: trimmed });
       }
 
       // Navigate to results page with the data in state
       navigate('/results/quick', { state: { result, inputText: trimmed } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Verification failed. Please try again.');
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('429')) {
+        setError('Rate limit reached. Free accounts can verify 5 claims per day. Try again tomorrow or upgrade to Enterprise for unlimited access.');
+      } else if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) {
+        setError('Could not reach the verification server. Check your internet connection and try again.');
+      } else {
+        setError(`Verification failed: ${msg}. Try shorter text or a different URL.`);
+      }
     } finally {
       setLoading(false);
     }
@@ -85,7 +96,7 @@ export default function HomePage() {
   };
 
   return (
-    <main className="flex-1 flex flex-col items-center justify-center px-4 py-16 sm:py-24">
+    <main id="main-content" className="flex-1 flex flex-col items-center justify-center px-4 py-16 sm:py-24">
       <div className="w-full max-w-2xl mx-auto">
         {/* Shield icon */}
         <div className="flex justify-center mb-6">
@@ -111,13 +122,18 @@ export default function HomePage() {
 
         {/* Input area */}
         <div className="relative mb-4">
+          <label htmlFor="verify-input" className="block text-sm text-zinc-400 mb-2">
+            Paste a claim, article text, or URL to verify
+          </label>
           <textarea
+            id="verify-input"
             value={input}
             onChange={(e) => { setInput(e.target.value); setError(''); }}
             onKeyDown={handleKeyDown}
-            placeholder={'Paste a claim, article text, or URL to verify...\n\nExamples:\n  "Lockheed Martin received $45 billion in defense contracts"\n  https://example.com/article-about-lobbying'}
+            placeholder={'Examples:\n  "Lockheed Martin received $45 billion in defense contracts"\n  https://example.com/article-about-lobbying'}
             rows={6}
             disabled={loading}
+            aria-describedby={error ? 'verify-error' : undefined}
             className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-5 py-4 text-white placeholder-zinc-600 text-sm leading-relaxed resize-none focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all disabled:opacity-50"
           />
 
@@ -132,12 +148,16 @@ export default function HomePage() {
 
         {/* Error */}
         {error && (
-          <div className="mb-4 px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          <div id="verify-error" role="alert" className="mb-4 px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
             {error}
           </div>
         )}
 
         {/* Verify button */}
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {loading ? 'Verifying claims, please wait...' : ''}
+        </div>
+
         <button
           onClick={handleVerify}
           disabled={loading || input.trim().length < 5}
