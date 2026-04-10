@@ -5,6 +5,7 @@ import {
   ExternalLink, CheckCircle, XCircle,
 } from 'lucide-react';
 import BackButton from '../components/BackButton';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { FinanceSectorHeader } from '../components/SectorHeader';
 import { LOCAL_LOGOS } from '../data/financeLogos';
 import { getLogoUrl } from '../utils/logos';
@@ -286,7 +287,11 @@ export default function InstitutionPage() {
       <div className="flex flex-1 flex-col overflow-hidden px-8 py-8 lg:px-12">
         <FinanceSectorHeader />
         <div className="mb-4 shrink-0">
-          <BackButton to="/finance/institutions" label="Institutions" />
+          <Breadcrumbs items={[
+            { label: 'Finance', to: '/finance' },
+            { label: 'Institutions', to: '/finance/institutions' },
+            { label: detail.display_name },
+          ]} />
         </div>
 
         {/* ── Top Banner ── */}

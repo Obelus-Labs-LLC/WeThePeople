@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Shield, ChevronRight } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import { categoryLabel } from '../utils/categoryLabels';
 
 interface VaultItem {
   id: number;
@@ -26,6 +27,8 @@ interface VaultResponse {
   limit: number;
   offset: number;
   items: VaultItem[];
+  results?: VaultItem[];
+  count?: number;
 }
 
 const TIER_STYLE: Record<string, { bg: string; text: string; label: string }> = {
@@ -46,7 +49,7 @@ export default function VaultPage() {
 
   useEffect(() => {
     setLoading(true);
-    apiFetch<VaultResponse>('/api/v1/claims/verified', {
+    apiFetch<VaultResponse>('/claims/verifications', {
       params: { limit, offset },
     })
       .then((data) => {
@@ -58,7 +61,7 @@ export default function VaultPage() {
   }, [offset]);
 
   return (
-    <main className="flex-1 px-4 py-10 sm:py-14">
+    <main id="main-content" className="flex-1 px-4 py-10 sm:py-14">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -85,8 +88,10 @@ export default function VaultPage() {
 
         {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" />
+          <div className="flex items-center justify-center py-20" aria-busy="true">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" role="status">
+              <span className="sr-only">Loading verifications...</span>
+            </div>
           </div>
         )}
 
@@ -149,7 +154,7 @@ export default function VaultPage() {
                       )}
                       {item.category && item.category !== 'general' && (
                         <span className="px-1.5 py-0.5 rounded border border-zinc-800 text-zinc-500 uppercase text-[10px]">
-                          {item.category.replace(/_/g, ' ')}
+                          {categoryLabel(item.category)}
                         </span>
                       )}
                       {item.created_at && (

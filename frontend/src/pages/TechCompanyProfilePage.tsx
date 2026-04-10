@@ -8,6 +8,7 @@ import {
 import { motion } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import BackButton from '../components/BackButton';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { TechSectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import { getApiBaseUrl } from '../api/client';
@@ -254,7 +255,11 @@ export default function TechCompanyProfilePage() {
           <TechSectorHeader />
         </div>
         <div className="mb-4 shrink-0">
-          <BackButton to="/technology/companies" label="Companies" />
+          <Breadcrumbs items={[
+            { label: 'Technology', to: '/technology' },
+            { label: 'Companies', to: '/technology/companies' },
+            { label: detail.display_name },
+          ]} />
         </div>
 
         {/* ── Company Banner ── */}

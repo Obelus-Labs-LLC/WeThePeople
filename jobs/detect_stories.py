@@ -25,6 +25,7 @@ Usage:
 
 import sys
 import os
+import re
 import random
 import hashlib
 import argparse
@@ -50,17 +51,19 @@ OPUS_MODEL = "claude-opus-4-20250514"
 
 
 def _opus_stories_today(db):
-    """Count how many Opus-generated stories were published today."""
+    """Count how many Opus-generated stories were created today.
+
+    Opus-enhanced stories carry `evidence.generator = 'opus'` (set by
+    `detect_stories` at the call site, not by an HTML comment in the body).
+    We also count stories created today but still in draft status — the cap
+    is about API spend, not about publication.
+    """
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    opus_count = db.query(Story).filter(
-        Story.published_at >= today_start,
-        Story.body.contains("<!-- opus-generated -->"),
+    # SQLite JSON path: evidence is a JSON column, use json_extract.
+    return db.query(Story).filter(
+        Story.created_at >= today_start,
+        func.json_extract(Story.evidence, '$.generator') == 'opus',
     ).count()
-    wtp_count = db.query(Story).filter(
-        Story.published_at >= today_start,
-        Story.body.contains("<!-- WeThePeople Influence Journal story -->"),
-    ).count()
-    return opus_count + wtp_count
 
 
 def _detect_story_shape(category):
@@ -80,6 +83,26 @@ def _detect_story_shape(category):
         return "sector-wide"
     else:
         return "relationship-based"
+
+
+_HTML_COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
+
+
+def _strip_html_comments(text):
+    """Remove every HTML comment from a markdown string.
+
+    Stories must not contain tracking/metadata comments like
+    '<!-- Generated: ... -->' because the frontend renders them as visible
+    prose and readers see the raw syntax. This is the single canonical place
+    that enforces the rule, used both by the Opus post-processor and by the
+    retroactive cleanup of existing stories.
+    """
+    if not text:
+        return text
+    cleaned = _HTML_COMMENT_RE.sub('', text)
+    # Collapse any blank-line runs that the removal created.
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+    return cleaned.lstrip('\n')
 
 
 def _quality_gate(skeleton):
@@ -170,7 +193,6 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         return None
 
     story_shape = _detect_story_shape(category)
-    now_utc = datetime.now(timezone.utc).isoformat()
 
     # Shape-specific guidance
     shape_guidance = {
@@ -207,18 +229,25 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "R4. NO ACCUSATIONS. Never accuse any person or company of wrongdoing. Never imply that "
         "lobbying caused a contract. Never imply that a donation caused a vote. State only what "
         "the public record shows and note correlations without asserting causation.\n"
-        "R5. NO DASHES. Do not use em dashes, en dashes, or double hyphens anywhere. Use commas, "
-        "periods, or semicolons instead.\n"
+        "R5. NO DASHES — CRITICAL. This rule rejects automatically. Never write '--', '—', or '–' "
+        "anywhere in the output, including inside sentences, after company names, or between clauses. "
+        "If you want to insert a parenthetical or aside, use commas or parentheses instead. "
+        "If you want to set off a clause, use a semicolon or period. "
+        "Example of what NOT to write: 'The company -- which spent $5M -- received contracts.' "
+        "Correct version: 'The company, which spent $5M, received contracts.'\n"
         "R6. FARA PRECISION. FARA tracks 'registered foreign principals' (entities represented). "
         "These are NOT 'foreign agents on payroll'. Never write 'agents on payroll' or 'paid lobbyists' "
         "when describing a FARA principal count. Use exactly 'registered foreign principals'.\n"
         "R7. TIME WINDOW. Never reference a year later than %d. Never describe contracts, filings, "
         "or trades occurring in the future. If a date in the skeleton is after %d, say 'the most recent "
         "year on record' and do not state the year.\n"
-        "R8. REQUIRED DISCLAIMER. Include this sentence exactly once in NARRATIVE_CONNECTION: "
-        "'Lobbying is legal activity protected under the First Amendment. Government contracts are "
-        "awarded through competitive bidding processes. Correlation between lobbying expenditures "
-        "and contract awards does not prove causation.'\n"
+        "R8. REQUIRED DISCLAIMER — CRITICAL. This rule rejects automatically. You MUST include "
+        "the following sentence verbatim somewhere in your narrative output (place it at the end of "
+        "NARRATIVE_CONNECTION if that placeholder exists, otherwise at the end of your last narrative "
+        "paragraph): 'Lobbying is legal activity protected under the First Amendment. Government "
+        "contracts are awarded through competitive bidding processes. Correlation between lobbying "
+        "expenditures and contract awards does not prove causation.' Do not paraphrase it. "
+        "Do not omit it. It must appear in every story.\n"
         "R9. PRESERVE STRUCTURE. Replace ONLY the {NARRATIVE_*} placeholders. Do not add, remove, "
         "reorder, or edit any markdown headings, tables, bullet points, or source lines outside "
         "the placeholders.\n"
@@ -228,19 +257,21 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "incomplete data, note the limitation in one sentence without speculating about why.\n"
         "R12. NAME THE ENTITY. Every narrative paragraph about a specific company or person must "
         "name that entity at least once using the exact display name from the skeleton.\n"
-        "R13. PARAGRAPH LENGTHS. NARRATIVE_LEAD: exactly 2 paragraphs. NARRATIVE_ISSUES: 1-2 paragraphs. "
-        "NARRATIVE_CONNECTION: exactly 2 paragraphs (the disclaimer counts as one sentence, not one "
-        "paragraph). Any additional {NARRATIVE_*} placeholders: 1-2 paragraphs each.\n"
+        "R13. PARAGRAPH LENGTHS AND MINIMUM LENGTH. Each narrative paragraph must be at least "
+        "3 full sentences. NARRATIVE_LEAD: exactly 2 substantial paragraphs (minimum 80 words combined). "
+        "NARRATIVE_ISSUES: 1-2 paragraphs (minimum 60 words). "
+        "NARRATIVE_CONNECTION: exactly 2 paragraphs including the R8 disclaimer sentence (minimum 60 words). "
+        "Any additional {NARRATIVE_*} placeholders: 1-2 paragraphs (minimum 50 words each). "
+        "The entire article body must be at least 900 words. Write thoroughly.\n"
         "R14. NO NEW SECTIONS. Do not add conclusions, calls to action, 'what this means' sections, "
         "or 'next steps'. End exactly where the skeleton ends.\n"
-        "R15. STORY SHAPE GUIDANCE. For this %s story: %s\n\n"
+        "R15. STORY SHAPE GUIDANCE. For this %s story: %s\n"
+        "R16. NO HTML COMMENTS. Never emit any HTML comment (lines starting with '<!--'). "
+        "Do not add a metadata block, generation timestamp, category marker, or tracking "
+        "comment of any kind. Return pure markdown only.\n\n"
         "OUTPUT REQUIREMENTS:\n"
         "- Return the COMPLETE article as valid markdown.\n"
-        "- Include these tracking comments at the top:\n"
-        "  <!-- WeThePeople Influence Journal story -->\n"
-        "  <!-- Generated: %s -->\n"
-        "  <!-- Story shape: %s -->\n"
-        "  <!-- Category: %s -->\n"
+        "- Start directly with the first markdown heading. No preamble, no HTML comments, no metadata.\n"
         "- Replace every {NARRATIVE_*} placeholder with your written paragraphs.\n"
         "- Do not add any extra text, explanations, or JSON outside the markdown article.\n\n"
         "CONTEXT: %s\n"
@@ -251,7 +282,6 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         datetime.now(timezone.utc).year,
         datetime.now(timezone.utc).year,
         story_shape, shape_guidance.get(story_shape, ""),
-        now_utc, story_shape, category,
         story_context, story_shape, skeleton
     )
 
@@ -273,10 +303,6 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         except Exception:
             pass
 
-        # Ensure tracking marker exists for daily cap counting
-        if "<!-- opus-generated -->" not in result and "<!-- WeThePeople" not in result:
-            result += "\n\n<!-- opus-generated -->"
-
         # Strip any leftover {NARRATIVE_*} placeholders that Opus failed to replace
         import re
         leftover = re.findall(r'\{NARRATIVE_\w+\}', result)
@@ -286,6 +312,20 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
                 result = result.replace(tag, "")
             # Clean up resulting double blank lines
             result = re.sub(r'\n{3,}', '\n\n', result)
+
+        # Strip any HTML comments the model emitted despite R16.
+        # Handles both single-line (<!-- ... -->) and leading/trailing blank lines.
+        result = _strip_html_comments(result)
+
+        # Post-process: replace dashes that slip past the prompt rule.
+        # Leave markdown table rows untouched (they use long runs of dashes
+        # for column widths). HTML comments were already removed above.
+        def _strip_dashes(line):
+            if re.match(r'^\s*\|', line):
+                return line
+            line = line.replace('\u2014', ',').replace('\u2013', ',')
+            return re.sub(r'\s*--\s*', ', ', line)
+        result = '\n'.join(_strip_dashes(l) for l in result.splitlines())
 
         return result
     except Exception as e:
@@ -378,6 +418,35 @@ def entity_story_recent(db, entity_id, category, days=7):
         ).first() is not None
 
 
+def _parse_gov_entities(entities_str):
+    """Parse the government_entities field into a clean list of agency names.
+
+    Two storage formats are supported:
+      - New format: pipe-separated ("Treasury, Dept of | White House Office")
+      - Legacy format: comma-separated, where canonical Senate LDA names like
+        "Treasury, Dept of" or "Commerce, Dept of (DOC)" themselves contain commas.
+
+    For legacy rows we re-merge fragments that look like continuations of the
+    previous entry (anything starting with "Dept of", "Department of", "Office of",
+    or "Bureau of"), since those are partial agency-name suffixes, not standalone
+    entities.
+    """
+    if not entities_str:
+        return []
+    if " | " in entities_str:
+        return [e.strip() for e in entities_str.split(" | ") if e.strip()]
+    # Legacy comma-separated path with smart re-merge
+    raw = [e.strip() for e in entities_str.split(",") if e.strip()]
+    CONTINUATION_PREFIXES = ("Dept of", "Department of", "Office of", "Bureau of")
+    merged = []
+    for item in raw:
+        if merged and any(item.startswith(p) for p in CONTINUATION_PREFIXES):
+            merged[-1] = merged[-1] + ", " + item
+        else:
+            merged.append(item)
+    return merged
+
+
 def get_entity_name(db, entity_id, entity_table, id_col):
     try:
         row = db.execute(text(
@@ -388,6 +457,19 @@ def get_entity_name(db, entity_id, entity_table, id_col):
         return entity_id.replace("-", " ").title()
 
 
+_DISCLAIMER = (
+    "Lobbying is legal activity protected under the First Amendment. "
+    "Government contracts are awarded through competitive bidding processes. "
+    "Correlation between lobbying expenditures and contract awards does not prove causation."
+)
+_DISCLAIMER_CATEGORIES = {
+    "lobbying", "contract", "contract_windfall", "penalty_gap",
+    "lobby_contract_loop", "tax_lobbying", "budget_lobbying",
+    "lobby_then_win", "enforcement_disappearance", "pac_committee_pipeline",
+    "contract_timing",
+}
+
+
 def make_story(title, summary, body, category, sector, entity_ids, data_sources, evidence):
     """Build a Story row.
 
@@ -395,6 +477,9 @@ def make_story(title, summary, body, category, sector, entity_ids, data_sources,
     They enter the human review queue and only become published via
     /ops/story-queue approve. Nothing is posted automatically.
     """
+    # Inject disclaimer for lobbying/contract stories if not already present
+    if category in _DISCLAIMER_CATEGORIES and _DISCLAIMER not in body:
+        body = body.rstrip() + "\n\n" + _DISCLAIMER
     return Story(
         title=title,
         slug=slug(title),
@@ -461,7 +546,7 @@ def detect_top_spender(db, sector_idx=None):
                 issue_spend[iss] += per_issue
                 issue_filings[iss] += 1
             if entities_str:
-                entities = [e.strip() for e in entities_str.split(",") if e.strip()]
+                entities = _parse_gov_entities(entities_str)
                 per_ent = inc / max(len(entities), 1)
                 for ent in entities:
                     gov_entity_spend[ent] += per_ent
@@ -1220,7 +1305,7 @@ def detect_lobby_then_win(db, sector_idx=None):
     company_agency_lobby = defaultdict(lambda: defaultdict(float))
     for eid, entities_str, income, year in lob_rows:
         inc = float(income) if income else 0
-        entities = [e.strip() for e in entities_str.split(",") if e.strip()]
+        entities = _parse_gov_entities(entities_str)
         per_ent = inc / max(len(entities), 1)
         for ent in entities:
             mapped = AGENCY_MAP.get(ent)
@@ -1755,7 +1840,7 @@ def detect_revolving_door(db):
 
         firm_agencies = defaultdict(lambda: defaultdict(int))
         for reg_name, entities_str, cnt in rows:
-            entities = [e.strip() for e in entities_str.split(",") if e.strip()]
+            entities = _parse_gov_entities(entities_str)
             for ent in entities:
                 if ent not in ("HOUSE OF REPRESENTATIVES", "SENATE"):
                     firm_agencies[reg_name][ent] += cnt
@@ -2019,6 +2104,13 @@ def main():
                 opus_body = _write_opus_narrative(skeleton, context, category=s.category)
                 if opus_body:
                     s.body = opus_body
+                    # Tag the story so the daily-cap counter finds it.
+                    # Previously we used an HTML comment in the body, but those
+                    # render visibly on the frontend and readers saw the raw
+                    # '<!-- Generated: ... -->' syntax.
+                    if not isinstance(s.evidence, dict):
+                        s.evidence = {}
+                    s.evidence = {**s.evidence, "generator": "opus"}
                     enhanced += 1
                     log.info("  [OPUS] Enhanced: %s", s.title[:60])
 

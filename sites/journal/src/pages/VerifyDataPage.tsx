@@ -98,7 +98,7 @@ const DATA_SOURCES: DataSource[] = [
 
 export default function VerifyDataPage() {
   return (
-    <main className="flex-1 px-4 py-10 sm:py-16">
+    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
       <article className="max-w-[720px] mx-auto">
         {/* Back link */}
         <Link

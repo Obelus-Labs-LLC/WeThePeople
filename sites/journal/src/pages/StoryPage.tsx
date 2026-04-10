@@ -157,15 +157,15 @@ export default function StoryPage() {
 
   if (loading) {
     return (
-      <main className="flex-1 flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" />
+      <main id="main-content" className="flex-1 flex items-center justify-center py-20">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" role="status"><span className="sr-only">Loading story...</span></div>
       </main>
     );
   }
 
   if (error || !story) {
     return (
-      <main className="flex-1 px-4 py-20">
+      <main id="main-content" className="flex-1 px-4 py-20">
         <div className="max-w-xl mx-auto text-center">
           <h1
             className="text-3xl font-bold text-white mb-4"
@@ -189,7 +189,7 @@ export default function StoryPage() {
   }
 
   return (
-    <main className="flex-1 px-4 py-10 sm:py-16">
+    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
       <article className="max-w-[720px] mx-auto">
         {/* Back link */}
         <Link

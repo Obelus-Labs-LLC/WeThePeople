@@ -64,7 +64,7 @@ def verify_text(
     try:
         result = veritas_verify(
             db,
-            text=body.text,
+            text_input=body.text,
             source_url=body.source_url,
         )
         result["auth_tier"] = auth["tier"]
