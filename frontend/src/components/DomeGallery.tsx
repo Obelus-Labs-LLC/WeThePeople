@@ -801,7 +801,7 @@ export default function DomeGallery({
                   }
                 >
                   <div
-                    className="item__image absolute block overflow-hidden cursor-pointer bg-white transition-transform duration-300"
+                    className="item__image absolute block overflow-hidden cursor-pointer bg-slate-800 transition-transform duration-300"
                     role="button"
                     tabIndex={0}
                     aria-label={it.alt || 'Open image'}
@@ -835,6 +835,36 @@ export default function DomeGallery({
                         backfaceVisibility: 'hidden',
                         filter: `var(--image-filter, ${grayscale ? 'grayscale(1)' : 'none'})`,
                         padding: '12%',
+                      }}
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        img.style.display = 'none';
+                        const parent = img.parentElement;
+                        if (parent && !parent.querySelector('.dome-fallback')) {
+                          const initials = (it.alt || '?')
+                            .split(/[\s\-&]+/)
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .map((w) => w[0]?.toUpperCase() || '')
+                            .join('');
+                          const fb = document.createElement('div');
+                          fb.className = 'dome-fallback';
+                          fb.textContent = initials;
+                          Object.assign(fb.style, {
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontFamily: 'Oswald, system-ui, sans-serif',
+                            fontWeight: '700',
+                            fontSize: '1.5rem',
+                            color: '#94A3B8',
+                            background: 'linear-gradient(135deg, #1E293B, #0F172A)',
+                            letterSpacing: '0.05em',
+                          });
+                          parent.appendChild(fb);
+                        }
                       }}
                     />
                   </div>
