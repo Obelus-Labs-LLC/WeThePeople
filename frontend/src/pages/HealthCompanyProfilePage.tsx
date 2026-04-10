@@ -1125,7 +1125,7 @@ export default function HealthCompanyProfilePage() {
           <div className="space-y-6">
             {[
               ['TICKER', company.ticker],
-              ['SECTOR', company.sector_type],
+              ['SECTOR', (company.sector_type || '').replace(/_/g, ' ').toUpperCase()],
               ['SEC CIK', company.sec_cik],
               ['FDA NAME', company.fda_manufacturer_name],
               ['CT SPONSOR', company.ct_sponsor_name],

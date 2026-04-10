@@ -373,7 +373,7 @@ export default function InstitutionPage() {
           <div className="space-y-6">
             {[
               ['TICKER', detail.ticker],
-              ['SECTOR', detail.sector_type?.replace(/_/g, ' ')],
+              ['SECTOR', detail.sector_type?.replace(/_/g, ' ').toUpperCase()],
               ['SEC CIK', detail.sec_cik],
               ['FDIC CERT', detail.fdic_cert],
             ].map(([label, value]) => value ? (
