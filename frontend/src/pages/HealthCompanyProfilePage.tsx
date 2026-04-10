@@ -1050,7 +1050,7 @@ export default function HealthCompanyProfilePage() {
           <Breadcrumbs items={[
             { label: 'Healthcare', to: '/health' },
             { label: 'Companies', to: '/health/companies' },
-            { label: detail.display_name },
+            { label: company.display_name },
           ]} />
         </div>
       </div>
