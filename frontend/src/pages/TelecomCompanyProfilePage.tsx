@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { TelecomSectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import { getApiBaseUrl } from '../api/client';
@@ -228,7 +229,11 @@ export default function TelecomCompanyProfilePage() {
           <TelecomSectorHeader />
         </div>
         <div className="mb-4 shrink-0">
-          <BackButton to="/telecom/companies" label="Companies" />
+          <Breadcrumbs items={[
+            { label: 'Telecommunications', to: '/telecom' },
+            { label: 'Companies', to: '/telecom/companies' },
+            { label: detail.display_name },
+          ]} />
         </div>
 
         {/* Company Banner */}

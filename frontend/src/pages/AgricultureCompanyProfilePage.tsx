@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { AgricultureSectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import { getApiBaseUrl } from '../api/client';
@@ -213,7 +214,11 @@ export default function AgricultureCompanyProfilePage() {
           <AgricultureSectorHeader />
         </div>
         <div className="mb-4 shrink-0">
-          <BackButton to="/agriculture/companies" label="Companies" />
+          <Breadcrumbs items={[
+            { label: 'Agriculture', to: '/agriculture' },
+            { label: 'Companies', to: '/agriculture/companies' },
+            { label: detail.display_name },
+          ]} />
         </div>
 
         {/* Company Banner */}

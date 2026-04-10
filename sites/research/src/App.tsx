@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import { EcosystemNav } from './components/EcosystemNav'
@@ -55,7 +55,7 @@ const TreasuryDataPage = lazy(() => import('./pages/TreasuryDataPage'))
 function PageLoader() {
   return (
     <div className="flex h-[60vh] items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300" />
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300" role="status"><span className="sr-only">Loading...</span></div>
     </div>
   )
 }
@@ -246,11 +246,17 @@ const tools: ToolCard[] = [
 // ── Home page ──
 
 function HomePage() {
+  const [search, setSearch] = useState('')
+  const q = search.trim().toLowerCase()
+  const filteredTools = q
+    ? tools.filter(t => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
+    : tools
+
   return (
     <div className="min-h-screen flex flex-col">
       <EcosystemNav active="research" />
 
-      <main className="flex-1 px-4 py-16 sm:py-24">
+      <main id="main-content" className="flex-1 px-4 py-16 sm:py-24">
         <div className="max-w-5xl mx-auto">
           {/* Hero */}
           <div className="text-center mb-16">
@@ -267,9 +273,21 @@ function HomePage() {
             </p>
           </div>
 
+          {/* Search bar */}
+          <div className="relative max-w-md mx-auto mb-10">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="search"
+              placeholder="Search tools..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600/30 transition-all"
+            />
+          </div>
+
           {/* Tool grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {tools.map((tool) => {
+            {filteredTools.map((tool) => {
               const Icon = tool.icon
               const content = (
                 <div
@@ -287,9 +305,9 @@ function HomePage() {
                   </div>
 
                   {/* Title */}
-                  <h3 className="text-lg font-semibold text-white mb-2">
+                  <h2 className="text-lg font-semibold text-white mb-2">
                     {tool.title}
-                  </h3>
+                  </h2>
 
                   {/* Description */}
                   <p className="text-sm text-zinc-400 leading-relaxed flex-1 mb-4">
@@ -376,7 +394,7 @@ function ToolLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
       <EcosystemNav active="research" />
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <Suspense fallback={<PageLoader />}>
           {children}
         </Suspense>

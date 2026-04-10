@@ -2,6 +2,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ExternalLink, Shield, AlertTriangle, HelpCircle, CheckCircle } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import { categoryLabel } from '../utils/categoryLabels';
 
 // -- Types matching the API response --
 
@@ -85,7 +86,7 @@ function EvidenceCard({ ev }: { ev: Evidence }) {
           </span>
         )}
       </div>
-      <h4 className="text-sm font-semibold text-white mb-1.5">{ev.title}</h4>
+      <h3 className="text-sm font-semibold text-white mb-1.5">{ev.title}</h3>
       <p className="text-xs text-zinc-400 leading-relaxed mb-3">{ev.snippet}</p>
       {ev.source_url && (
         <a
@@ -132,15 +133,17 @@ export default function ResultsPage() {
 
   if (loading) {
     return (
-      <main className="flex-1 flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" />
+      <main id="main-content" className="flex-1 flex items-center justify-center" aria-busy="true">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" role="status">
+          <span className="sr-only">Loading verification results...</span>
+        </div>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="flex-1 px-4 py-12">
+      <main id="main-content" className="flex-1 px-4 py-12">
         <div className="max-w-3xl mx-auto">
           <button
             onClick={() => navigate('/')}
@@ -162,7 +165,7 @@ export default function ResultsPage() {
   const totalEvidence = result.claims.reduce((s, c) => s + c.evidence_count, 0);
 
   return (
-    <main className="flex-1 px-4 py-10 sm:py-14">
+    <main id="main-content" className="flex-1 px-4 py-10 sm:py-14">
       <div className="max-w-3xl mx-auto">
         {/* Back link */}
         <button
@@ -177,9 +180,9 @@ export default function ResultsPage() {
         <div className="bg-zinc-900/60 border border-white/10 rounded-xl p-5 mb-8">
           <div className="flex items-center gap-2 mb-2">
             <Shield size={16} className="text-amber-400" />
-            <span className="text-xs uppercase tracking-wider text-amber-400/80 font-medium">
+            <h1 className="text-xs uppercase tracking-wider text-amber-400/80 font-medium">
               Veritas Report
-            </span>
+            </h1>
           </div>
           <p className="text-sm text-zinc-300 mb-3">{result.summary}</p>
           <div className="flex items-center gap-4 text-xs text-zinc-600">
@@ -219,18 +222,18 @@ export default function ResultsPage() {
               <div className={`flex items-center justify-between gap-4 px-5 py-3.5 rounded-t-xl border ${verdict.bg} ${verdict.border}`}>
                 <div className="flex items-center gap-2.5">
                   <VerdictIcon size={18} className={verdict.text} />
-                  <span
+                  <h2
                     className={`text-sm font-bold uppercase tracking-wider ${verdict.text}`}
                     style={{ fontFamily: 'Oswald, sans-serif' }}
                   >
                     {verdict.label}
-                  </span>
+                  </h2>
                 </div>
                 <div className="flex items-center gap-2">
                   <ScoreBadge score={claim.score} />
                   {claim.category !== 'general' && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full border border-zinc-800 text-zinc-500 uppercase">
-                      {claim.category.replace(/_/g, ' ')}
+                      {categoryLabel(claim.category)}
                     </span>
                   )}
                 </div>

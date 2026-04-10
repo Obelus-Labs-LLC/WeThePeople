@@ -3,7 +3,7 @@ import { ArrowLeft, Database, Shield, Eye, ArrowRight } from 'lucide-react';
 
 export default function AboutPage() {
   return (
-    <main className="flex-1 px-4 py-10 sm:py-16">
+    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
       <article className="max-w-[720px] mx-auto">
         {/* Back link */}
         <Link

@@ -99,7 +99,7 @@ export default function CoverageBalancePage() {
   const maxParty = Math.max(partyStats.dem, partyStats.rep, 1);
 
   return (
-    <main className="flex-1 px-4 py-10 sm:py-16">
+    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
       <article className="max-w-[720px] mx-auto">
         {/* Back link */}
         <Link

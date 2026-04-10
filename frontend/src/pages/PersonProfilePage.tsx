@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiClient, getApiBaseUrl } from '../api/client';
 import BackButton from '../components/BackButton';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { ExternalLink, Heart, Share2 } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import TradeTimeline from '../components/TradeTimeline';
@@ -394,7 +395,11 @@ export default function PersonProfilePage() {
       <header className="px-6 pt-6 pb-0 lg:px-16 lg:pt-14 lg:pb-0">
         <PoliticsSectorHeader />
         <div className="mb-6">
-          <BackButton to="/politics/people" label="Representatives" />
+          <Breadcrumbs items={[
+            { label: 'Politics', to: '/politics' },
+            { label: 'People', to: '/politics/people' },
+            { label: displayName || 'Profile' },
+          ]} />
         </div>
 
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">

@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { EducationSectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import { getApiBaseUrl } from '../api/client';
@@ -228,7 +229,11 @@ export default function EducationCompanyProfilePage() {
           <EducationSectorHeader />
         </div>
         <div className="mb-4 shrink-0">
-          <BackButton to="/education/companies" label="Companies" />
+          <Breadcrumbs items={[
+            { label: 'Education', to: '/education' },
+            { label: 'Companies', to: '/education/companies' },
+            { label: detail.display_name },
+          ]} />
         </div>
 
         {/* Company Banner */}
