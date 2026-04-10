@@ -27,7 +27,7 @@ export default function UserMenu() {
     return (
       <Link
         to="/login"
-        className="flex items-center gap-1.5 rounded-lg border border-zinc-800 px-3 py-1.5 text-sm text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
+        className="flex items-center gap-1.5 rounded-lg bg-white/10 border border-white/20 px-3 py-1.5 text-sm text-zinc-300 hover:text-white hover:bg-white/15 hover:border-white/30 transition-colors"
       >
         <User size={14} />
         Log in

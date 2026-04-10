@@ -547,9 +547,9 @@ function LegislationCard({ bill }: { bill: BillEntry }) {
         </div>
 
         {/* Title */}
-        <h3 className="font-body text-lg font-medium text-white line-clamp-2 group-hover:text-blue-400 transition-colors">
+        <h2 className="font-body text-lg font-medium text-white line-clamp-2 group-hover:text-blue-400 transition-colors">
           {bill.title}
-        </h3>
+        </h2>
 
         {/* Pipeline */}
         <div className="mt-4 flex items-center gap-1">

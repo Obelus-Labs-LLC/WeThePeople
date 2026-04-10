@@ -427,7 +427,7 @@ export default function TechCompanyProfilePage() {
               {/* Policy Connection */}
               {patentPolicyLoaded && patentPolicy && (patentPolicy.lobbying_on_ip_policy > 0 || patentPolicy.related_bills_count > 0) && (
                 <div className="rounded-xl border border-[#8B5CF6]/30 bg-[#8B5CF6]/5 p-6 mb-8">
-                  <h3 className="font-heading text-sm font-bold uppercase text-[#A78BFA] mb-4">Policy Connection</h3>
+                  <h2 className="font-heading text-sm font-bold uppercase text-[#A78BFA] mb-4">Policy Connection</h2>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-3 mb-4">
                     <div className="rounded-lg bg-white/[0.03] p-4 border border-white/10">
                       <p className="font-mono text-xs text-white/40 mb-1">Patents Filed</p>
@@ -552,7 +552,7 @@ export default function TechCompanyProfilePage() {
                 const maxAmt = Math.max(...contractTrends.map((tr) => tr.total_amount));
                 return (
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                    <h3 className="font-heading text-sm font-bold uppercase text-white/60 mb-6">Spending Over the Years</h3>
+                    <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-6">Spending Over the Years</h2>
                     <div className="flex items-end gap-3 h-56">
                       {contractTrends.map((t, i) => {
                         const pct = maxAmt > 0 ? (t.total_amount / maxAmt) * 100 : 0;
@@ -582,7 +582,7 @@ export default function TechCompanyProfilePage() {
               {/* Top agencies */}
               {contractSummary && Object.keys(contractSummary.by_agency).length > 0 && (
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                  <h3 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">By Awarding Agency</h3>
+                  <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">By Awarding Agency</h2>
                   <div className="flex flex-col gap-2">
                     {Object.entries(contractSummary.by_agency)
                       .sort(([, a], [, b]) => b - a)
@@ -663,7 +663,7 @@ export default function TechCompanyProfilePage() {
               {/* Top firms */}
               {lobbySummary && Object.keys(lobbySummary.top_firms).length > 0 && (
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                  <h3 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">Top Lobbying Firms</h3>
+                  <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">Top Lobbying Firms</h2>
                   <div className="flex flex-col gap-3">
                     {Object.entries(lobbySummary.top_firms)
                       .sort(([, a], [, b]) => b.income - a.income)

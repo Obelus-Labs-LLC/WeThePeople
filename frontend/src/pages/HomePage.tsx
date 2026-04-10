@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { SECTORS } from "../data/sectors";
-import DecryptedText from "../components/DecryptedText";
-import FloatingLines from "../components/FloatingLines";
 import {
   fetchInfluenceStats,
   fetchTopLobbying,
@@ -239,27 +237,18 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-white relative">
-      {/* FLAG_BG covering entire page (fixed) */}
+      {/* Static flag background with heavy overlay — no animation */}
       <div
         className="fixed inset-0 bg-cover bg-center"
         style={{ backgroundImage: `url(${FLAG_BG})` }}
       />
-      {/* Dark overlay (fixed) */}
-      <div className="fixed inset-0 bg-slate-950/75" />
-      {/* FloatingLines over entire page (fixed) */}
-      <div className="fixed inset-0 opacity-20 mix-blend-screen">
-        <FloatingLines
-          linesGradient={['#e90101', '#fafafa', '#0804fb']}
-          animationSpeed={0.5}
-        />
-      </div>
-      {/* Gradient fade (fixed) */}
-      <div className="fixed inset-0 bg-gradient-to-b from-transparent via-transparent to-slate-950" />
+      <div className="fixed inset-0 bg-slate-950/92" />
 
       {/* All content */}
       <div className="relative z-10 flex flex-col min-h-screen">
-        {/* Hero section — Zip Code CTA */}
-        <div className="flex flex-col items-center pt-20 pb-12 px-4">
+
+        {/* ── HERO ── Focused: brand, purpose, zip code CTA */}
+        <div className="flex flex-col items-center pt-24 pb-16 px-4">
           {/* Brand */}
           <div className="flex items-center gap-3 mb-6">
             <div className="h-14 w-14 rounded-xl bg-blue-600 flex items-center justify-center text-2xl font-black text-white shadow-lg shadow-blue-600/30">
@@ -271,19 +260,15 @@ const HomePage: React.FC = () => {
           </div>
 
           <h2 className="text-2xl sm:text-4xl font-bold text-white text-center mb-3 leading-tight">
-            <DecryptedText
-              text="Who represents you? Follow the money."
-              animateOn="view"
-              sequential={true}
-              speed={100}
-              revealDirection="start"
-              className="text-white"
-              encryptedClassName="text-white/20"
-            />
+            Who represents you? Follow the money.
           </h2>
 
-          <p className="text-white/80 text-center text-lg sm:text-xl max-w-lg mb-8 font-medium">
-            Enter your zip code to see your representatives and who's paying them
+          <p className="text-zinc-300 text-center text-base sm:text-lg max-w-2xl mb-2">
+            Track lobbying, government contracts, stock trades, and enforcement actions across 11 sectors of corporate influence on Congress.
+          </p>
+
+          <p className="text-zinc-400 text-center text-base sm:text-lg max-w-lg mb-10">
+            Enter your zip code to see your representatives and who's paying them.
           </p>
 
           {/* Zip code form */}
@@ -297,7 +282,7 @@ const HomePage: React.FC = () => {
                 zipInputRef.current.focus();
               }
             }}
-            className="flex items-center gap-3 mb-8 w-full max-w-lg justify-center"
+            className="flex items-center gap-3 mb-10 w-full max-w-lg justify-center"
           >
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400" />
@@ -310,7 +295,7 @@ const HomePage: React.FC = () => {
                 placeholder="Enter zip code"
                 value={zipCode}
                 onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
-                className="pl-10 pr-4 py-4 w-64 sm:w-80 rounded-lg bg-white/10 border border-white/20 text-white text-xl placeholder-white/30 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-all"
+                className="pl-10 pr-4 py-4 w-64 sm:w-80 rounded-lg bg-white/10 border border-white/30 text-white text-xl placeholder-zinc-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-all"
               />
             </div>
             <button
@@ -324,123 +309,53 @@ const HomePage: React.FC = () => {
             </button>
           </form>
 
-          {/* Digest CTA */}
-          <Link
-            to="/digest"
-            className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors mb-3 no-underline"
-          >
-            Get weekly updates in your inbox <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-
-          {/* Follow on X */}
-          <a
-            href="https://x.com/WTPForUs"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-300 transition-colors mb-6 no-underline"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-            </svg>
-            Follow @WTPForUs on X
-          </a>
-
           {/* Aggregate stats bar */}
           {stats && (
-            <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-6 mb-4">
+            <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-6 mb-6">
               {[
                 { icon: DollarSign, label: "Lobbying Tracked", value: formatMoney(stats.total_lobbying_spend) },
                 { icon: FileText, label: "Gov Contracts", value: formatMoney(stats.total_contract_value) },
                 { icon: Shield, label: "Enforcement Actions", value: stats.total_enforcement_actions.toLocaleString() },
-                { icon: Users, label: "Politicians Connected", value: stats.politicians_connected.toLocaleString() },
+                { icon: Users, label: "Politicians Tracked", value: stats.politicians_connected.toLocaleString() },
               ].map((s) => (
                 <div key={s.label} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-4 py-2">
                   <s.icon className="w-4 h-4 text-blue-400" />
                   <div>
                     <div className="text-lg font-bold text-white">{s.value}</div>
-                    <div className="text-[10px] text-slate-400 uppercase tracking-wider">{s.label}</div>
+                    <div className="text-[10px] text-zinc-400 uppercase tracking-wider">{s.label}</div>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
 
-        {/* Verify Claims CTA */}
-        <div className="max-w-5xl mx-auto px-4 -mt-2 pb-6">
-          <a
-            href="https://verify.wethepeopleforus.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full relative group rounded-xl border-l-2 border-l-emerald-500 bg-emerald-500/[0.06] backdrop-blur-sm border border-emerald-500/20 p-5 text-left transition-all duration-200 hover:bg-emerald-500/[0.12] hover:border-emerald-500/30 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-emerald-500 block no-underline"
-          >
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-600/20 shrink-0">
-                <ShieldCheck className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-base font-bold text-white mb-0.5">
-                  Verify Claims
-                </div>
-                <div className="text-sm text-emerald-300/70 leading-snug">
-                  Compare what politicians say to what they actually do — check speeches, press releases, and campaign promises against the legislative record.
-                </div>
-              </div>
-              <ArrowRight className="w-5 h-5 text-emerald-400 opacity-50 group-hover:opacity-100 transition-opacity shrink-0" />
-            </div>
-          </a>
-        </div>
-
-        {/* Ecosystem cards */}
-        <div className="max-w-5xl mx-auto px-4 -mt-2 pb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* WTP Research */}
+          {/* Secondary links */}
+          <div className="flex items-center gap-4">
+            <Link
+              to="/digest"
+              className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors no-underline"
+            >
+              Get weekly updates <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <span className="text-zinc-700">|</span>
             <a
-              href="https://research.wethepeopleforus.com"
+              href="https://x.com/WTPForUs"
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center gap-4 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-violet-500/20 p-4 transition-all duration-200 hover:bg-violet-500/[0.08] hover:border-violet-500/30 no-underline"
+              className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-300 transition-colors no-underline"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-600/20 shrink-0">
-                <FlaskConical className="w-5 h-5 text-violet-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-white mb-0.5">
-                  Looking to do deep research?
-                </div>
-                <div className="text-xs text-violet-300/60 leading-snug">
-                  Patent explorer, drug lookup, clinical trials, insider trades, and more.
-                </div>
-              </div>
-              <ExternalLink className="w-4 h-4 text-violet-400 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
-            </a>
-
-            {/* The Influence Journal */}
-            <a
-              href="https://journal.wethepeopleforus.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center gap-4 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-amber-500/20 p-4 transition-all duration-200 hover:bg-amber-500/[0.08] hover:border-amber-500/30 no-underline"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-600/20 shrink-0">
-                <Newspaper className="w-5 h-5 text-amber-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-white mb-0.5">
-                  Read our data investigations
-                </div>
-                <div className="text-xs text-amber-300/60 leading-snug">
-                  Data-driven stories about corporate influence on Congress. Cited sources, no spin.
-                </div>
-              </div>
-              <ExternalLink className="w-4 h-4 text-amber-400 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              @WTPForUs
             </a>
           </div>
         </div>
 
-        {/* Sector grid */}
-        <div className="max-w-5xl mx-auto px-4 -mt-4 pb-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* ── SECTORS ── */}
+        <div className="max-w-5xl mx-auto px-4 pb-10">
+          <h2 className="text-lg font-bold text-white mb-4 text-center">Explore by Sector</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {SECTORS.map((sector) => (
               <button
                 key={sector.slug}
@@ -449,19 +364,19 @@ const HomePage: React.FC = () => {
                     ? navigate(sector.route)
                     : undefined
                 }
-                className={`relative group rounded-xl border-l-2 ${SECTOR_ACCENT[sector.slug] || "border-l-slate-500"} bg-white/[0.04] backdrop-blur-sm border border-white/10 p-5 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-blue-500 ${
+                className={`relative group rounded-xl border-l-2 ${SECTOR_ACCENT[sector.slug] || "border-l-slate-500"} bg-white/[0.04] border border-white/10 p-4 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-blue-500 ${
                   sector.available
                     ? "hover:bg-white/[0.08] hover:border-white/20 cursor-pointer"
                     : "opacity-50 pointer-events-none"
                 }`}
               >
-                <div className="text-2xl mb-2">
+                <div className="text-xl mb-1.5">
                   {sector.icon}
                 </div>
-                <div className="text-base font-bold text-white mb-1">
+                <div className="text-sm font-bold text-white mb-0.5">
                   {sector.name}
                 </div>
-                <div className="text-sm text-white/60 leading-snug">
+                <div className="text-xs text-zinc-400 leading-snug">
                   {sector.tagline}
                 </div>
               </button>
@@ -469,92 +384,132 @@ const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Influence Leaderboard */}
-        {(topLobbying.length > 0 || topContracts.length > 0) && (
-          <div className="pb-16">
-            <div className="max-w-5xl mx-auto px-4">
-              <div className="flex items-center gap-2 mb-6">
-                <TrendingUp className="w-5 h-5 text-blue-400" />
-                <h3 className="text-xl font-bold text-white">Influence Leaderboard</h3>
+        {/* ── ECOSYSTEM ── Compact row for sibling sites */}
+        <div className="max-w-5xl mx-auto px-4 pb-10">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <a
+              href="https://verify.wethepeopleforus.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-3 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/20 p-4 transition-all duration-200 hover:bg-emerald-500/[0.12] no-underline"
+            >
+              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-white">Verify Claims</div>
+                <div className="text-xs text-zinc-400">Fact-check politicians</div>
               </div>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Top Lobbying Spenders */}
-                {topLobbying.length > 0 && (
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-                    <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
-                      Top Lobbying Spenders
-                    </h4>
-                    <div className="space-y-3">
-                      {topLobbying.map((l, i) => (
-                        <Link
-                          key={l.entity_id}
-                          to={`${SECTOR_ROUTES[l.sector] || "/"}/${l.entity_id}`}
-                          className="flex items-center justify-between hover:bg-white/5 rounded-lg px-2 py-1.5 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-slate-500 text-sm w-5">{i + 1}.</span>
-                            <span className="text-white font-medium text-sm">{l.display_name}</span>
-                            <span className={`text-xs uppercase font-semibold ${SECTOR_COLORS[l.sector] || "text-slate-400"}`}>
-                              {l.sector}
-                            </span>
-                          </div>
-                          <span className="text-emerald-400 font-mono text-sm">
-                            {formatMoney(l.total_lobbying || 0)}
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Top Contract Recipients */}
-                {topContracts.length > 0 && (
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-                    <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
-                      Top Gov Contract Recipients
-                    </h4>
-                    <div className="space-y-3">
-                      {topContracts.map((l, i) => (
-                        <Link
-                          key={l.entity_id}
-                          to={`${SECTOR_ROUTES[l.sector] || "/"}/${l.entity_id}`}
-                          className="flex items-center justify-between hover:bg-white/5 rounded-lg px-2 py-1.5 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-slate-500 text-sm w-5">{i + 1}.</span>
-                            <span className="text-white font-medium text-sm">{l.display_name}</span>
-                            <span className={`text-xs uppercase font-semibold ${SECTOR_COLORS[l.sector] || "text-slate-400"}`}>
-                              {l.sector}
-                            </span>
-                          </div>
-                          <span className="text-blue-400 font-mono text-sm">
-                            {formatMoney(l.total_contracts || 0)}
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            </a>
+            <a
+              href="https://research.wethepeopleforus.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-3 rounded-xl bg-violet-500/[0.04] border border-violet-500/20 p-4 transition-all duration-200 hover:bg-violet-500/[0.08] no-underline"
+            >
+              <FlaskConical className="w-5 h-5 text-violet-400 shrink-0" />
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-white">Research Tools</div>
+                <div className="text-xs text-zinc-400">Patents, drugs, trials, trades</div>
               </div>
+            </a>
+            <a
+              href="https://journal.wethepeopleforus.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-3 rounded-xl bg-amber-500/[0.04] border border-amber-500/20 p-4 transition-all duration-200 hover:bg-amber-500/[0.08] no-underline"
+            >
+              <Newspaper className="w-5 h-5 text-amber-400 shrink-0" />
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-white">Influence Journal</div>
+                <div className="text-xs text-zinc-400">Data-driven investigations</div>
+              </div>
+            </a>
+          </div>
+        </div>
 
-              <div className="mt-4 text-center">
-                <Link
-                  to="/influence"
-                  className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  View full Influence Explorer <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
+        {/* ── DISCOVER ── Below-fold content: leaderboard, patterns, stories */}
+        <div className="border-t border-white/5 pt-12">
+          {/* Influence Leaderboard */}
+          {(topLobbying.length > 0 || topContracts.length > 0) && (
+            <div className="pb-12">
+              <div className="max-w-5xl mx-auto px-4">
+                <div className="flex items-center gap-2 mb-6">
+                  <TrendingUp className="w-5 h-5 text-blue-400" />
+                  <h2 className="text-xl font-bold text-white">Influence Leaderboard</h2>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  {topLobbying.length > 0 && (
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                      <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
+                        Top Lobbying Spenders
+                      </h3>
+                      <div className="space-y-3">
+                        {topLobbying.map((l, i) => (
+                          <Link
+                            key={l.entity_id}
+                            to={`${SECTOR_ROUTES[l.sector] || "/"}/${l.entity_id}`}
+                            className="flex items-center justify-between hover:bg-white/5 rounded-lg px-2 py-1.5 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-zinc-500 text-sm w-5">{i + 1}.</span>
+                              <span className="text-white font-medium text-sm">{l.display_name}</span>
+                              <span className={`text-xs uppercase font-semibold ${SECTOR_COLORS[l.sector] || "text-zinc-400"}`}>
+                                {l.sector}
+                              </span>
+                            </div>
+                            <span className="text-emerald-400 font-mono text-sm">
+                              {formatMoney(l.total_lobbying || 0)}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {topContracts.length > 0 && (
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                      <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
+                        Top Gov Contract Recipients
+                      </h3>
+                      <div className="space-y-3">
+                        {topContracts.map((l, i) => (
+                          <Link
+                            key={l.entity_id}
+                            to={`${SECTOR_ROUTES[l.sector] || "/"}/${l.entity_id}`}
+                            className="flex items-center justify-between hover:bg-white/5 rounded-lg px-2 py-1.5 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-zinc-500 text-sm w-5">{i + 1}.</span>
+                              <span className="text-white font-medium text-sm">{l.display_name}</span>
+                              <span className={`text-xs uppercase font-semibold ${SECTOR_COLORS[l.sector] || "text-zinc-400"}`}>
+                                {l.sector}
+                              </span>
+                            </div>
+                            <span className="text-blue-400 font-mono text-sm">
+                              {formatMoney(l.total_contracts || 0)}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 text-center">
+                  <Link
+                    to="/influence"
+                    className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    View full Influence Explorer <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Suspicious Patterns teaser */}
-        <SuspiciousPatternsTeaser />
-
-        {/* Latest Stories teaser */}
-        <LatestStoriesTeaser />
+          <SuspiciousPatternsTeaser />
+          <LatestStoriesTeaser />
+        </div>
 
         <Footer />
       </div>

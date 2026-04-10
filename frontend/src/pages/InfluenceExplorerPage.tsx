@@ -131,7 +131,7 @@ export default function InfluenceExplorerPage() {
             >
               <cta.icon className="w-8 h-8 text-blue-400 group-hover:scale-110 transition-transform flex-shrink-0" />
               <div>
-                <h3 className="text-base font-bold text-white group-hover:text-blue-400 transition-colors">{cta.title}</h3>
+                <h2 className="text-base font-bold text-white group-hover:text-blue-400 transition-colors">{cta.title}</h2>
                 <p className="text-xs text-white/40 mt-0.5">{cta.desc}</p>
               </div>
             </Link>
@@ -202,9 +202,9 @@ export default function InfluenceExplorerPage() {
               <Map className="w-6 h-6 text-blue-400" />
             </div>
             <div>
-              <h3 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors">
+              <h2 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors">
                 Spending Map
-              </h3>
+              </h2>
               <p className="text-white/40 text-sm mt-0.5">
                 Geographic heatmap of lobbying spend, donations, and political connections by US state
               </p>
