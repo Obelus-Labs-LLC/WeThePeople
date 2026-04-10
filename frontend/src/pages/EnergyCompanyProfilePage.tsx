@@ -84,10 +84,9 @@ function SectionHeader({ title, icon: Icon, count }: { title: string; icon: Luci
 
 // ── Tab config ──
 
-type TabKey = 'overview' | 'emissions' | 'contracts' | 'lobbying' | 'enforcement' | 'filings';
+type TabKey = 'emissions' | 'contracts' | 'lobbying' | 'enforcement' | 'filings';
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
   { key: 'emissions', label: 'Emissions' },
   { key: 'contracts', label: 'Contracts' },
   { key: 'lobbying', label: 'Lobbying' },
@@ -99,7 +98,7 @@ const TABS: { key: TabKey; label: string }[] = [
 
 export default function EnergyCompanyProfilePage() {
   const { companyId } = useParams<{ companyId: string }>();
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [activeTab, setActiveTab] = useState<TabKey>('emissions');
 
   const [detail, setDetail] = useState<EnergyCompanyDetail | null>(null);
   const [stock, setStock] = useState<EnergyStockData['latest_stock']>(null);
@@ -299,7 +298,7 @@ export default function EnergyCompanyProfilePage() {
           )}
 
           <div className="space-y-6">
-            {[['TICKER', detail.ticker], ['SECTOR', detail.sector_type?.replace(/_/g, ' ')], ['SEC CIK', detail.sec_cik]].map(([label, value]) => value ? (
+            {[['TICKER', detail.ticker], ['SECTOR', detail.sector_type?.replace(/_/g, ' ').toUpperCase()], ['SEC CIK', detail.sec_cik]].map(([label, value]) => value ? (
               <div key={label}>
                 <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{label}</p>
                 <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E2E8F0' }}>{value}</p>
