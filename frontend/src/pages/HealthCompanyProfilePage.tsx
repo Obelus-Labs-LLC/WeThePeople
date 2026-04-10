@@ -505,9 +505,9 @@ function PaymentsFilingsTab({ companyId, company }: { companyId: string; company
             <Landmark size={28} className="text-white" />
           </div>
           <div>
-            <h3 className="text-3xl font-bold" style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}>
+            <h2 className="text-3xl font-bold" style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}>
               {company.display_name}
-            </h3>
+            </h2>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
                 FINANCIAL PULSE

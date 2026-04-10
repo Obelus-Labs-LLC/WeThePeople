@@ -209,9 +209,9 @@ export default function AnomaliesPage() {
                         {formatDate(a.detected_at)}
                       </span>
                     </div>
-                    <h3 className="text-sm font-semibold text-white group-hover:text-amber-400 transition-colors mb-1">
+                    <h2 className="text-sm font-semibold text-white group-hover:text-amber-400 transition-colors mb-1">
                       {a.title}
-                    </h3>
+                    </h2>
                     {a.description && (
                       <p className="text-xs text-white/40 line-clamp-2">
                         {a.description}

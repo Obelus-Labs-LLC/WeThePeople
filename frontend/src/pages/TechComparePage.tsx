@@ -323,9 +323,9 @@ export default function TechComparePage() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="font-body text-lg font-semibold text-white truncate">
+                        <h2 className="font-body text-lg font-semibold text-white truncate">
                           {co.display_name}
-                        </h3>
+                        </h2>
                         {co.ticker && (
                           <span className="rounded-full bg-[#8B5CF6]/10 px-2.5 py-0.5 font-mono text-[11px] font-bold text-[#8B5CF6] shrink-0">
                             {co.ticker}

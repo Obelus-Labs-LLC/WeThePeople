@@ -389,9 +389,9 @@ export default function FinanceComparePage() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="font-body text-lg font-semibold text-white truncate">
+                        <h2 className="font-body text-lg font-semibold text-white truncate">
                           {inst.display_name}
-                        </h3>
+                        </h2>
                         {inst.ticker && (
                           <span className="rounded-full bg-[#34D399]/10 px-2.5 py-0.5 font-mono text-[11px] font-bold text-[#34D399] shrink-0">
                             {inst.ticker}

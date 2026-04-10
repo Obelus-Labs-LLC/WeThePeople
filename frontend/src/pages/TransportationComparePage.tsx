@@ -230,7 +230,7 @@ export default function TransportationComparePage() {
                     <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white/10 shrink-0"><Building2 size={24} className="text-white/40" /></div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="font-body text-lg font-semibold text-white truncate">{co.display_name}</h3>
+                        <h2 className="font-body text-lg font-semibold text-white truncate">{co.display_name}</h2>
                         {co.ticker && <span className="rounded-full bg-[#3B82F6]/10 px-2.5 py-0.5 font-mono text-[11px] font-bold text-[#3B82F6] shrink-0">{co.ticker}</span>}
                       </div>
                       <div className="flex items-center gap-4 text-white/40">

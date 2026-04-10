@@ -164,9 +164,9 @@ export default function HealthCompaniesPage() {
                   </div>
 
                   {/* Name + Ticker */}
-                  <h3 className="text-base font-bold leading-tight truncate mb-0.5" style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}>
+                  <h2 className="text-base font-bold leading-tight truncate mb-0.5" style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}>
                     {c.display_name}
-                  </h3>
+                  </h2>
                   {c.ticker && (
                     <span
                       className="text-xs mb-3"

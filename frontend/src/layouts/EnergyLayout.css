@@ -32,7 +32,7 @@
   background: transparent;
   opacity: 0.15;
   z-index: 1;
-  animation: energy-cubeMove 18s linear infinite alternate;
+  /* animation removed — static pattern only */
 }
 
 @keyframes energy-cubeMove {
