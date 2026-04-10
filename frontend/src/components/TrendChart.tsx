@@ -1,4 +1,14 @@
 import { useMemo } from "react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from "recharts";
 
 interface TrendChartProps {
   data: { years: number[]; series: Record<string, number[]> };
@@ -34,59 +44,196 @@ const DISPLAY_NAMES: Record<string, string> = {
   emissions: "Emissions",
 };
 
-export default function TrendChart({ data, height = 160, colors = {} }: TrendChartProps) {
+function formatValue(val: number): string {
+  if (val >= 1_000_000_000) return `${(val / 1_000_000_000).toFixed(1)}B`;
+  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
+  if (val >= 1_000) return `${(val / 1_000).toFixed(1)}K`;
+  return val.toLocaleString();
+}
+
+interface PayloadEntry {
+  dataKey: string;
+  value: number;
+  color: string;
+}
+
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: PayloadEntry[];
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div
+      style={{
+        background: "rgba(15, 23, 42, 0.95)",
+        border: "1px solid rgba(255,255,255,0.1)",
+        borderRadius: 8,
+        padding: "10px 14px",
+        fontFamily: "Geist Variable, system-ui, sans-serif",
+        backdropFilter: "blur(8px)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: "#94A3B8",
+          marginBottom: 6,
+          letterSpacing: "0.05em",
+        }}
+      >
+        {label}
+      </div>
+      {payload.map((entry: PayloadEntry) => (
+        <div
+          key={entry.dataKey}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 12,
+            marginBottom: 2,
+          }}
+        >
+          <div
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              backgroundColor: entry.color,
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ color: "#CBD5E1" }}>
+            {DISPLAY_NAMES[entry.dataKey] || entry.dataKey}
+          </span>
+          <span
+            style={{
+              color: entry.color,
+              fontWeight: 600,
+              fontFamily: "monospace",
+              marginLeft: "auto",
+            }}
+          >
+            {formatValue(entry.value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function TrendChart({
+  data,
+  height = 220,
+  colors = {},
+}: TrendChartProps) {
   const { years, series } = data;
   if (!years?.length) return null;
 
-  const seriesEntries = Object.entries(series).filter(([, vals]) => vals.some((v) => v > 0));
-  if (!seriesEntries.length) return null;
+  const seriesKeys = Object.keys(series).filter((k) =>
+    series[k].some((v) => v > 0)
+  );
+  if (!seriesKeys.length) return null;
 
-  const allValues = seriesEntries.flatMap(([, vals]) => vals);
-  const maxVal = Math.max(...allValues, 1);
-  const padding = { top: 10, right: 16, bottom: 30, left: 16 };
-  const chartW = 300; // wider viewBox for better label spacing
-  const chartH = height;
-  const innerW = chartW - padding.left - padding.right;
-  const innerH = chartH - padding.top - padding.bottom;
-
-  const lines = useMemo(() => {
-    return seriesEntries.map(([name, vals]) => {
-      const color = colors[name] || DEFAULT_COLORS[name] || "#94A3B8";
-      const points = vals.map((v, i) => {
-        const x = padding.left + (i / Math.max(years.length - 1, 1)) * innerW;
-        const y = padding.top + innerH - (v / maxVal) * innerH;
-        return `${x},${y}`;
-      });
-      return { name, color, path: `M${points.join("L")}`, areaPath: `M${points.join("L")}L${padding.left + innerW},${padding.top + innerH}L${padding.left},${padding.top + innerH}Z` };
-    });
-  }, [seriesEntries, years, maxVal]);
+  const chartData = useMemo(
+    () =>
+      years.map((yr, i) => {
+        const row: Record<string, number | string> = { year: String(yr) };
+        for (const key of seriesKeys) {
+          row[key] = series[key][i] ?? 0;
+        }
+        return row;
+      }),
+    [years, series, seriesKeys]
+  );
 
   return (
     <div className="w-full">
-      <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full" preserveAspectRatio="none" style={{ height }}>
-        {lines.map(({ name, color, areaPath, path }) => (
-          <g key={name}>
-            <path d={areaPath} fill={color} fillOpacity={0.1} />
-            <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-          </g>
-        ))}
-        {years.map((yr, i) => {
-          const x = padding.left + (i / Math.max(years.length - 1, 1)) * innerW;
-          return (
-            <text key={yr} x={x} y={chartH - 6} textAnchor="middle" fill="#94A3B8" fontSize={14} fontFamily="sans-serif" fontWeight="500">
-              {yr}
-            </text>
-          );
-        })}
-      </svg>
-      <div className="mt-2 flex flex-wrap gap-3">
-        {lines.map(({ name, color }) => (
-          <div key={name} className="flex items-center gap-1.5 text-xs text-zinc-400">
-            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-            <span>{DISPLAY_NAMES[name] || name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
-          </div>
-        ))}
-      </div>
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart
+          data={chartData}
+          margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="rgba(255,255,255,0.06)"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="year"
+            axisLine={false}
+            tickLine={false}
+            tick={{
+              fill: "#64748B",
+              fontSize: 11,
+              fontFamily: "Geist Variable, system-ui, sans-serif",
+              fontWeight: 500,
+            }}
+            dy={8}
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{
+              fill: "#475569",
+              fontSize: 10,
+              fontFamily: "monospace",
+            }}
+            tickFormatter={formatValue}
+            width={48}
+          />
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{
+              stroke: "rgba(255,255,255,0.08)",
+              strokeWidth: 1,
+              strokeDasharray: "4 4",
+            }}
+          />
+          <Legend
+            verticalAlign="bottom"
+            height={28}
+            iconType="circle"
+            iconSize={6}
+            formatter={(value: string) => (
+              <span
+                style={{
+                  color: "#94A3B8",
+                  fontSize: 11,
+                  fontFamily: "Geist Variable, system-ui, sans-serif",
+                }}
+              >
+                {DISPLAY_NAMES[value] || value}
+              </span>
+            )}
+          />
+          {seriesKeys.map((key) => {
+            const color = colors[key] || DEFAULT_COLORS[key] || "#94A3B8";
+            return (
+              <Line
+                key={key}
+                type="monotone"
+                dataKey={key}
+                stroke={color}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{
+                  r: 4,
+                  fill: color,
+                  stroke: "#0F172A",
+                  strokeWidth: 2,
+                }}
+              />
+            );
+          })}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }

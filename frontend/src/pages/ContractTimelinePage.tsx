@@ -10,6 +10,7 @@ import {
   type TechContractItem,
 } from '../api/tech';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
+import SpendingChart from '../components/SpendingChart';
 
 // ── Types ──
 
@@ -278,28 +279,11 @@ export default function ContractTimelinePage() {
               </p>
 
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-6">
-                <div className="flex items-end gap-3 h-64">
-                  {yearBuckets.map((bucket, i) => {
-                    const pct = maxBarAmount > 0 ? (bucket.totalAmount / maxBarAmount) * 100 : 0;
-                    const color = BAR_COLORS[i % BAR_COLORS.length];
-                    return (
-                      <div key={bucket.year} className="flex flex-col items-center flex-1 gap-0 h-full justify-end">
-                        <span className="font-mono text-[10px] text-white/60 mb-1">{fmtDollar(bucket.totalAmount)}</span>
-                        <motion.div
-                          className="w-full rounded-t-lg flex items-end justify-center transition-all min-h-[4px]"
-                          style={{ backgroundColor: color }}
-                          initial={{ height: 0 }}
-                          animate={{ height: `${Math.max(pct, 3)}%` }}
-                          transition={{ duration: 0.8, delay: 0.1 + i * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                        />
-                        <div className="mt-2 text-center">
-                          <span className="font-mono text-xs text-white/50">{bucket.year}</span>
-                          <p className="font-mono text-[10px] text-white/30">{bucket.count} awards</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <SpendingChart
+                  data={yearBuckets.map((b) => ({ year: b.year, total_amount: b.totalAmount, count: b.count }))}
+                  height={260}
+                  countLabel="award"
+                />
               </div>
             </motion.div>
           )}
