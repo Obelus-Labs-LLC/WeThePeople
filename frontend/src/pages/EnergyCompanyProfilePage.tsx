@@ -413,7 +413,7 @@ export default function EnergyCompanyProfilePage() {
                   {/* Climate lobbying connection */}
                   {emissionSummary.climate_lobbying_count > 0 && (
                     <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-6 mb-8">
-                      <h3 className="font-heading text-sm font-bold uppercase text-orange-400 mb-3">Climate Policy Connection</h3>
+                      <h2 className="font-heading text-sm font-bold uppercase text-orange-400 mb-3">Climate Policy Connection</h2>
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-3">
                         <div className="rounded-lg bg-white/[0.03] p-4 border border-white/10">
                           <p className="font-mono text-xs text-white/40 mb-1">Climate/Emissions Lobbying Filings</p>
@@ -442,7 +442,7 @@ export default function EnergyCompanyProfilePage() {
                 const maxE = Math.max(...years.map(([, d]) => d.total_emissions));
                 return (
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                    <h3 className="font-heading text-sm font-bold uppercase text-white/60 mb-6">Emissions Over the Years</h3>
+                    <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-6">Emissions Over the Years</h2>
                     <div className="flex items-end gap-3 h-56">
                       {years.map(([year, data], i) => {
                         const pct = maxE > 0 ? (data.total_emissions / maxE) * 100 : 0;
@@ -524,7 +524,7 @@ export default function EnergyCompanyProfilePage() {
 
               {contractSummary && Object.keys(contractSummary.by_agency).length > 0 && (
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                  <h3 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">By Awarding Agency</h3>
+                  <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">By Awarding Agency</h2>
                   <div className="flex flex-col gap-2">
                     {Object.entries(contractSummary.by_agency)
                       .sort(([, a], [, b]) => b - a)
@@ -598,7 +598,7 @@ export default function EnergyCompanyProfilePage() {
 
               {lobbySummary && Object.keys(lobbySummary.top_firms).length > 0 && (
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                  <h3 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">Top Lobbying Firms</h3>
+                  <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">Top Lobbying Firms</h2>
                   <div className="flex flex-col gap-3">
                     {Object.entries(lobbySummary.top_firms)
                       .sort(([, a], [, b]) => b.income - a.income)
