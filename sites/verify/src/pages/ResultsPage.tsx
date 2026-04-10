@@ -120,7 +120,7 @@ export default function ResultsPage() {
     // For numeric IDs, fetch from the API
     if (id && id !== 'quick') {
       setLoading(true);
-      apiFetch<VerificationResult>(`/api/v1/claims/${id}`)
+      apiFetch<VerificationResult>(`/claims/verifications/${id}`)
         .then(setResult)
         .catch((err) => setError(err.message))
         .finally(() => setLoading(false));
