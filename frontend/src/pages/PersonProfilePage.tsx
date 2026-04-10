@@ -146,9 +146,9 @@ function Card({
 
 function CardTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="font-heading text-xl font-bold uppercase tracking-wide text-white mb-4">
+    <h2 className="font-heading text-xl font-bold uppercase tracking-wide text-white mb-4">
       {children}
-    </h3>
+    </h2>
   );
 }
 

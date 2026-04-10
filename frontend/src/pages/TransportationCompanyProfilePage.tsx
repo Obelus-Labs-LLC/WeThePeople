@@ -346,7 +346,7 @@ export default function TransportationCompanyProfilePage() {
 
               {detail.ai_profile_summary && (
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
-                  <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">AI Profile Summary</h3>
+                  <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">AI Profile Summary</h2>
                   <p className="font-body text-sm text-white/70 leading-relaxed whitespace-pre-line">{detail.ai_profile_summary}</p>
                 </div>
               )}

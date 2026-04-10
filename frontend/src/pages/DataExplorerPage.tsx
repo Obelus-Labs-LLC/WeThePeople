@@ -131,7 +131,7 @@ export default function DataExplorerPage() {
           {/* Sector breakdown donut */}
           {stats && (
             <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
-              <h3 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">Sector Breakdown</h3>
+              <h2 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">Sector Breakdown</h2>
               <div className="flex flex-col gap-3">
                 {Object.entries(stats.by_sector)
                   .filter(([s]) => selectedSectors.has(s))
@@ -178,7 +178,7 @@ export default function DataExplorerPage() {
           {/* Totals cards */}
           {stats && (
             <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
-              <h3 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">Filtered Totals</h3>
+              <h2 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">Filtered Totals</h2>
               {(() => {
                 const filteredStats = Object.entries(stats.by_sector)
                   .filter(([s]) => selectedSectors.has(s))
@@ -212,7 +212,7 @@ export default function DataExplorerPage() {
 
           {/* Quick navigation */}
           <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
-            <h3 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">Explore</h3>
+            <h2 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">Explore</h2>
             <div className="space-y-2">
               {[
                 { to: '/influence/money-flow', label: 'Money Flow Sankey', desc: 'Follow the money visually' },
@@ -236,9 +236,9 @@ export default function DataExplorerPage() {
 
         {/* Top lobbying bar chart — coordinated with sector filter */}
         <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
-          <h3 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">
+          <h2 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">
             Top Lobbying Spenders ({selectedSectors.size} sector{selectedSectors.size !== 1 ? 's' : ''})
-          </h3>
+          </h2>
           <div className="space-y-2">
             {filteredLeaders.slice(0, 20).map((l, i) => (
               <div key={l.entity_id} className="flex items-center gap-3">

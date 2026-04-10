@@ -374,7 +374,7 @@ export default function AgricultureCompanyProfilePage() {
 
               {contractSummary && Object.keys(contractSummary.by_agency).length > 0 && (
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                  <h3 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">By Awarding Agency</h3>
+                  <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">By Awarding Agency</h2>
                   <div className="flex flex-col gap-2">
                     {Object.entries(contractSummary.by_agency)
                       .sort(([, a], [, b]) => b - a)
@@ -448,7 +448,7 @@ export default function AgricultureCompanyProfilePage() {
 
               {lobbySummary && Object.keys(lobbySummary.top_firms).length > 0 && (
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                  <h3 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">Top Lobbying Firms</h3>
+                  <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-4">Top Lobbying Firms</h2>
                   <div className="flex flex-col gap-3">
                     {Object.entries(lobbySummary.top_firms)
                       .sort(([, a], [, b]) => b.income - a.income)
