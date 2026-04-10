@@ -5,17 +5,19 @@ import {
   Calendar, Hash, ExternalLink, Newspaper, DollarSign,
   type LucideIcon,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
 import TrendChart from '../components/TrendChart';
+import SpendingChart from '../components/SpendingChart';
 import { DefenseSectorHeader } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
+import ShareButton from '../components/ShareButton';
 import WatchlistButton from '../components/WatchlistButton';
 import {
   getDefenseCompanyDetail,
@@ -75,22 +77,22 @@ function SectionHeader({ title, icon: Icon, count }: { title: string; icon: Luci
 
 // -- Tab config --
 
-type TabKey = 'overview' | 'contracts' | 'lobbying' | 'enforcement' | 'donations' | 'filings';
+type TabKey = 'contracts' | 'lobbying' | 'enforcement' | 'donations' | 'filings' | 'news';
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
   { key: 'contracts', label: 'Contracts' },
   { key: 'lobbying', label: 'Lobbying' },
   { key: 'enforcement', label: 'Enforcement' },
   { key: 'donations', label: 'Donations' },
   { key: 'filings', label: 'SEC Filings' },
+  { key: 'news', label: 'News' },
 ];
 
 // -- Page --
 
 export default function DefenseCompanyProfilePage() {
   const { companyId } = useParams<{ companyId: string }>();
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [activeTab, setActiveTab] = useState<TabKey>('contracts');
 
   const [detail, setDetail] = useState<DefenseCompanyDetail | null>(null);
   const [stock, setStock] = useState<DefenseStockData['latest_stock']>(null);
@@ -211,116 +213,121 @@ export default function DefenseCompanyProfilePage() {
     </div></div>
   );
 
-  return (
-    <div className="min-h-screen">
-      <div className="mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-10">
-        <DefenseSectorHeader />
+  const ACCENT = '#DC2626';
 
-        {/* Back + header */}
-        <div className="mt-6 mb-8">
+  return (
+    <div className="flex flex-col w-full h-screen relative">
+      <div className="relative z-10 px-6 pt-4 shrink-0">
+        <DefenseSectorHeader />
+        <div className="mb-2">
           <Breadcrumbs items={[
             { label: 'Defense', to: '/defense' },
             { label: 'Companies', to: '/defense/companies' },
             { label: detail.display_name },
           ]} />
-          <div className="flex items-start gap-5 mt-4">
-            <CompanyLogo id={detail.company_id} name={detail.display_name} logoUrl={detail.logo_url} size={64} iconFallback />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="font-heading text-3xl font-bold text-white">{detail.display_name}</h1>
-                <WatchlistButton entityType="company" entityId={detail.company_id || companyId || ""} entityName={detail.display_name} sector="defense" />
-                {detail.ticker && <span className="font-mono text-lg text-white/40">{detail.ticker}</span>}
-                <SanctionsBadge status={detail.sanctions_status} />
-                <AnomalyBadge entityType="company" entityId={detail.company_id} />
-              </div>
-              <div className="flex items-center gap-4 mt-2 text-sm text-white/50">
-                <span className="rounded bg-red-500/10 px-2 py-0.5 font-mono text-xs text-red-400 uppercase">{detail.sector_type.replace(/_/g, ' ')}</span>
-                {detail.headquarters && <span>{detail.headquarters}</span>}
-                {detail.sec_cik && <span className="font-mono text-xs">CIK: {detail.sec_cik}</span>}
-              </div>
-            </div>
-          </div>
         </div>
+      </div>
 
-        {/* AI Summary */}
-        {detail.ai_profile_summary && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8 rounded-xl border border-white/10 bg-white/[0.02] p-6">
-            <p className="font-body text-sm text-white/70 leading-relaxed">{detail.ai_profile_summary}</p>
-          </motion.div>
-        )}
-
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-white/10 mb-8 overflow-x-auto">
-          {TABS.map((tab) => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-3 font-body text-sm font-medium whitespace-nowrap transition-colors ${activeTab === tab.key ? 'text-red-400 border-b-2 border-red-400' : 'text-white/40 hover:text-white/60'}`}>
-              {tab.label}
-            </button>
+      {/* Top Bar */}
+      <div className="w-full px-6 py-3 flex items-center justify-between shrink-0 z-10 shadow-md" style={{ background: ACCENT }}>
+        <div className="flex items-center gap-6">
+          {[
+            ['ENTITY', detail.display_name],
+            ['SECTOR', (detail.sector_type || '').replace(/_/g, ' ').toUpperCase()],
+            ['CIK', detail.sec_cik || '\u2014'],
+          ].map(([label, value]) => (
+            <span key={label} className="text-sm tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              <span className="text-white/70">{label}: </span>
+              <span className="text-white font-bold">{value}</span>
+            </span>
           ))}
         </div>
+        <div className="flex items-center gap-3">
+          <ShareButton url={window.location.href} title={`${detail.display_name} — WeThePeople`} />
+        </div>
+      </div>
 
-        {/* Overview Tab */}
-        {activeTab === 'overview' && (
-          <div className="space-y-8">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <MetricCard label="Gov Contracts" value={fmtDollar(detail.total_contract_value)} icon={Landmark} color="#10B981" />
-              <MetricCard label="Enforcement" value={fmtNum(detail.enforcement_count)} icon={Shield} color="#EF4444" />
-              <MetricCard label="Lobbying Filings" value={fmtNum(detail.lobbying_count)} icon={DollarSign} />
-              <MetricCard label="SEC Filings" value={fmtNum(detail.filing_count)} icon={FileText} color="#3B82F6" />
-            </div>
-
-            {/* Stock data */}
-            {stock && (
-              <div>
-                <SectionHeader title="Market Data" icon={TrendingUp} />
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                    <p className="font-mono text-xs text-white/40 mb-1">Market Cap</p>
-                    <p className="font-mono text-lg text-white">{stock.market_cap ? fmtDollar(stock.market_cap) : '\u2014'}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                    <p className="font-mono text-xs text-white/40 mb-1">P/E Ratio</p>
-                    <p className="font-mono text-lg text-white">{stock.pe_ratio?.toFixed(1) ?? '\u2014'}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                    <p className="font-mono text-xs text-white/40 mb-1">Profit Margin</p>
-                    <p className="font-mono text-lg text-white">{fmtPct(stock.profit_margin)}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                    <p className="font-mono text-xs text-white/40 mb-1">Revenue TTM</p>
-                    <p className="font-mono text-lg text-white">{stock.revenue_ttm ? fmtDollar(stock.revenue_ttm) : '\u2014'}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* News */}
-            {news.length > 0 && (
-              <div>
-                <SectionHeader title="Recent News" icon={Newspaper} count={news.length} />
-                <div className="space-y-3">
-                  {news.map((n, i) => (
-                    <a key={i} href={n.link} target="_blank" rel="noopener noreferrer" className="block rounded-xl border border-white/10 bg-white/[0.03] p-4 hover:bg-white/[0.05] transition-colors no-underline">
-                      <p className="font-body text-sm text-white/90">{n.title}</p>
-                      <div className="flex items-center gap-3 mt-2">
-                        <span className="font-mono text-xs text-white/40">{n.source}</span>
-                        <span className="font-mono text-xs text-white/20">{n.published}</span>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Activity Over Time */}
-            {trends && (
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
-                <SectionHeader title="Activity Over Time" icon={TrendingUp} />
-                <TrendChart data={trends} />
-              </div>
-            )}
+      {/* Main Content: Sidebar + Data */}
+      <div className="flex flex-1 min-h-0">
+        {/* Left Sidebar */}
+        <div className="hidden md:flex flex-col w-[30%] lg:w-[25%] border-r p-8 overflow-y-auto shrink-0" style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+          <div className="mb-6 flex justify-center">
+            <CompanyLogo id={detail.company_id} name={detail.display_name} logoUrl={detail.logo_url} size={128} iconFallback className="rounded-2xl" />
           </div>
-        )}
+          <div className="flex items-center justify-center gap-3 mb-1">
+            <h1 className="text-3xl font-bold leading-tight text-center" style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}>{detail.display_name}</h1>
+            <WatchlistButton entityType="company" entityId={detail.company_id || companyId || ""} entityName={detail.display_name} sector="defense" />
+          </div>
+          {detail.headquarters && (
+            <p className="text-sm text-center mb-4" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{detail.headquarters}</p>
+          )}
+          <div className="flex justify-center gap-2 mb-6">
+            {detail.ticker && <span className="rounded bg-red-500/20 px-3 py-1 font-mono text-sm font-bold text-red-400">{detail.ticker}</span>}
+            <SanctionsBadge status={detail.sanctions_status} />
+            <AnomalyBadge entityType="company" entityId={detail.company_id} />
+          </div>
+
+          {detail.ai_profile_summary && (
+            <div className="mb-6">
+              <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+              <p className="text-zinc-400 text-sm mt-1">{detail.ai_profile_summary}</p>
+            </div>
+          )}
+
+          <div className="space-y-6">
+            {[['TICKER', detail.ticker], ['SECTOR', detail.sector_type?.replace(/_/g, ' ')], ['SEC CIK', detail.sec_cik]].map(([label, value]) => value ? (
+              <div key={label}>
+                <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{label}</p>
+                <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E2E8F0' }}>{value}</p>
+              </div>
+            ) : null)}
+          </div>
+
+          {stock && (
+            <div className="mt-6 space-y-3">
+              <p className="text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>MARKET DATA</p>
+              {stock.market_cap != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Market Cap</p><p className="font-mono text-lg text-white">{fmtDollar(stock.market_cap)}</p></div>}
+              {stock.pe_ratio != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>P/E Ratio</p><p className="font-mono text-sm text-white">{stock.pe_ratio.toFixed(2)}</p></div>}
+              {stock.profit_margin != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Profit Margin</p><p className="font-mono text-sm text-white">{fmtPct(stock.profit_margin)}</p></div>}
+              {stock.revenue_ttm != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Revenue TTM</p><p className="font-mono text-sm text-white">{fmtDollar(stock.revenue_ttm)}</p></div>}
+            </div>
+          )}
+
+          <div className="mt-6 rounded-xl border p-4" style={{ background: `${ACCENT}10`, borderColor: `${ACCENT}30` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Shield size={16} style={{ color: ACCENT }} />
+              <span className="text-xs font-bold uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: ACCENT }}>OVERVIEW</span>
+            </div>
+            <div className="space-y-2 text-sm" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              <div className="flex justify-between"><span className="text-white/50">Contracts</span><span className="text-white font-bold">{fmtDollar(detail.total_contract_value)}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Enforcement</span><span className="text-white font-bold">{fmtNum(detail.enforcement_count)}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Lobbying</span><span className="text-white font-bold">{fmtNum(detail.lobbying_count)}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">SEC Filings</span><span className="text-white font-bold">{fmtNum(detail.filing_count)}</span></div>
+            </div>
+          </div>
+
+          {trends && (
+            <div className="mt-6">
+              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>Activity Over Time</p>
+              <TrendChart data={trends} height={120} />
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="relative flex gap-8 border-b px-8 pt-4 shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+            {TABS.map((tab) => (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)} className="relative pb-4 cursor-pointer bg-transparent border-0" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: activeTab === tab.key ? ACCENT : 'rgba(255,255,255,0.4)', fontWeight: activeTab === tab.key ? 700 : 400 }}>
+                {tab.label}
+                {activeTab === tab.key && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 rounded-full" style={{ background: ACCENT }} />}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-8" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+            <AnimatePresence mode="wait">
+              <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
 
         {/* Contracts Tab */}
         {activeTab === 'contracts' && (
@@ -471,6 +478,30 @@ export default function DefenseCompanyProfilePage() {
             </div>
           </div>
         )}
+
+        {/* News Tab */}
+        {activeTab === 'news' && (
+          <div>
+            <SectionHeader title="Recent News" icon={Newspaper} count={news.length} />
+            <div className="space-y-3">
+              {news.map((n, i) => (
+                <a key={i} href={n.link} target="_blank" rel="noopener noreferrer" className="block rounded-xl border border-white/10 bg-white/[0.03] p-4 hover:bg-white/[0.05] transition-colors no-underline">
+                  <p className="font-body text-sm text-white/90">{n.title}</p>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="font-mono text-xs text-white/40">{n.source}</span>
+                    <span className="font-mono text-xs text-white/20">{n.published}</span>
+                  </div>
+                </a>
+              ))}
+              {news.length === 0 && <p className="text-center text-white/30 py-8">No news articles found</p>}
+            </div>
+          </div>
+        )}
+
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
     </div>
   );
