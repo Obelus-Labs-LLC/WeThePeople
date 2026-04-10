@@ -5,7 +5,7 @@ import {
   Calendar, Hash, ExternalLink, ArrowLeft, AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
@@ -249,169 +249,185 @@ export default function TechCompanyProfilePage() {
 
   // ── Render ──
 
+  const ACCENT = '#8B5CF6';
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <div className="flex flex-1 flex-col overflow-hidden px-8 py-6 lg:px-12">
-        <div className="shrink-0">
-          <TechSectorHeader />
-        </div>
-        <div className="mb-4 shrink-0">
+    <div className="flex flex-col w-full h-screen relative">
+      <div className="relative z-10 px-6 pt-4 shrink-0">
+        <TechSectorHeader />
+        <div className="mb-2">
           <Breadcrumbs items={[
             { label: 'Technology', to: '/technology' },
             { label: 'Companies', to: '/technology/companies' },
             { label: detail.display_name },
           ]} />
         </div>
+      </div>
 
-        {/* ── Company Banner ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-6 flex items-center gap-6 rounded-xl border border-white/10 bg-white/[0.03] p-6 shrink-0"
-        >
-          <CompanyLogo
-            id={detail.company_id}
-            name={detail.display_name}
-            logoUrl={detail.logo_url}
-            localLogos={LOCAL_LOGOS}
-            size={64}
-            iconFallback
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">
-                {detail.display_name}
-              </h1>
-              <WatchlistButton entityType="company" entityId={detail.company_id || companyId || ""} entityName={detail.display_name} sector="tech" />
-            </div>
-            <div className="mt-2 flex items-center gap-3 flex-wrap">
-              {detail.ticker && (
-                <span className="rounded bg-[#8B5CF6]/20 px-3 py-1 font-mono text-sm font-bold text-[#A78BFA]">
-                  {detail.ticker}
-                </span>
-              )}
-              <span className="rounded bg-white/10 px-3 py-1 font-mono text-xs uppercase tracking-wider text-white/60">
-                {detail.sector_type.replace(/_/g, ' ')}
-              </span>
-              <SanctionsBadge status={detail.sanctions_status} />
-              <AnomalyBadge entityType="company" entityId={companyId || ''} />
-              <ShareButton url={window.location.href} title={`${detail.display_name} — WeThePeople`} />
-              {detail.headquarters && (
-                <span className="font-body text-sm text-white/50">
-                  {detail.headquarters}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="hidden flex-shrink-0 text-right md:flex flex-col gap-2">
-            {stk?.market_cap && (
-              <div>
-                <p className="font-mono text-xs text-white/40">MARKET CAP</p>
-                <p className="font-mono text-lg text-white">{fmtDollar(stk.market_cap)}</p>
-              </div>
-            )}
-            {detail.sec_cik && (
-              <div>
-                <p className="font-mono text-xs text-white/40">SEC CIK</p>
-                <p className="font-mono text-sm text-white/60">{detail.sec_cik}</p>
-              </div>
-            )}
-          </div>
-        </motion.div>
-
-        {(detail as any).ai_profile_summary && (
-          <div className="mb-6">
-            <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
-            <p className="text-zinc-400 text-sm mt-1">{(detail as any).ai_profile_summary}</p>
-          </div>
-        )}
-
-        {/* ── Tab Navigation ── */}
-        <div className="mb-6 flex gap-1 border-b border-white/10 pb-0 overflow-x-auto shrink-0">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`whitespace-nowrap px-5 py-3 font-heading text-sm font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
-                activeTab === tab.key
-                  ? 'text-[#8B5CF6] border-[#8B5CF6]'
-                  : 'text-white/40 border-transparent hover:text-white/70'
-              }`}
-            >
-              {tab.label}
-            </button>
+      {/* Top Bar */}
+      <div
+        className="w-full px-6 py-3 flex items-center justify-between shrink-0 z-10 shadow-md"
+        style={{ background: ACCENT }}
+      >
+        <div className="flex items-center gap-6">
+          {[
+            ['ENTITY', detail.display_name],
+            ['SECTOR', (detail.sector_type || '').replace(/_/g, ' ').toUpperCase()],
+            ['CIK', detail.sec_cik || '\u2014'],
+          ].map(([label, value]) => (
+            <span key={label} className="text-sm tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              <span className="text-white/70">{label}: </span>
+              <span className="text-white font-bold">{value}</span>
+            </span>
           ))}
         </div>
+        <div className="flex items-center gap-3">
+          <ShareButton url={window.location.href} title={`${detail.display_name} — WeThePeople`} />
+        </div>
+      </div>
 
-        {/* ── Tab Content ── */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          {/* OVERVIEW */}
-          {activeTab === 'overview' && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3 }}
-              className="flex flex-col gap-8"
+      {/* Main Content: Sidebar + Data */}
+      <div className="flex flex-1 min-h-0">
+        {/* Left Sidebar */}
+        <div
+          className="hidden md:flex flex-col w-[30%] lg:w-[25%] border-r p-8 overflow-y-auto shrink-0"
+          style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}
+        >
+          {/* Logo */}
+          <div className="mb-6 flex justify-center">
+            <CompanyLogo
+              id={detail.company_id}
+              name={detail.display_name}
+              logoUrl={detail.logo_url}
+              localLogos={LOCAL_LOGOS}
+              size={128}
+              iconFallback
+              className="rounded-2xl"
+            />
+          </div>
+
+          {/* Name */}
+          <div className="flex items-center justify-center gap-3 mb-1">
+            <h1
+              className="text-3xl font-bold leading-tight text-center"
+              style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}
             >
-              {/* Stat cards */}
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <MetricCard label="Patents Filed" value={fmtNum(detail.patent_count)} icon={FileText} color="#F59E0B" />
-                <MetricCard label="Gov Contracts" value={fmtNum(detail.contract_count)} icon={Landmark} color="#3B82F6" />
-                <MetricCard label="Contract Value" value={fmtDollar(detail.total_contract_value)} icon={TrendingUp} color="#10B981" />
-                <MetricCard label="SEC Filings" value={fmtNum(detail.filing_count)} icon={Scale} color="#EF4444" />
-              </div>
-
-              {/* Stock data */}
-              {stk && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
-                  <SectionHeader title="Market Data" icon={TrendingUp} />
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-5 md:grid-cols-3 lg:grid-cols-4">
-                    {stk.market_cap != null && <div><p className="font-mono text-xs text-white/40 mb-1">Market Cap</p><p className="font-mono text-lg text-white">{fmtDollar(stk.market_cap)}</p></div>}
-                    {stk.pe_ratio != null && <div><p className="font-mono text-xs text-white/40 mb-1">P/E Ratio</p><p className="font-mono text-lg text-white">{stk.pe_ratio.toFixed(2)}</p></div>}
-                    {stk.eps != null && <div><p className="font-mono text-xs text-white/40 mb-1">EPS</p><p className="font-mono text-lg text-white">${stk.eps.toFixed(2)}</p></div>}
-                    {stk.profit_margin != null && <div><p className="font-mono text-xs text-white/40 mb-1">Profit Margin</p><p className="font-mono text-lg text-white">{fmtPct(stk.profit_margin)}</p></div>}
-                    {stk.dividend_yield != null && <div><p className="font-mono text-xs text-white/40 mb-1">Dividend Yield</p><p className="font-mono text-lg text-white">{fmtPct(stk.dividend_yield)}</p></div>}
-                    {stk.week_52_high != null && <div><p className="font-mono text-xs text-white/40 mb-1">52W High</p><p className="font-mono text-lg text-white">${stk.week_52_high.toFixed(2)}</p></div>}
-                    {stk.week_52_low != null && <div><p className="font-mono text-xs text-white/40 mb-1">52W Low</p><p className="font-mono text-lg text-white">${stk.week_52_low.toFixed(2)}</p></div>}
-                  </div>
-                </div>
-              )}
-
-              {/* Quick links to other tabs */}
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {detail.patent_count > 0 && (
-                  <button onClick={() => setActiveTab('patents')} className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-5 text-left transition-colors hover:bg-white/[0.06]">
-                    <FileText size={20} className="text-[#F59E0B] mb-2" />
-                    <p className="font-heading text-sm font-bold uppercase text-white">{detail.patent_count} Patents</p>
-                    <p className="font-body text-xs text-white/40 mt-1">USPTO patent filings</p>
-                  </button>
-                )}
-                {detail.contract_count > 0 && (
-                  <button onClick={() => setActiveTab('contracts')} className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-5 text-left transition-colors hover:bg-white/[0.06]">
-                    <Landmark size={20} className="text-[#3B82F6] mb-2" />
-                    <p className="font-heading text-sm font-bold uppercase text-white">{detail.contract_count} Contracts</p>
-                    <p className="font-body text-xs text-white/40 mt-1">Government contracts via USASpending</p>
-                  </button>
-                )}
-                {detail.filing_count > 0 && (
-                  <button onClick={() => setActiveTab('filings')} className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-5 text-left transition-colors hover:bg-white/[0.06]">
-                    <Scale size={20} className="text-[#EF4444] mb-2" />
-                    <p className="font-heading text-sm font-bold uppercase text-white">{detail.filing_count} SEC Filings</p>
-                    <p className="font-body text-xs text-white/40 mt-1">Regulatory filings via EDGAR</p>
-                  </button>
-                )}
-              </div>
-
-              {/* Activity Over Time */}
-              {trends && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
-                  <SectionHeader title="Activity Over Time" icon={TrendingUp} />
-                  <TrendChart data={trends} />
-                </div>
-              )}
-            </motion.div>
+              {detail.display_name}
+            </h1>
+            <WatchlistButton entityType="company" entityId={detail.company_id || companyId || ""} entityName={detail.display_name} sector="tech" />
+          </div>
+          {detail.headquarters && (
+            <p className="text-sm text-center mb-4" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
+              {detail.headquarters}
+            </p>
           )}
+          <div className="flex justify-center gap-2 mb-6">
+            {detail.ticker && (
+              <span className="rounded bg-[#8B5CF6]/20 px-3 py-1 font-mono text-sm font-bold text-[#A78BFA]">
+                {detail.ticker}
+              </span>
+            )}
+            <SanctionsBadge status={detail.sanctions_status} />
+            <AnomalyBadge entityType="company" entityId={companyId || ''} />
+          </div>
+
+          {(detail as any).ai_profile_summary && (
+            <div className="mb-6">
+              <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+              <p className="text-zinc-400 text-sm mt-1">{(detail as any).ai_profile_summary}</p>
+            </div>
+          )}
+
+          {/* Metadata */}
+          <div className="space-y-6">
+            {[
+              ['TICKER', detail.ticker],
+              ['SECTOR', detail.sector_type?.replace(/_/g, ' ')],
+              ['SEC CIK', detail.sec_cik],
+            ].map(([label, value]) => value ? (
+              <div key={label}>
+                <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{label}</p>
+                <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E2E8F0' }}>{value}</p>
+              </div>
+            ) : null)}
+          </div>
+
+          {/* Market Data in sidebar */}
+          {stk && (
+            <div className="mt-6 space-y-3">
+              <p className="text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>MARKET DATA</p>
+              {stk.market_cap != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Market Cap</p><p className="font-mono text-lg text-white">{fmtDollar(stk.market_cap)}</p></div>}
+              {stk.pe_ratio != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>P/E Ratio</p><p className="font-mono text-sm text-white">{stk.pe_ratio.toFixed(2)}</p></div>}
+              {stk.eps != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>EPS</p><p className="font-mono text-sm text-white">${stk.eps.toFixed(2)}</p></div>}
+              {stk.profit_margin != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Profit Margin</p><p className="font-mono text-sm text-white">{fmtPct(stk.profit_margin)}</p></div>}
+            </div>
+          )}
+
+          {/* Stats summary */}
+          <div className="mt-6 rounded-xl border p-4" style={{ background: `${ACCENT}10`, borderColor: `${ACCENT}30` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <FileText size={16} style={{ color: ACCENT }} />
+              <span className="text-xs font-bold uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: ACCENT }}>
+                OVERVIEW
+              </span>
+            </div>
+            <div className="space-y-2 text-sm" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              <div className="flex justify-between"><span className="text-white/50">Patents</span><span className="text-white font-bold">{fmtNum(detail.patent_count)}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Contracts</span><span className="text-white font-bold">{fmtNum(detail.contract_count)}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Contract Value</span><span className="text-white font-bold">{fmtDollar(detail.total_contract_value)}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">SEC Filings</span><span className="text-white font-bold">{fmtNum(detail.filing_count)}</span></div>
+            </div>
+          </div>
+
+          {/* Activity Over Time */}
+          {trends && (
+            <div className="mt-6">
+              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
+                Activity Over Time
+              </p>
+              <TrendChart data={trends} height={120} />
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel */}
+        <div className="flex-1 flex flex-col min-h-0" style={{ background: 'transparent' }}>
+          {/* Tabs */}
+          <div className="relative flex gap-8 border-b px-8 pt-4 shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className="relative pb-4 cursor-pointer bg-transparent border-0"
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '14px',
+                  color: activeTab === tab.key ? ACCENT : 'rgba(255,255,255,0.4)',
+                  fontWeight: activeTab === tab.key ? 700 : 400,
+                }}
+              >
+                {tab.label}
+                {activeTab === tab.key && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-1 rounded-full"
+                    style={{ background: ACCENT }}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto p-8" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
 
           {/* PATENTS */}
           {activeTab === 'patents' && (
@@ -823,6 +839,9 @@ export default function TechCompanyProfilePage() {
               )}
             </motion.div>
           )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </div>

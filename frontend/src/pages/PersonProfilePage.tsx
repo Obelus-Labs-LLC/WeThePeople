@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient, getApiBaseUrl } from '../api/client';
-import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
-import { ExternalLink, Heart, Share2 } from 'lucide-react';
+import { ExternalLink, Heart, Share2, FileText } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import TradeTimeline from '../components/TradeTimeline';
 import SanctionsBadge from '../components/SanctionsBadge';
@@ -23,7 +23,6 @@ import type {
   PersonVoteEntry,
   PersonFinance,
   PersonGraphResponse,
-  GraphConnection,
 } from '../api/types';
 
 // ── Constants ──
@@ -49,10 +48,9 @@ const TIER_COLORS: Record<string, string> = {
   none: '#EF4444',
 };
 
-type TabKey = 'overview' | 'legislation' | 'votes' | 'finance' | 'donors' | 'trades';
+type TabKey = 'legislation' | 'votes' | 'finance' | 'donors' | 'trades';
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
   { key: 'legislation', label: 'Legislation' },
   { key: 'votes', label: 'Voting Record' },
   { key: 'finance', label: 'Finance' },
@@ -200,8 +198,8 @@ export default function PersonProfilePage() {
   const [trends, setTrends] = useState<{ years: number[]; series: Record<string, number[]> } | null>(null);
 
   // ── Tabs ──
-  const [tab, setTab] = useState<TabKey>('overview');
-  const [loadedTabs, setLoadedTabs] = useState<Set<TabKey>>(new Set(['overview']));
+  const [tab, setTab] = useState<TabKey>('legislation');
+  const [loadedTabs, setLoadedTabs] = useState<Set<TabKey>>(new Set(['legislation']));
 
   // ── Mark tab loaded ──
   const markLoaded = useCallback((t: TabKey) => {
@@ -390,527 +388,356 @@ export default function PersonProfilePage() {
   // ══════════════════════════════════════════════
 
   return (
-    <div className="min-h-screen overflow-y-auto">
-      {/* ── HEADER ── */}
-      <header className="px-6 pt-6 pb-0 lg:px-16 lg:pt-14 lg:pb-0">
+    <div className="flex flex-col w-full h-screen relative">
+      {/* Header area */}
+      <div className="relative z-10 px-6 pt-4 shrink-0">
         <PoliticsSectorHeader />
-        <div className="mb-6">
+        <div className="mb-2">
           <Breadcrumbs items={[
             { label: 'Politics', to: '/politics' },
             { label: 'People', to: '/politics/people' },
             { label: displayName || 'Profile' },
           ]} />
         </div>
+      </div>
 
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+      {/* Colored accent top bar - uses PARTY COLOR */}
+      <div
+        className="w-full px-6 py-3 flex items-center justify-between shrink-0 z-10 shadow-md"
+        style={{ background: pColor }}
+      >
+        <div className="flex items-center gap-6">
+          {[
+            ['MEMBER', displayName],
+            ['PARTY', partyLabel(party) || '\u2014'],
+            ...(chamber ? [['CHAMBER', chamberLabel(chamber)]] : []),
+            ...(state ? [['STATE', state]] : []),
+          ].map(([label, value]) => (
+            <span key={label} className="text-sm tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              <span className="text-white/70">{label}: </span>
+              <span className="text-white font-bold">{value}</span>
+            </span>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <ShareButton url={window.location.href} title={`${displayName} — WeThePeople`} />
+        </div>
+      </div>
+
+      {/* Main Content: Sidebar + Data */}
+      <div className="flex flex-1 min-h-0">
+        {/* Left Sidebar */}
+        <div
+          className="hidden md:flex flex-col w-[30%] lg:w-[25%] border-r p-8 overflow-y-auto shrink-0"
+          style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}
+        >
           {/* Avatar */}
-          <div className="relative flex-shrink-0">
-            {photoUrl ? (
-              <img
-                src={photoUrl}
-                alt={displayName}
-                className="h-24 w-24 rounded-full border-2 border-white/10 object-cover"
+          <div className="mb-6 flex justify-center">
+            <div className="relative">
+              {photoUrl ? (
+                <img
+                  src={photoUrl}
+                  alt={displayName}
+                  className="h-32 w-32 rounded-full border-2 border-white/10 object-cover"
+                />
+              ) : (
+                <div
+                  className="flex h-32 w-32 items-center justify-center rounded-full font-heading text-3xl font-bold text-white"
+                  style={{ backgroundColor: pColor }}
+                >
+                  {initials(displayName)}
+                </div>
+              )}
+              <span
+                className={`absolute bottom-1 right-1 h-5 w-5 rounded-full border-2 ${isActive ? 'bg-emerald-500' : 'bg-gray-500'}`}
+                style={{ borderColor: '#020617' }}
+                title={isActive ? 'Active member' : 'Inactive member'}
               />
-            ) : (
-              <div
-                className="flex h-24 w-24 items-center justify-center rounded-full font-heading text-2xl font-bold text-white"
-                style={{ backgroundColor: pColor }}
+            </div>
+          </div>
+
+          {/* Name */}
+          <div className="flex items-center justify-center gap-3 mb-1">
+            <h1
+              className="text-3xl font-bold leading-tight text-center"
+              style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}
+            >
+              {displayName}
+            </h1>
+            <WatchlistButton entityType="politician" entityId={person_id || ''} entityName={displayName} />
+          </div>
+
+          {/* Party + Chamber + State */}
+          <div className="flex justify-center flex-wrap gap-2 mb-4">
+            {party && (
+              <span
+                className="rounded-full px-3 py-1 font-body text-xs font-bold uppercase"
+                style={{ backgroundColor: `${pColor}20`, color: pColor }}
               >
-                {initials(displayName)}
-              </div>
+                {partyLabel(party)}
+              </span>
             )}
-            <span
-              className={`absolute bottom-0 right-0 h-5 w-5 rounded-full border-2 ${isActive ? 'bg-emerald-500' : 'bg-gray-500'}`}
-              style={{ borderColor: '#020617' }}
-              title={isActive ? 'Active member' : 'Inactive member'}
-            />
+            {chamber && (
+              <span className="rounded-full bg-white/5 px-3 py-1 font-body text-xs font-bold uppercase text-white/70">
+                {chamberLabel(chamber)}
+              </span>
+            )}
+            {state && (
+              <span className="rounded-full bg-white/5 px-3 py-1 font-body text-xs font-bold uppercase text-white/70">
+                {state}
+              </span>
+            )}
           </div>
 
-          {/* Info */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white">
-                {displayName}
-              </h1>
-              <WatchlistButton entityType="politician" entityId={person_id || ''} entityName={displayName} />
+          {/* Badges */}
+          <div className="flex justify-center gap-2 mb-6">
+            <SanctionsBadge status={person?.sanctions_status} />
+            <AnomalyBadge entityType="person" entityId={person_id || ''} />
+          </div>
+
+          {/* AI Profile Summary */}
+          {(profile as any)?.ai_profile_summary && (
+            <div className="mb-6">
+              <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+              <p className="text-zinc-400 text-sm mt-1">{(profile as any).ai_profile_summary}</p>
             </div>
-            <p className="mt-1 font-mono text-sm text-white/40">
-              {state}{chamber ? ` \u00B7 ${chamberLabel(chamber)}` : ''}
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {party && (
-                <span
-                  className="rounded-full px-3 py-1 font-body text-xs font-bold uppercase"
-                  style={{ backgroundColor: `${pColor}20`, color: pColor }}
-                >
-                  {partyLabel(party)}
-                </span>
-              )}
-              {chamber && (
-                <span className="rounded-full bg-white/5 px-3 py-1 font-body text-xs font-bold uppercase text-white/70">
-                  {chamberLabel(chamber)}
-                </span>
-              )}
-              <SanctionsBadge status={person?.sanctions_status} />
-              <AnomalyBadge entityType="person" entityId={person_id || ''} />
-              <ShareButton url={window.location.href} title={`${displayName} — WeThePeople`} />
-              {/* Contribute to campaign */}
-              {displayName && (
-                <a
-                  href={getCampaignUrl(displayName, party)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-body text-xs font-bold uppercase transition-colors"
-                  style={{
-                    backgroundColor: `${pColor}15`,
-                    color: pColor,
-                    borderWidth: 1,
-                    borderColor: `${pColor}30`,
-                  }}
-                >
-                  <Heart className="w-3 h-3" />
-                  Contribute
-                </a>
-              )}
-              {/* View Network button */}
-              <Link
-                to={`/influence/network/person/${person_id}`}
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-body text-xs font-bold uppercase transition-colors no-underline bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25"
-              >
-                <Share2 className="w-3 h-3" />
-                View Network
-              </Link>
-            </div>
-          </div>
-        </div>
+          )}
 
-        {/* AI Profile Summary */}
-        {(profile as any)?.ai_profile_summary && (
-          <div className="mt-3">
-            <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
-            <p className="text-zinc-400 text-sm mt-1">{(profile as any).ai_profile_summary}</p>
-          </div>
-        )}
-
-        {/* Stat pills */}
-        <div className="mt-4 flex flex-wrap gap-3">
-          <StatPill
-            label="Bills Sponsored"
-            value={activity ? String(activity.sponsored_count) : '...'}
-          />
-          <StatPill
-            label="Votes Cast"
-            value={
-              votesData
-                ? String(
-                    Object.values(votesData.position_summary).reduce((a, b) => a + (Number(b) || 0), 0)
-                  )
-                : '...'
-            }
-          />
-          <StatPill
-            label="Legislative Actions"
-            value={performance ? String(performance.total_claims) : '...'}
-          />
-        </div>
-      </header>
-
-      {/* ── TAB NAVIGATION ── */}
-      <nav className="mt-8 flex gap-2 overflow-x-auto border-b border-white/10 px-6 lg:px-16" style={{ scrollbarWidth: 'none' }}>
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`cursor-pointer whitespace-nowrap pb-4 px-2 font-body text-lg font-medium transition-colors ${
-              tab === t.key
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-white/30 hover:text-white/50 border-b-2 border-transparent'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-
-      {/* ── TAB CONTENT ── */}
-      <main className="flex-1 min-h-0 px-6 py-8 lg:px-16 lg:py-10">
-        {tab === 'overview' && (
-          <OverviewTab
-            loading={overviewLoading}
-            profile={profile}
-            profileError={profileError}
-            performance={performance}
-            performanceError={performanceError}
-            stats={stats}
-            graph={graph}
-            activity={activity}
-            sortedPolicyAreas={sortedPolicyAreas}
-            accountabilityTier={accountabilityTier}
-            matchRate={matchRate}
-            committees={committees}
-            trends={trends}
-          />
-        )}
-        {tab === 'legislation' && (
-          <LegislationTab
-            loading={activityLoading}
-            activity={activity}
-            entries={filteredActivity}
-            totalEntries={activityEntries.length}
-            filter={activityFilter}
-            setFilter={setActivityFilter}
-            onLoadMore={loadMoreActivity}
-          />
-        )}
-        {tab === 'votes' && (
-          <VotingRecordTab
-            loading={votesLoading}
-            votesData={votesData}
-            entries={filteredVotes}
-            totalEntries={voteEntries.length}
-            filter={voteFilter}
-            setFilter={setVoteFilter}
-            onLoadMore={loadMoreVotes}
-          />
-        )}
-        {tab === 'finance' && (
-          <FinanceTab loading={financeLoading} finance={finance} />
-        )}
-        {tab === 'donors' && (
-          <IndustryDonorsTab loading={donorsLoading} donors={donors} />
-        )}
-        {tab === 'trades' && (
-          <StockTradesTab
-            loading={tradesLoading}
-            trades={trades}
-            bioguideId={person?.bioguide_id}
-            personName={person?.display_name || ''}
-            personId={person_id}
-            party={person?.party}
-          />
-        )}
-      </main>
-    </div>
-  );
-}
-
-// ── Stat Pill (header) ──
-
-function StatPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      className="rounded-lg border border-white/5 px-3 py-1.5 font-body text-sm text-white/70"
-      style={{ backgroundColor: '#0F172A' }}
-    >
-      <span className="font-mono font-semibold text-white">{value}</span>{' '}
-      <span className="text-white/40">{label}</span>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════
-//  OVERVIEW TAB
-// ══════════════════════════════════════════════
-
-function OverviewTab({
-  loading,
-  profile,
-  profileError,
-  performance,
-  performanceError,
-  stats,
-  graph,
-  activity,
-  sortedPolicyAreas,
-  accountabilityTier,
-  matchRate,
-  committees,
-  trends,
-}: {
-  loading: boolean;
-  profile: PersonProfile | null;
-  profileError: boolean;
-  performance: PersonPerformance | null;
-  performanceError: boolean;
-  stats: PersonStats | null;
-  graph: PersonGraphResponse | null;
-  activity: PersonActivityResponse | null;
-  sortedPolicyAreas: [string, number][];
-  accountabilityTier: string | null;
-  matchRate: number | null;
-  committees: Array<{
-    committee_name?: string;
-    committee_thomas_id?: string;
-    thomas_id?: string;
-    rank_in_order?: number;
-    parent_thomas_id?: string | null;
-    role?: string;
-    name?: string;
-    chamber?: string;
-  }>;
-  trends: { years: number[]; series: Record<string, number[]> } | null;
-}) {
-  if (loading) return <Spinner />;
-
-  return (
-    <div className="flex flex-col 2xl:flex-row gap-8">
-      {/* LEFT COLUMN (60%) */}
-      <div className="flex-1 2xl:w-[60%] space-y-8">
-        {/* ABOUT */}
-        <Card>
-          <CardTitle>About</CardTitle>
-          {profileError ? (
-            <SectionError message="Failed to load profile." />
-          ) : profile?.summary ? (
-            <>
-              <p className="font-body text-base leading-relaxed text-white/60">{profile.summary}</p>
+          {/* About / Summary */}
+          {profile?.summary && (
+            <div className="mb-6">
+              <span className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>About</span>
+              <p className="text-sm text-white/60 mt-1 leading-relaxed">{profile.summary}</p>
               {profile.url && (
                 <a
                   href={profile.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-4 inline-block font-body text-sm text-blue-400 transition-colors hover:text-blue-300 no-underline"
+                  className="mt-2 inline-block font-body text-xs text-blue-400 transition-colors hover:text-blue-300 no-underline"
                 >
                   Read more on Wikipedia &rarr;
                 </a>
               )}
-            </>
-          ) : (
-            <p className="font-body text-sm text-white/30">No profile available.</p>
+            </div>
           )}
-        </Card>
 
-        {/* QUICK FACTS */}
-        {profile?.infobox && Object.keys(profile.infobox).length > 0 && (
-          <Card>
-            <CardTitle>Quick Facts</CardTitle>
-            <div className="grid grid-cols-2 gap-y-3">
-              {Object.entries(profile.infobox)
-                .slice(0, 12)
-                .map(([key, val]) => (
+          {/* Metadata */}
+          <div className="space-y-4">
+            {[
+              ['PARTY', partyLabel(party)],
+              ['CHAMBER', chamber ? chamberLabel(chamber) : null],
+              ['STATE', state],
+              ['DISTRICT', (person as any)?.district || null],
+              ['NEXT ELECTION', (person as any)?.next_election || null],
+              ['BIOGUIDE ID', person?.bioguide_id || null],
+            ].map(([label, value]) => value ? (
+              <div key={label as string}>
+                <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{label}</p>
+                <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E2E8F0' }}>{value}</p>
+              </div>
+            ) : null)}
+          </div>
+
+          {/* Quick Facts */}
+          {profile?.infobox && Object.keys(profile.infobox).length > 0 && (
+            <div className="mt-6">
+              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>Quick Facts</p>
+              <div className="space-y-2">
+                {Object.entries(profile.infobox).slice(0, 8).map(([key, val]) => (
                   <div key={key}>
-                    <dt className="font-mono text-xs uppercase text-white/30">
-                      {key.replace(/_/g, ' ')}
-                    </dt>
-                    <dd className="mt-0.5 text-sm text-white/80">{val}</dd>
+                    <p className="font-mono text-[10px] uppercase text-white/30">{key.replace(/_/g, ' ')}</p>
+                    <p className="text-sm text-white/80">{val}</p>
                   </div>
                 ))}
-            </div>
-          </Card>
-        )}
-
-        {/* TOP POLICY AREAS */}
-        {sortedPolicyAreas.length > 0 && (
-          <Card>
-            <CardTitle>Top Policy Areas</CardTitle>
-            <div className="space-y-3">
-              {sortedPolicyAreas.map(([area, count]) => {
-                const max = sortedPolicyAreas[0][1];
-                const pct = max > 0 ? (count / max) * 100 : 0;
-                return (
-                  <div key={area} className="flex items-center gap-3">
-                    <span className="w-32 truncate text-sm text-white/70">{area}</span>
-                    <div className="flex-1 h-3 rounded-full" style={{ backgroundColor: '#020617' }}>
-                      <div
-                        className="h-3 rounded-full bg-blue-500 transition-all duration-1000"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="font-mono text-xs text-white/50 w-8 text-right">{count}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        )}
-
-        {/* ACTIVITY OVER TIME */}
-        {trends && (
-          <Card>
-            <CardTitle>Activity Over Time</CardTitle>
-            <TrendChart data={trends} />
-          </Card>
-        )}
-      </div>
-
-      {/* RIGHT COLUMN (40%) */}
-      <div className="2xl:w-[40%] space-y-8">
-        {/* LEGISLATIVE SUMMARY */}
-        <Card>
-          <CardTitle>Legislative Summary</CardTitle>
-          {performanceError ? (
-            <SectionError message="Performance data unavailable." />
-          ) : performance ? (
-            <>
-              <div className="font-mono text-4xl font-bold text-white">
-                {performance.total_claims}
               </div>
-              <p className="mt-1 font-body text-xs text-white/30">
-                Total legislative actions tracked
-              </p>
-              <div className="mt-2 font-mono text-lg text-white/60">
-                {performance.total_scored} scored &middot; {performance.total_actions} official actions
-              </div>
-            </>
-          ) : (
-            <p className="font-body text-sm text-white/30">No legislative data available.</p>
+            </div>
           )}
-        </Card>
 
-        {/* AT A GLANCE */}
-        <div>
-          <h3 className="font-heading text-xl font-bold uppercase tracking-wide text-white mb-4">
-            At a Glance
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            <GlanceCard label="Actions Count" value={stats?.actions_count ?? '—'} />
-            <GlanceCard label="Last Active" value={formatDate(stats?.last_action_date)} small />
-            <GlanceCard label="Legislative Actions" value={performance?.total_claims ?? '—'} />
-            <GlanceCard
-              label="Actions Scored"
-              value={performance?.total_scored ?? '—'}
-            />
+          {/* Stats overview */}
+          <div className="mt-6 rounded-xl border p-4" style={{ background: `${pColor}10`, borderColor: `${pColor}30` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <FileText size={16} style={{ color: pColor }} />
+              <span className="text-xs font-bold uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: pColor }}>
+                OVERVIEW
+              </span>
+            </div>
+            <div className="space-y-2 text-sm" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              <div className="flex justify-between"><span className="text-white/50">Bills Sponsored</span><span className="text-white font-bold">{activity ? activity.sponsored_count : '\u2014'}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Votes Cast</span><span className="text-white font-bold">{votesData ? Object.values(votesData.position_summary).reduce((a, b) => a + (Number(b) || 0), 0) : '\u2014'}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Legislative Actions</span><span className="text-white font-bold">{performance ? performance.total_claims : '\u2014'}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Actions Scored</span><span className="text-white font-bold">{performance ? performance.total_scored : '\u2014'}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Last Active</span><span className="text-white font-bold">{formatDate(stats?.last_action_date)}</span></div>
+              {committees.length > 0 && (
+                <div className="flex justify-between"><span className="text-white/50">Committees</span><span className="text-white font-bold">{committees.filter((c) => !c.parent_thomas_id).length}</span></div>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* COMMITTEES */}
-        {committees.length > 0 && (
-          <Card>
-            <CardTitle>Committees</CardTitle>
-            <div className="space-y-2">
-              {committees
-                .filter((c) => !c.parent_thomas_id)
-                .map((c) => {
-                  const roleLabel = c.role?.replace(/_/g, ' ');
-                  const isLeadership = c.role && c.role !== 'member';
+          {/* Accountability tier */}
+          {accountabilityTier && (
+            <div className="mt-4 rounded-lg border border-white/5 p-3" style={{ backgroundColor: '#0F172A' }}>
+              <p className="font-mono text-[10px] uppercase text-white/40 mb-1">Accountability</p>
+              <span
+                className="rounded-full px-2.5 py-0.5 font-mono text-xs font-bold uppercase"
+                style={{ backgroundColor: `${TIER_COLORS[accountabilityTier]}20`, color: TIER_COLORS[accountabilityTier] }}
+              >
+                {tierLabel(accountabilityTier)}
+              </span>
+            </div>
+          )}
+
+          {/* Campaign Contribute link */}
+          {displayName && (
+            <a
+              href={getCampaignUrl(displayName, party)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-6 flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-body text-sm font-bold uppercase transition-colors no-underline"
+              style={{
+                backgroundColor: `${pColor}15`,
+                color: pColor,
+                borderWidth: 1,
+                borderColor: `${pColor}30`,
+              }}
+            >
+              <Heart className="w-4 h-4" />
+              Contribute to Campaign
+            </a>
+          )}
+
+          {/* View Network link */}
+          <Link
+            to={`/influence/network/person/${person_id}`}
+            className="mt-3 flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-body text-sm font-bold uppercase transition-colors no-underline bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25"
+          >
+            <Share2 className="w-4 h-4" />
+            View Network
+          </Link>
+
+          {/* Top Policy Areas */}
+          {sortedPolicyAreas.length > 0 && (
+            <div className="mt-6">
+              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
+                Top Policy Areas
+              </p>
+              <div className="space-y-2">
+                {sortedPolicyAreas.map(([area, count]) => {
+                  const max = sortedPolicyAreas[0][1];
+                  const pct = max > 0 ? (count / max) * 100 : 0;
                   return (
-                    <Link
-                      key={c.thomas_id}
-                      to={`/politics/committees`}
-                      className="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] p-3 transition-colors hover:border-white/10 no-underline group"
-                    >
-                      <div
-                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold"
-                        style={{
-                          backgroundColor: c.chamber === 'senate' ? '#8B5CF620' : '#3B82F620',
-                          color: c.chamber === 'senate' ? '#8B5CF6' : '#3B82F6',
-                        }}
-                      >
-                        {c.chamber === 'senate' ? 'S' : c.chamber === 'joint' ? 'J' : 'H'}
+                    <div key={area}>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-xs text-white/60 truncate max-w-[70%]">{area}</span>
+                        <span className="font-mono text-[10px] text-white/40">{count}</span>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-body text-sm text-white group-hover:text-blue-400 transition-colors truncate">
-                          {c.name}
-                        </p>
-                        {isLeadership && (
-                          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[9px] text-blue-400 capitalize">
-                            {roleLabel}
-                          </span>
-                        )}
+                      <div className="h-1.5 rounded-full" style={{ backgroundColor: '#020617' }}>
+                        <div
+                          className="h-1.5 rounded-full transition-all duration-1000"
+                          style={{ width: `${pct}%`, backgroundColor: pColor }}
+                        />
                       </div>
-                    </Link>
+                    </div>
                   );
                 })}
+              </div>
             </div>
-            {committees.filter((c) => c.parent_thomas_id).length > 0 && (
-              <details className="mt-3">
-                <summary className="cursor-pointer font-mono text-xs text-white/30 hover:text-white/50 transition-colors">
-                  {committees.filter((c) => c.parent_thomas_id).length} subcommittee{committees.filter((c) => c.parent_thomas_id).length !== 1 ? 's' : ''}
-                </summary>
-                <div className="mt-2 space-y-1.5">
-                  {committees
-                    .filter((c) => c.parent_thomas_id)
-                    .map((c) => {
-                      const roleLabel = c.role?.replace(/_/g, ' ');
-                      const isLeadership = c.role && c.role !== 'member';
-                      return (
-                        <div
-                          key={c.thomas_id}
-                          className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.01] px-3 py-2"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="font-body text-xs text-white/60 truncate">{c.name}</p>
-                          </div>
-                          {isLeadership && (
-                            <span className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[9px] text-blue-400 capitalize flex-shrink-0">
-                              {roleLabel}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              </details>
-            )}
-          </Card>
-        )}
-
-        {/* NETWORK */}
-        <Card>
-          <CardTitle>Network</CardTitle>
-          {graph && graph.connections.length > 0 ? (
-            <div className="space-y-3">
-              {graph.connections.slice(0, 5).map((conn) => (
-                <NetworkRow key={conn.person_id} conn={conn} />
-              ))}
-            </div>
-          ) : (
-            <p className="font-body text-sm text-white/30">No connection data.</p>
           )}
-        </Card>
+
+          {/* Activity Over Time */}
+          {trends && (
+            <div className="mt-6">
+              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
+                Activity Over Time
+              </p>
+              <TrendChart data={trends} height={120} />
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel */}
+        <div className="flex-1 flex flex-col min-h-0" style={{ background: 'transparent' }}>
+          {/* Tab Navigation */}
+          <div className="relative flex gap-8 border-b px-8 pt-4 shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className="relative pb-4 cursor-pointer bg-transparent border-0"
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '14px',
+                  color: tab === t.key ? pColor : 'rgba(255,255,255,0.4)',
+                  fontWeight: tab === t.key ? 700 : 400,
+                }}
+              >
+                {t.label}
+                {tab === t.key && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-1 rounded-full"
+                    style={{ background: pColor }}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto p-8" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={tab}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+
+          {tab === 'legislation' && (
+            <LegislationTab
+              loading={activityLoading}
+              activity={activity}
+              entries={filteredActivity}
+              totalEntries={activityEntries.length}
+              filter={activityFilter}
+              setFilter={setActivityFilter}
+              onLoadMore={loadMoreActivity}
+            />
+          )}
+          {tab === 'votes' && (
+            <VotingRecordTab
+              loading={votesLoading}
+              votesData={votesData}
+              entries={filteredVotes}
+              totalEntries={voteEntries.length}
+              filter={voteFilter}
+              setFilter={setVoteFilter}
+              onLoadMore={loadMoreVotes}
+            />
+          )}
+          {tab === 'finance' && (
+            <FinanceTab loading={financeLoading} finance={finance} />
+          )}
+          {tab === 'donors' && (
+            <IndustryDonorsTab loading={donorsLoading} donors={donors} />
+          )}
+          {tab === 'trades' && (
+            <StockTradesTab
+              loading={tradesLoading}
+              trades={trades}
+              bioguideId={person?.bioguide_id}
+              personName={person?.display_name || ''}
+              personId={person_id}
+              party={person?.party}
+            />
+          )}
+
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
     </div>
-  );
-}
-
-function GlanceCard({
-  label,
-  value,
-  small = false,
-}: {
-  label: string;
-  value: string | number;
-  small?: boolean;
-}) {
-  return (
-    <div
-      className="rounded-xl border border-white/5 p-4"
-      style={{ backgroundColor: '#0F172A' }}
-    >
-      <div className={`font-mono font-bold text-white ${small ? 'text-lg' : 'text-2xl'}`}>
-        {value}
-      </div>
-      <div className="mt-1 font-body text-xs uppercase text-white/40">{label}</div>
-    </div>
-  );
-}
-
-function NetworkRow({ conn }: { conn: GraphConnection }) {
-  const color = partyColor(conn.party);
-  return (
-    <Link
-      to={`/politics/people/${conn.person_id}`}
-      className="flex items-center gap-3 group no-underline"
-    >
-      <div
-        className="flex h-8 w-8 items-center justify-center rounded-full border-2 font-heading text-xs font-bold text-white"
-        style={{ borderColor: color, backgroundColor: `${color}15` }}
-      >
-        {initials(conn.display_name)}
-      </div>
-      <div className="min-w-0 flex-1">
-        <span className="font-body text-sm text-white group-hover:text-blue-400 transition-colors">
-          {conn.display_name}
-        </span>
-        <span
-          className="ml-2 rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase"
-          style={{ backgroundColor: `${color}20`, color }}
-        >
-          {conn.party}
-        </span>
-      </div>
-      <span className="font-mono text-xs text-white/40">{conn.shared_bills} shared bills</span>
-    </Link>
   );
 }
 
