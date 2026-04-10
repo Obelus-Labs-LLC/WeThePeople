@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { EnergySectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import { getApiBaseUrl } from '../api/client';
@@ -242,7 +243,11 @@ export default function EnergyCompanyProfilePage() {
           <EnergySectorHeader />
         </div>
         <div className="mb-4 shrink-0">
-          <BackButton to="/energy/companies" label="Companies" />
+          <Breadcrumbs items={[
+            { label: 'Energy', to: '/energy' },
+            { label: 'Companies', to: '/energy/companies' },
+            { label: detail.display_name },
+          ]} />
         </div>
 
         {/* Company Banner */}

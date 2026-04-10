@@ -13,7 +13,7 @@ import ChemicalsLayout from "./layouts/ChemicalsLayout";
 import AgricultureLayout from "./layouts/AgricultureLayout";
 import TelecomLayout from "./layouts/TelecomLayout";
 import EducationLayout from "./layouts/EducationLayout";
-import VerifyLayout from "./layouts/VerifyLayout";
+// VerifyLayout removed — verification moved to verify.wethepeopleforus.com
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import GlobalSearch from "./components/GlobalSearch";
@@ -106,11 +106,7 @@ const DataExplorerPage = React.lazy(() => import("./pages/DataExplorerPage"));
 const DataStoryPage = React.lazy(() => import("./pages/DataStoryPage"));
 const InfluenceTimelinePage = React.lazy(() => import("./pages/InfluenceTimelinePage"));
 const AnomaliesPage = React.lazy(() => import("./pages/AnomaliesPage"));
-const VerifyDashboardPage = React.lazy(() => import("./pages/VerifyDashboardPage"));
-const VerifySubmitPage = React.lazy(() => import("./pages/VerifySubmitPage"));
-const VerifyResultPage = React.lazy(() => import("./pages/VerifyResultPage"));
-const VerifyEntityPage = React.lazy(() => import("./pages/VerifyEntityPage"));
-const VerifyMethodologyPage = React.lazy(() => import("./pages/VerifyMethodologyPage"));
+// Verify pages removed — verification moved to verify.wethepeopleforus.com
 const DigestSignupPage = React.lazy(() => import("./pages/DigestSignupPage"));
 const LoginPage = React.lazy(() => import("./pages/LoginPage"));
 const SignupPage = React.lazy(() => import("./pages/SignupPage"));
@@ -278,12 +274,7 @@ const App: React.FC = () => (
           <Route path="/education/enforcement" element={<EducationLayout><SectorEnforcementPage /></EducationLayout>} />
           <Route path="/education/:companyId" element={<EducationLayout><EducationCompanyProfilePage /></EducationLayout>} />
 
-          {/* Claim Verification section — wrapped in VerifyLayout */}
-          <Route path="/verify" element={<VerifyLayout><VerifyDashboardPage /></VerifyLayout>} />
-          <Route path="/verify/submit" element={<VerifyLayout><VerifySubmitPage /></VerifyLayout>} />
-          <Route path="/verify/results/:id" element={<VerifyLayout><VerifyResultPage /></VerifyLayout>} />
-          <Route path="/verify/entity/:type/:id" element={<VerifyLayout><VerifyEntityPage /></VerifyLayout>} />
-          <Route path="/verify/methodology" element={<VerifyLayout><VerifyMethodologyPage /></VerifyLayout>} />
+          {/* Verification moved to verify.wethepeopleforus.com */}
 
           {/* Stories */}
           <Route path="/stories" element={<StoriesPage />} />

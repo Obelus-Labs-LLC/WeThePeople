@@ -16,6 +16,13 @@ const sites = [
 
 export function EcosystemNav({ active }: EcosystemNavProps) {
   return (
+    <>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-amber-500 focus:text-black focus:rounded-lg focus:text-sm focus:font-semibold"
+      >
+        Skip to main content
+      </a>
     <nav className="w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-10 text-sm">
         <div className="flex items-center gap-1">
@@ -45,5 +52,6 @@ export function EcosystemNav({ active }: EcosystemNavProps) {
         </a>
       </div>
     </nav>
+    </>
   )
 }
