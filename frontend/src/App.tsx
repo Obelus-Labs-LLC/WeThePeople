@@ -107,6 +107,10 @@ const DataStoryPage = React.lazy(() => import("./pages/DataStoryPage"));
 const InfluenceTimelinePage = React.lazy(() => import("./pages/InfluenceTimelinePage"));
 const AnomaliesPage = React.lazy(() => import("./pages/AnomaliesPage"));
 // Verify pages removed — verification moved to verify.wethepeopleforus.com
+const CivicHubPage = React.lazy(() => import("./pages/CivicHubPage"));
+const PromiseDetailPage = React.lazy(() => import("./pages/PromiseDetailPage"));
+const BadgesPage = React.lazy(() => import("./pages/BadgesPage"));
+const CivicVerifyPage = React.lazy(() => import("./pages/CivicVerifyPage"));
 const DigestSignupPage = React.lazy(() => import("./pages/DigestSignupPage"));
 const LoginPage = React.lazy(() => import("./pages/LoginPage"));
 const SignupPage = React.lazy(() => import("./pages/SignupPage"));
@@ -274,7 +278,14 @@ const App: React.FC = () => (
           <Route path="/education/enforcement" element={<EducationLayout><SectorEnforcementPage /></EducationLayout>} />
           <Route path="/education/:companyId" element={<EducationLayout><EducationCompanyProfilePage /></EducationLayout>} />
 
-          {/* Verification moved to verify.wethepeopleforus.com */}
+          {/* Civic Hub — accountability, proposals, badges, verification */}
+          <Route path="/civic" element={<CivicHubPage />} />
+          <Route path="/civic/promises" element={<CivicHubPage />} />
+          <Route path="/civic/promises/:promiseId" element={<PromiseDetailPage />} />
+          <Route path="/civic/proposals" element={<CivicHubPage />} />
+          <Route path="/civic/annotations" element={<CivicHubPage />} />
+          <Route path="/civic/badges" element={<BadgesPage />} />
+          <Route path="/civic/verify" element={<CivicVerifyPage />} />
 
           {/* Stories */}
           <Route path="/stories" element={<StoriesPage />} />

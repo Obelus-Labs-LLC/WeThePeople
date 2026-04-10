@@ -638,6 +638,7 @@ import models.stories_models  # noqa: F401 — register stories table
 import models.twitter_models  # noqa: F401 — register tweet log table
 import models.government_data_models  # noqa: F401 — register SAM, Regulations.gov, IT Dashboard, Site Scanning tables
 import models.auth_models  # noqa: F401 — register User, APIKeyRecord, AuditLog tables
+import models.civic_models  # noqa: F401 — register promises, badges, proposals, annotations
 import services.rate_limit_store  # noqa: F401 — register rate_limit_records table
 import services.pipeline_reliability  # noqa: F401 — register DLQ, processed_records, data_quality_checks tables
 
