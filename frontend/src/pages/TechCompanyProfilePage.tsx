@@ -15,6 +15,7 @@ import { getApiBaseUrl } from '../api/client';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
 import TrendChart from '../components/TrendChart';
+import SpendingChart from '../components/SpendingChart';
 import ShareButton from '../components/ShareButton';
 import WatchlistButton from '../components/WatchlistButton';
 import {
@@ -547,37 +548,12 @@ export default function TechCompanyProfilePage() {
               )}
 
               {/* Trends bar chart */}
-              {contractTrends.length > 0 && (() => {
-                const BAR_COLORS = ['#EF4444', '#F59E0B', '#CDDC39', '#22D3EE', '#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F97316', '#6366F1'];
-                const maxAmt = Math.max(...contractTrends.map((tr) => tr.total_amount));
-                return (
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                    <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-6">Spending Over the Years</h2>
-                    <div className="flex items-end gap-3 h-56">
-                      {contractTrends.map((t, i) => {
-                        const pct = maxAmt > 0 ? (t.total_amount / maxAmt) * 100 : 0;
-                        const color = BAR_COLORS[i % BAR_COLORS.length];
-                        return (
-                          <div key={t.year} className="flex flex-col items-center flex-1 gap-0 h-full justify-end">
-                            <div
-                              className="w-full rounded-t-lg flex items-center justify-center transition-all duration-700 ease-out min-h-[28px]"
-                              style={{
-                                height: `${Math.max(pct, 8)}%`,
-                                backgroundColor: color,
-                              }}
-                            >
-                              <span className="font-mono text-xs font-bold text-white drop-shadow-sm">
-                                {fmtDollar(t.total_amount)}
-                              </span>
-                            </div>
-                            <span className="font-mono text-xs text-white/50 mt-2">{t.year}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
+              {contractTrends.length > 0 && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
+                  <h2 className="font-heading text-sm font-bold uppercase text-white/60 mb-6">Spending Over the Years</h2>
+                  <SpendingChart data={contractTrends} />
+                </div>
+              )}
 
               {/* Top agencies */}
               {contractSummary && Object.keys(contractSummary.by_agency).length > 0 && (
