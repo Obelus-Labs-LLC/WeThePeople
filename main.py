@@ -114,6 +114,10 @@ from routers.lookup import router as lookup_router
 # --- Backward-compatible mounts (unprefixed, existing clients) ---
 app.include_router(auth_router)
 app.include_router(common_router)
+# Claims router MUST come before politics_router: politics has a greedy
+# /claims/{claim_id} path-param route that would swallow requests for
+# /claims/verifications, /claims/dashboard/stats, etc.
+app.include_router(claims_router, prefix="/claims", tags=["claims"])
 app.include_router(politics_router)
 app.include_router(finance_router)
 app.include_router(health_router)
@@ -132,7 +136,6 @@ app.include_router(telecom_router)
 app.include_router(infrastructure_router)
 app.include_router(state_router)
 app.include_router(aggregate_router)
-app.include_router(claims_router, prefix="/claims", tags=["claims"])
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
 app.include_router(anomalies_router)
 app.include_router(digest_router)
