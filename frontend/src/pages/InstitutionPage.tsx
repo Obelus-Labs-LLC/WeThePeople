@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Landmark, TrendingUp, FileSearch, Calendar, Hash, Download,
   ExternalLink, CheckCircle, XCircle,
@@ -114,16 +115,14 @@ function FilingRow({ filing }: { filing: SECFiling }) {
 
 // ── Tab Types ──
 
-type TabKey = 'overview' | 'lobbying' | 'contracts' | 'enforcement' | 'insider' | 'donations' | 'financials';
+type TabKey = 'lobbying' | 'contracts' | 'enforcement' | 'insider' | 'donations' | 'financials';
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
   { key: 'lobbying', label: 'Lobbying' },
   { key: 'contracts', label: 'Contracts' },
   { key: 'enforcement', label: 'Enforcement' },
   { key: 'insider', label: 'Insider Trades' },
   { key: 'donations', label: 'Donations' },
-  // { key: 'complaints', label: 'Complaints' },  // Hidden from UI — summary shown in Overview
   { key: 'financials', label: 'Financials' },
 ];
 
@@ -131,7 +130,7 @@ const TABS: { key: TabKey; label: string }[] = [
 
 export default function InstitutionPage() {
   const { institution_id } = useParams<{ institution_id: string }>();
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [activeTab, setActiveTab] = useState<TabKey>('lobbying');
 
   // Overview data
   const [detail, setDetail] = useState<InstitutionDetail | null>(null);
@@ -281,184 +280,208 @@ export default function InstitutionPage() {
   }
 
   const latestFin = financials[0] || null;
+  const ACCENT = '#34D399';
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-transparent">
-      <div className="flex flex-1 flex-col overflow-hidden px-8 py-8 lg:px-12">
+    <div className="flex flex-col w-full h-screen relative">
+      <div className="relative z-10 px-6 pt-4 shrink-0">
         <FinanceSectorHeader />
-        <div className="mb-4 shrink-0">
+        <div className="mb-2">
           <Breadcrumbs items={[
             { label: 'Finance', to: '/finance' },
             { label: 'Institutions', to: '/finance/institutions' },
             { label: detail.display_name },
           ]} />
         </div>
+      </div>
 
-        {/* ── Top Banner ── */}
-        <div className="mb-6 flex items-center gap-6 rounded-xl border border-white/10 bg-white/[0.03] p-6 animate-fade-up shrink-0">
-          <CompanyLogo
-            id={detail.institution_id}
-            name={detail.display_name}
-            logoUrl={detail.logo_url}
-            localLogos={LOCAL_LOGOS}
-            size={64}
-            iconFallback
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">{detail.display_name}</h1>
-              <WatchlistButton entityType="company" entityId={detail.institution_id || institution_id || ""} entityName={detail.display_name} sector="finance" />
-            </div>
-            <div className="mt-2 flex items-center gap-3 flex-wrap">
-              {detail.ticker && <span className="rounded bg-white/10 px-3 py-1 font-mono text-sm text-white">{detail.ticker}</span>}
-              <span className="font-mono text-xs uppercase tracking-wider text-white/40">{detail.sector_type.replace(/_/g, ' ')}</span>
-              <SanctionsBadge status={detail.sanctions_status} />
-              <ShareButton url={window.location.href} title={`${detail.display_name} — WeThePeople`} />
-              {detail.headquarters && (
-                <span className="flex items-center gap-1 font-body text-sm text-white/50">
-                  <span className="text-white/30">·</span> {detail.headquarters}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="hidden flex-shrink-0 text-right md:block">
-            {detail.sec_cik && (<div className="mb-2"><p className="font-mono text-xs text-white/40">CIK</p><p className="font-mono text-lg text-white">{detail.sec_cik}</p></div>)}
-            {detail.fdic_cert && (<div><p className="font-mono text-xs text-white/40">FDIC CERT</p><p className="font-mono text-lg text-white">{detail.fdic_cert}</p></div>)}
-          </div>
-        </div>
-        {(detail as any).ai_profile_summary && (
-          <div className="mb-6">
-            <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
-            <p className="text-zinc-400 text-sm mt-1">{(detail as any).ai_profile_summary}</p>
-          </div>
-        )}
-
-        {/* ── Tab Navigation ── */}
-        <div className="mb-6 flex gap-1 border-b border-white/10 pb-0 overflow-x-auto shrink-0">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`whitespace-nowrap px-5 py-3 font-heading text-sm font-bold uppercase tracking-wider transition-colors border-b-2 ${
-                activeTab === tab.key
-                  ? 'text-[#34D399] border-[#34D399]'
-                  : 'text-white/40 border-transparent hover:text-white/70'
-              }`}
-            >
-              {tab.label}
-            </button>
+      {/* Top Bar */}
+      <div
+        className="w-full px-6 py-3 flex items-center justify-between shrink-0 z-10 shadow-md"
+        style={{ background: ACCENT }}
+      >
+        <div className="flex items-center gap-6">
+          {[
+            ['ENTITY', detail.display_name],
+            ['SECTOR', (detail.sector_type || '').replace(/_/g, ' ').toUpperCase()],
+            ['CIK', detail.sec_cik || '\u2014'],
+          ].map(([label, value]) => (
+            <span key={label} className="text-sm tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              <span className="text-white/70">{label}: </span>
+              <span className="text-white font-bold">{value}</span>
+            </span>
           ))}
         </div>
+        <div className="flex items-center gap-3">
+          <ShareButton url={window.location.href} title={`${detail.display_name} — WeThePeople`} />
+        </div>
+      </div>
 
-        {/* ── Tab Content ── */}
-        <div className="flex-1 overflow-hidden min-h-0">
-          {/* OVERVIEW TAB */}
-          {activeTab === 'overview' && (
-            <div className="grid h-full grid-cols-1 gap-8 xl:grid-cols-3 overflow-y-auto">
-              {/* Left: Financials + Stock */}
-              <div className="flex flex-col gap-8 xl:col-span-1 xl:overflow-y-auto xl:pr-4">
-                {/* FDIC Financials */}
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 animate-fade-up" style={{ animationDelay: '100ms' }}>
-                  <div className="mb-6 flex items-center justify-between border-b border-white/10 pb-4">
-                    <h2 className="font-heading text-xl font-bold uppercase text-white">FDIC Financials</h2>
-                    <Landmark size={20} className="text-[#34D399]" />
-                  </div>
-                  {latestFin ? (
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-6">
-                      <MetricItem label="Total Assets" value={fmtDollar(latestFin.total_assets)} />
-                      <MetricItem label="Total Deposits" value={fmtDollar(latestFin.total_deposits)} />
-                      <MetricItem label="Net Income" value={fmtDollar(latestFin.net_income)} />
-                      <MetricItem label="Net Loans" value={fmtDollar(latestFin.net_loans)} />
-                      <MetricItem label="ROA" value={fmtPctRaw(latestFin.roa)} />
-                      <MetricItem label="ROE" value={fmtPctRaw(latestFin.roe)} />
-                      <MetricItem label="Tier 1 Capital" value={fmtPctRaw(latestFin.tier1_capital_ratio)} />
-                      <MetricItem label="Efficiency Ratio" value={fmtPctRaw(latestFin.efficiency_ratio)} />
-                      <MetricItem label="Noncurrent Loans" value={fmtPctRaw(latestFin.noncurrent_loan_ratio)} />
-                      <MetricItem label="Net Charge-Off" value={fmtPctRaw(latestFin.net_charge_off_ratio)} />
-                      {latestFin.report_date && <MetricItem label="Report Date" value={latestFin.report_date} />}
-                    </div>
-                  ) : (
-                    <p className="font-body text-sm text-white/40">No FDIC data available.</p>
-                  )}
-                </div>
+      {/* Main Content: Sidebar + Data */}
+      <div className="flex flex-1 min-h-0">
+        {/* Left Sidebar */}
+        <div
+          className="hidden md:flex flex-col w-[30%] lg:w-[25%] border-r p-8 overflow-y-auto shrink-0"
+          style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}
+        >
+          {/* Logo */}
+          <div className="mb-6 flex justify-center">
+            <CompanyLogo
+              id={detail.institution_id}
+              name={detail.display_name}
+              logoUrl={detail.logo_url}
+              localLogos={LOCAL_LOGOS}
+              size={128}
+              iconFallback
+              className="rounded-2xl"
+            />
+          </div>
 
-                {/* Market Fundamentals */}
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 animate-fade-up" style={{ animationDelay: '200ms' }}>
-                  <div className="mb-6 flex items-center justify-between border-b border-white/10 pb-4">
-                    <h2 className="font-heading text-xl font-bold uppercase text-white">Market Fundamentals</h2>
-                    <TrendingUp size={20} className="text-[#34D399]" />
-                  </div>
-                  {stock ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-6">
-                        <MetricItem label="Market Cap" value={fmtDollar(stock.market_cap)} />
-                        <MetricItem label="P/E Ratio" value={fmtRatio(stock.pe_ratio)} />
-                        <MetricItem label="Forward P/E" value={fmtRatio(stock.forward_pe)} />
-                        <MetricItem label="PEG Ratio" value={fmtRatio(stock.peg_ratio)} />
-                        <MetricItem label="Price/Book" value={fmtRatio(stock.price_to_book)} />
-                        <MetricItem label="EPS" value={stock.eps != null ? `$${stock.eps.toFixed(2)}` : '—'} />
-                        <MetricItem label="Revenue (TTM)" value={fmtDollar(stock.revenue_ttm)} />
-                        <MetricItem label="Profit Margin" value={fmtPct(stock.profit_margin)} />
-                        <MetricItem label="Operating Margin" value={fmtPct(stock.operating_margin)} />
-                        <MetricItem label="Return on Equity" value={fmtPct(stock.return_on_equity)} />
-                        <MetricItem label="Dividend Yield" value={fmtPct(stock.dividend_yield)} />
-                        <MetricItem label="52W High" value={stock.week_52_high != null ? `$${stock.week_52_high.toFixed(2)}` : '—'} />
-                        <MetricItem label="52W Low" value={stock.week_52_low != null ? `$${stock.week_52_low.toFixed(2)}` : '—'} />
-                        <MetricItem label="50-Day MA" value={stock.day_50_moving_avg != null ? `$${stock.day_50_moving_avg.toFixed(2)}` : '—'} />
-                        <MetricItem label="200-Day MA" value={stock.day_200_moving_avg != null ? `$${stock.day_200_moving_avg.toFixed(2)}` : '—'} />
-                      </div>
-                      {(stock.sector || stock.industry) && (
-                        <div className="mt-6 border-t border-white/10 pt-4">
-                          {stock.sector && <p className="font-mono text-xs text-white/40 mb-1">SECTOR: <span className="text-white/80">{stock.sector}</span></p>}
-                          {stock.industry && <p className="font-mono text-xs text-white/40">INDUSTRY: <span className="text-white/80">{stock.industry}</span></p>}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="font-body text-sm text-white/40">No stock data available.</p>
-                  )}
-                </div>
-              </div>
+          {/* Name */}
+          <div className="flex items-center justify-center gap-3 mb-1">
+            <h1
+              className="text-3xl font-bold leading-tight text-center"
+              style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}
+            >
+              {detail.display_name}
+            </h1>
+            <WatchlistButton entityType="company" entityId={detail.institution_id || institution_id || ""} entityName={detail.display_name} sector="finance" />
+          </div>
+          {detail.headquarters && (
+            <p className="text-sm text-center mb-4" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
+              {detail.headquarters}
+            </p>
+          )}
+          <div className="flex justify-center gap-2 mb-6 flex-wrap">
+            {detail.ticker && (
+              <span className="rounded bg-[#34D399]/20 px-3 py-1 font-mono text-sm font-bold text-[#6EE7B7]">
+                {detail.ticker}
+              </span>
+            )}
+            <SanctionsBadge status={detail.sanctions_status} />
+            <AnomalyBadge entityType="company" entityId={institution_id || ''} />
+          </div>
 
-              {/* Right: SEC Filings */}
-              <div className="flex flex-col xl:col-span-2 animate-fade-up" style={{ animationDelay: '300ms' }}>
-                <div className="flex flex-1 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-6">
-                  <div className="mb-6 flex items-center justify-between border-b border-white/10 pb-4">
-                    <h2 className="font-heading text-xl font-bold uppercase text-white">Recent SEC Filings</h2>
-                    <FileSearch size={20} className="text-[#34D399]" />
-                  </div>
-                  {filings.length === 0 ? (
-                    <p className="font-body text-sm text-white/40">No SEC filings on record.</p>
-                  ) : (
-                    <div className="flex-1 space-y-3 overflow-y-auto pr-4">
-                      {filings.map((f) => <FilingRow key={f.id} filing={f} />)}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* CFPB Complaints summary */}
-              {detail && detail.complaint_count > 0 && (
-                <div className="xl:col-span-3 mt-2 rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3 animate-fade-up" style={{ animationDelay: '400ms' }}>
-                  <p className="font-mono text-sm text-white/50">
-                    <span className="font-bold text-white/70">{detail.complaint_count.toLocaleString()}</span> CFPB complaints on file
-                  </p>
-                </div>
-              )}
-
-              {/* Activity Over Time */}
-              {trends && (
-                <div className="xl:col-span-3 rounded-xl border border-white/10 bg-white/[0.03] p-6 animate-fade-up" style={{ animationDelay: '500ms' }}>
-                  <h2 className="font-heading text-xl font-bold uppercase text-white mb-4">Activity Over Time</h2>
-                  <TrendChart data={trends} />
-                </div>
-              )}
+          {(detail as any).ai_profile_summary && (
+            <div className="mb-6">
+              <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+              <p className="text-zinc-400 text-sm mt-1">{(detail as any).ai_profile_summary}</p>
             </div>
           )}
 
+          {/* Metadata */}
+          <div className="space-y-6">
+            {[
+              ['TICKER', detail.ticker],
+              ['SECTOR', detail.sector_type?.replace(/_/g, ' ')],
+              ['SEC CIK', detail.sec_cik],
+              ['FDIC CERT', detail.fdic_cert],
+            ].map(([label, value]) => value ? (
+              <div key={label}>
+                <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{label}</p>
+                <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E2E8F0' }}>{value}</p>
+              </div>
+            ) : null)}
+          </div>
+
+          {/* Market Data in sidebar */}
+          {stock && (
+            <div className="mt-6 space-y-3">
+              <p className="text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>MARKET DATA</p>
+              {stock.market_cap != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Market Cap</p><p className="font-mono text-lg text-white">{fmtDollar(stock.market_cap)}</p></div>}
+              {stock.pe_ratio != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>P/E Ratio</p><p className="font-mono text-sm text-white">{stock.pe_ratio.toFixed(2)}</p></div>}
+              {stock.eps != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>EPS</p><p className="font-mono text-sm text-white">${stock.eps.toFixed(2)}</p></div>}
+              {stock.profit_margin != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Profit Margin</p><p className="font-mono text-sm text-white">{fmtPct(stock.profit_margin)}</p></div>}
+              {stock.dividend_yield != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Dividend Yield</p><p className="font-mono text-sm text-white">{fmtPct(stock.dividend_yield)}</p></div>}
+            </div>
+          )}
+
+          {/* FDIC Snapshot in sidebar */}
+          {latestFin && (
+            <div className="mt-6 space-y-3">
+              <p className="text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>FDIC SNAPSHOT</p>
+              <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Total Assets</p><p className="font-mono text-lg text-white">{fmtDollar(latestFin.total_assets)}</p></div>
+              <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Total Deposits</p><p className="font-mono text-sm text-white">{fmtDollar(latestFin.total_deposits)}</p></div>
+              <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Net Income</p><p className="font-mono text-sm text-white">{fmtDollar(latestFin.net_income)}</p></div>
+              <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Tier 1 Capital</p><p className="font-mono text-sm text-white">{fmtPctRaw(latestFin.tier1_capital_ratio)}</p></div>
+            </div>
+          )}
+
+          {/* Stats summary */}
+          <div className="mt-6 rounded-xl border p-4" style={{ background: `${ACCENT}10`, borderColor: `${ACCENT}30` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Landmark size={16} style={{ color: ACCENT }} />
+              <span className="text-xs font-bold uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: ACCENT }}>
+                OVERVIEW
+              </span>
+            </div>
+            <div className="space-y-2 text-sm" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              <div className="flex justify-between"><span className="text-white/50">SEC Filings</span><span className="text-white font-bold">{filings.length}</span></div>
+              {detail.complaint_count > 0 && (
+                <div className="flex justify-between"><span className="text-white/50">CFPB Complaints</span><span className="text-white font-bold">{detail.complaint_count.toLocaleString()}</span></div>
+              )}
+              {latestFin && (
+                <>
+                  <div className="flex justify-between"><span className="text-white/50">ROA</span><span className="text-white font-bold">{fmtPctRaw(latestFin.roa)}</span></div>
+                  <div className="flex justify-between"><span className="text-white/50">ROE</span><span className="text-white font-bold">{fmtPctRaw(latestFin.roe)}</span></div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Activity Over Time */}
+          {trends && (
+            <div className="mt-6">
+              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
+                Activity Over Time
+              </p>
+              <TrendChart data={trends} height={120} />
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel */}
+        <div className="flex-1 flex flex-col min-h-0" style={{ background: 'transparent' }}>
+          {/* Tabs */}
+          <div className="relative flex gap-8 border-b px-8 pt-4 shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className="relative pb-4 cursor-pointer bg-transparent border-0"
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '14px',
+                  color: activeTab === tab.key ? ACCENT : 'rgba(255,255,255,0.4)',
+                  fontWeight: activeTab === tab.key ? 700 : 400,
+                }}
+              >
+                {tab.label}
+                {activeTab === tab.key && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-1 rounded-full"
+                    style={{ background: ACCENT }}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto p-8" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+
           {/* INSIDER TRADES TAB */}
           {activeTab === 'insider' && (
-            <div className="flex h-full flex-col overflow-hidden">
+            <div className="flex flex-col">
               {/* Filter */}
               <div className="mb-4 flex items-center gap-3 shrink-0">
                 <span className="font-mono text-xs text-white/40">FILTER:</span>
@@ -470,7 +493,7 @@ export default function InstitutionPage() {
                 ))}
               </div>
               {/* Table */}
-              <div className="flex-1 overflow-y-auto rounded-xl border border-white/10 bg-white/[0.03]">
+              <div className="rounded-xl border border-white/10 bg-white/[0.03]">
                 {!tradesLoaded ? (
                   <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
                 ) : (
@@ -490,7 +513,7 @@ export default function InstitutionPage() {
                         <tr key={t.id}
                           className="border-b border-white/5 transition-colors hover:bg-white/5 cursor-pointer"
                           onClick={() => t.filing_url && window.open(t.filing_url, '_blank')}>
-                          <td className="px-4 py-4 font-mono text-xs text-white/50">{t.transaction_date || '—'}</td>
+                          <td className="px-4 py-4 font-mono text-xs text-white/50">{t.transaction_date || '\u2014'}</td>
                           <td className="px-4 py-4">
                             <p className="font-body text-sm font-bold text-white">{t.filer_name}</p>
                             {t.filer_title && <p className="font-mono text-[10px] text-white/40">{t.filer_title}</p>}
@@ -501,11 +524,11 @@ export default function InstitutionPage() {
                               t.transaction_type === 'S' ? 'bg-[rgba(239,68,68,0.1)] text-[#EF4444]' :
                               'bg-[rgba(245,158,11,0.1)] text-[#FBBF24]'
                             }`}>
-                              {t.transaction_type === 'P' ? 'PURCHASE' : t.transaction_type === 'S' ? 'SALE' : t.transaction_type === 'A' ? 'AWARD' : t.transaction_type || '—'}
+                              {t.transaction_type === 'P' ? 'PURCHASE' : t.transaction_type === 'S' ? 'SALE' : t.transaction_type === 'A' ? 'AWARD' : t.transaction_type || '\u2014'}
                             </span>
                           </td>
-                          <td className="px-4 py-4 text-right font-mono text-sm text-white">{t.shares != null ? t.shares.toLocaleString() : '—'}</td>
-                          <td className="px-4 py-4 text-right font-mono text-sm text-white">{t.price_per_share != null ? `$${t.price_per_share.toFixed(2)}` : '—'}</td>
+                          <td className="px-4 py-4 text-right font-mono text-sm text-white">{t.shares != null ? t.shares.toLocaleString() : '\u2014'}</td>
+                          <td className="px-4 py-4 text-right font-mono text-sm text-white">{t.price_per_share != null ? `$${t.price_per_share.toFixed(2)}` : '\u2014'}</td>
                           <td className="px-4 py-4 text-right font-mono text-sm font-bold text-white">{fmtDollar(t.total_value)}</td>
                         </tr>
                       ))}
@@ -521,7 +544,7 @@ export default function InstitutionPage() {
 
           {/* LOBBYING TAB */}
           {activeTab === 'lobbying' && (
-            <div className="h-full overflow-y-auto pr-4">
+            <div>
               {!lobbyingLoaded ? (
                 <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
               ) : lobbyingData.length === 0 ? (
@@ -558,7 +581,7 @@ export default function InstitutionPage() {
 
           {/* CONTRACTS TAB */}
           {activeTab === 'contracts' && (
-            <div className="h-full overflow-y-auto pr-4">
+            <div>
               {!contractsLoaded ? (
                 <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
               ) : contractsData.length === 0 ? (
@@ -590,7 +613,7 @@ export default function InstitutionPage() {
 
           {/* ENFORCEMENT TAB */}
           {activeTab === 'enforcement' && (
-            <div className="h-full overflow-y-auto pr-4">
+            <div>
               {!enforcementLoaded ? (
                 <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
               ) : enforcementData.length === 0 ? (
@@ -629,7 +652,7 @@ export default function InstitutionPage() {
 
           {/* DONATIONS TAB */}
           {activeTab === 'donations' && (
-            <div className="h-full overflow-y-auto pr-4">
+            <div>
               {!donationsLoaded ? (
                 <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
               ) : donationsData.length === 0 ? (
@@ -662,11 +685,80 @@ export default function InstitutionPage() {
             </div>
           )}
 
-          {/* COMPLAINTS TAB — Hidden from UI. Summary shown in Overview tab. */}
-
           {/* FINANCIALS TAB (SEC filings + FDIC + FRED) */}
           {activeTab === 'financials' && (
-            <div className="h-full overflow-y-auto pr-4 space-y-6">
+            <div className="space-y-6">
+              {/* FDIC Financials */}
+              <div>
+                <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">FDIC Financials</h3>
+                {latestFin ? (
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[
+                      { label: 'Total Assets', value: fmtDollar(latestFin.total_assets) },
+                      { label: 'Total Deposits', value: fmtDollar(latestFin.total_deposits) },
+                      { label: 'Net Income', value: fmtDollar(latestFin.net_income) },
+                      { label: 'Net Loans', value: fmtDollar(latestFin.net_loans) },
+                      { label: 'ROA', value: fmtPctRaw(latestFin.roa) },
+                      { label: 'ROE', value: fmtPctRaw(latestFin.roe) },
+                      { label: 'Tier 1 Capital', value: fmtPctRaw(latestFin.tier1_capital_ratio) },
+                      { label: 'Efficiency Ratio', value: fmtPctRaw(latestFin.efficiency_ratio) },
+                      { label: 'Noncurrent Loans', value: fmtPctRaw(latestFin.noncurrent_loan_ratio) },
+                      { label: 'Net Charge-Off', value: fmtPctRaw(latestFin.net_charge_off_ratio) },
+                    ].map((m) => (
+                      <div key={m.label} className="rounded border border-white/5 bg-white/[0.02] p-3">
+                        <p className="text-xs text-white/40 mb-1">{m.label}</p>
+                        <p className="font-mono text-lg text-white">{m.value}</p>
+                      </div>
+                    ))}
+                    {latestFin.report_date && (
+                      <div className="rounded border border-white/5 bg-white/[0.02] p-3">
+                        <p className="text-xs text-white/40 mb-1">Report Date</p>
+                        <p className="font-mono text-lg text-white">{latestFin.report_date}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="font-body text-sm text-white/30">No FDIC data available.</p>
+                )}
+              </div>
+
+              {/* Market Fundamentals */}
+              {stock && (
+                <div>
+                  <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">Market Fundamentals</h3>
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[
+                      { label: 'Market Cap', value: fmtDollar(stock.market_cap) },
+                      { label: 'P/E Ratio', value: fmtRatio(stock.pe_ratio) },
+                      { label: 'Forward P/E', value: fmtRatio(stock.forward_pe) },
+                      { label: 'PEG Ratio', value: fmtRatio(stock.peg_ratio) },
+                      { label: 'Price/Book', value: fmtRatio(stock.price_to_book) },
+                      { label: 'EPS', value: stock.eps != null ? `$${stock.eps.toFixed(2)}` : '\u2014' },
+                      { label: 'Revenue (TTM)', value: fmtDollar(stock.revenue_ttm) },
+                      { label: 'Profit Margin', value: fmtPct(stock.profit_margin) },
+                      { label: 'Operating Margin', value: fmtPct(stock.operating_margin) },
+                      { label: 'Return on Equity', value: fmtPct(stock.return_on_equity) },
+                      { label: 'Dividend Yield', value: fmtPct(stock.dividend_yield) },
+                      { label: '52W High', value: stock.week_52_high != null ? `$${stock.week_52_high.toFixed(2)}` : '\u2014' },
+                      { label: '52W Low', value: stock.week_52_low != null ? `$${stock.week_52_low.toFixed(2)}` : '\u2014' },
+                      { label: '50-Day MA', value: stock.day_50_moving_avg != null ? `$${stock.day_50_moving_avg.toFixed(2)}` : '\u2014' },
+                      { label: '200-Day MA', value: stock.day_200_moving_avg != null ? `$${stock.day_200_moving_avg.toFixed(2)}` : '\u2014' },
+                    ].map((m) => (
+                      <div key={m.label} className="rounded border border-white/5 bg-white/[0.02] p-3">
+                        <p className="text-xs text-white/40 mb-1">{m.label}</p>
+                        <p className="font-mono text-lg text-white">{m.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {(stock.sector || stock.industry) && (
+                    <div className="mt-4 border-t border-white/10 pt-4">
+                      {stock.sector && <p className="font-mono text-xs text-white/40 mb-1">SECTOR: <span className="text-white/80">{stock.sector}</span></p>}
+                      {stock.industry && <p className="font-mono text-xs text-white/40">INDUSTRY: <span className="text-white/80">{stock.industry}</span></p>}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* SEC Filings */}
               <div>
                 <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">SEC Filings ({filings.length})</h3>
@@ -674,46 +766,16 @@ export default function InstitutionPage() {
                   <p className="font-body text-sm text-white/30">No SEC filings.</p>
                 ) : (
                   <div className="space-y-2">
-                    {filings.slice(0, 10).map((f) => (
-                      <div key={f.id} className="flex items-center justify-between rounded border border-white/5 bg-white/[0.02] p-3">
-                        <div className="flex items-center gap-3">
-                          <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-xs text-white/70">{f.form_type}</span>
-                          <span className="text-sm text-white/50 line-clamp-1">{f.description || 'Filing'}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono text-xs text-white/30">{f.filing_date}</span>
-                          {f.filing_url && (
-                            <a href={f.filing_url} target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-[#34D399]">
-                              <ExternalLink size={12} />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                    {filings.map((f) => <FilingRow key={f.id} filing={f} />)}
                   </div>
                 )}
               </div>
-
-              {/* Stock data */}
-              {stock && (
-                <div>
-                  <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">Market Data</h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { label: 'Market Cap', value: stock.market_cap ? fmtDollar(stock.market_cap) : '—' },
-                      { label: 'P/E Ratio', value: stock.pe_ratio?.toFixed(1) || '—' },
-                      { label: 'Profit Margin', value: stock.profit_margin != null ? `${(stock.profit_margin * 100).toFixed(1)}%` : '—' },
-                    ].map((s) => (
-                      <div key={s.label} className="rounded border border-white/5 bg-white/[0.02] p-3">
-                        <p className="text-xs text-white/40 mb-1">{s.label}</p>
-                        <p className="font-mono text-lg text-white">{s.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
+
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </div>

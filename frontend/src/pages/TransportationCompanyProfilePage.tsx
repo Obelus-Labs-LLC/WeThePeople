@@ -6,7 +6,7 @@ import {
   DollarSign, Fuel, Star,
   type LucideIcon,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
 import BackButton from '../components/BackButton';
@@ -18,6 +18,7 @@ import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
 import WatchlistButton from '../components/WatchlistButton';
+import ShareButton from '../components/ShareButton';
 import {
   getTransportationCompanyDetail,
   getTransportationCompanyContracts,
@@ -84,18 +85,16 @@ function SectionHeader({ title, icon: Icon, count }: { title: string; icon: Luci
 
 // ── Tab config ──
 
-type TabKey = 'overview' | 'contracts' | 'lobbying' | 'enforcement' | 'donations' | 'recalls' | 'complaints' | 'safety_ratings' | 'filings';
+type TabKey = 'contracts' | 'lobbying' | 'enforcement' | 'donations' | 'filings' | 'recalls' | 'complaints' | 'safety_ratings';
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
   { key: 'contracts', label: 'Contracts' },
   { key: 'lobbying', label: 'Lobbying' },
   { key: 'enforcement', label: 'Enforcement' },
-  { key: 'donations', label: 'Donations' },
   { key: 'recalls', label: 'Recalls' },
-  { key: 'complaints', label: 'Safety Complaints' },
+  { key: 'complaints', label: 'Complaints' },
   { key: 'safety_ratings', label: 'Safety Ratings' },
-  // { key: 'fuel_economy', label: 'Fuel Economy' },  // Hidden from UI — data kept in backend
+  { key: 'donations', label: 'Donations' },
   { key: 'filings', label: 'SEC Filings' },
 ];
 
@@ -103,7 +102,7 @@ const TABS: { key: TabKey; label: string }[] = [
 
 export default function TransportationCompanyProfilePage() {
   const { companyId } = useParams<{ companyId: string }>();
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [activeTab, setActiveTab] = useState<TabKey>('contracts');
 
   const [detail, setDetail] = useState<TransportationCompanyDetail | null>(null);
   const [stock, setStock] = useState<TransportationStockData['latest_stock']>(null);
@@ -294,112 +293,118 @@ export default function TransportationCompanyProfilePage() {
 
   const stk = stock || detail.latest_stock;
 
+  const ACCENT = '#3B82F6';
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <div className="flex flex-1 flex-col overflow-hidden px-8 py-6 lg:px-12">
-        <div className="shrink-0"><TransportationSectorHeader /></div>
-        <div className="mb-4 shrink-0"><Breadcrumbs items={[
-          { label: 'Transportation', to: '/transportation' },
-          { label: 'Companies', to: '/transportation/companies' },
-          { label: detail.display_name },
-        ]} /></div>
+    <div className="flex flex-col w-full h-screen relative">
+      <div className="relative z-10 px-6 pt-4 shrink-0">
+        <TransportationSectorHeader />
+        <div className="mb-2">
+          <Breadcrumbs items={[
+            { label: 'Transportation', to: '/transportation' },
+            { label: 'Companies', to: '/transportation/companies' },
+            { label: detail.display_name },
+          ]} />
+        </div>
+      </div>
 
-        {/* Company Banner */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-          className="mb-6 flex items-center gap-6 rounded-xl border border-white/10 bg-white/[0.03] p-6 shrink-0">
-          <CompanyLogo id={detail.company_id} name={detail.display_name} logoUrl={detail.logo_url} size={64} iconFallback />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="font-heading text-3xl font-bold uppercase text-white lg:text-4xl xl:text-5xl truncate">{detail.display_name}</h1>
-              <WatchlistButton entityType="company" entityId={detail.company_id || companyId || ""} entityName={detail.display_name} sector="transportation" />
-            </div>
-            <div className="mt-2 flex items-center gap-3 flex-wrap">
-              {detail.ticker && <span className="rounded bg-blue-500/20 px-3 py-1 font-mono text-sm font-bold text-blue-400">{detail.ticker}</span>}
-              <span className="rounded bg-white/10 px-3 py-1 font-mono text-xs uppercase tracking-wider text-white/60">{detail.sector_type.replace(/_/g, ' ')}</span>
-              <SanctionsBadge status={detail.sanctions_status} />
-              {detail.headquarters && <span className="font-body text-sm text-white/40">{detail.headquarters}</span>}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 overflow-x-auto shrink-0">
-          {TABS.map((tab) => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`rounded-lg px-4 py-2 font-body text-sm font-medium transition-colors whitespace-nowrap ${activeTab === tab.key ? 'bg-blue-500/20 text-blue-400' : 'text-white/40 hover:text-white/70'}`}>
-              {tab.label}
-            </button>
+      <div className="w-full px-6 py-3 flex items-center justify-between shrink-0 z-10 shadow-md" style={{ background: ACCENT }}>
+        <div className="flex items-center gap-6">
+          {[
+            ['ENTITY', detail.display_name],
+            ['SECTOR', (detail.sector_type || '').replace(/_/g, ' ').toUpperCase()],
+            ['CIK', detail.sec_cik || '\u2014'],
+          ].map(([label, value]) => (
+            <span key={label} className="text-sm tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              <span className="text-white/70">{label}: </span>
+              <span className="text-white font-bold">{value}</span>
+            </span>
           ))}
         </div>
+        <div className="flex items-center gap-3">
+          <ShareButton url={window.location.href} title={`${detail.display_name} — WeThePeople`} />
+        </div>
+      </div>
 
-        {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {activeTab === 'overview' && (
-            <div className="space-y-8">
-              {/* Metric cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <MetricCard label="Gov Contracts" value={fmtNum(detail.contract_count)} icon={Landmark} color="#10B981" />
-                <MetricCard label="Contract Value" value={fmtDollar(detail.total_contract_value)} icon={Landmark} color="#10B981" />
-                <MetricCard label="Lobbying Filings" value={fmtNum(detail.lobbying_count)} icon={Scale} color="#3B82F6" />
-                <MetricCard label="Enforcement" value={fmtNum(detail.enforcement_count)} icon={Shield} color="#EF4444" />
-              </div>
+      <div className="flex flex-1 min-h-0">
+        <div className="hidden md:flex flex-col w-[30%] lg:w-[25%] border-r p-8 overflow-y-auto shrink-0" style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+          <div className="mb-6 flex justify-center">
+            <CompanyLogo id={detail.company_id} name={detail.display_name} logoUrl={detail.logo_url} size={128} iconFallback className="rounded-2xl" />
+          </div>
+          <div className="flex items-center justify-center gap-3 mb-1">
+            <h1 className="text-3xl font-bold leading-tight text-center" style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}>{detail.display_name}</h1>
+            <WatchlistButton entityType="company" entityId={detail.company_id || companyId || ""} entityName={detail.display_name} sector="transportation" />
+          </div>
+          {detail.headquarters && (
+            <p className="text-sm text-center mb-4" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{detail.headquarters}</p>
+          )}
+          <div className="flex justify-center gap-2 mb-6">
+            {detail.ticker && <span className="rounded bg-blue-500/20 px-3 py-1 font-mono text-sm font-bold text-blue-400">{detail.ticker}</span>}
+            <SanctionsBadge status={detail.sanctions_status} />
+            <AnomalyBadge entityType="company" entityId={companyId || ''} />
+          </div>
 
-              {detail.ai_profile_summary && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
-                  <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white/50 mb-3">AI Profile Summary</h2>
-                  <p className="font-body text-sm text-white/70 leading-relaxed whitespace-pre-line">{detail.ai_profile_summary}</p>
-                </div>
-              )}
-
-              {/* Recent News */}
-              {news.length > 0 && (
-                <div>
-                  <SectionHeader title="Recent News" icon={Newspaper} />
-                  <div className="space-y-3">
-                    {news.map((n, idx) => (
-                      <a key={idx} href={n.link} target="_blank" rel="noopener noreferrer"
-                        className="block rounded-lg border border-white/5 bg-white/[0.02] p-4 no-underline transition-colors hover:bg-white/[0.04]">
-                        <p className="font-body text-sm text-white/80 mb-1">{n.title}</p>
-                        <p className="font-mono text-[10px] text-white/30">{n.source} &middot; {n.published}</p>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Stock data */}
-              {stk && (
-                <div>
-                  <SectionHeader title="Market Data" icon={TrendingUp} />
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <MetricCard label="Market Cap" value={fmtDollar(stk.market_cap)} icon={TrendingUp} color="#3B82F6" />
-                    <MetricCard label="P/E Ratio" value={stk.pe_ratio != null ? stk.pe_ratio.toFixed(1) : '\u2014'} icon={Hash} color="#3B82F6" />
-                    <MetricCard label="Revenue TTM" value={fmtDollar(stk.revenue_ttm)} icon={TrendingUp} color="#3B82F6" />
-                    <MetricCard label="Profit Margin" value={fmtPct(stk.profit_margin)} icon={TrendingUp} color="#3B82F6" />
-                  </div>
-                </div>
-              )}
-
-              {/* Activity Over Time */}
-              {trends && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
-                  <SectionHeader title="Activity Over Time" icon={TrendingUp} />
-                  <TrendChart data={trends} />
-                </div>
-              )}
-
-              {/* SEC CIK link */}
-              {detail.sec_cik && (
-                <div className="flex items-center gap-2">
-                  <a href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${detail.sec_cik}&type=&dateb=&owner=include&count=40`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="font-mono text-xs text-blue-400 hover:text-blue-300 no-underline flex items-center gap-1">
-                    SEC EDGAR (CIK: {detail.sec_cik}) <ExternalLink size={12} />
-                  </a>
-                </div>
-              )}
+          {(detail as any).ai_profile_summary && (
+            <div className="mb-6">
+              <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+              <p className="text-zinc-400 text-sm mt-1">{(detail as any).ai_profile_summary}</p>
             </div>
           )}
+
+          <div className="space-y-6">
+            {[['TICKER', detail.ticker], ['SECTOR', detail.sector_type?.replace(/_/g, ' ')], ['SEC CIK', detail.sec_cik]].map(([label, value]) => value ? (
+              <div key={label}>
+                <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{label}</p>
+                <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E2E8F0' }}>{value}</p>
+              </div>
+            ) : null)}
+          </div>
+
+          {stk && (
+            <div className="mt-6 space-y-3">
+              <p className="text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>MARKET DATA</p>
+              {stk.market_cap != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Market Cap</p><p className="font-mono text-lg text-white">{fmtDollar(stk.market_cap)}</p></div>}
+              {stk.pe_ratio != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>P/E Ratio</p><p className="font-mono text-sm text-white">{stk.pe_ratio.toFixed(2)}</p></div>}
+              {stk.eps != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>EPS</p><p className="font-mono text-sm text-white">${stk.eps.toFixed(2)}</p></div>}
+              {stk.profit_margin != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Profit Margin</p><p className="font-mono text-sm text-white">{fmtPct(stk.profit_margin)}</p></div>}
+            </div>
+          )}
+
+          <div className="mt-6 rounded-xl border p-4" style={{ background: `${ACCENT}10`, borderColor: `${ACCENT}30` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Building2 size={16} style={{ color: ACCENT }} />
+              <span className="text-xs font-bold uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: ACCENT }}>OVERVIEW</span>
+            </div>
+            <div className="space-y-2 text-sm" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              <div className="flex justify-between"><span className="text-white/50">Contracts</span><span className="text-white font-bold">{fmtNum(detail.contract_count)}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Value</span><span className="text-white font-bold">{fmtDollar(detail.total_contract_value)}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Penalties</span><span className="text-white font-bold">{fmtDollar(detail.total_penalties)}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">Enforcement</span><span className="text-white font-bold">{fmtNum(detail.enforcement_count)}</span></div>
+              <div className="flex justify-between"><span className="text-white/50">SEC Filings</span><span className="text-white font-bold">{fmtNum(detail.filing_count)}</span></div>
+            </div>
+          </div>
+
+          {trends && (
+            <div className="mt-6">
+              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>Activity Over Time</p>
+              <TrendChart data={trends} height={120} />
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="relative flex gap-8 border-b px-8 pt-4 shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+            {TABS.map((tab) => (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)} className="relative pb-4 cursor-pointer bg-transparent border-0" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: activeTab === tab.key ? ACCENT : 'rgba(255,255,255,0.4)', fontWeight: activeTab === tab.key ? 700 : 400 }}>
+                {tab.label}
+                {activeTab === tab.key && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 rounded-full" style={{ background: ACCENT }} />}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-8" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+            <AnimatePresence mode="wait">
+              <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
 
           {activeTab === 'contracts' && (
             <div>
@@ -605,11 +610,7 @@ export default function TransportationCompanyProfilePage() {
                           <span className="font-mono text-xs text-white/40">Overall:</span>
                           <div className="flex gap-0.5">
                             {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                size={14}
-                                className={i < (r.overall_rating ?? 0) ? 'text-amber-400 fill-amber-400' : 'text-white/10'}
-                              />
+                              <Star key={i} size={14} className={i < (r.overall_rating ?? 0) ? 'text-amber-400 fill-amber-400' : 'text-white/10'} />
                             ))}
                           </div>
                         </div>
@@ -619,11 +620,7 @@ export default function TransportationCompanyProfilePage() {
                           <span className="font-mono text-xs text-white/40">Frontal:</span>
                           <div className="flex gap-0.5">
                             {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                size={12}
-                                className={i < (r.frontal_crash_rating ?? 0) ? 'text-blue-400 fill-blue-400' : 'text-white/10'}
-                              />
+                              <Star key={i} size={12} className={i < (r.frontal_crash_rating ?? 0) ? 'text-blue-400 fill-blue-400' : 'text-white/10'} />
                             ))}
                           </div>
                         </div>
@@ -633,11 +630,7 @@ export default function TransportationCompanyProfilePage() {
                           <span className="font-mono text-xs text-white/40">Side:</span>
                           <div className="flex gap-0.5">
                             {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                size={12}
-                                className={i < (r.side_crash_rating ?? 0) ? 'text-blue-400 fill-blue-400' : 'text-white/10'}
-                              />
+                              <Star key={i} size={12} className={i < (r.side_crash_rating ?? 0) ? 'text-blue-400 fill-blue-400' : 'text-white/10'} />
                             ))}
                           </div>
                         </div>
@@ -647,11 +640,7 @@ export default function TransportationCompanyProfilePage() {
                           <span className="font-mono text-xs text-white/40">Rollover:</span>
                           <div className="flex gap-0.5">
                             {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                size={12}
-                                className={i < (r.rollover_rating ?? 0) ? 'text-blue-400 fill-blue-400' : 'text-white/10'}
-                              />
+                              <Star key={i} size={12} className={i < (r.rollover_rating ?? 0) ? 'text-blue-400 fill-blue-400' : 'text-white/10'} />
                             ))}
                           </div>
                         </div>
@@ -663,8 +652,6 @@ export default function TransportationCompanyProfilePage() {
               </div>
             </div>
           )}
-
-          {/* Fuel Economy tab hidden from UI — data kept in backend */}
 
           {activeTab === 'filings' && (
             <div>
@@ -691,6 +678,10 @@ export default function TransportationCompanyProfilePage() {
               </div>
             </div>
           )}
+
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </div>
