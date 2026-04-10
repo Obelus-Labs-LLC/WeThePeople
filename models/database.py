@@ -641,6 +641,9 @@ import models.auth_models  # noqa: F401 — register User, APIKeyRecord, AuditLo
 import models.civic_models  # noqa: F401 — register promises, badges, proposals, annotations
 import services.rate_limit_store  # noqa: F401 — register rate_limit_records table
 import services.pipeline_reliability  # noqa: F401 — register DLQ, processed_records, data_quality_checks tables
+import models.telecom_models  # noqa: F401 — register telecom sector tables
+import models.education_models  # noqa: F401 — register education sector tables
+import models.token_usage  # noqa: F401 — register token usage tracking table
 
 
 if __name__ == "__main__":

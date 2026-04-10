@@ -42,18 +42,18 @@ import type {
 
 // Production API URL loaded from app.config.ts extra.apiUrl.
 // Set WTP_API_URL env var at build time — no hardcoded IPs.
-const PRODUCTION_API = 'http://localhost:8006';
+const PRODUCTION_API = 'https://api.wethepeopleforus.com';
 
 function getApiUrl(): string {
   try {
     // Prefer env-driven value from app.config.ts if available
     const fromConfig = Constants.expoConfig?.extra?.apiUrl;
-    if (fromConfig && fromConfig !== 'http://localhost:8006') return fromConfig;
+    if (fromConfig && fromConfig !== PRODUCTION_API) return fromConfig;
 
     const manifest = Constants.manifest ?? Constants.manifest2;
     const fromManifest = (manifest as any)?.extra?.apiUrl
       ?? (manifest as any)?.extra?.expoClient?.extra?.apiUrl;
-    if (fromManifest && fromManifest !== 'http://localhost:8006') return fromManifest;
+    if (fromManifest && fromManifest !== PRODUCTION_API) return fromManifest;
   } catch (_) {
     // Constants may not be available in all contexts
   }
