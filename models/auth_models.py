@@ -39,6 +39,14 @@ class User(Base):
     last_login = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    # Tiered citizen verification (Consul-inspired)
+    # Levels: 0=unverified (email only), 1=residence_verified, 2=document_verified
+    verification_level = Column(Integer, nullable=False, server_default="0")
+    verified_zip = Column(String(10), nullable=True)   # Zip code from residence verification
+    verified_state = Column(String(2), nullable=True)   # State abbreviation
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    verification_method = Column(String(50), nullable=True)  # sms, letter, document
+
     # Relationships
     api_keys = relationship("APIKeyRecord", back_populates="user", cascade="all, delete-orphan")
 
