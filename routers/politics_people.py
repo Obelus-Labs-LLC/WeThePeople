@@ -34,6 +34,7 @@ from connectors.wikipedia import build_politician_profile
 from connectors.fec import build_finance_profile
 from models.response_schemas import PeopleListResponse, PersonDetailResponse
 from utils.db_compat import extract_year
+from utils.sanitize import escape_like
 
 router = APIRouter(tags=["politics"])
 
@@ -277,16 +278,16 @@ def get_people(
                 .exists()
             )
         if party:
-            query = query.filter(TrackedMember.party.like(f"{party}%"))
+            query = query.filter(TrackedMember.party.like(f"{escape_like(party)}%", escape="\\"))
         if chamber:
             query = query.filter(func.lower(TrackedMember.chamber) == chamber.lower())
         if q:
-            like = f"%{q.strip().lower()}%"
+            like = f"%{escape_like(q.strip().lower())}%"
             query = query.filter(
-                func.lower(TrackedMember.person_id).like(like)
-                | func.lower(TrackedMember.display_name).like(like)
-                | func.lower(TrackedMember.bioguide_id).like(like)
-                | func.lower(TrackedMember.state).like(like)
+                func.lower(TrackedMember.person_id).like(like, escape="\\")
+                | func.lower(TrackedMember.display_name).like(like, escape="\\")
+                | func.lower(TrackedMember.bioguide_id).like(like, escape="\\")
+                | func.lower(TrackedMember.state).like(like, escape="\\")
             )
 
         total = query.count()
@@ -566,7 +567,7 @@ def person_performance(person_id: str, top: int = Query(10, ge=1, le=50)):
                     "bill_number": act.bill_number,
                     "policy_area": act.policy_area,
                     "latest_action_text": act.latest_action_text,
-                    "latest_action_date": act.latest_action_date,
+                    "latest_action_date": act.latest_action_date.isoformat() if act.latest_action_date else None,
                 },
             })
 
@@ -856,6 +857,27 @@ def get_comparison(
             )
             total_actions = db.query(func.count(Action.id)).filter(Action.person_id == pid).scalar() or 0
 
+            # by_category: actions grouped by policy_area
+            by_category = dict(
+                db.query(Action.policy_area, func.count(Action.id))
+                  .filter(Action.person_id == pid, Action.policy_area.isnot(None))
+                  .group_by(Action.policy_area).all()
+            )
+
+            # by_timing: claims grouped by timing dimension
+            by_timing = dict(
+                db.query(ClaimEvaluation.timing, func.count(ClaimEvaluation.id))
+                  .filter(ClaimEvaluation.person_id == pid, ClaimEvaluation.timing.isnot(None))
+                  .group_by(ClaimEvaluation.timing).all()
+            ) if hasattr(ClaimEvaluation, 'timing') else {}
+
+            # by_progress: claims grouped by progress dimension
+            by_progress = dict(
+                db.query(ClaimEvaluation.progress, func.count(ClaimEvaluation.id))
+                  .filter(ClaimEvaluation.person_id == pid, ClaimEvaluation.progress.isnot(None))
+                  .group_by(ClaimEvaluation.progress).all()
+            ) if hasattr(ClaimEvaluation, 'progress') else {}
+
             results.append({
                 "person_id": pid,
                 "display_name": member.display_name,
@@ -865,6 +887,9 @@ def get_comparison(
                 "total_claims": total_claims,
                 "total_scored": total_scored,
                 "by_tier": by_tier,
+                "by_category": by_category,
+                "by_timing": by_timing,
+                "by_progress": by_progress,
                 "total_actions": total_actions,
             })
 

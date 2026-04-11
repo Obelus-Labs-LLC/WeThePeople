@@ -17,16 +17,16 @@
   <img alt="FastAPI" src="https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white" />
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" />
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" />
-  <img alt="Sectors" src="https://img.shields.io/badge/sectors-9-blue" />
-  <img alt="Research Tools" src="https://img.shields.io/badge/research%20tools-15-green" />
-  <img alt="Data Sources" src="https://img.shields.io/badge/data%20sources-40%2B%20APIs-orange" />
+  <img alt="Sectors" src="https://img.shields.io/badge/sectors-11-blue" />
+  <img alt="Research Tools" src="https://img.shields.io/badge/research%20tools-21-green" />
+  <img alt="Data Sources" src="https://img.shields.io/badge/data%20sources-49%20APIs-orange" />
 </p>
 
 ---
 
 ## What is this?
 
-WeThePeople is an open-source civic transparency platform that tracks how corporations lobby Congress, win government contracts, face enforcement actions, trade stocks alongside legislators, and donate to politicians. It pulls from 40+ government APIs and covers 9 sectors: Politics, Finance, Health, Technology, Energy, Transportation, Defense, Chemicals, and Agriculture — plus all 50 states. 537 politicians and 1,000+ companies tracked. Every data point links back to its authoritative public source.
+WeThePeople is an open-source civic transparency platform that tracks how corporations lobby Congress, win government contracts, face enforcement actions, trade stocks alongside legislators, and donate to politicians. It pulls from 40+ government APIs and covers 11 sectors: Politics, Finance, Health, Technology, Energy, Transportation, Defense, Chemicals, Agriculture, Education, and Telecom — plus all 50 states. 537 politicians and 1,000+ companies tracked. Every data point links back to its authoritative public source.
 
 ---
 
@@ -34,17 +34,17 @@ WeThePeople is an open-source civic transparency platform that tracks how corpor
 
 | Platform | Status | Description |
 |----------|--------|-------------|
-| **[WeThePeople](https://wethepeopleforus.com)** | Live | The core lobbying and influence tracker. Congressional trades, money flows, enforcement actions, lobbying filings, government contracts. 1,000+ tracked entities across 9 sectors. |
-| **[WTP Research](https://research.wethepeopleforus.com)** | Live | 15 deep-dive research tools: patent explorer, drug lookup, clinical trials, insider trades, FDA recalls, toxic releases, foreign lobbying (FARA), revolving door tracker, campaign finance, government salaries, bill text analysis, market movers, regulatory news, earmarks tracker. |
+| **[WeThePeople](https://wethepeopleforus.com)** | Live | The core lobbying and influence tracker. Congressional trades, money flows, enforcement actions, lobbying filings, government contracts. 1,000+ tracked entities across 11 sectors. |
+| **[WTP Research](https://research.wethepeopleforus.com)** | Live | 21 deep-dive research tools: patent explorer, drug lookup, clinical trials, insider trades, FDA recalls, toxic releases, foreign lobbying (FARA), revolving door tracker, campaign finance, government salaries, bill text analysis, market movers, regulatory news, earmarks tracker, college scorecard, FCC complaints, federal grants, food safety, spectrum search, student loans, treasury data. |
 | **[The Influence Journal](https://journal.wethepeopleforus.com)** | Live | AI-generated data investigations powered by 20 detection patterns. STOCK Act violations, committee-stock conflicts, enforcement immunity, penalty-to-contract ratios, FARA foreign lobbying, chemical enforcement, agriculture subsidies, cross-sector donors, enforcement decline. 30+ published stories with verification pipeline. |
-| **Mobile App** | In development | iOS and Android via Expo. 40+ screens covering all 9 sectors, congressional trades, ZIP lookup, stories, anomalies, state explorer, influence network, chat agent, and company comparison. Available via Expo Go during preview. |
+| **Mobile App** | In development | iOS and Android via Expo. 45+ screens covering all 11 sectors, congressional trades, ZIP lookup, stories, anomalies, state explorer, influence network, chat agent, and company comparison. Available via Expo Go during preview. |
 
 ---
 
 ## Key Features
 
-- **9 Sectors** — Politics, Finance, Health, Technology, Energy, Transportation, Defense, Chemicals, and Agriculture — plus State-level data across all 50 states
-- **15 Research Tools** — Patent Explorer, Drug Lookup, Clinical Trials, Insider Trades, FDA Recall Search (food/drug/device), Toxic Release Inventory, Foreign Lobbying (FARA), Revolving Door Tracker, Campaign Finance, Government Salaries, Bill Text Analysis, Market Movers, Regulatory News, Earmarks Tracker
+- **11 Sectors** — Politics, Finance, Health, Technology, Energy, Transportation, Defense, Chemicals, Agriculture, Education, and Telecom — plus State-level data across all 50 states
+- **21 Research Tools** — Patent Explorer, Drug Lookup, Clinical Trials, Insider Trades, FDA Recall Search (food/drug/device), Toxic Release Inventory, Foreign Lobbying (FARA), Revolving Door Tracker, Campaign Finance, Government Salaries, Bill Text Analysis, Market Movers, Regulatory News, Earmarks Tracker, College Scorecard, FCC Complaints, Federal Grants, Food Safety, Spectrum Search, Student Loans, Treasury Data
 - **Influence Network Graph** — Interactive force-directed visualization mapping connections between politicians, companies, donations, lobbying, and legislation
 - **Congressional Trade Tracker** — 4,600+ stock trades parsed from official House financial disclosure PDFs, with filing delay indicators and virtual scrolling
 - **Spending Choropleth Map** — Interactive US map showing lobbying spend, donations, and political activity by state
@@ -69,16 +69,16 @@ WeThePeople is an open-source civic transparency platform that tracks how corpor
 
 ```
 Backend:    FastAPI + SQLite (WAL mode, 4.1 GB)
-            25 routers, 39 connectors, 45+ jobs
+            36 routers, 49 connectors, 61 jobs
             Versioned API (/v1/), rate limiting, structured logging
             JWT auth, RBAC, request tracing, security headers
 
 Frontend:   React 19 + Vite + TypeScript + Tailwind CSS 4
-            80+ pages (all code-split via React.lazy)
+            99 pages (all code-split via React.lazy)
             3 sites: main, research, journal
 
 Mobile:     Expo SDK 54 + React Native
-            40+ screens, all 9 sectors + tools
+            45+ screens, all 11 sectors + tools
 
 Infra:      Hetzner Cloud (ARM, $3.99/mo) + Vercel
             Let's Encrypt TLS, GitHub Actions CI
@@ -90,30 +90,30 @@ Infra:      Hetzner Cloud (ARM, $3.99/mo) + Vercel
 ```
 WeThePeople/
 ├── main.py                  # FastAPI app + middleware + router mounting
-├── routers/                 # 25 API routers (one per sector + cross-cutting)
-├── connectors/              # 39 API wrappers (Congress.gov, SEC, FDA, EPA, FARA, Finnhub, ...)
-├── jobs/                    # 45+ sync scripts, migrations, scheduler, Twitter bot
-├── models/                  # 16 model files (per-sector pattern + auth, FARA, stories)
+├── routers/                 # 36 API routers (one per sector + cross-cutting)
+├── connectors/              # 49 API wrappers (Congress.gov, SEC, FDA, EPA, FARA, Finnhub, ...)
+├── jobs/                    # 61 sync scripts, migrations, scheduler, Twitter bot
+├── models/                  # 24 model files (per-sector pattern + auth, FARA, stories)
 ├── services/                # Business logic (claims pipeline, influence graph, auth)
 ├── middleware/               # Request tracing, security headers
 ├── frontend/                # React 19 + Vite web app
 │   └── src/
-│       ├── pages/           # 80+ page components
+│       ├── pages/           # 99 page components
 │       ├── components/      # Shared UI (InfluenceGraph, ChoroplethMap, ChatAgent, ...)
 │       ├── api/             # TypeScript API clients per sector
 │       └── layouts/         # Per-sector layout wrappers
 ├── sites/
-│   ├── research/            # WTP Research site (15 tools)
+│   ├── research/            # WTP Research site (21 tools)
 │   ├── journal/             # The Influence Journal (data stories)
 │   └── shared/              # Shared components across sites
-├── mobile/                  # React Native / Expo (40+ screens, all 9 sectors)
+├── mobile/                  # React Native / Expo (45+ screens, all 11 sectors)
 ├── deploy/                  # Docker, deploy scripts, TLS docs
 └── tests/                   # Backend test suite
 ```
 
 ---
 
-## Data Sources (40+)
+## Data Sources (49)
 
 All data is sourced from official government APIs and open-source datasets. No scraped or paywalled data.
 
@@ -157,6 +157,15 @@ All data is sourced from official government APIs and open-source datasets. No s
 | WhoIsMyRepresentative | ZIP-to-district representative lookup | [whoismyrepresentative.com](https://whoismyrepresentative.com) |
 | Data.gov | Government open data | [data.gov](https://data.gov) |
 | GovInfo | Government publications | [govinfo.gov](https://www.govinfo.gov) |
+| CFPB | Consumer financial complaints | [consumerfinance.gov](https://www.consumerfinance.gov/data-research/consumer-complaints/) |
+| College Scorecard | Higher education institution data | [collegescorecard.ed.gov](https://collegescorecard.ed.gov) |
+| Data USA | Census and economic data | [datausa.io](https://datausa.io) |
+| FCC | Consumer complaints, ECFS comments, license search | [fcc.gov](https://www.fcc.gov/developers) |
+| Federal Reserve Press | Fed press releases and statements | [federalreserve.gov](https://www.federalreserve.gov) |
+| Grants.gov | Federal grant opportunities | [grants.gov](https://www.grants.gov) |
+| Healthcare.gov | Health insurance marketplace data | [healthcare.gov](https://www.healthcare.gov) |
+| Treasury Fiscal Data | Federal revenue, debt, spending | [fiscaldata.treasury.gov](https://fiscaldata.treasury.gov) |
+| Urban Institute | Education and economic research data | [urban.org](https://www.urban.org) |
 
 **Open-source datasets (CC0):**
 - [unitedstates/congress-legislators](https://github.com/unitedstates/congress-legislators) — Committee and membership data

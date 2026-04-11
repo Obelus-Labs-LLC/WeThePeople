@@ -30,7 +30,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[_rate_limit])
 
 app = FastAPI(
     title="WeThePeople API",
-    description="Civic transparency platform tracking corporate influence on Congress across 8 sectors",
+    description="Civic transparency platform tracking corporate influence on Congress across 11 sectors",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -58,7 +58,7 @@ if _cors_origins:
         CORSMiddleware,
         allow_origins=_cors_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization", "X-WTP-API-KEY"],
     )
 

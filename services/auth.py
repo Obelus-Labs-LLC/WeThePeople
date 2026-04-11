@@ -28,7 +28,10 @@ _CLAIMS_WINDOW = 86400  # 24 hours
 
 
 def _require_auth() -> bool:
-    return os.getenv("WTP_REQUIRE_AUTH", "0") == "1"
+    env = os.getenv("WTP_ENV", "production").lower()
+    # Default to requiring auth in production/staging; opt-in to disable in dev
+    default = "0" if env == "development" else "1"
+    return os.getenv("WTP_REQUIRE_AUTH", default) == "1"
 
 
 def _press_api_key() -> str:

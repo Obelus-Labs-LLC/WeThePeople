@@ -12,6 +12,7 @@ from typing import Optional, Dict, Any
 logger = logging.getLogger(__name__)
 
 from models.database import get_db
+from utils.sanitize import escape_like
 from models.defense_models import (
     TrackedDefenseCompany,
     SECDefenseFiling,
@@ -132,11 +133,11 @@ def get_defense_companies(
 ):
     query = db.query(TrackedDefenseCompany).filter(TrackedDefenseCompany.is_active == 1)
     if q:
-        pattern = f"%{q}%"
+        pattern = f"%{escape_like(q)}%"
         query = query.filter(
-            (TrackedDefenseCompany.display_name.ilike(pattern))
-            | (TrackedDefenseCompany.company_id.ilike(pattern))
-            | (TrackedDefenseCompany.ticker.ilike(pattern))
+            (TrackedDefenseCompany.display_name.ilike(pattern, escape="\\"))
+            | (TrackedDefenseCompany.company_id.ilike(pattern, escape="\\"))
+            | (TrackedDefenseCompany.ticker.ilike(pattern, escape="\\"))
         )
     if sector_type:
         query = query.filter(TrackedDefenseCompany.sector_type == sector_type)

@@ -267,13 +267,16 @@ def zip_lookup(zip_code: str, db: Session = Depends(get_db)):
             bucket.append(a)
 
     # ── 6. Batch: recent votes (last 90 days, up to 5 per member) ──
+    # Use bioguide_id for filtering — it's the canonical Congress.gov identifier
+    # and more reliably populated than person_id on MemberVote rows.
+    bioguide_to_pid = {m.bioguide_id: m.person_id for m in members if m.bioguide_id}
     vote_rows = []
     try:
         vote_rows = (
-            db.query(Vote, MemberVote.position, MemberVote.person_id)
+            db.query(Vote, MemberVote.position, MemberVote.bioguide_id)
             .join(MemberVote, MemberVote.vote_id == Vote.id)
             .filter(
-                MemberVote.person_id.in_(person_ids),
+                MemberVote.bioguide_id.in_([bid for bid in bioguide_ids if bid]),
                 Vote.vote_date >= ninety_days_ago,
             )
             .order_by(desc(Vote.vote_date))
@@ -283,8 +286,9 @@ def zip_lookup(zip_code: str, db: Session = Depends(get_db)):
         vote_rows = []
 
     votes_by_pid: Dict[str, List] = {pid: [] for pid in person_ids}
-    for vote, position, pid in vote_rows:
-        bucket = votes_by_pid.get(pid)
+    for vote, position, bid in vote_rows:
+        pid = bioguide_to_pid.get(bid)
+        bucket = votes_by_pid.get(pid) if pid else None
         if bucket is not None and len(bucket) < 5:
             bucket.append({
                 "question": vote.question,

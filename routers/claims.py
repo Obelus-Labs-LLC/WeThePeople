@@ -124,7 +124,7 @@ def list_verifications(
     if tier:
         query = query.filter(ClaimEvaluation.tier == tier)
 
-    total = query.count()
+    total = query.with_entities(func.count(func.distinct(Claim.id))).scalar()
     rows = (
         query
         .order_by(desc(Claim.created_at))
@@ -324,7 +324,7 @@ def get_entity_verifications(
           .filter(Claim.person_id == entity_id)
     )
 
-    total = query.count()
+    total = query.with_entities(func.count(func.distinct(Claim.id))).scalar()
     rows = (
         query
         .order_by(desc(Claim.created_at))

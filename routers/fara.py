@@ -13,6 +13,7 @@ from typing import Optional
 
 from models.database import get_db
 from models.fara_models import FARARegistrant, FARAForeignPrincipal, FARAShortForm
+from utils.sanitize import escape_like
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +35,11 @@ def list_registrants(
     q = db.query(FARARegistrant)
 
     if search:
-        q = q.filter(FARARegistrant.registrant_name.ilike(f"%{search}%"))
+        q = q.filter(FARARegistrant.registrant_name.ilike(f"%{escape_like(search)}%", escape="\\"))
     if country:
-        q = q.filter(FARARegistrant.country.ilike(f"%{country}%"))
+        q = q.filter(FARARegistrant.country.ilike(f"%{escape_like(country)}%", escape="\\"))
     if status:
-        q = q.filter(FARARegistrant.status.ilike(f"%{status}%"))
+        q = q.filter(FARARegistrant.status.ilike(f"%{escape_like(status)}%", escape="\\"))
 
     total = q.count()
     registrants = q.order_by(desc(FARARegistrant.registration_date)).offset(offset).limit(limit).all()
@@ -137,13 +138,13 @@ def list_foreign_principals(
 
     if search:
         q = q.filter(or_(
-            FARAForeignPrincipal.foreign_principal_name.ilike(f"%{search}%"),
-            FARAForeignPrincipal.registrant_name.ilike(f"%{search}%"),
+            FARAForeignPrincipal.foreign_principal_name.ilike(f"%{escape_like(search)}%", escape="\\"),
+            FARAForeignPrincipal.registrant_name.ilike(f"%{escape_like(search)}%", escape="\\"),
         ))
     if country:
-        q = q.filter(FARAForeignPrincipal.country.ilike(f"%{country}%"))
+        q = q.filter(FARAForeignPrincipal.country.ilike(f"%{escape_like(country)}%", escape="\\"))
     if status:
-        q = q.filter(FARAForeignPrincipal.status.ilike(f"%{status}%"))
+        q = q.filter(FARAForeignPrincipal.status.ilike(f"%{escape_like(status)}%", escape="\\"))
 
     total = q.count()
     principals = q.order_by(desc(FARAForeignPrincipal.principal_registration_date)).offset(offset).limit(limit).all()
@@ -244,14 +245,14 @@ def search_fara(
     db: Session = Depends(get_db),
 ):
     """Search across registrants and foreign principals by any term."""
-    term = f"%{q}%"
+    term = f"%{escape_like(q)}%"
 
     registrants = (
         db.query(FARARegistrant)
         .filter(or_(
-            FARARegistrant.registrant_name.ilike(term),
-            FARARegistrant.registration_number.ilike(term),
-            FARARegistrant.country.ilike(term),
+            FARARegistrant.registrant_name.ilike(term, escape="\\"),
+            FARARegistrant.registration_number.ilike(term, escape="\\"),
+            FARARegistrant.country.ilike(term, escape="\\"),
         ))
         .limit(limit)
         .all()
@@ -260,9 +261,9 @@ def search_fara(
     principals = (
         db.query(FARAForeignPrincipal)
         .filter(or_(
-            FARAForeignPrincipal.foreign_principal_name.ilike(term),
-            FARAForeignPrincipal.registrant_name.ilike(term),
-            FARAForeignPrincipal.country.ilike(term),
+            FARAForeignPrincipal.foreign_principal_name.ilike(term, escape="\\"),
+            FARAForeignPrincipal.registrant_name.ilike(term, escape="\\"),
+            FARAForeignPrincipal.country.ilike(term, escape="\\"),
         ))
         .limit(limit)
         .all()

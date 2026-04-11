@@ -31,7 +31,12 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
-SECRET_KEY = os.getenv("WTP_JWT_SECRET", "CHANGE-ME-IN-PRODUCTION-wethepeople-dev-secret")
+SECRET_KEY = os.getenv("WTP_JWT_SECRET", "")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "WTP_JWT_SECRET env var is not set. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("WTP_TOKEN_EXPIRY_HOURS", "24"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("WTP_REFRESH_EXPIRY_DAYS", "30"))

@@ -35,6 +35,12 @@ from models.chemicals_models import (
 from models.agriculture_models import (
     TrackedAgricultureCompany, AgricultureLobbyingRecord, AgricultureGovernmentContract, AgricultureEnforcement,
 )
+from models.education_models import (
+    TrackedEducationCompany, EducationLobbyingRecord, EducationGovernmentContract, EducationEnforcement,
+)
+from models.telecom_models import (
+    TrackedTelecomCompany, TelecomLobbyingRecord, TelecomGovernmentContract, TelecomEnforcement,
+)
 from models.government_data_models import RegulatoryComment
 from models.response_schemas import InfluenceStatsResponse
 
@@ -66,8 +72,12 @@ def data_freshness(db: Session = Depends(get_db)):
         (FinanceLobbyingRecord, FinanceLobbyingRecord.created_at),
         (HealthLobbyingRecord, HealthLobbyingRecord.created_at),
         (EnergyLobbyingRecord, EnergyLobbyingRecord.created_at),
+        (TransportationLobbyingRecord, TransportationLobbyingRecord.created_at),
+        (DefenseLobbyingRecord, DefenseLobbyingRecord.created_at),
         (ChemicalLobbyingRecord, ChemicalLobbyingRecord.created_at),
         (AgricultureLobbyingRecord, AgricultureLobbyingRecord.created_at),
+        (EducationLobbyingRecord, EducationLobbyingRecord.created_at),
+        (TelecomLobbyingRecord, TelecomLobbyingRecord.created_at),
     ]
     lobby_latest = None
     lobby_count = 0
@@ -83,8 +93,12 @@ def data_freshness(db: Session = Depends(get_db)):
         (FinanceGovernmentContract, FinanceGovernmentContract.start_date),
         (HealthGovernmentContract, HealthGovernmentContract.start_date),
         (EnergyGovernmentContract, EnergyGovernmentContract.start_date),
+        (TransportationGovernmentContract, TransportationGovernmentContract.start_date),
+        (DefenseGovernmentContract, DefenseGovernmentContract.start_date),
         (ChemicalGovernmentContract, ChemicalGovernmentContract.start_date),
         (AgricultureGovernmentContract, AgricultureGovernmentContract.start_date),
+        (EducationGovernmentContract, EducationGovernmentContract.start_date),
+        (TelecomGovernmentContract, TelecomGovernmentContract.start_date),
     ]
     contract_latest = None
     contract_count = 0
@@ -100,8 +114,12 @@ def data_freshness(db: Session = Depends(get_db)):
         (FinanceEnforcement, FinanceEnforcement.case_date),
         (HealthEnforcement, HealthEnforcement.case_date),
         (EnergyEnforcement, EnergyEnforcement.case_date),
+        (TransportationEnforcement, TransportationEnforcement.case_date),
+        (DefenseEnforcement, DefenseEnforcement.case_date),
         (ChemicalEnforcement, ChemicalEnforcement.case_date),
         (AgricultureEnforcement, AgricultureEnforcement.case_date),
+        (EducationEnforcement, EducationEnforcement.case_date),
+        (TelecomEnforcement, TelecomEnforcement.case_date),
     ]
     enforcement_latest = None
     enforcement_count = 0
@@ -145,7 +163,9 @@ def get_influence_stats(db: Session = Depends(get_db)):
     defense_lobbying = db.query(func.sum(DefenseLobbyingRecord.income)).scalar() or 0
     chemicals_lobbying = db.query(func.sum(ChemicalLobbyingRecord.income)).scalar() or 0
     agriculture_lobbying = db.query(func.sum(AgricultureLobbyingRecord.income)).scalar() or 0
-    total_lobbying = finance_lobbying + health_lobbying + tech_lobbying + energy_lobbying + transport_lobbying + defense_lobbying + chemicals_lobbying + agriculture_lobbying
+    education_lobbying = db.query(func.sum(EducationLobbyingRecord.income)).scalar() or 0
+    telecom_lobbying = db.query(func.sum(TelecomLobbyingRecord.income)).scalar() or 0
+    total_lobbying = finance_lobbying + health_lobbying + tech_lobbying + energy_lobbying + transport_lobbying + defense_lobbying + chemicals_lobbying + agriculture_lobbying + education_lobbying + telecom_lobbying
 
     # Contract totals
     finance_contracts = db.query(func.sum(FinanceGovernmentContract.award_amount)).scalar() or 0
@@ -156,7 +176,9 @@ def get_influence_stats(db: Session = Depends(get_db)):
     defense_contracts = db.query(func.sum(DefenseGovernmentContract.award_amount)).scalar() or 0
     chemicals_contracts = db.query(func.sum(ChemicalGovernmentContract.award_amount)).scalar() or 0
     agriculture_contracts = db.query(func.sum(AgricultureGovernmentContract.award_amount)).scalar() or 0
-    total_contracts = finance_contracts + health_contracts + tech_contracts + energy_contracts + transport_contracts + defense_contracts + chemicals_contracts + agriculture_contracts
+    education_contracts = db.query(func.sum(EducationGovernmentContract.award_amount)).scalar() or 0
+    telecom_contracts = db.query(func.sum(TelecomGovernmentContract.award_amount)).scalar() or 0
+    total_contracts = finance_contracts + health_contracts + tech_contracts + energy_contracts + transport_contracts + defense_contracts + chemicals_contracts + agriculture_contracts + education_contracts + telecom_contracts
 
     # Enforcement totals
     finance_enforcement = db.query(func.count(FinanceEnforcement.id)).scalar() or 0
@@ -167,7 +189,9 @@ def get_influence_stats(db: Session = Depends(get_db)):
     defense_enforcement = db.query(func.count(DefenseEnforcement.id)).scalar() or 0
     chemicals_enforcement = db.query(func.count(ChemicalEnforcement.id)).scalar() or 0
     agriculture_enforcement = db.query(func.count(AgricultureEnforcement.id)).scalar() or 0
-    total_enforcement = finance_enforcement + health_enforcement + tech_enforcement + energy_enforcement + transport_enforcement + defense_enforcement + chemicals_enforcement + agriculture_enforcement
+    education_enforcement = db.query(func.count(EducationEnforcement.id)).scalar() or 0
+    telecom_enforcement = db.query(func.count(TelecomEnforcement.id)).scalar() or 0
+    total_enforcement = finance_enforcement + health_enforcement + tech_enforcement + energy_enforcement + transport_enforcement + defense_enforcement + chemicals_enforcement + agriculture_enforcement + education_enforcement + telecom_enforcement
 
     # Politicians tracked (all active members)
     politicians_connected = db.query(func.count(TrackedMember.id)).filter(
@@ -188,6 +212,8 @@ def get_influence_stats(db: Session = Depends(get_db)):
             "defense": {"lobbying": defense_lobbying, "contracts": defense_contracts, "enforcement": defense_enforcement},
             "chemicals": {"lobbying": chemicals_lobbying, "contracts": chemicals_contracts, "enforcement": chemicals_enforcement},
             "agriculture": {"lobbying": agriculture_lobbying, "contracts": agriculture_contracts, "enforcement": agriculture_enforcement},
+            "education": {"lobbying": education_lobbying, "contracts": education_contracts, "enforcement": education_enforcement},
+            "telecom": {"lobbying": telecom_lobbying, "contracts": telecom_contracts, "enforcement": telecom_enforcement},
         },
     }
 
@@ -233,6 +259,60 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "energy", "total_lobbying": total or 0})
 
+    # Transportation
+    rows = db.query(
+        TrackedTransportationCompany.company_id, TrackedTransportationCompany.display_name,
+        func.sum(TransportationLobbyingRecord.income),
+    ).join(TransportationLobbyingRecord, TransportationLobbyingRecord.company_id == TrackedTransportationCompany.company_id
+    ).group_by(TrackedTransportationCompany.company_id, TrackedTransportationCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "transportation", "total_lobbying": total or 0})
+
+    # Defense
+    rows = db.query(
+        TrackedDefenseCompany.company_id, TrackedDefenseCompany.display_name,
+        func.sum(DefenseLobbyingRecord.income),
+    ).join(DefenseLobbyingRecord, DefenseLobbyingRecord.company_id == TrackedDefenseCompany.company_id
+    ).group_by(TrackedDefenseCompany.company_id, TrackedDefenseCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "defense", "total_lobbying": total or 0})
+
+    # Chemicals
+    rows = db.query(
+        TrackedChemicalCompany.company_id, TrackedChemicalCompany.display_name,
+        func.sum(ChemicalLobbyingRecord.income),
+    ).join(ChemicalLobbyingRecord, ChemicalLobbyingRecord.company_id == TrackedChemicalCompany.company_id
+    ).group_by(TrackedChemicalCompany.company_id, TrackedChemicalCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "chemicals", "total_lobbying": total or 0})
+
+    # Agriculture
+    rows = db.query(
+        TrackedAgricultureCompany.company_id, TrackedAgricultureCompany.display_name,
+        func.sum(AgricultureLobbyingRecord.income),
+    ).join(AgricultureLobbyingRecord, AgricultureLobbyingRecord.company_id == TrackedAgricultureCompany.company_id
+    ).group_by(TrackedAgricultureCompany.company_id, TrackedAgricultureCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "agriculture", "total_lobbying": total or 0})
+
+    # Education
+    rows = db.query(
+        TrackedEducationCompany.company_id, TrackedEducationCompany.display_name,
+        func.sum(EducationLobbyingRecord.income),
+    ).join(EducationLobbyingRecord, EducationLobbyingRecord.company_id == TrackedEducationCompany.company_id
+    ).group_by(TrackedEducationCompany.company_id, TrackedEducationCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "education", "total_lobbying": total or 0})
+
+    # Telecom
+    rows = db.query(
+        TrackedTelecomCompany.company_id, TrackedTelecomCompany.display_name,
+        func.sum(TelecomLobbyingRecord.income),
+    ).join(TelecomLobbyingRecord, TelecomLobbyingRecord.company_id == TrackedTelecomCompany.company_id
+    ).group_by(TrackedTelecomCompany.company_id, TrackedTelecomCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "telecom", "total_lobbying": total or 0})
+
     results.sort(key=lambda x: x["total_lobbying"], reverse=True)
     return {"leaders": results[:limit]}
 
@@ -240,7 +320,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
 @router.get("/spending-by-state")
 def get_spending_by_state(
     metric: str = Query("donations", pattern="^(donations|members|lobbying)$"),
-    sector: Optional[str] = Query(None, pattern="^(finance|health|tech|energy|transportation|defense|chemicals|agriculture)$"),
+    sector: Optional[str] = Query(None, pattern="^(finance|health|tech|energy|transportation|defense|chemicals|agriculture|telecom|education)$"),
     db: Session = Depends(get_db),
 ):
     """
@@ -299,6 +379,18 @@ def get_spending_by_state(
             lobby_configs.append((LobbyingRecord, LobbyingRecord.company_id, "tech"))
         if sector is None or sector == "energy":
             lobby_configs.append((EnergyLobbyingRecord, EnergyLobbyingRecord.company_id, "energy"))
+        if sector is None or sector == "transportation":
+            lobby_configs.append((TransportationLobbyingRecord, TransportationLobbyingRecord.company_id, "transportation"))
+        if sector is None or sector == "defense":
+            lobby_configs.append((DefenseLobbyingRecord, DefenseLobbyingRecord.company_id, "defense"))
+        if sector is None or sector == "chemicals":
+            lobby_configs.append((ChemicalLobbyingRecord, ChemicalLobbyingRecord.company_id, "chemicals"))
+        if sector is None or sector == "agriculture":
+            lobby_configs.append((AgricultureLobbyingRecord, AgricultureLobbyingRecord.company_id, "agriculture"))
+        if sector is None or sector == "education":
+            lobby_configs.append((EducationLobbyingRecord, EducationLobbyingRecord.company_id, "education"))
+        if sector is None or sector == "telecom":
+            lobby_configs.append((TelecomLobbyingRecord, TelecomLobbyingRecord.company_id, "telecom"))
 
         for lobby_model, entity_col, sec in lobby_configs:
             # Subquery: aggregate lobbying income per company first
@@ -399,6 +491,60 @@ def get_top_contracts(limit: int = Query(10, ge=1, le=50), db: Session = Depends
     ).group_by(TrackedEnergyCompany.company_id, TrackedEnergyCompany.display_name).all()
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "energy", "total_contracts": total or 0})
+
+    # Transportation
+    rows = db.query(
+        TrackedTransportationCompany.company_id, TrackedTransportationCompany.display_name,
+        func.sum(TransportationGovernmentContract.award_amount),
+    ).join(TransportationGovernmentContract, TransportationGovernmentContract.company_id == TrackedTransportationCompany.company_id
+    ).group_by(TrackedTransportationCompany.company_id, TrackedTransportationCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "transportation", "total_contracts": total or 0})
+
+    # Defense
+    rows = db.query(
+        TrackedDefenseCompany.company_id, TrackedDefenseCompany.display_name,
+        func.sum(DefenseGovernmentContract.award_amount),
+    ).join(DefenseGovernmentContract, DefenseGovernmentContract.company_id == TrackedDefenseCompany.company_id
+    ).group_by(TrackedDefenseCompany.company_id, TrackedDefenseCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "defense", "total_contracts": total or 0})
+
+    # Chemicals
+    rows = db.query(
+        TrackedChemicalCompany.company_id, TrackedChemicalCompany.display_name,
+        func.sum(ChemicalGovernmentContract.award_amount),
+    ).join(ChemicalGovernmentContract, ChemicalGovernmentContract.company_id == TrackedChemicalCompany.company_id
+    ).group_by(TrackedChemicalCompany.company_id, TrackedChemicalCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "chemicals", "total_contracts": total or 0})
+
+    # Agriculture
+    rows = db.query(
+        TrackedAgricultureCompany.company_id, TrackedAgricultureCompany.display_name,
+        func.sum(AgricultureGovernmentContract.award_amount),
+    ).join(AgricultureGovernmentContract, AgricultureGovernmentContract.company_id == TrackedAgricultureCompany.company_id
+    ).group_by(TrackedAgricultureCompany.company_id, TrackedAgricultureCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "agriculture", "total_contracts": total or 0})
+
+    # Education
+    rows = db.query(
+        TrackedEducationCompany.company_id, TrackedEducationCompany.display_name,
+        func.sum(EducationGovernmentContract.award_amount),
+    ).join(EducationGovernmentContract, EducationGovernmentContract.company_id == TrackedEducationCompany.company_id
+    ).group_by(TrackedEducationCompany.company_id, TrackedEducationCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "education", "total_contracts": total or 0})
+
+    # Telecom
+    rows = db.query(
+        TrackedTelecomCompany.company_id, TrackedTelecomCompany.display_name,
+        func.sum(TelecomGovernmentContract.award_amount),
+    ).join(TelecomGovernmentContract, TelecomGovernmentContract.company_id == TrackedTelecomCompany.company_id
+    ).group_by(TrackedTelecomCompany.company_id, TrackedTelecomCompany.display_name).all()
+    for eid, name, total in rows:
+        results.append({"entity_id": eid, "display_name": name, "sector": "telecom", "total_contracts": total or 0})
 
     results.sort(key=lambda x: x["total_contracts"], reverse=True)
     return {"leaders": results[:limit]}

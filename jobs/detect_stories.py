@@ -105,16 +105,47 @@ def _strip_html_comments(text):
     return cleaned.lstrip('\n')
 
 
+def _tables_to_bullets(text):
+    """Convert markdown tables to bullet lists for cleaner display."""
+    if not text or '|' not in text:
+        return text
+    lines = text.split('\n')
+    out = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # Detect table header row
+        if '|' in line and i + 1 < len(lines) and re.match(r'^\s*\|[\s:|-]+\|\s*$', lines[i + 1]):
+            headers = [c.strip() for c in line.split('|') if c.strip()]
+            i += 2  # skip header + separator
+            while i < len(lines) and '|' in lines[i] and lines[i].strip():
+                cells = [c.strip() for c in lines[i].split('|') if c.strip()]
+                # Format as "- Header1: Value1, Header2: Value2"
+                parts = []
+                for j, cell in enumerate(cells):
+                    if j < len(headers):
+                        parts.append("%s: %s" % (headers[j], cell))
+                    else:
+                        parts.append(cell)
+                out.append("- " + ", ".join(parts))
+                i += 1
+            out.append("")  # blank line after list
+        else:
+            out.append(line)
+            i += 1
+    return '\n'.join(out)
+
+
 def _quality_gate(skeleton):
     """Pre-check: is the skeleton rich enough for an Opus story?"""
     if len(skeleton) < 800:
         return False, "Skeleton too short (%d chars)" % len(skeleton)
     has_dollars = "$" in skeleton
-    has_table = "|" in skeleton
+    has_data = "- " in skeleton
     if not has_dollars:
         return False, "No dollar amounts found"
-    if not has_table:
-        return False, "No data tables found"
+    if not has_data:
+        return False, "No data points found"
     return True, "OK"
 
 
@@ -212,8 +243,8 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "You will receive:\n"
         "- CONTEXT: {category, sector, title, summary}\n"
         "- STORY_SHAPE: %s\n"
-        "- ENRICHED_SKELETON: A complete markdown document containing pre-built sections, data tables, "
-        "bullet points, and source citations.\n\n"
+        "- ENRICHED_SKELETON: A complete markdown document containing pre-built sections, data bullet lists, "
+        "and source citations.\n\n"
         "ABSOLUTE RULES (a draft is rejected automatically if it violates ANY of these):\n\n"
         "R1. DO NOT INVENT NUMBERS. Every dollar amount, count, ratio, percentage, and date "
         "in your output must already appear verbatim in the ENRICHED_SKELETON. If a number is not "
@@ -249,8 +280,8 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "expenditures and contract awards does not prove causation.' Do not paraphrase it. "
         "Do not omit it. It must appear in every story.\n"
         "R9. PRESERVE STRUCTURE. Replace ONLY the {NARRATIVE_*} placeholders. Do not add, remove, "
-        "reorder, or edit any markdown headings, tables, bullet points, or source lines outside "
-        "the placeholders.\n"
+        "reorder, or edit any markdown headings, bullet points, or source lines outside "
+        "the placeholders. Do not create markdown tables with pipe characters.\n"
         "R10. NO UNREPLACED PLACEHOLDERS. Every {NARRATIVE_*} placeholder in the skeleton must be "
         "replaced. Do not leave any curly-brace markers in the output.\n"
         "R11. DATA LIMITATIONS. If the skeleton shows $0 lobbying, missing amounts, or obviously "
@@ -317,12 +348,12 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         # Handles both single-line (<!-- ... -->) and leading/trailing blank lines.
         result = _strip_html_comments(result)
 
+        # Post-process: convert markdown tables to bullet lists.
+        result = _tables_to_bullets(result)
+
         # Post-process: replace dashes that slip past the prompt rule.
-        # Leave markdown table rows untouched (they use long runs of dashes
-        # for column widths). HTML comments were already removed above.
+        # HTML comments were already removed above.
         def _strip_dashes(line):
-            if re.match(r'^\s*\|', line):
-                return line
             line = line.replace('\u2014', ',').replace('\u2013', ',')
             return re.sub(r'\s*--\s*', ', ', line)
         result = '\n'.join(_strip_dashes(l) for l in result.splitlines())
@@ -466,7 +497,10 @@ _DISCLAIMER_CATEGORIES = {
     "lobbying", "contract", "contract_windfall", "penalty_gap",
     "lobby_contract_loop", "tax_lobbying", "budget_lobbying",
     "lobby_then_win", "enforcement_disappearance", "pac_committee_pipeline",
-    "contract_timing",
+    "contract_timing", "regulatory_loop", "regulatory_capture",
+    "enforcement_immunity", "penalty_contract_ratio", "lobbying_spike",
+    "revolving_door", "bipartisan_buying", "prolific_trader",
+    "cross_sector", "budget_influence", "trade_timing", "foreign_lobbying",
 }
 
 
@@ -573,10 +607,8 @@ def detect_top_spender(db, sector_idx=None):
 
         if top_issues:
             body += "## What They Lobbied For\n\n"
-            body += "| Issue | Est. Spend | Filings |\n"
-            body += "|-------|-----------|--------|\n"
             for iss, spend in top_issues:
-                body += "| %s | %s | %d |\n" % (iss, fmt_money(spend), issue_filings[iss])
+                body += "- %s: %s (%d filings)\n" % (iss, fmt_money(spend), issue_filings[iss])
             body += "\n*Spend estimated by dividing each filing's income across its listed issues.*\n\n"
 
         if top_gov:
@@ -676,10 +708,8 @@ def detect_contract_windfall(db, sector_idx=None):
         body += "%s has received **%s** across **%d government contract awards**.\n\n" % (name, fmt_money(total_value), contract_count)
         if agency_rows:
             body += "## Awarding Agencies\n\n"
-            body += "| Agency | Contract Value | Awards |\n"
-            body += "|--------|---------------|--------|\n"
             for agency, cnt, amt in agency_rows:
-                body += "| %s | %s | %d |\n" % (agency or "Unknown", fmt_money(amt or 0), cnt)
+                body += "- %s: %s (%d awards)\n" % (agency or "Unknown", fmt_money(amt or 0), cnt)
             body += "\n"
         if lobby_total > 0:
             body += "## The Lobbying Connection\n\n"
@@ -764,10 +794,8 @@ def detect_penalty_gap(db, sector_idx=None):
         body += "%s has received **%s** across **%d government contracts**, yet faces no enforcement penalties with documented fines on record.\n\n" % (name, fmt_money(total_contracts), contract_count)
         if pa_rows:
             body += "## Where the Contracts Come From\n\n"
-            body += "| Agency | Contract Value | Awards |\n"
-            body += "|--------|---------------|--------|\n"
             for agency, cnt, amt in pa_rows:
-                body += "| %s | %s | %d |\n" % (agency or "Unknown", fmt_money(amt or 0), cnt)
+                body += "- %s: %s (%d awards)\n" % (agency or "Unknown", fmt_money(amt or 0), cnt)
             body += "\n"
         if lobby_total > 0:
             body += "## The Lobbying Spend\n\n"
@@ -856,10 +884,8 @@ def detect_trade_cluster(db):
         )
         if ticker_rows:
             body += "## Most Traded Tickers\n\n"
-            body += "| Ticker | Trades |\n"
-            body += "|--------|--------|\n"
             for ticker, cnt in ticker_rows:
-                body += "| %s | %d |\n" % (ticker, cnt)
+                body += "- %s: %d trades\n" % (ticker, cnt)
             body += "\n"
         if committees:
             body += "## Committee Assignments\n\n"
@@ -958,10 +984,8 @@ def detect_lobby_contract_loop(db, sector_idx=None):
         )
         if loop_top_issues:
             body += "## What They Lobbied For\n\n"
-            body += "| Issue | Est. Spend |\n"
-            body += "|-------|----------|\n"
             for iss, spend in loop_top_issues:
-                body += "| %s | %s |\n" % (iss, fmt_money(spend))
+                body += "- %s: %s\n" % (iss, fmt_money(spend))
             body += "\n"
         if ca_rows:
             body += "## Who Awarded the Contracts\n\n"
@@ -1032,11 +1056,9 @@ def detect_tax_lobbying(db, sector_idx=None):
     body += "across **%d filings** that listed Taxation/Internal Revenue Code as an issue.\n\n" % sum(company_filings.values())
 
     body += "## Top Tax Lobbying Spenders\n\n"
-    body += "| Company | Est. Tax Lobbying | Filings |\n"
-    body += "|---------|------------------|--------|\n"
     for eid, spend in top_companies:
         name = get_entity_name(db, eid, entity_table, id_col)
-        body += "| %s | %s | %d |\n" % (name, fmt_money(spend), company_filings[eid])
+        body += "- %s: %s (%d filings)\n" % (name, fmt_money(spend), company_filings[eid])
     body += "\n*Spend estimated by dividing each filing's income across all listed issues.*\n\n"
 
     body += "## Data Sources\n\n"
@@ -1100,8 +1122,6 @@ def detect_budget_lobbying(db, sector_idx=None):
     body += "directly trying to influence how federal money gets allocated.\n\n"
 
     body += "## Top Budget Lobbying Spenders\n\n"
-    body += "| Company | Est. Budget Lobbying | Filings |\n"
-    body += "|---------|---------------------|--------|\n"
     for eid, spend in top_companies:
         name = get_entity_name(db, eid, entity_table, id_col)
         # Cross-reference contracts
@@ -1112,7 +1132,7 @@ def detect_budget_lobbying(db, sector_idx=None):
             ct = fmt_money(float(cr[0])) if cr and cr[0] else "N/A"
         except Exception:
             ct = "N/A"
-        body += "| %s | %s | %d |\n" % (name, fmt_money(spend), company_filings[eid])
+        body += "- %s: %s (%d filings)\n" % (name, fmt_money(spend), company_filings[eid])
     body += "\n"
 
     body += "## Data Sources\n\n"
@@ -1180,9 +1200,11 @@ def detect_trade_before_legislation(db):
         person_hits[r[0]].append({
             "name": r[1], "party": r[2], "state": r[3], "chamber": r[4],
             "ticker": r[5], "asset": r[6], "tx_type": r[7], "amount": r[8],
-            "trade_date": str(r[9]), "bill_id": r[10], "relationship": r[11],
-            "action": r[12], "action_date": str(r[13]),
-            "bill_title": r[14], "day_gap": int(r[15]),
+            "trade_date": str(r[9]) if r[9] else "unknown",
+            "bill_id": r[10], "relationship": r[11],
+            "action": r[12],
+            "action_date": str(r[13]) if r[13] else "unknown",
+            "bill_title": r[14], "day_gap": int(r[15]) if r[15] else 0,
         })
 
     for pid, hits in sorted(person_hits.items(), key=lambda x: -len(x[1])):
@@ -1231,8 +1253,8 @@ def detect_trade_before_legislation(db):
 
         body += "## Why This Matters\n\n"
         body += "The STOCK Act requires members of Congress to disclose stock trades within 45 days. "
-        body += "When trades coincide with legislative action on bills a member sponsors, it raises questions "
-        body += "about whether nonpublic information influenced the trading decision.\n\n"
+        body += "When trades coincide with legislative action on bills a member sponsors, "
+        body += "the public record documents both the financial transaction and the legislative activity.\n\n"
         body += "## Data Sources\n\n"
         body += "- **Stock trades**: House Financial Disclosures / Senate STOCK Act filings\n"
         body += "- **Bill actions**: Congress.gov via congress-legislators (CC0)\n"
@@ -1363,10 +1385,8 @@ def detect_lobby_then_win(db, sector_idx=None):
 
             if top_issues:
                 body += "## What They Lobbied %s About\n\n" % agency.replace("Department of ", "")
-                body += "| Issue | Est. Spend |\n"
-                body += "|-------|----------|\n"
                 for iss, spend in top_issues:
-                    body += "| %s | %s |\n" % (iss, fmt_money(spend))
+                    body += "- %s: %s\n" % (iss, fmt_money(spend))
                 body += "\n"
 
             ratio = contract_total / lobby_spend if lobby_spend > 0 else 0
@@ -1465,13 +1485,11 @@ def detect_enforcement_disappearance(db, sector_idx=None):
 
         if old_rows:
             body += "## Previous Enforcement Actions\n\n"
-            body += "| Date | Type | Title |\n"
-            body += "|------|------|-------|\n"
             for case_title, case_date, etype, penalty in old_rows:
-                body += "| %s | %s | %s |\n" % (
+                body += "- %s, %s: %s\n" % (
                     str(case_date)[:10] if case_date else "N/A",
                     etype or "Unknown",
-                    (case_title or "")[:60]
+                    (case_title or "")[:80]
                 )
             body += "\n"
 
@@ -1582,16 +1600,14 @@ def detect_pac_committee_pipeline(db):
             body += "\n"
 
         body += "## The Numbers\n\n"
-        body += "| Metric | Amount |\n"
-        body += "|--------|--------|\n"
-        body += "| Total PAC donations | %s |\n" % fmt_money(data["total"])
-        body += "| To oversight committee members | %s |\n" % fmt_money(data["committee_total"])
-        body += "| Percentage to oversight | %.0f%% |\n" % pct
-        body += "| Total recipients | %d |\n\n" % len(data["recipients"])
+        body += "- Total PAC donations: %s\n" % fmt_money(data["total"])
+        body += "- To oversight committee members: %s\n" % fmt_money(data["committee_total"])
+        body += "- Percentage to oversight: %.0f%%\n" % pct
+        body += "- Total recipients: %d\n\n" % len(data["recipients"])
 
         body += "## Why This Matters\n\n"
         body += "When a company directs the majority of its political donations to the specific lawmakers "
-        body += "who regulate their industry, it raises questions about targeted influence versus broad civic participation.\n\n"
+        body += "who regulate their industry, the pattern of directed donations is documented in public FEC records.\n\n"
 
         body += "## Data Sources\n\n"
         body += "- **PAC donations**: FEC Campaign Finance Data\n"
@@ -1693,7 +1709,7 @@ def detect_contract_timing(db, sector_idx=None):
                 name, fmt_money(total_donations), fmt_money(float(amount))
             ),
             body=body,
-            category="trade_timing",
+            category="contract_timing",
             sector=sector,
             entity_ids=[eid] + [r[3] for r in donation_rows[:3] if r[3]],
             data_sources=[c_table, "company_donations", "committee_memberships", "USASpending.gov", "FEC"],
@@ -1870,6 +1886,19 @@ def detect_revolving_door(db):
             if total_income < 50000:
                 continue
 
+            # Gather client entity IDs for this firm
+            try:
+                eid_rows = db.execute(text(
+                    "SELECT DISTINCT %s FROM %s WHERE registrant_name = :firm AND %s IS NOT NULL"
+                    % (id_col, l_table, id_col)
+                ), {"firm": firm}).fetchall()
+                firm_entity_ids = [str(r[0]) for r in eid_rows if r[0]][:10]
+            except Exception:
+                firm_entity_ids = []
+
+            if not firm_entity_ids:
+                continue
+
             title = "Lobbying Firm %s Targets %s in %.0f%% of Filings" % (firm, top_agency[0], concentration * 100)
             if story_exists(db, slug(title)):
                 continue
@@ -1880,10 +1909,8 @@ def detect_revolving_door(db):
             body += "The firm earned **%s** lobbying for **%d clients** in the %s sector.\n\n" % (fmt_money(total_income), client_count, sector)
 
             body += "## Agency Targeting Breakdown\n\n"
-            body += "| Agency | Filings | Share |\n"
-            body += "|--------|---------|-------|\n"
             for agency, cnt in sorted(agencies.items(), key=lambda x: -x[1])[:6]:
-                body += "| %s | %d | %.0f%% |\n" % (agency, cnt, (cnt / total_filings) * 100)
+                body += "- %s: %d filings (%.0f%%)\n" % (agency, cnt, (cnt / total_filings) * 100)
             body += "\n"
 
             body += "## Why This Matters\n\n"
@@ -1903,7 +1930,7 @@ def detect_revolving_door(db):
                 body=body,
                 category="revolving_door",
                 sector=sector,
-                entity_ids=[],
+                entity_ids=firm_entity_ids,
                 data_sources=[l_table, "Senate LDA (senate.gov)"],
                 evidence={"firm": firm, "top_agency": top_agency[0], "concentration": concentration, "total_income": total_income},
             ))

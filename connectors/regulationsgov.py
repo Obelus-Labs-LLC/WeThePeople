@@ -59,23 +59,27 @@ def _api_get(path: str, params: Dict, api_key: str) -> Optional[Dict]:
     url = f"{REGULATIONS_BASE}{path}"
     headers = {"X-Api-Key": api_key}
 
-    try:
-        time.sleep(POLITE_DELAY)
-        resp = requests.get(url, params=params, headers=headers, timeout=30)
-        resp.raise_for_status()
-        return resp.json()
-    except requests.exceptions.HTTPError as e:
-        if e.response is not None and e.response.status_code == 429:
-            logger.warning("Regulations.gov rate limit reached")
-            time.sleep(60)
-        elif e.response is not None and e.response.status_code == 404:
+    for attempt in range(3):
+        try:
+            time.sleep(POLITE_DELAY)
+            resp = requests.get(url, params=params, headers=headers, timeout=30)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 429:
+                logger.warning("Regulations.gov rate limit reached, retrying in 60s (attempt %d/3)", attempt + 1)
+                time.sleep(60)
+                continue
+            elif e.response is not None and e.response.status_code == 404:
+                return None
+            else:
+                logger.error("Regulations.gov request failed: %s", e)
             return None
-        else:
+        except Exception as e:
             logger.error("Regulations.gov request failed: %s", e)
-        return None
-    except Exception as e:
-        logger.error("Regulations.gov request failed: %s", e)
-        return None
+            return None
+    logger.error("Regulations.gov request failed after 3 retries (429)")
+    return None
 
 
 def fetch_comments_by_org(

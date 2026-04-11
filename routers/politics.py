@@ -40,6 +40,7 @@ from services.claims.match import (
     STOPWORDS_BASE,
 )
 from utils.normalization import normalize_bill_id
+from utils.sanitize import escape_like
 from services.bill_text import format_text_receipt
 from services.auth import require_press_key
 from models.response_schemas import PoliticsDashboardStats
@@ -140,8 +141,8 @@ def search_actions(
     if bill_number:
         base = base.filter(Action.bill_number == str(bill_number))
     if q:
-        like = f"%{q}%"
-        base = base.filter((Action.title.ilike(like)) | (Action.summary.ilike(like)))
+        like = f"%{escape_like(q)}%"
+        base = base.filter((Action.title.ilike(like, escape="\\")) | (Action.summary.ilike(like, escape="\\")))
     if has_enriched is True:
         base = base.filter(Action.metadata_json.isnot(None))
     elif has_enriched is False:

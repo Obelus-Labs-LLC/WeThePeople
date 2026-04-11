@@ -43,6 +43,9 @@ interface ClosedLoopResponse {
 const SECTORS = ['All', 'Finance', 'Health', 'Tech', 'Energy'] as const;
 type SectorFilter = (typeof SECTORS)[number];
 
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 2020 + 1 }, (_, i) => 2020 + i);
+
 const fadeIn = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
@@ -58,7 +61,7 @@ export default function ClosedLoopPage() {
   const [sector, setSector] = useState<SectorFilter>('All');
   const [minDonation, setMinDonation] = useState(0);
   const [yearStart, setYearStart] = useState(2020);
-  const [yearEnd, setYearEnd] = useState(2026);
+  const [yearEnd, setYearEnd] = useState(new Date().getFullYear());
 
   useEffect(() => {
     setLoading(true);
@@ -176,7 +179,7 @@ export default function ClosedLoopPage() {
                 onChange={(e) => setYearStart(Number(e.target.value))}
                 className="bg-white/5 border border-white/10 text-white text-sm rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-500/50"
               >
-                {[2020, 2021, 2022, 2023, 2024, 2025, 2026].map((y) => (
+                {YEAR_OPTIONS.map((y) => (
                   <option key={y} value={y} className="bg-zinc-900">{y}</option>
                 ))}
               </select>
@@ -186,7 +189,7 @@ export default function ClosedLoopPage() {
                 onChange={(e) => setYearEnd(Number(e.target.value))}
                 className="bg-white/5 border border-white/10 text-white text-sm rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-500/50"
               >
-                {[2020, 2021, 2022, 2023, 2024, 2025, 2026].map((y) => (
+                {YEAR_OPTIONS.map((y) => (
                   <option key={y} value={y} className="bg-zinc-900">{y}</option>
                 ))}
               </select>

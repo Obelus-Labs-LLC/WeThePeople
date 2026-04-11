@@ -8,10 +8,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
-import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
 import TrendChart from '../components/TrendChart';
-import SpendingChart from '../components/SpendingChart';
 import { DefenseSectorHeader } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
@@ -130,6 +128,7 @@ export default function DefenseCompanyProfilePage() {
   // Load overview on mount
   useEffect(() => {
     if (!companyId) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
     Promise.all([
@@ -137,19 +136,21 @@ export default function DefenseCompanyProfilePage() {
       getDefenseCompanyStock(companyId).catch(() => ({ latest_stock: null })),
     ])
       .then(([d, s]) => {
+        if (cancelled) return;
         setDetail(d);
         setStock(s.latest_stock || null);
         getDefenseCompanyNews(d.display_name, 5)
-          .then((r) => setNews(r.articles || []))
+          .then((r) => { if (!cancelled) setNews(r.articles || []); })
           .catch(() => {});
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e) => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
     // Fetch trends
     fetch(`${getApiBaseUrl()}/defense/companies/${encodeURIComponent(companyId)}/trends`)
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setTrends(d); })
+      .then((d) => { if (d && !cancelled) setTrends(d); })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [companyId]);
 
   // Lazy load tab data
@@ -213,7 +214,7 @@ export default function DefenseCompanyProfilePage() {
     </div></div>
   );
 
-  const ACCENT = '#DC2626';
+  const ACCENT = '#4338CA';
 
   return (
     <div className="flex flex-col w-full h-screen relative">
@@ -275,7 +276,7 @@ export default function DefenseCompanyProfilePage() {
           )}
 
           <div className="space-y-6">
-            {[['TICKER', detail.ticker], ['SECTOR', detail.sector_type?.replace(/_/g, ' ')], ['SEC CIK', detail.sec_cik]].map(([label, value]) => value ? (
+            {[['TICKER', detail.ticker], ['SECTOR', detail.sector_type?.replace(/_/g, ' ').toUpperCase()], ['SEC CIK', detail.sec_cik]].map(([label, value]) => value ? (
               <div key={label}>
                 <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{label}</p>
                 <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E2E8F0' }}>{value}</p>

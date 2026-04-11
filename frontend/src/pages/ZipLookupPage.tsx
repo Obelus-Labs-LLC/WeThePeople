@@ -390,16 +390,25 @@ export default function ZipLookupPage() {
 function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const color = partyColor(rep.party);
   const flags = totalRedFlags(rep.red_flags);
+
+  // Cleanup copy timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const url = `${window.location.origin}/lookup?zip=${zip}`;
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback
       const input = document.createElement('input');
@@ -409,7 +418,7 @@ function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
       document.execCommand('copy');
       document.body.removeChild(input);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     }
   };
 

@@ -12,10 +12,13 @@ Flow:
 5. Results returned with 0-100 scores and SUPPORTED/PARTIAL/UNKNOWN status
 """
 
+import ipaddress
 import logging
 import os
 import re
+import socket
 import requests
+from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional
 from collections import defaultdict
 
@@ -25,6 +28,42 @@ from sqlalchemy import text
 logger = logging.getLogger(__name__)
 
 VERITAS_URL = os.environ.get("VERITAS_URL", "http://localhost:8007")
+
+_BLOCKED_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+]
+
+
+def _is_safe_url(url: str) -> bool:
+    """Validate a user-supplied URL to prevent SSRF attacks."""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+    if hostname in ("localhost", "metadata.google.internal"):
+        return False
+    try:
+        resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        for family, _, _, _, sockaddr in resolved:
+            ip = ipaddress.ip_address(sockaddr[0])
+            for net in _BLOCKED_NETWORKS:
+                if ip in net:
+                    return False
+    except (socket.gaierror, ValueError):
+        return False
+    return True
 
 
 def _call_veritas(endpoint: str, method: str = "GET", json_body: dict = None, timeout: int = 60) -> Optional[dict]:
@@ -347,6 +386,14 @@ def run_verification(db: Session, text_input: str, source_url: Optional[str] = N
 
 def run_verification_from_url(db: Session, url: str) -> Dict[str, Any]:
     """Run verification on content fetched from a URL."""
+    if not _is_safe_url(url):
+        return {
+            "claims_extracted": 0,
+            "claims": [],
+            "source_url": url,
+            "engine": "veritas",
+            "summary": "URL not allowed: only public http/https URLs are accepted.",
+        }
     # Use Veritas to ingest the URL
     result = _call_veritas("/api/v1/sources/ingest-url", method="POST", json_body={
         "url": url,

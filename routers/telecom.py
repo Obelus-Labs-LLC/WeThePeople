@@ -12,6 +12,7 @@ from typing import Optional, Dict, Any
 logger = logging.getLogger(__name__)
 
 from models.database import get_db
+from utils.sanitize import escape_like
 from models.telecom_models import (
     TrackedTelecomCompany,
     SECTelecomFiling,
@@ -131,11 +132,11 @@ def get_telecom_companies(
 ):
     query = db.query(TrackedTelecomCompany).filter(TrackedTelecomCompany.is_active == 1)
     if q:
-        pattern = f"%{q}%"
+        pattern = f"%{escape_like(q)}%"
         query = query.filter(
-            (TrackedTelecomCompany.display_name.ilike(pattern))
-            | (TrackedTelecomCompany.company_id.ilike(pattern))
-            | (TrackedTelecomCompany.ticker.ilike(pattern))
+            (TrackedTelecomCompany.display_name.ilike(pattern, escape="\\"))
+            | (TrackedTelecomCompany.company_id.ilike(pattern, escape="\\"))
+            | (TrackedTelecomCompany.ticker.ilike(pattern, escape="\\"))
         )
     if sector_type:
         query = query.filter(TrackedTelecomCompany.sector_type == sector_type)

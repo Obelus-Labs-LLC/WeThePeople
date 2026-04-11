@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query, HTTPException
 from sqlalchemy import func, desc
 from typing import Optional, Dict, Any
 
+from utils.sanitize import escape_like
 from models.database import (
     SessionLocal,
     Bill,
@@ -84,7 +85,7 @@ def list_bills(
 
         # Keyword search on title
         if q:
-            base = base.filter(Bill.title.ilike(f"%{q}%"))
+            base = base.filter(Bill.title.ilike(f"%{escape_like(q)}%", escape="\\"))
 
         total = base.with_entities(func.count(Bill.bill_id)).scalar() or 0
 

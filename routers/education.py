@@ -12,6 +12,7 @@ from typing import Optional, Dict, Any, List
 logger = logging.getLogger(__name__)
 
 from models.database import get_db
+from utils.sanitize import escape_like
 from models.education_models import (
     TrackedEducationCompany,
     SECEducationFiling,
@@ -80,8 +81,8 @@ def get_education_recent_activity(limit: int = Query(10, ge=1, le=30), db: Sessi
 def get_education_companies(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), q: Optional[str] = Query(None), sector_type: Optional[str] = Query(None), db: Session = Depends(get_db)):
     query = db.query(TrackedEducationCompany).filter(TrackedEducationCompany.is_active == 1)
     if q:
-        pattern = f"%{q}%"
-        query = query.filter((TrackedEducationCompany.display_name.ilike(pattern)) | (TrackedEducationCompany.company_id.ilike(pattern)) | (TrackedEducationCompany.ticker.ilike(pattern)))
+        pattern = f"%{escape_like(q)}%"
+        query = query.filter((TrackedEducationCompany.display_name.ilike(pattern, escape="\\")) | (TrackedEducationCompany.company_id.ilike(pattern, escape="\\")) | (TrackedEducationCompany.ticker.ilike(pattern, escape="\\")))
     if sector_type:
         query = query.filter(TrackedEducationCompany.sector_type == sector_type)
     total = query.count()

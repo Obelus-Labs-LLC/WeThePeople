@@ -265,7 +265,7 @@ export default function FinanceComparePage() {
   const [comparing, setComparing] = useState(false);
 
   useEffect(() => {
-    getInstitutions({ limit: 50 })
+    getInstitutions({ limit: 200 })
       .then((res) => {
         const list = res.institutions || [];
         setAllInstitutions(list);
