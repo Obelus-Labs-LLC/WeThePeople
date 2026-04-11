@@ -50,6 +50,21 @@ _SQL_PATTERNS = re.compile(
 )
 
 
+def escape_like(value: str) -> str:
+    """Escape SQL LIKE/ILIKE wildcards in user input.
+
+    Prevents '%' and '_' in search terms from acting as wildcards.
+    Use with SQLAlchemy: ``column.ilike(f"%{escape_like(q)}%", escape="\\\\")``
+
+    Args:
+        value: Raw user input to be used in a LIKE pattern.
+
+    Returns:
+        Escaped string safe for LIKE patterns with backslash as escape char.
+    """
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def sanitize_search_query(q: str) -> str:
     """Sanitize a search query string.
 

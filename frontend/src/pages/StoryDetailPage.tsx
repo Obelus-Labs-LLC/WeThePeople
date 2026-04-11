@@ -288,8 +288,11 @@ export default function StoryDetailPage() {
                   if (typeof val === 'object' || key === 'source_table' || key === 'source_tables') return null;
                   const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
                   let display = String(val);
-                  if (typeof val === 'number' && val > 10000) {
-                    display = `$${(val / 1000000).toFixed(1)}M`;
+                  const isMoneyKey = /spend|total|amount|income|contract|donation|lobby|award|obligation|salary|revenue|cost|budget|value/i.test(key);
+                  if (typeof val === 'number' && isMoneyKey && val > 10000) {
+                    display = val >= 1000000 ? `$${(val / 1000000).toFixed(1)}M` : `$${(val / 1000).toFixed(0)}K`;
+                  } else if (typeof val === 'number' && !isMoneyKey && val > 0) {
+                    display = val.toLocaleString();
                   }
                   return (
                     <div key={key} className="rounded-lg bg-white/[0.03] p-3">
@@ -388,7 +391,7 @@ export default function StoryDetailPage() {
           <div className="max-w-2xl rounded-lg bg-white/[0.02] border border-white/5 px-6 py-5">
             <p className="text-xs text-white/25 leading-relaxed">
               This story was generated from public government data. All claims are backed by the cited sources above. WeThePeople does not editorialize — we show the connections that exist in the public record. If you believe any information is inaccurate, please{' '}
-              <Link to="/verify/submit" className="text-blue-400/60 hover:text-blue-400 no-underline">
+              <Link to="/civic/verify" className="text-blue-400/60 hover:text-blue-400 no-underline">
                 submit a claim for verification
               </Link>.
             </p>

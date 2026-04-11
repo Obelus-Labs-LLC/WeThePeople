@@ -12,6 +12,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 from models.database import get_db
+from utils.sanitize import escape_like
 from models.state_models import StateLegislator, StateBill
 
 router = APIRouter(prefix="/states", tags=["states"])
@@ -170,8 +171,8 @@ def get_state_legislators(
     if party:
         query = query.filter(StateLegislator.party == party.upper())
     if search:
-        pattern = f"%{search}%"
-        query = query.filter(StateLegislator.name.ilike(pattern))
+        pattern = f"%{escape_like(search)}%"
+        query = query.filter(StateLegislator.name.ilike(pattern, escape="\\"))
 
     total = query.count()
     legislators = query.order_by(StateLegislator.name).offset(offset).limit(limit).all()
@@ -208,11 +209,11 @@ def get_state_bills(
     query = db.query(StateBill).filter_by(state=code)
 
     if search:
-        pattern = f"%{search}%"
+        pattern = f"%{escape_like(search)}%"
         query = query.filter(
-            (StateBill.title.ilike(pattern))
-            | (StateBill.identifier.ilike(pattern))
-            | (StateBill.sponsor_name.ilike(pattern))
+            (StateBill.title.ilike(pattern, escape="\\"))
+            | (StateBill.identifier.ilike(pattern, escape="\\"))
+            | (StateBill.sponsor_name.ilike(pattern, escape="\\"))
         )
     if session:
         query = query.filter(StateBill.legislative_session == session)

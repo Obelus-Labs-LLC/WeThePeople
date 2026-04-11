@@ -81,7 +81,7 @@ def _parse_event(event: Dict[str, Any]) -> Dict[str, Any]:
         "drug_name": drug_name,
         "reaction": reaction,
         "outcome": outcome,
-        "raw_json": json.dumps(event)[:2000],
+        "raw_json": json.dumps(event) if len(json.dumps(event)) <= 2000 else json.dumps({"_truncated": True, "report_id": report_id, "drug_name": drug_name, "reaction": reaction}),
         "dedupe_hash": _compute_hash(report_id),
     }
 

@@ -227,9 +227,9 @@ def subscribe_to_digest(req: SubscribeRequest, db: Session = Depends(get_db)):
                 timeout=10,
             )
         except Exception as e:
-            logger.error("Failed to send verification email to %s: %s", req.email, e)
+            log.error("Failed to send verification email to %s: %s", req.email, e)
     else:
-        logger.warning("RESEND_API_KEY not set — verification email not sent to %s", req.email)
+        log.warning("RESEND_API_KEY not set — verification email not sent to %s", req.email)
 
     return {
         "status": "subscribed",

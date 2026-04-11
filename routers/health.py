@@ -12,6 +12,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 from models.database import get_db
+from utils.sanitize import escape_like
 from models.health_models import (
     TrackedCompany, FDAAdverseEvent, FDARecall, ClinicalTrial, CMSPayment, SECHealthFiling,
     HealthLobbyingRecord, HealthGovernmentContract, HealthEnforcement,
@@ -47,8 +48,8 @@ def get_health_companies(limit: int = Query(50, ge=1, le=200), offset: int = Que
     """List tracked healthcare companies."""
     query = db.query(TrackedCompany).filter(TrackedCompany.is_active == 1)
     if q:
-        like = f"%{q.strip().lower()}%"
-        query = query.filter(func.lower(TrackedCompany.display_name).like(like) | func.lower(TrackedCompany.ticker).like(like))
+        like = f"%{escape_like(q.strip().lower())}%"
+        query = query.filter(func.lower(TrackedCompany.display_name).like(like, escape="\\") | func.lower(TrackedCompany.ticker).like(like, escape="\\"))
     if sector_type: query = query.filter(TrackedCompany.sector_type == sector_type)
     total = query.count()
     rows = query.order_by(TrackedCompany.display_name).offset(offset).limit(limit).all()

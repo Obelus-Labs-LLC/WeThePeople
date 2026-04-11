@@ -130,8 +130,8 @@ def fetch_patents(
                 "dedupe_hash": _compute_hash(patent_id),
             })
 
-        # Cursor-based pagination — use the last patent_id as the cursor
-        after = data.get("after")
+        # Cursor-based pagination
+        after = data.get("cursor") or data.get("after")
         if not after or len(patents_raw) < page_size:
             break
 

@@ -3,7 +3,7 @@ import requests
 import time
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from models.database import SessionLocal, Action, SourceDocument, Bill, BillAction
 from utils.normalization import (
     normalize_bill_id,
@@ -15,8 +15,8 @@ from sqlalchemy import exists
 from dotenv import load_dotenv
 
 load_dotenv()
-API_KEY = os.getenv("API_KEY_CONGRESS")
-HEADERS = {"X-API-Key": API_KEY}
+API_KEY = os.getenv("API_KEY_CONGRESS", "")
+HEADERS = {"X-API-Key": API_KEY} if API_KEY else {}
 
 # Legacy MEMBERS dict (kept for reference/fallback)
 MEMBERS = {
@@ -65,7 +65,7 @@ def robust_get(url, headers, params=None, retries=5):
     """Make HTTP GET with exponential backoff for rate limits and server errors"""
     for attempt in range(retries):
         try:
-            r = requests.get(url, headers=headers, params=params)
+            r = requests.get(url, headers=headers, params=params, timeout=30)
             
             # Success
             if r.status_code == 200:
@@ -271,7 +271,7 @@ def find_or_create_source(session, url):
         source = SourceDocument(
             url=url,
             publisher="Congress.gov",
-            retrieved_at=datetime.utcnow(),
+            retrieved_at=datetime.now(timezone.utc),
             content_hash=None
         )
         session.add(source)
@@ -296,7 +296,7 @@ def write_raw_log(person_id, match_type, bill, source_url, status):
     
     # Prepare audit data
     audit_data = {
-        "retrieved_at": datetime.utcnow().isoformat(),
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
         "person_id": person_id,
         "match_type": match_type,
         "source_url": source_url,
@@ -357,9 +357,9 @@ def process_bill_item(session, person_name, bill, action_type):
         try:
             action_date = datetime.strptime(date_str, "%Y-%m-%d")
         except Exception:
-            action_date = datetime.utcnow()
+            action_date = datetime.now(timezone.utc)
     else:
-        action_date = datetime.utcnow()
+        action_date = datetime.now(timezone.utc)
     
     # Build metadata from bill item
     metadata = {

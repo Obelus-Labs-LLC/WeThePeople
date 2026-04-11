@@ -9,6 +9,12 @@ const SECTOR_COLORS: Record<string, string> = {
   health: "bg-emerald-500/20 text-emerald-300",
   technology: "bg-violet-500/20 text-violet-300",
   energy: "bg-amber-500/20 text-amber-300",
+  transportation: "bg-sky-500/20 text-sky-300",
+  defense: "bg-indigo-500/20 text-indigo-300",
+  chemicals: "bg-amber-500/20 text-amber-300",
+  agriculture: "bg-green-500/20 text-green-300",
+  telecom: "bg-cyan-500/20 text-cyan-300",
+  education: "bg-purple-500/20 text-purple-300",
 };
 
 const SECTOR_ROUTES: Record<string, string> = {
@@ -16,6 +22,12 @@ const SECTOR_ROUTES: Record<string, string> = {
   health: "/health",
   technology: "/technology",
   energy: "/energy",
+  transportation: "/transportation",
+  defense: "/defense",
+  chemicals: "/chemicals",
+  agriculture: "/agriculture",
+  telecom: "/telecom",
+  education: "/education",
 };
 
 function getCompanyRoute(c: CompanyResult): string {
@@ -61,9 +73,17 @@ export default function GlobalSearch() {
       setQuery("");
       setResults(null);
       setActiveIndex(-1);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      const timer = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
     }
   }, [open]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   // Debounced search
   const doSearch = useCallback((q: string) => {

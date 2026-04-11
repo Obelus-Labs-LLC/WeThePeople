@@ -12,6 +12,7 @@ from typing import Optional, Dict, Any, List
 logger = logging.getLogger(__name__)
 
 from models.database import get_db
+from utils.sanitize import escape_like
 from models.agriculture_models import (
     TrackedAgricultureCompany,
     SECAgricultureFiling,
@@ -80,8 +81,8 @@ def get_agriculture_recent_activity(limit: int = Query(10, ge=1, le=30), db: Ses
 def get_agriculture_companies(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), q: Optional[str] = Query(None), sector_type: Optional[str] = Query(None), db: Session = Depends(get_db)):
     query = db.query(TrackedAgricultureCompany).filter(TrackedAgricultureCompany.is_active == 1)
     if q:
-        pattern = f"%{q}%"
-        query = query.filter((TrackedAgricultureCompany.display_name.ilike(pattern)) | (TrackedAgricultureCompany.company_id.ilike(pattern)) | (TrackedAgricultureCompany.ticker.ilike(pattern)))
+        pattern = f"%{escape_like(q)}%"
+        query = query.filter((TrackedAgricultureCompany.display_name.ilike(pattern, escape="\\")) | (TrackedAgricultureCompany.company_id.ilike(pattern, escape="\\")) | (TrackedAgricultureCompany.ticker.ilike(pattern, escape="\\")))
     if sector_type:
         query = query.filter(TrackedAgricultureCompany.sector_type == sector_type)
     total = query.count()

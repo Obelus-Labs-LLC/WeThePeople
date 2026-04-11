@@ -200,6 +200,14 @@ def generate_data_tweet() -> tuple:
     # Find companies that appear in BOTH top lobbying AND top contracts
     # Skip entities we tweeted about in the last 3 days
     _dedup_session = SessionLocal()
+    try:
+        return _generate_data_tweet_inner(_dedup_session, options, lobby_items, contract_items)
+    finally:
+        _dedup_session.close()
+
+
+def _generate_data_tweet_inner(_dedup_session, options, lobby_items, contract_items) -> tuple:
+    """Inner logic for generate_data_tweet — session lifetime managed by caller."""
     lobby_map = {i.get("entity_id"): i for i in lobby_items}
     for ci in contract_items:
         eid = ci.get("entity_id")
@@ -308,8 +316,6 @@ def generate_data_tweet() -> tuple:
                 f"#CorporateLobbying",
                 f"{SITE}/{sector}/{eid}"
             ))
-
-    _dedup_session.close()
 
     if not options:
         return None, "data"
@@ -703,12 +709,18 @@ def run(category: str = None, dry_run: bool = False):
     Replying to own tweets also boosts algorithm score (+75 weight).
     """
     session = SessionLocal()
+    try:
+        _run_inner(session, category, dry_run)
+    finally:
+        session.close()
 
+
+def _run_inner(session, category: str = None, dry_run: bool = False):
+    """Inner run logic — session lifetime managed by run()."""
     # Rate limit: max 4 tweets/day
     count = posts_today(session)
     if count >= 4 and not dry_run:
         log.info("Already posted %d tweets today. Skipping.", count)
-        session.close()
         return
 
     # Check API health — skip data/thread tweets if API is down
@@ -741,7 +753,6 @@ def run(category: str = None, dry_run: bool = False):
         result, actual_cat = generate_data_tweet()
     if result is None:
         log.info("No approved-story content available. Skipping this cycle.")
-        session.close()
         return
 
     # Handle thread vs single tweet
@@ -768,7 +779,6 @@ def run(category: str = None, dry_run: bool = False):
             print(f"  {tweet_text}")
             if link:
                 print(f"  [REPLY] {link}")
-        session.close()
         return
 
     # Check for duplicates — only retries once by design. If both attempts
@@ -783,7 +793,6 @@ def run(category: str = None, dry_run: bool = False):
             result, actual_cat = generate_data_tweet()
         if result is None:
             log.warning("No unique content available. Skipping this cycle.")
-            session.close()
             return
         is_thread = isinstance(result, tuple) and isinstance(result[0], list)
         if is_thread:
@@ -794,7 +803,6 @@ def run(category: str = None, dry_run: bool = False):
         check_text = thread_tweets[0] if is_thread else tweet_text
         if already_posted(session, check_text):
             log.warning("Still a duplicate. Skipping this cycle.")
-            session.close()
             return
 
     # Post
@@ -818,8 +826,6 @@ def run(category: str = None, dry_run: bool = False):
                 reply_id = post_tweet(link, reply_to=tweet_id)
                 if reply_id:
                     log.info("Link reply posted: %s", reply_id)
-
-    session.close()
 
 
 def main():

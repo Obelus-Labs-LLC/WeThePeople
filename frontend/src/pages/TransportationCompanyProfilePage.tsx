@@ -3,13 +3,12 @@ import { useParams, Link } from 'react-router-dom';
 import {
   Building2, FileText, Landmark, Shield, Scale, TrendingUp,
   Calendar, Hash, ExternalLink, AlertTriangle, Car, Newspaper,
-  DollarSign, Fuel, Star,
+  DollarSign, Star,
   type LucideIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
-import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
 import TrendChart from '../components/TrendChart';
 import { TransportationSectorHeader } from '../components/SectorHeader';
@@ -30,7 +29,6 @@ import {
   getTransportationCompanyStock,
   getTransportationCompanyRecalls,
   getTransportationCompanyComplaints,
-  getTransportationCompanyFuelEconomy,
   getTransportationCompanySafetyRatings,
   getTransportationCompanyDonations,
   getTransportationCompanyNews,
@@ -44,7 +42,6 @@ import {
   type TransportationStockData,
   type TransportationRecallItem,
   type TransportationComplaintItem,
-  type TransportationFuelEconomyItem,
   type TransportationSafetyRatingItem,
   type TransportationDonationItem,
   type TransportationNewsItem,
@@ -139,11 +136,6 @@ export default function TransportationCompanyProfilePage() {
   const [complaintsLoaded, setComplaintsLoaded] = useState(false);
   const [complaintOffset, setComplaintOffset] = useState(0);
 
-  const [fuelEconomy, setFuelEconomy] = useState<TransportationFuelEconomyItem[]>([]);
-  const [fuelEconomyTotal, setFuelEconomyTotal] = useState(0);
-  const [fuelEconomyLoaded, setFuelEconomyLoaded] = useState(false);
-  const [fuelEconomyOffset, setFuelEconomyOffset] = useState(0);
-
   const [safetyRatings, setSafetyRatings] = useState<TransportationSafetyRatingItem[]>([]);
   const [safetyRatingsTotal, setSafetyRatingsTotal] = useState(0);
   const [safetyRatingsLoaded, setSafetyRatingsLoaded] = useState(false);
@@ -160,6 +152,7 @@ export default function TransportationCompanyProfilePage() {
   // Load overview on mount
   useEffect(() => {
     if (!companyId) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
     Promise.all([
@@ -167,20 +160,22 @@ export default function TransportationCompanyProfilePage() {
       getTransportationCompanyStock(companyId).catch(() => ({ latest_stock: null })),
     ])
       .then(([d, s]) => {
+        if (cancelled) return;
         setDetail(d);
         setStock(s.latest_stock || null);
         // Load news in background
         getTransportationCompanyNews(d.display_name, 5)
-          .then((r) => setNews(r.articles || []))
+          .then((r) => { if (!cancelled) setNews(r.articles || []); })
           .catch(() => {});
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e) => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
     // Fetch trends
     fetch(`${getApiBaseUrl()}/transportation/companies/${encodeURIComponent(companyId)}/trends`)
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setTrends(d); })
+      .then((d) => { if (d && !cancelled) setTrends(d); })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [companyId]);
 
   // Lazy load tab data
@@ -267,13 +262,6 @@ export default function TransportationCompanyProfilePage() {
       .then((r) => { setComplaints((prev) => [...prev, ...(r.complaints || [])]); setComplaintOffset((o) => o + 50); })
       .catch(() => {});
   };
-  const loadMoreFuelEconomy = () => {
-    if (!companyId) return;
-    getTransportationCompanyFuelEconomy(companyId, { limit: 50, offset: fuelEconomyOffset })
-      .then((r) => { setFuelEconomy((prev) => [...prev, ...(r.vehicles || [])]); setFuelEconomyOffset((o) => o + 50); })
-      .catch(() => {});
-  };
-
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">

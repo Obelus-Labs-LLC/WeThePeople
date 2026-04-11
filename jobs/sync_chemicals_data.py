@@ -16,7 +16,7 @@ import time
 import hashlib
 import argparse
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List, Dict, Any
 
 import requests
@@ -131,7 +131,6 @@ CHEMICALS_COMPANIES = [
     {"company_id": "rogers-corp", "display_name": "Rogers Corporation", "ticker": "ROG", "sector_type": "specialty", "headquarters": "Chandler, AZ", "sec_cik": "0000084004"},
     {"company_id": "omnova", "display_name": "Omnova Solutions Inc.", "ticker": "OMN", "sector_type": "specialty", "headquarters": "Beachwood, OH", "sec_cik": "0001062898"},
     {"company_id": "cytec", "display_name": "Cytec Industries Inc.", "ticker": "CYT", "sector_type": "specialty", "headquarters": "Woodland Park, NJ", "sec_cik": "0000811596"},
-    {"company_id": "h-b-fuller", "display_name": "H.B. Fuller Company", "ticker": "FUL", "sector_type": "specialty", "headquarters": "Saint Paul, MN", "sec_cik": "0000046619"},
     {"company_id": "balchem", "display_name": "Balchem Corporation", "ticker": "BCPC", "sector_type": "specialty", "headquarters": "Montvale, NJ", "sec_cik": "0000009984"},
     {"company_id": "elementis", "display_name": "Elementis plc", "ticker": "ELMTY", "sector_type": "specialty", "headquarters": "London, UK", "sec_cik": ""},
     {"company_id": "univar", "display_name": "Univar Solutions Inc.", "ticker": "UNVR", "sector_type": "specialty", "headquarters": "Downers Grove, IL", "sec_cik": "0001494319"},
@@ -157,7 +156,6 @@ CHEMICALS_COMPANIES = [
     # Industrial Gas
     {"company_id": "air-products", "display_name": "Air Products and Chemicals, Inc.", "ticker": "APD", "sector_type": "industrial_gas", "headquarters": "Allentown, PA", "sec_cik": "0000002969"},
     {"company_id": "linde", "display_name": "Linde plc", "ticker": "LIN", "sector_type": "industrial_gas", "headquarters": "Woking, UK", "sec_cik": "0001707925"},
-    {"company_id": "albemarle", "display_name": "Albemarle Corporation", "ticker": "ALB", "sector_type": "industrial_gas", "headquarters": "Charlotte, NC", "sec_cik": "0000915913"},
     {"company_id": "element-solutions", "display_name": "Element Solutions Inc.", "ticker": "ESI", "sector_type": "industrial_gas", "headquarters": "Fort Lauderdale, FL", "sec_cik": "0001751152"},
     {"company_id": "air-liquide", "display_name": "Air Liquide S.A.", "ticker": "AIQUY", "sector_type": "industrial_gas", "headquarters": "Paris, France", "sec_cik": ""},
     {"company_id": "taiyo-nippon-sanso", "display_name": "Taiyo Nippon Sanso Corporation", "ticker": "TNPSF", "sector_type": "industrial_gas", "headquarters": "Tokyo, Japan", "sec_cik": ""},
@@ -186,7 +184,7 @@ CHEMICALS_COMPANIES = [
     {"company_id": "wacker-chemie", "display_name": "Wacker Chemie AG", "ticker": "WKCMF", "sector_type": "specialty", "headquarters": "Munich, Germany", "sec_cik": ""},
     # Electronic chemicals
     {"company_id": "entegris", "display_name": "Entegris, Inc.", "ticker": "ENTG", "sector_type": "specialty", "headquarters": "Billerica, MA", "sec_cik": "0001101302"},
-    {"company_id": "cabot-microelectronics", "display_name": "CMC Materials, Inc.", "ticker": "CCMP", "sector_type": "specialty", "headquarters": "Aurora, IL", "sec_cik": "0001101302"},
+    {"company_id": "cabot-microelectronics", "display_name": "CMC Materials, Inc.", "ticker": "CCMP", "sector_type": "specialty", "headquarters": "Aurora, IL", "sec_cik": "0001102934"},
 ]
 
 
@@ -473,7 +471,7 @@ def main():
 
                 # Mark as synced
                 co.needs_ingest = 0
-                co.last_full_refresh_at = datetime.utcnow()
+                co.last_full_refresh_at = datetime.now(timezone.utc)
                 session.commit()
             except Exception as e:
                 log.error(f"FAILED {cid}: {e}", exc_info=True)

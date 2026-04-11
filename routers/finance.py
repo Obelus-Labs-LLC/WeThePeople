@@ -12,6 +12,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 from models.database import get_db
+from utils.sanitize import escape_like
 from models.finance_models import (
     TrackedInstitution, SECFiling, SECInsiderTrade, FDICFinancial, CFPBComplaint,
     FREDObservation, FedPressRelease, FinanceLobbyingRecord, FinanceGovernmentContract, FinanceEnforcement,
@@ -49,8 +50,8 @@ def get_finance_institutions(limit: int = Query(50, ge=1, le=200), offset: int =
     """List tracked financial institutions."""
     query = db.query(TrackedInstitution).filter(TrackedInstitution.is_active == 1)
     if q:
-        like = f"%{q.strip().lower()}%"
-        query = query.filter(func.lower(TrackedInstitution.display_name).like(like) | func.lower(TrackedInstitution.ticker).like(like) | func.lower(TrackedInstitution.institution_id).like(like))
+        like = f"%{escape_like(q.strip().lower())}%"
+        query = query.filter(func.lower(TrackedInstitution.display_name).like(like, escape="\\") | func.lower(TrackedInstitution.ticker).like(like, escape="\\") | func.lower(TrackedInstitution.institution_id).like(like, escape="\\"))
     if sector_type: query = query.filter(TrackedInstitution.sector_type == sector_type)
     total = query.count()
     rows = query.order_by(TrackedInstitution.display_name).offset(offset).limit(limit).all()

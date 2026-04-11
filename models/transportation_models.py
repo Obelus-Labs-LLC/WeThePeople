@@ -7,7 +7,7 @@ government contracts, lobbying, enforcement (NHTSA/FAA/FMC/FMCSA), and SEC filin
 
 from sqlalchemy import (
     Column, String, Integer, DateTime, Float, Text, Date, Boolean,
-    ForeignKey, UniqueConstraint, JSON
+    ForeignKey, UniqueConstraint, JSON, text
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -232,8 +232,8 @@ class NHTSAComplaint(Base):
     model = Column(String, nullable=True, index=True)
     model_year = Column(Integer, nullable=True, index=True)
     date_of_complaint = Column(String, nullable=True, index=True)  # Date string from API
-    crash = Column(Boolean, nullable=True, server_default="0")
-    fire = Column(Boolean, nullable=True, server_default="0")
+    crash = Column(Boolean, nullable=True, server_default=text("false"))
+    fire = Column(Boolean, nullable=True, server_default=text("false"))
     injuries = Column(Integer, nullable=True, server_default="0")
     deaths = Column(Integer, nullable=True, server_default="0")
     component = Column(String, nullable=True)

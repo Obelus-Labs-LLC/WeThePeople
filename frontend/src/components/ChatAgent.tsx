@@ -41,16 +41,16 @@ const NAV_PATTERNS: Array<{ pattern: RegExp; path: string; label: string }> = [
   { pattern: /\b(data explorer|explorer)\b/i, path: "/influence/explorer", label: "Data Explorer" },
   { pattern: /\b(influence timeline)\b/i, path: "/influence/timeline", label: "Influence Timeline" },
   { pattern: /\b(closed loop|closed-loop)\b/i, path: "/influence/closed-loops", label: "Closed Loop Detection" },
-  { pattern: /\b(verify|verification|claim)\b/i, path: "/verify", label: "Claim Verification" },
+  { pattern: /\b(verify|verification|claim)\b/i, path: "/civic/verify", label: "Claim Verification" },
   { pattern: /\b(methodology|data sources?|how.*collect)\b/i, path: "/methodology", label: "Methodology" },
   { pattern: /\b(find.*(rep|representative)|my.*(rep|representative)|who represents)\b/i, path: "/politics/find-rep", label: "Find Your Representative" },
   { pattern: /\b(committees?)\b/i, path: "/politics/committees", label: "Committees" },
   { pattern: /\b(legislation|bills?|bill tracker)\b/i, path: "/politics/legislation", label: "Legislation Tracker" },
-  { pattern: /\b(balance of power)\b/i, path: "/politics/power", label: "Balance of Power" },
+  { pattern: /\b(balance of power)\b/i, path: "/politics", label: "Politics Dashboard" },
   { pattern: /\b(state explorer|states)\b/i, path: "/politics/states", label: "State Explorer" },
   { pattern: /\b(insider trad(es?|ing))\b/i, path: "/finance/insider-trades", label: "Insider Trades" },
   { pattern: /\b(complaints?|cfpb)\b/i, path: "/finance/complaints", label: "CFPB Complaints" },
-  { pattern: /\b(drug lookup|drugs?)\b/i, path: "/health/drugs", label: "Drug Lookup" },
+  { pattern: /\b(drug lookup|drugs?)\b/i, path: "/health", label: "Health Dashboard" },
   { pattern: /\b(clinical trial|pipeline)\b/i, path: "/health/pipeline", label: "Clinical Trial Pipeline" },
   { pattern: /\b(fda approval)\b/i, path: "/health/fda-approvals", label: "FDA Approvals" },
   { pattern: /\b(patent)\b/i, path: "/technology/patents", label: "Patent Search" },
@@ -138,8 +138,17 @@ export default function ChatAgent() {
   const [limit, setLimit] = useState(10);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Cleanup all pending timers on unmount
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+    };
+  }, []);
 
   // Listen for external open events
   useEffect(() => {
@@ -163,7 +172,8 @@ export default function ChatAgent() {
   // Auto-focus input when opened
   useEffect(() => {
     if (open) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+      const t = setTimeout(() => inputRef.current?.focus(), 100);
+      timersRef.current.push(t);
       // Fetch remaining questions
       getRemainingQuestions()
         .then((data) => {
@@ -220,7 +230,8 @@ export default function ChatAgent() {
         action: intent.action,
       });
       if (intent.action) {
-        setTimeout(() => handleAction(intent.action!), 800);
+        const t = setTimeout(() => handleAction(intent.action!), 800);
+        timersRef.current.push(t);
       }
       setSending(false);
       return;
@@ -245,7 +256,8 @@ export default function ChatAgent() {
       }
 
       if (response.action) {
-        setTimeout(() => handleAction(response.action!), 1200);
+        const t = setTimeout(() => handleAction(response.action!), 1200);
+        timersRef.current.push(t);
       }
     } catch (err: unknown) {
       updateMessage(loadingId, {
@@ -282,7 +294,7 @@ export default function ChatAgent() {
             dragElastic={0.1}
             whileDrag={{ scale: 1.1, cursor: "grabbing" }}
             onDragStart={() => { (window as any).__wtpChatDragged = true; }}
-            onDragEnd={() => { setTimeout(() => { (window as any).__wtpChatDragged = false; }, 100); }}
+            onDragEnd={() => { const t = setTimeout(() => { (window as any).__wtpChatDragged = false; }, 100); timersRef.current.push(t); }}
             onClick={() => {
               if (!(window as any).__wtpChatDragged) {
                 setOpen(true);

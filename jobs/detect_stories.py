@@ -497,7 +497,10 @@ _DISCLAIMER_CATEGORIES = {
     "lobbying", "contract", "contract_windfall", "penalty_gap",
     "lobby_contract_loop", "tax_lobbying", "budget_lobbying",
     "lobby_then_win", "enforcement_disappearance", "pac_committee_pipeline",
-    "contract_timing",
+    "contract_timing", "regulatory_loop", "regulatory_capture",
+    "enforcement_immunity", "penalty_contract_ratio", "lobbying_spike",
+    "revolving_door", "bipartisan_buying", "prolific_trader",
+    "cross_sector", "budget_influence", "trade_timing", "foreign_lobbying",
 }
 
 
@@ -1197,9 +1200,11 @@ def detect_trade_before_legislation(db):
         person_hits[r[0]].append({
             "name": r[1], "party": r[2], "state": r[3], "chamber": r[4],
             "ticker": r[5], "asset": r[6], "tx_type": r[7], "amount": r[8],
-            "trade_date": str(r[9]), "bill_id": r[10], "relationship": r[11],
-            "action": r[12], "action_date": str(r[13]),
-            "bill_title": r[14], "day_gap": int(r[15]),
+            "trade_date": str(r[9]) if r[9] else "unknown",
+            "bill_id": r[10], "relationship": r[11],
+            "action": r[12],
+            "action_date": str(r[13]) if r[13] else "unknown",
+            "bill_title": r[14], "day_gap": int(r[15]) if r[15] else 0,
         })
 
     for pid, hits in sorted(person_hits.items(), key=lambda x: -len(x[1])):
@@ -1248,8 +1253,8 @@ def detect_trade_before_legislation(db):
 
         body += "## Why This Matters\n\n"
         body += "The STOCK Act requires members of Congress to disclose stock trades within 45 days. "
-        body += "When trades coincide with legislative action on bills a member sponsors, it raises questions "
-        body += "about whether nonpublic information influenced the trading decision.\n\n"
+        body += "When trades coincide with legislative action on bills a member sponsors, "
+        body += "the public record documents both the financial transaction and the legislative activity.\n\n"
         body += "## Data Sources\n\n"
         body += "- **Stock trades**: House Financial Disclosures / Senate STOCK Act filings\n"
         body += "- **Bill actions**: Congress.gov via congress-legislators (CC0)\n"
@@ -1602,7 +1607,7 @@ def detect_pac_committee_pipeline(db):
 
         body += "## Why This Matters\n\n"
         body += "When a company directs the majority of its political donations to the specific lawmakers "
-        body += "who regulate their industry, it raises questions about targeted influence versus broad civic participation.\n\n"
+        body += "who regulate their industry, the pattern of directed donations is documented in public FEC records.\n\n"
 
         body += "## Data Sources\n\n"
         body += "- **PAC donations**: FEC Campaign Finance Data\n"
@@ -1704,7 +1709,7 @@ def detect_contract_timing(db, sector_idx=None):
                 name, fmt_money(total_donations), fmt_money(float(amount))
             ),
             body=body,
-            category="trade_timing",
+            category="contract_timing",
             sector=sector,
             entity_ids=[eid] + [r[3] for r in donation_rows[:3] if r[3]],
             data_sources=[c_table, "company_donations", "committee_memberships", "USASpending.gov", "FEC"],
@@ -1881,6 +1886,19 @@ def detect_revolving_door(db):
             if total_income < 50000:
                 continue
 
+            # Gather client entity IDs for this firm
+            try:
+                eid_rows = db.execute(text(
+                    "SELECT DISTINCT %s FROM %s WHERE registrant_name = :firm AND %s IS NOT NULL"
+                    % (id_col, l_table, id_col)
+                ), {"firm": firm}).fetchall()
+                firm_entity_ids = [str(r[0]) for r in eid_rows if r[0]][:10]
+            except Exception:
+                firm_entity_ids = []
+
+            if not firm_entity_ids:
+                continue
+
             title = "Lobbying Firm %s Targets %s in %.0f%% of Filings" % (firm, top_agency[0], concentration * 100)
             if story_exists(db, slug(title)):
                 continue
@@ -1912,7 +1930,7 @@ def detect_revolving_door(db):
                 body=body,
                 category="revolving_door",
                 sector=sector,
-                entity_ids=[],
+                entity_ids=firm_entity_ids,
                 data_sources=[l_table, "Senate LDA (senate.gov)"],
                 evidence={"firm": firm, "top_agency": top_agency[0], "concentration": concentration, "total_income": total_income},
             ))

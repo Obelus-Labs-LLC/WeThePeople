@@ -8,7 +8,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
-import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { ChemicalsSectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
@@ -206,7 +205,7 @@ export default function ChemicalsCompanyProfilePage() {
 
   const stk = stock || detail.latest_stock;
 
-  const ACCENT = '#0D9488';
+  const ACCENT = '#EAB308';
 
   return (
     <div className="flex flex-col w-full h-screen relative">
