@@ -200,39 +200,81 @@ export default function StoryDetailPage() {
 
           {/* Body - article-width readable column */}
           <div className="max-w-2xl mb-12">
-            {story.body?.split('\n').map((paragraph, idx) => {
-              if (!paragraph.trim()) return null;
-              if (paragraph.startsWith('## ')) {
-                return (
-                  <h2 key={idx} className="font-['Oswald',_sans-serif] text-xl sm:text-2xl font-bold text-white mt-10 mb-4">
-                    {paragraph.slice(3)}
-                  </h2>
-                );
+            {(() => {
+              const bodyLines = (story.body || '').split('\n');
+              const elements: React.ReactNode[] = [];
+              let i = 0;
+              while (i < bodyLines.length) {
+                const line = bodyLines[i];
+                if (!line.trim()) { i++; continue; }
+
+                // Detect markdown table (header | separator | data rows)
+                if (line.includes('|') && i + 1 < bodyLines.length && bodyLines[i + 1].trim().replace(/[\s|:-]/g, '') === '') {
+                  const parseRow = (r: string) => r.split('|').map(c => c.trim()).filter(Boolean);
+                  const headers = parseRow(line);
+                  i += 2; // skip header + separator
+                  const dataRows: string[][] = [];
+                  while (i < bodyLines.length && bodyLines[i].includes('|') && bodyLines[i].trim()) {
+                    dataRows.push(parseRow(bodyLines[i]));
+                    i++;
+                  }
+                  elements.push(
+                    <div key={`tbl-${i}`} className="mb-6 overflow-x-auto rounded-lg border border-white/10">
+                      <table className="w-full text-sm text-left">
+                        <thead>
+                          <tr className="border-b border-white/10 bg-white/[0.03]">
+                            {headers.map((h, j) => (
+                              <th key={j} className="px-4 py-2.5 text-white/40 font-semibold text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dataRows.map((row, j) => (
+                            <tr key={j} className={j % 2 === 0 ? 'bg-white/[0.01]' : 'bg-white/[0.03]'}>
+                              {row.map((cell, k) => (
+                                <td key={k} className="px-4 py-2 text-white/70 text-sm border-t border-white/5">{cell}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                  continue;
+                }
+
+                if (line.startsWith('## ')) {
+                  elements.push(
+                    <h2 key={i} className="font-['Oswald',_sans-serif] text-xl sm:text-2xl font-bold text-white mt-10 mb-4">
+                      {line.slice(3)}
+                    </h2>
+                  );
+                } else if (line.startsWith('### ')) {
+                  elements.push(
+                    <h3 key={i} className="font-['Oswald',_sans-serif] text-lg font-bold text-white mt-8 mb-3">
+                      {line.slice(4)}
+                    </h3>
+                  );
+                } else if (line.startsWith('- ')) {
+                  elements.push(
+                    <li key={i} className="text-white/70 ml-4 mb-1 leading-relaxed" style={{ lineHeight: '1.8' }}>
+                      {line.slice(2)}
+                    </li>
+                  );
+                } else {
+                  const parts = line.split(/\*\*(.*?)\*\*/g);
+                  elements.push(
+                    <p key={i} className="text-white/70 mb-5" style={{ lineHeight: '1.85' }}>
+                      {parts.map((part, j) =>
+                        j % 2 === 1 ? <strong key={j} className="text-white font-semibold">{part}</strong> : part
+                      )}
+                    </p>
+                  );
+                }
+                i++;
               }
-              if (paragraph.startsWith('### ')) {
-                return (
-                  <h3 key={idx} className="font-['Oswald',_sans-serif] text-lg font-bold text-white mt-8 mb-3">
-                    {paragraph.slice(4)}
-                  </h3>
-                );
-              }
-              if (paragraph.startsWith('- ')) {
-                return (
-                  <li key={idx} className="text-white/70 ml-4 mb-1 leading-relaxed" style={{ lineHeight: '1.8' }}>
-                    {paragraph.slice(2)}
-                  </li>
-                );
-              }
-              // Bold text
-              const parts = paragraph.split(/\*\*(.*?)\*\*/g);
-              return (
-                <p key={idx} className="text-white/70 mb-5" style={{ lineHeight: '1.85' }}>
-                  {parts.map((part, i) =>
-                    i % 2 === 1 ? <strong key={i} className="text-white font-semibold">{part}</strong> : part
-                  )}
-                </p>
-              );
-            })}
+              return elements;
+            })()}
           </div>
 
           {/* Evidence data */}
