@@ -13,7 +13,7 @@ async function apiFetch<T>(path: string, options?: { method?: string; body?: unk
     method: options?.method || 'GET',
     headers: {
       'Content-Type': 'application/json',
-      ...(localStorage.getItem('wtp_token') ? { Authorization: `Bearer ${localStorage.getItem('wtp_token')}` } : {}),
+      ...(localStorage.getItem('wtp_access_token') ? { Authorization: `Bearer ${localStorage.getItem('wtp_access_token')}` } : {}),
     },
     ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
   });

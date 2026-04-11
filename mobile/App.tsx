@@ -66,7 +66,7 @@ export default function App() {
   if (phase === 'onboarding') {
     return (
       <>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
         <OnboardingScreen onFinish={handleOnboardingFinish} />
       </>
     );
@@ -75,7 +75,7 @@ export default function App() {
   // Main app
   return (
     <NavigationContainer theme={navTheme}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <TabNavigator />
     </NavigationContainer>
   );

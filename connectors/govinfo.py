@@ -11,7 +11,7 @@ Rate limit: 1,000 requests/hour
 """
 
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 from utils.http_client import http_client, HTTPError, AuthError
@@ -111,7 +111,7 @@ def fetch_recent_crec(days: int = 7, page_size: int = 100) -> List[Dict[str, Any
     Returns:
         List of CREC package metadata dicts
     """
-    end = datetime.utcnow()
+    end = datetime.now(timezone.utc)
     start = end - timedelta(days=days)
     return fetch_crec_collection(
         start_date=start.strftime("%Y-%m-%d"),

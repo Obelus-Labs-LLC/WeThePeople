@@ -54,33 +54,36 @@ def _download_and_parse_csv(url: str) -> List[Dict[str, Any]]:
 
     rows: List[Dict[str, Any]] = []
 
-    with zipfile.ZipFile(tmp_path, "r") as zf:
-        csv_names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-        if not csv_names:
-            logger.error("No CSV file found in ZIP: %s", url)
+    try:
+        with zipfile.ZipFile(tmp_path, "r") as zf:
+            csv_names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
+            if not csv_names:
+                logger.error("No CSV file found in ZIP: %s", url)
+                return rows
+
+            csv_name = csv_names[0]
+            raw_bytes = zf.read(csv_name)
+
+        # Try utf-8 first, fall back to latin-1
+        for encoding in ("utf-8", "latin-1"):
+            try:
+                text = raw_bytes.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            logger.error("Could not decode CSV from %s with utf-8 or latin-1", url)
             return rows
 
-        csv_name = csv_names[0]
-        raw_bytes = zf.read(csv_name)
+        reader = csv.DictReader(io.StringIO(text))
+        for row in reader:
+            # Strip whitespace from keys and values
+            cleaned = {k.strip(): (v.strip() if v else "") for k, v in row.items() if k is not None}
+            rows.append(cleaned)
 
-    # Try utf-8 first, fall back to latin-1
-    for encoding in ("utf-8", "latin-1"):
-        try:
-            text = raw_bytes.decode(encoding)
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        logger.error("Could not decode CSV from %s with utf-8 or latin-1", url)
-        return rows
-
-    reader = csv.DictReader(io.StringIO(text))
-    for row in reader:
-        # Strip whitespace from keys and values
-        cleaned = {k.strip(): (v.strip() if v else "") for k, v in row.items() if k is not None}
-        rows.append(cleaned)
-
-    logger.info("Parsed %d rows from %s", len(rows), csv_name)
+        logger.info("Parsed %d rows from %s", len(rows), csv_name)
+    finally:
+        os.unlink(tmp_path)
 
     # Clean up temp file
     import os

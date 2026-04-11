@@ -272,11 +272,16 @@ def validate_draft(
             break
 
     # 11. Required disclaimer — every story must carry the boilerplate
+    # This set must stay in sync with _DISCLAIMER_CATEGORIES in detect_stories.py
     have_any = any(frag in body for frag in REQUIRED_DISCLAIMER_FRAGMENTS)
     if not have_any and category in {
-        "lobbying_spike", "contract_windfall", "lobby_contract_loop",
-        "regulatory_loop", "regulatory_capture", "enforcement_immunity",
-        "penalty_contract_ratio",
+        "lobbying", "contract", "contract_windfall", "penalty_gap",
+        "lobby_contract_loop", "tax_lobbying", "budget_lobbying",
+        "lobby_then_win", "enforcement_disappearance", "pac_committee_pipeline",
+        "contract_timing", "regulatory_loop", "regulatory_capture",
+        "enforcement_immunity", "penalty_contract_ratio", "lobbying_spike",
+        "revolving_door", "bipartisan_buying", "prolific_trader",
+        "cross_sector", "budget_influence", "trade_timing", "foreign_lobbying",
     }:
         issues.append(Issue(CRITICAL, "missing_disclaimer",
                             "lobbying/contract stories must carry the First Amendment disclaimer"))

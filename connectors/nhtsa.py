@@ -52,10 +52,10 @@ def _compute_hash(*parts: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _get_models_for_make(make: str, model_year: int) -> List[str]:
+def _get_models_for_make(make: str, model_year: int, issue_type: str = "r") -> List[str]:
     """Get all model names for a make/year from NHTSA products API."""
     url = f"{NHTSA_BASE}/products/vehicle/models"
-    params = {"make": make, "modelYear": model_year, "issueType": "r"}
+    params = {"make": make, "modelYear": model_year, "issueType": issue_type}
     try:
         time.sleep(POLITE_DELAY)
         resp = requests.get(url, params=params, timeout=30)
@@ -157,8 +157,8 @@ def fetch_complaints(make: str, model_year_start: int = 2015) -> List[Dict[str, 
     seen_hashes = set()
 
     for year in range(model_year_start, current_year + 1):
-        # Use "c" issueType for complaints
-        models = _get_models_for_make(make, year)
+        # Use "c" issueType for complaints (not "r" for recalls)
+        models = _get_models_for_make(make, year, issue_type="c")
         if not models:
             continue
 

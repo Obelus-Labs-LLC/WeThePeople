@@ -12,6 +12,7 @@ from typing import Optional, Dict, Any, List
 logger = logging.getLogger(__name__)
 
 from models.database import get_db
+from utils.sanitize import escape_like
 from models.chemicals_models import (
     TrackedChemicalCompany,
     SECChemicalFiling,
@@ -80,8 +81,8 @@ def get_chemicals_recent_activity(limit: int = Query(10, ge=1, le=30), db: Sessi
 def get_chemicals_companies(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), q: Optional[str] = Query(None), sector_type: Optional[str] = Query(None), db: Session = Depends(get_db)):
     query = db.query(TrackedChemicalCompany).filter(TrackedChemicalCompany.is_active == 1)
     if q:
-        pattern = f"%{q}%"
-        query = query.filter((TrackedChemicalCompany.display_name.ilike(pattern)) | (TrackedChemicalCompany.company_id.ilike(pattern)) | (TrackedChemicalCompany.ticker.ilike(pattern)))
+        pattern = f"%{escape_like(q)}%"
+        query = query.filter((TrackedChemicalCompany.display_name.ilike(pattern, escape="\\")) | (TrackedChemicalCompany.company_id.ilike(pattern, escape="\\")) | (TrackedChemicalCompany.ticker.ilike(pattern, escape="\\")))
     if sector_type:
         query = query.filter(TrackedChemicalCompany.sector_type == sector_type)
     total = query.count()

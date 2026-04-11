@@ -14,7 +14,7 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -328,7 +328,7 @@ def sync_all(
 
                 # Update scheduling state
                 company.needs_ingest = 0
-                company.last_full_refresh_at = datetime.utcnow()
+                company.last_full_refresh_at = datetime.now(timezone.utc)
                 db.commit()
             except Exception as e:
                 logger.error("FAILED %s: %s", cid, e, exc_info=True)

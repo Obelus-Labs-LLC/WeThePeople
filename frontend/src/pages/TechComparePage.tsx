@@ -207,8 +207,10 @@ export default function TechComparePage() {
   const [comparing, setComparing] = useState(false);
 
   useEffect(() => {
+    let stale = false;
     getTechCompanies({ limit: 200 })
       .then((res) => {
+        if (stale) return;
         const list = res.companies || [];
         setAllCompanies(list);
         if (list.length >= 2) {
@@ -217,7 +219,8 @@ export default function TechComparePage() {
         }
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!stale) setLoading(false); });
+    return () => { stale = true; };
   }, []);
 
   function handleCompare() {
@@ -230,11 +233,15 @@ export default function TechComparePage() {
   }
 
   // Auto-compare on first load
-  // Note: handleCompare is not in deps but idA/idB changes trigger re-comparison correctly
   useEffect(() => {
-    if (idA && idB && idA !== idB && compared.length === 0 && !comparing) {
-      handleCompare();
-    }
+    if (!idA || !idB || idA === idB || compared.length !== 0 || comparing) return;
+    let stale = false;
+    setComparing(true);
+    getTechComparison([idA, idB])
+      .then((res) => { if (!stale) setCompared(res.companies || []); })
+      .catch(() => {})
+      .finally(() => { if (!stale) setComparing(false); });
+    return () => { stale = true; };
   }, [idA, idB]);
 
   if (loading) {

@@ -15,8 +15,10 @@ Usage:
 """
 
 import hashlib
+import hmac
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -84,9 +86,18 @@ def resolve_api_key(
         user = db.query(User).filter(User.id == record.user_id, User.is_active == 1).first()
         return user
 
-    # 2. Legacy flat api_key on User row
-    user = db.query(User).filter(User.api_key == key, User.is_active == 1).first()
-    return user
+    # 2. Legacy flat api_key on User row (deprecated — disable with WTP_DISABLE_LEGACY_KEYS=1)
+    if os.getenv("WTP_DISABLE_LEGACY_KEYS", "0") == "1":
+        return None
+    candidates = db.query(User).filter(User.api_key.isnot(None), User.is_active == 1).all()
+    for candidate in candidates:
+        if candidate.api_key and hmac.compare_digest(candidate.api_key, key):
+            logger.warning(
+                "Legacy plaintext API key matched for user_id=%s — migrate to hashed APIKeyRecord",
+                candidate.id,
+            )
+            return candidate
+    return None
 
 
 # ---------------------------------------------------------------------------

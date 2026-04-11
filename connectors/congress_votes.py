@@ -37,7 +37,7 @@ def fetch_house_votes(congress: int = 119, limit: int = 250) -> List[Dict[str, A
         "limit": limit,
     }
     
-    response = requests.get(url, params=params)
+    response = requests.get(url, params=params, timeout=30)
     response.raise_for_status()
     data = response.json()
     
@@ -62,7 +62,7 @@ def fetch_vote_detail(congress: int, chamber: str, roll_number: int) -> Optional
         "format": "json",
     }
     
-    response = requests.get(url, params=params)
+    response = requests.get(url, params=params, timeout=30)
     response.raise_for_status()
     data = response.json()
     

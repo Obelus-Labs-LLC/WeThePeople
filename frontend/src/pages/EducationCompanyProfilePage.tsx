@@ -8,7 +8,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
-import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { EducationSectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
@@ -283,7 +282,7 @@ export default function EducationCompanyProfilePage() {
           )}
 
           <div className="space-y-6">
-            {[['TICKER', detail.ticker], ['SECTOR', detail.sector_type?.replace(/_/g, ' ')], ['SEC CIK', detail.sec_cik]].map(([label, value]) => value ? (
+            {[['TICKER', detail.ticker], ['SECTOR', detail.sector_type?.replace(/_/g, ' ').toUpperCase()], ['SEC CIK', detail.sec_cik]].map(([label, value]) => value ? (
               <div key={label}>
                 <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{label}</p>
                 <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E2E8F0' }}>{value}</p>

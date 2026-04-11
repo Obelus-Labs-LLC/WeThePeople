@@ -5,11 +5,9 @@ import {
   Landmark, TrendingUp, FileSearch, Calendar, Hash, Download,
   ExternalLink, CheckCircle, XCircle,
 } from 'lucide-react';
-import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { FinanceSectorHeader } from '../components/SectorHeader';
 import { LOCAL_LOGOS } from '../data/financeLogos';
-import { getLogoUrl } from '../utils/logos';
 import CompanyLogo from '../components/CompanyLogo';
 import {
   getInstitutionDetail,
@@ -47,10 +45,6 @@ import ShareButton from '../components/ShareButton';
 import WatchlistButton from '../components/WatchlistButton';
 
 // ── Helpers ──
-
-function instLogoUrl(inst: { institution_id: string; logo_url?: string | null; display_name: string }): string {
-  return getLogoUrl(inst.institution_id, inst.logo_url, LOCAL_LOGOS);
-}
 
 function fmtPct(n: number | null | undefined): string {
   if (n == null) return '—';
@@ -258,9 +252,11 @@ export default function InstitutionPage() {
   // Re-fetch trades on filter change
   useEffect(() => {
     if (!institution_id || activeTab !== 'insider') return;
+    let stale = false;
     getInstitutionInsiderTrades(institution_id, { limit: 100, transaction_type: tradeFilter || undefined })
-      .then((r) => setTrades(r.trades || []))
+      .then((r) => { if (!stale) setTrades(r.trades || []); })
       .catch(() => {});
+    return () => { stale = true; };
   }, [tradeFilter, institution_id, activeTab]);
 
   if (loading) {
@@ -373,7 +369,7 @@ export default function InstitutionPage() {
           <div className="space-y-6">
             {[
               ['TICKER', detail.ticker],
-              ['SECTOR', detail.sector_type?.replace(/_/g, ' ')],
+              ['SECTOR', detail.sector_type?.replace(/_/g, ' ').toUpperCase()],
               ['SEC CIK', detail.sec_cik],
               ['FDIC CERT', detail.fdic_cert],
             ].map(([label, value]) => value ? (

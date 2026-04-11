@@ -29,14 +29,14 @@ def _compute_hash(*parts: str) -> str:
     return hashlib.md5(raw.encode()).hexdigest()
 
 
-def _safe_float(val) -> float:
-    """Safely convert a value to float."""
+def _safe_float(val) -> Optional[float]:
+    """Safely convert a value to float. Returns None for missing data."""
     if val is None:
-        return 0.0
+        return None
     try:
         return float(val)
     except (ValueError, TypeError):
-        return 0.0
+        return None
 
 
 def fetch_lobbying_filings(

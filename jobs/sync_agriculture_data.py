@@ -84,10 +84,10 @@ AGRICULTURE_COMPANIES = [
     {"company_id": "bunge", "display_name": "Bunge Global SA", "ticker": "BG", "sector_type": "crop_production", "headquarters": "Chesterfield, MO", "sec_cik": "0001144519"},
     {"company_id": "ingredion", "display_name": "Ingredion Incorporated", "ticker": "INGR", "sector_type": "crop_production", "headquarters": "Westchester, IL", "sec_cik": "0001046257"},
     {"company_id": "andersons", "display_name": "The Andersons, Inc.", "ticker": "ANDE", "sector_type": "crop_production", "headquarters": "Maumee, OH", "sec_cik": "0000821026"},
-    {"company_id": "mgp-ingredients", "display_name": "MGP Ingredients, Inc.", "ticker": "MGPI", "sector_type": "crop_production", "headquarters": "Atchison, KS", "sec_cik": "0000802481"},
+    {"company_id": "mgp-ingredients", "display_name": "MGP Ingredients, Inc.", "ticker": "MGPI", "sector_type": "crop_production", "headquarters": "Atchison, KS", "sec_cik": "0000835011"},
     {"company_id": "dole", "display_name": "Dole plc", "ticker": "DOLE", "sector_type": "crop_production", "headquarters": "Dublin, Ireland", "sec_cik": "0001857475"},
     {"company_id": "fresh-del-monte", "display_name": "Fresh Del Monte Produce Inc.", "ticker": "FDP", "sector_type": "crop_production", "headquarters": "Coral Gables, FL", "sec_cik": "0001047340"},
-    {"company_id": "calavo-growers", "display_name": "Calavo Growers, Inc.", "ticker": "CVGW", "sector_type": "crop_production", "headquarters": "Santa Paula, CA", "sec_cik": "0000016732"},
+    {"company_id": "calavo-growers", "display_name": "Calavo Growers, Inc.", "ticker": "CVGW", "sector_type": "crop_production", "headquarters": "Santa Paula, CA", "sec_cik": "0001133470"},
     # Livestock / Meat Processing
     {"company_id": "tyson", "display_name": "Tyson Foods, Inc.", "ticker": "TSN", "sector_type": "livestock", "headquarters": "Springdale, AR", "sec_cik": "0000100493"},
     {"company_id": "hormel", "display_name": "Hormel Foods Corporation", "ticker": "HRL", "sector_type": "livestock", "headquarters": "Austin, MN", "sec_cik": "0000048465"},
@@ -119,7 +119,7 @@ AGRICULTURE_COMPANIES = [
     {"company_id": "cnh-industrial", "display_name": "CNH Industrial N.V.", "ticker": "CNHI", "sector_type": "farm_equipment", "headquarters": "Basildon, UK", "sec_cik": "0001567094"},
     {"company_id": "tractor-supply", "display_name": "Tractor Supply Company", "ticker": "TSCO", "sector_type": "farm_equipment", "headquarters": "Brentwood, TN", "sec_cik": "0000916365"},
     {"company_id": "titan-machinery", "display_name": "Titan Machinery Inc.", "ticker": "TITN", "sector_type": "farm_equipment", "headquarters": "West Fargo, ND", "sec_cik": "0001409171"},
-    {"company_id": "lindsay", "display_name": "Lindsay Corporation", "ticker": "LNN", "sector_type": "farm_equipment", "headquarters": "Omaha, NE", "sec_cik": "0000060714"},
+    {"company_id": "lindsay", "display_name": "Lindsay Corporation", "ticker": "LNN", "sector_type": "farm_equipment", "headquarters": "Omaha, NE", "sec_cik": "0000836157"},
     {"company_id": "valmont", "display_name": "Valmont Industries, Inc.", "ticker": "VMI", "sector_type": "farm_equipment", "headquarters": "Omaha, NE", "sec_cik": "0000102426"},
     # Seed / Biotech
     {"company_id": "corteva-ag", "display_name": "Corteva Agriscience", "ticker": "CTVA", "sector_type": "seed_biotech", "headquarters": "Indianapolis, IN", "sec_cik": "0001755672"},
@@ -418,7 +418,7 @@ def main():
 
                 # Mark as synced
                 co.needs_ingest = 0
-                co.last_full_refresh_at = datetime.utcnow()
+                co.last_full_refresh_at = datetime.now(timezone.utc)
                 session.commit()
             except Exception as e:
                 log.error(f"FAILED {cid}: {e}", exc_info=True)

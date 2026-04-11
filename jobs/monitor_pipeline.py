@@ -31,19 +31,33 @@ DB_FILE = ROOT / "wethepeople.db"
 
 # Expected interval per job (hours). Overdue = 2x this value.
 EXPECTED_INTERVALS: Dict[str, float] = {
-    "sync_votes": 24, "sync_senate_votes": 24, "sync_congressional_trades": 24,
+    # Daily (24h)
+    "sync_votes": 24, "sync_senate_votes": 24,
+    "sync_trades_from_disclosures": 24,
+    "detect_anomalies": 24, "detect_stories": 24,
+    "story_review_digest": 24, "ai_summarize_daily": 24,
+    "sync_samgov": 24, "monitor_pipeline": 24,
+    # Every 4 hours
+    "twitter_monitor": 4,
+    # Every 48 hours
     "sync_finance_political_data": 48, "sync_health_political_data": 48,
     "sync_transportation_data": 48, "sync_defense_data": 48,
+    # Every 72 hours
     "sync_finance_enforcement": 72, "sync_energy_enforcement": 72,
     "sync_health_enforcement": 72, "sync_transportation_enforcement": 72,
     "sync_defense_enforcement": 72,
+    "sync_chemicals_enforcement": 72, "sync_agriculture_enforcement": 72,
+    "sync_education_enforcement": 72, "sync_telecom_enforcement": 72,
+    # Weekly (168h)
     "sync_finance_data": 168, "sync_health_data": 168, "sync_tech_data": 168,
     "sync_energy_data": 168, "sync_donations": 168, "sync_nhtsa_data": 168,
-    "sync_fuel_economy": 168, "sync_trades_from_disclosures": 168,
-    "detect_anomalies": 24, "detect_stories": 24, "ai_summarize_daily": 24,
-    "sync_samgov": 24, "sync_regulatory_comments": 168,
+    "sync_fuel_economy": 168, "sync_chemicals_data": 168,
+    "sync_agriculture_data": 168, "sync_education_data": 168,
+    "sync_telecom_data": 168, "sync_regulatory_comments": 168,
     "sync_it_dashboard": 168, "sync_site_scanning": 168,
-    "sync_state_data": 720, "monitor_pipeline": 24,
+    "sync_fara_data": 168, "generate_digest": 168, "data_retention": 168,
+    # Monthly (720h)
+    "sync_state_data": 720,
 }
 
 # Disk usage threshold (percent) — CRITICAL if exceeded
@@ -140,10 +154,53 @@ def check_scheduler_health() -> List[Dict[str, Any]]:
 
 
 def check_dlq() -> List[Dict[str, Any]]:
-    """Check DLQ for stuck items (older than DLQ_STUCK_HOURS)."""
-    issues: List[Dict[str, Any]] = []
-    data = _load_json(DLQ_FILE)
+    """Check DLQ for stuck items (older than DLQ_STUCK_HOURS).
 
+    Reads from the database FailedRecord table (the actual DLQ),
+    falling back to the legacy dlq.json file if the DB is unavailable.
+    """
+    issues: List[Dict[str, Any]] = []
+    now = datetime.now(timezone.utc)
+
+    # Try database first (authoritative source)
+    try:
+        from models.database import SessionLocal
+        from services.pipeline_reliability import FailedRecord
+        db = SessionLocal()
+        try:
+            pending = (
+                db.query(FailedRecord)
+                .filter(FailedRecord.resolved_at.is_(None))
+                .all()
+            )
+            stuck_count = 0
+            for item in pending:
+                if item.created_at:
+                    created_dt = item.created_at if item.created_at.tzinfo else item.created_at.replace(tzinfo=timezone.utc)
+                    age_hours = (now - created_dt).total_seconds() / 3600
+                    if age_hours > DLQ_STUCK_HOURS:
+                        stuck_count += 1
+
+            if stuck_count > 0:
+                issues.append({
+                    "level": "critical" if stuck_count >= 5 else "warn",
+                    "check": "dlq_stuck",
+                    "message": f"{stuck_count} DLQ item(s) stuck for >{DLQ_STUCK_HOURS}h (total pending: {len(pending)})",
+                })
+            if len(pending) > 0:
+                issues.append({
+                    "level": "info",
+                    "check": "dlq_pending",
+                    "message": f"{len(pending)} pending DLQ item(s)",
+                })
+            return issues
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    # Fallback: legacy flat-file DLQ
+    data = _load_json(DLQ_FILE)
     if not isinstance(data, list):
         return issues
 
@@ -151,9 +208,7 @@ def check_dlq() -> List[Dict[str, Any]]:
     if not pending:
         return issues
 
-    now = datetime.now(timezone.utc)
     stuck_count = 0
-
     for item in pending:
         created_raw = item.get("created_at")
         if not created_raw:
@@ -172,7 +227,6 @@ def check_dlq() -> List[Dict[str, Any]]:
             "check": "dlq_stuck",
             "message": f"{stuck_count} DLQ item(s) stuck for >{DLQ_STUCK_HOURS}h (total pending: {len(pending)})",
         })
-
     if len(pending) > 0:
         issues.append({
             "level": "info",

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Share2, Check } from 'lucide-react';
 
 interface ShareButtonProps {
@@ -9,6 +9,14 @@ interface ShareButtonProps {
 
 export default function ShareButton({ url, title, text }: ShareButtonProps) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleShare = async () => {
     // Use native share API on mobile if available
@@ -21,11 +29,13 @@ export default function ShareButton({ url, title, text }: ShareButtonProps) {
       }
     }
 
+    if (timerRef.current) clearTimeout(timerRef.current);
+
     // Fallback: copy to clipboard
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      timerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       // Last resort: select-and-copy
       const textarea = document.createElement('textarea');
@@ -37,7 +47,7 @@ export default function ShareButton({ url, title, text }: ShareButtonProps) {
       document.execCommand('copy');
       document.body.removeChild(textarea);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      timerRef.current = setTimeout(() => setCopied(false), 2000);
     }
   };
 

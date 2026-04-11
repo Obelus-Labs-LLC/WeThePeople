@@ -22,8 +22,8 @@ class DigestSubscriber(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     zip_code = Column(String(10), nullable=False)
     state = Column(String(2), nullable=True)
-    frequency = Column(String(20), default="weekly")  # weekly, daily
-    verified = Column(Boolean, default=False)
+    frequency = Column(String(20), server_default="weekly")  # weekly, daily
+    verified = Column(Boolean, server_default="0")
     verification_token = Column(String(64), unique=True, nullable=True, index=True)
     unsubscribe_token = Column(String(64), unique=True, nullable=True, index=True)
     sectors = Column(Text, nullable=True)  # JSON array of sectors to track, null = all

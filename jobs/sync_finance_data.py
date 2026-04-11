@@ -15,7 +15,7 @@ import argparse
 import sys
 import hashlib
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 # Add project root to path
 ROOT = Path(__file__).resolve().parents[1]
@@ -382,7 +382,7 @@ def sync_all(
 
                 # Update scheduling state
                 inst.needs_ingest = 0
-                inst.last_full_refresh_at = datetime.utcnow()
+                inst.last_full_refresh_at = datetime.now(timezone.utc)
                 db.commit()
             except Exception as e:
                 logger.error("FAILED %s: %s", iid, e, exc_info=True)

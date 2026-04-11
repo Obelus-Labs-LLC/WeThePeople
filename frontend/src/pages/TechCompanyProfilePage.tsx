@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
-import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { TechSectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
@@ -86,10 +85,9 @@ function SectionHeader({ title, icon: Icon, count }: { title: string; icon: Luci
 
 // ── Tab config ──
 
-type TabKey = 'overview' | 'lobbying' | 'contracts' | 'enforcement' | 'patents' | 'filings';
+type TabKey = 'lobbying' | 'contracts' | 'enforcement' | 'patents' | 'filings';
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
   { key: 'lobbying', label: 'Lobbying' },
   { key: 'contracts', label: 'Contracts' },
   { key: 'enforcement', label: 'Enforcement' },
@@ -101,7 +99,7 @@ const TABS: { key: TabKey; label: string }[] = [
 
 export default function TechCompanyProfilePage() {
   const { companyId } = useParams<{ companyId: string }>();
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [activeTab, setActiveTab] = useState<TabKey>('lobbying');
 
   // Overview data (loaded on mount)
   const [detail, setDetail] = useState<TechCompanyDetail | null>(null);
@@ -342,7 +340,7 @@ export default function TechCompanyProfilePage() {
           <div className="space-y-6">
             {[
               ['TICKER', detail.ticker],
-              ['SECTOR', detail.sector_type?.replace(/_/g, ' ')],
+              ['SECTOR', detail.sector_type?.replace(/_/g, ' ').toUpperCase()],
               ['SEC CIK', detail.sec_cik],
             ].map(([label, value]) => value ? (
               <div key={label}>

@@ -126,19 +126,23 @@ export default function DefenseComparePage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    let stale = false;
     getDefenseCompanies({ limit: 200 })
-      .then((res) => setAllCompanies(res.companies || []))
+      .then((res) => { if (!stale) setAllCompanies(res.companies || []); })
       .catch(() => {});
+    return () => { stale = true; };
   }, []);
 
   useEffect(() => {
     const ids = selectedIds.filter(Boolean) as string[];
     if (ids.length < 2) { setComparison([]); return; }
+    let stale = false;
     setLoading(true);
     getDefenseComparison(ids)
-      .then((res) => setComparison(res.companies || []))
+      .then((res) => { if (!stale) setComparison(res.companies || []); })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!stale) setLoading(false); });
+    return () => { stale = true; };
   }, [selectedIds]);
 
   const updateSelection = (index: number, id: string) => {

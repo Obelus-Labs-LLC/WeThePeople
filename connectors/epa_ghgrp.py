@@ -48,7 +48,8 @@ def search_facilities_by_parent(parent_company: str, rows: int = 100) -> List[Di
     """
     # URL encode the company name for the REST endpoint
     # Envirofacts uses path-based queries: /TABLE/COLUMN/VALUE/JSON
-    url = f"{GHGRP_BASE}/PUB_DIM_FACILITY/PARENT_CO/CONTAINING/{parent_company}/JSON/0/{rows}"
+    from urllib.parse import quote
+    url = f"{GHGRP_BASE}/PUB_DIM_FACILITY/PARENT_CO/CONTAINING/{quote(parent_company, safe='')}/JSON/0/{rows}"
 
     try:
         resp = requests.get(url, timeout=30)

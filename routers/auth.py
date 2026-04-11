@@ -38,6 +38,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Import the limiter from main module for per-endpoint rate limits
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+limiter = Limiter(key_func=get_remote_address)
+
 
 # ---------------------------------------------------------------------------
 # Password hashing
@@ -47,18 +52,10 @@ try:
     from passlib.context import CryptContext
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 except ImportError:
-    # Graceful fallback so the app still imports if passlib is not installed yet
-    import hashlib as _hl
-    logger.warning("passlib not installed — using SHA-256 fallback (NOT safe for production)")
-
-    class _FallbackContext:
-        def hash(self, password: str) -> str:
-            return _hl.sha256(password.encode()).hexdigest()
-
-        def verify(self, plain: str, hashed: str) -> bool:
-            return _hl.sha256(plain.encode()).hexdigest() == hashed
-
-    pwd_context = _FallbackContext()
+    raise RuntimeError(
+        "passlib is required for password hashing. "
+        "Install it with: pip install passlib[bcrypt]"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +133,7 @@ class APIKeyListItem(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
+@limiter.limit("5/minute")
 def register(body: RegisterRequest, request: Request, db: Session = Depends(get_db)):
     """Create a new user account."""
     # Check for duplicate email
@@ -165,6 +163,7 @@ def register(body: RegisterRequest, request: Request, db: Session = Depends(get_
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Authenticate with email + password, receive JWT tokens."""
     user = db.query(User).filter(User.email == body.email.lower().strip()).first()
@@ -193,6 +192,7 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("10/minute")
 def refresh(body: RefreshRequest, request: Request, db: Session = Depends(get_db)):
     """Exchange a valid refresh token for a new access + refresh token pair."""
     payload = verify_token(body.refresh_token)
@@ -524,11 +524,11 @@ async def stripe_webhook(request: Request):
     payload = await request.body()
     sig = request.headers.get("stripe-signature", "")
 
+    if not webhook_secret:
+        raise HTTPException(status_code=503, detail="Stripe webhook secret not configured")
+
     try:
-        if webhook_secret:
-            event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
-        else:
-            event = stripe.Event.construct_from(json.loads(payload), stripe_key)
+        event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
     except Exception as e:
         logger.error("Stripe webhook verification failed: %s", e)
         raise HTTPException(status_code=400, detail="Invalid webhook")

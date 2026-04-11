@@ -82,13 +82,46 @@ function renderContent(content: string) {
         </h3>
       );
     }
+    // Handle markdown tables (lines with | separators)
+    const lines = block.split('\n').filter(l => l.trim());
+    const isTable = lines.length >= 2
+      && lines[0].includes('|')
+      && lines[1].trim().replace(/[\s|:-]/g, '') === '';
+    if (isTable) {
+      const parseRow = (row: string) => row.split('|').map(c => c.trim()).filter(Boolean);
+      const headers = parseRow(lines[0]);
+      const dataRows = lines.slice(2).map(parseRow);
+      return (
+        <div key={i} className="mb-6 overflow-x-auto rounded-lg border border-zinc-700/50">
+          <table className="w-full text-sm text-left">
+            <thead>
+              <tr className="border-b border-zinc-700/50 bg-zinc-800/50">
+                {headers.map((h, j) => (
+                  <th key={j} className="px-4 py-2.5 text-zinc-400 font-semibold text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dataRows.map((row, j) => (
+                <tr key={j} className={j % 2 === 0 ? 'bg-zinc-900/30' : 'bg-zinc-800/20'}>
+                  {row.map((cell, k) => (
+                    <td key={k} className="px-4 py-2 text-zinc-300 text-sm border-t border-zinc-800/50">{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
     // Handle bullet lists (lines starting with -)
-    const lines = block.split('\n');
-    const isList = lines.every(line => line.trim().startsWith('- ') || line.trim() === '');
-    if (isList && lines.some(line => line.trim().startsWith('- '))) {
+    const linesList = block.split('\n');
+    const isList = linesList.every(line => line.trim().startsWith('- ') || line.trim() === '');
+    if (isList && linesList.some(line => line.trim().startsWith('- '))) {
       return (
         <ul key={i} className="mb-6 space-y-2 ml-1">
-          {lines.filter(line => line.trim().startsWith('- ')).map((line, j) => (
+          {linesList.filter(line => line.trim().startsWith('- ')).map((line, j) => (
             <li key={j} className="flex gap-2 text-zinc-300 leading-[1.85] text-base">
               <span className="text-amber-400 shrink-0 mt-0.5">&#8226;</span>
               <span>{renderInline(line.trim().slice(2))}</span>

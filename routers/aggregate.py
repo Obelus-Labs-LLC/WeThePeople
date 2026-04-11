@@ -162,8 +162,13 @@ def _query_enforcement(sector: str, limit: int, db: Session):
         .limit(limit)
         .all()
     )
+    total = (
+        db.query(func.count(model.id))
+        .join(entity, _get_join_condition(model, entity, id_col))
+        .scalar()
+    )
     return {
-        "total": db.query(func.count(model.id)).scalar(),
+        "total": total,
         "actions": [{
             "id": a.id, "case_title": a.case_title,
             "case_date": _str_date(a.case_date), "case_url": a.case_url,
@@ -189,7 +194,11 @@ def _query_lobbying(sector: str, limit: int, db: Session):
         .limit(limit)
         .all()
     )
-    total = db.query(func.count(model.id)).scalar()
+    total = (
+        db.query(func.count(model.id))
+        .join(entity, _get_join_condition(model, entity, id_col))
+        .scalar()
+    )
     return {
         "total": total,
         "filings": [{
@@ -219,7 +228,11 @@ def _query_contracts(sector: str, limit: int, db: Session):
         .limit(limit)
         .all()
     )
-    total = db.query(func.count(model.id)).scalar()
+    total = (
+        db.query(func.count(model.id))
+        .join(entity, _get_join_condition(model, entity, id_col))
+        .scalar()
+    )
     return {
         "total": total,
         "contracts": [{
