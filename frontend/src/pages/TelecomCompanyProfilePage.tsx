@@ -8,7 +8,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import SpotlightCard from '../components/SpotlightCard';
 import CompanyLogo from '../components/CompanyLogo';
-import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { TelecomSectorHeader } from '../components/SectorHeader';
 import { fmtDollar, fmtNum, fmtDate } from '../utils/format';

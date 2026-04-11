@@ -5,7 +5,6 @@ import {
   ArrowLeft, Landmark, FileText, BarChart3, Stethoscope, List, Filter,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import BackButton from '../components/BackButton';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { HealthSectorHeader } from '../components/SectorHeader';
 import {
@@ -42,12 +41,7 @@ import TrendChart from '../components/TrendChart';
 import ShareButton from '../components/ShareButton';
 import WatchlistButton from '../components/WatchlistButton';
 import { LOCAL_LOGOS } from '../data/healthLogos';
-import { getLogoUrl } from '../utils/logos';
 import CompanyLogo from '../components/CompanyLogo';
-
-function companyLogoUrl(c: { company_id: string; logo_url?: string | null; display_name: string }): string {
-  return getLogoUrl(c.company_id, c.logo_url, LOCAL_LOGOS);
-}
 
 // -- Helpers --
 
@@ -1062,7 +1056,7 @@ export default function HealthCompanyProfilePage() {
         <div className="flex items-center gap-6">
           {[
             ['ENTITY', company.display_name],
-            ['SECTOR', (company.sector_type || '').toUpperCase()],
+            ['SECTOR', (company.sector_type || '').replace(/_/g, ' ').toUpperCase()],
             ['CIK', company.sec_cik || '\u2014'],
             ['AE COUNT', company.adverse_event_count.toLocaleString()],
           ].map(([label, value]) => (

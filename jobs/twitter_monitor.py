@@ -73,6 +73,8 @@ ENTITY_TABLES = [
     ("tracked_transportation_companies", "company_id", "display_name", "ticker", "transportation"),
     ("tracked_chemical_companies", "company_id", "display_name", "ticker", "chemicals"),
     ("tracked_agriculture_companies", "company_id", "display_name", "ticker", "agriculture"),
+    ("tracked_education_companies", "company_id", "display_name", "ticker", "education"),
+    ("tracked_telecom_companies", "company_id", "display_name", "ticker", "telecom"),
 ]
 
 # Lobbying tables for data lookup: (table, entity_col, entity_table)
@@ -85,6 +87,8 @@ LOBBYING_TABLES = [
     ("defense_lobbying_records", "company_id", "tracked_defense_companies"),
     ("chemical_lobbying_records", "company_id", "tracked_chemical_companies"),
     ("agriculture_lobbying_records", "company_id", "tracked_agriculture_companies"),
+    ("education_lobbying_records", "company_id", "tracked_education_companies"),
+    ("telecom_lobbying_records", "company_id", "tracked_telecom_companies"),
 ]
 
 # Contract tables for data lookup
@@ -97,6 +101,8 @@ CONTRACT_TABLES = [
     ("defense_government_contracts", "company_id", "tracked_defense_companies"),
     ("chemical_government_contracts", "company_id", "tracked_chemical_companies"),
     ("agriculture_government_contracts", "company_id", "tracked_agriculture_companies"),
+    ("education_government_contracts", "company_id", "tracked_education_companies"),
+    ("telecom_government_contracts", "company_id", "tracked_telecom_companies"),
 ]
 
 
@@ -150,6 +156,12 @@ def quotes_today(session) -> int:
         .filter(TweetLog.posted_at >= today, TweetLog.category == "quote")
         .count()
     )
+
+
+def all_posts_today(session) -> int:
+    """Count ALL tweets posted today (all categories, including bot tweets)."""
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    return session.query(TweetLog).filter(TweetLog.posted_at >= today).count()
 
 
 def already_drafted(session, tweet_id: str) -> bool:
@@ -644,12 +656,18 @@ def pick_best_draft(drafts: List[Dict]) -> Optional[Dict]:
 def run(drafts_only: bool = False, dry_run: bool = False):
     """Main monitor loop: scan accounts, generate drafts, optionally auto-quote."""
     session = SessionLocal()
+    try:
+        _run_inner(session, drafts_only, dry_run)
+    finally:
+        session.close()
 
+
+def _run_inner(session, drafts_only: bool = False, dry_run: bool = False):
+    """Inner run logic — session lifetime managed by run()."""
     # Build entity index from database
     entity_index = _build_entity_index(session)
     if not entity_index:
         log.error("Entity index is empty. Is the database populated?")
-        session.close()
         return
 
     # Scan all target accounts
@@ -668,7 +686,6 @@ def run(drafts_only: bool = False, dry_run: bool = False):
 
     if not drafts:
         log.info("No new matches found this cycle.")
-        session.close()
         return
 
     # Save all drafts to database
@@ -690,21 +707,24 @@ def run(drafts_only: bool = False, dry_run: bool = False):
     # Auto-quote: post ONE per day max
     if drafts_only:
         log.info("Drafts-only mode. Skipping auto-post.")
-        session.close()
         return
 
-    # Check if we already quoted today
+    # Check overall daily cap (shared with twitter_bot: 4 tweets/day total)
+    total_today = all_posts_today(session)
+    if total_today >= 4 and not dry_run:
+        log.info("Overall daily cap reached (%d tweets today). Skipping auto-post.", total_today)
+        return
+
+    # Check if we already quoted today (1 quote/day from monitor)
     already_quoted = quotes_today(session)
     if already_quoted >= 1 and not dry_run:
         log.info("Already posted %d quote-tweet(s) today. Skipping auto-post.", already_quoted)
-        session.close()
         return
 
     # Pick the best draft to post
     best = pick_best_draft(drafts)
     if not best:
         log.info("No suitable draft for auto-posting.")
-        session.close()
         return
 
     quote_text = best["suggested_text"]
@@ -719,7 +739,6 @@ def run(drafts_only: bool = False, dry_run: bool = False):
         print(f"  ---")
         print(f"  {quote_text}")
         print(f"  ---")
-        session.close()
         return
 
     # Add randomized delay (30-120 seconds) so it doesn't look automated
@@ -752,8 +771,6 @@ def run(drafts_only: bool = False, dry_run: bool = False):
         print(f"Quote-tweet posted: https://x.com/{OUR_USERNAME}/status/{posted_id}")
     else:
         log.error("Failed to post auto-quote for tweet %s", tweet_id)
-
-    session.close()
 
 
 def main():

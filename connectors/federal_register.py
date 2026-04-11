@@ -20,7 +20,7 @@ Pagination: Max 2000 results per search (use date ranges for more)
 import time
 import json
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
@@ -354,7 +354,7 @@ def fetch_recent_documents(
     Returns:
         List of document dicts
     """
-    date_from = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+    date_from = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
     return search_all_pages(
         doc_type=doc_type,
         date_from=date_from,
@@ -409,7 +409,7 @@ def find_or_create_source(session, url):
         source = SourceDocument(
             url=url,
             publisher="Federal Register",
-            retrieved_at=datetime.utcnow(),
+            retrieved_at=datetime.now(timezone.utc),
             content_hash=None,
         )
         session.add(source)
@@ -480,7 +480,7 @@ def fetch_presidential_documents(pages=3):
                 person_id="trump",
                 title=doc.get("title", "No Title"),
                 summary=doc.get("abstract", "")[:500],
-                date=datetime.strptime(doc["publication_date"], "%Y-%m-%d"),
+                date=datetime.strptime(doc["publication_date"], "%Y-%m-%d") if doc.get("publication_date") else None,
                 source_id=source.id,
             )
 
@@ -496,7 +496,7 @@ def fetch_presidential_documents(pages=3):
                     audit_dir.mkdir(parents=True, exist_ok=True)
 
                     audit_data = {
-                        "retrieved_at": datetime.utcnow().isoformat(),
+                        "retrieved_at": datetime.now(timezone.utc).isoformat(),
                         "source_url": source_url,
                         "raw_doc": doc,
                     }
@@ -531,7 +531,7 @@ if __name__ == "__main__":
 
     # Test 1: Search for recent executive orders
     print("\n1. Fetching recent executive orders (last 30 days)...")
-    date_from = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
+    date_from = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
     data = search_documents(doc_type="PRESDOCU", date_from=date_from, per_page=5)
     results = data.get("results", [])
     print(f"   Found {data.get('count', 0)} total ({len(results)} shown)")

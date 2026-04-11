@@ -206,7 +206,7 @@ export default function ComparePageNew() {
     return allPeople.filter(
       (p) =>
         p.display_name.toLowerCase().includes(q) ||
-        p.state.toLowerCase().includes(q),
+        (p.state || '').toLowerCase().includes(q),
     );
   }, [allPeople, search]);
 

@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from models.database import get_db
+from utils.sanitize import escape_like
 
 logger = logging.getLogger(__name__)
 
@@ -351,7 +352,7 @@ async def fed_jobs(
 async def campaign_finance(
     candidate: str = Query("", description="Candidate name search"),
     state: Optional[str] = Query(None, description="2-letter state code"),
-    cycle: int = Query(2024, description="Election cycle year"),
+    cycle: int = Query(None, description="Election cycle year (defaults to current cycle)"),
     limit: int = Query(25, ge=1, le=100),
 ):
     """Proxy to FEC API for candidate campaign finance data."""
@@ -359,6 +360,10 @@ async def campaign_finance(
 
     api_key = os.environ.get("FEC_API_KEY", "DEMO_KEY")
     base = "https://api.open.fec.gov/v1/candidates/search/"
+    if cycle is None:
+        from datetime import date
+        y = date.today().year
+        cycle = y if y % 2 == 0 else y + 1  # FEC cycles are even years
     params: dict = {
         "api_key": api_key,
         "per_page": limit,
@@ -424,6 +429,8 @@ _LOBBYING_TABLES = [
     "chemical_lobbying_records",
     "agriculture_lobbying_records",
     "transportation_lobbying_records",
+    "telecom_lobbying_records",
+    "education_lobbying_records",
 ]
 
 # Map table name -> human-readable sector label
@@ -436,6 +443,8 @@ _TABLE_SECTOR_MAP = {
     "chemical_lobbying_records": "Chemicals",
     "agriculture_lobbying_records": "Agriculture",
     "transportation_lobbying_records": "Transportation",
+    "telecom_lobbying_records": "Telecom",
+    "education_lobbying_records": "Education",
 }
 
 
@@ -451,8 +460,8 @@ def _build_lobbying_union_query(search_term: str) -> str:
         parts.append(
             f"SELECT registrant_name, client_name, income, '{sector}' AS sector "
             f"FROM {table} "
-            f"WHERE LOWER(lobbying_issues) LIKE :term "
-            f"OR LOWER(specific_issues) LIKE :term"
+            f"WHERE LOWER(lobbying_issues) LIKE :term ESCAPE '\\' "
+            f"OR LOWER(specific_issues) LIKE :term ESCAPE '\\'"
         )
     return " UNION ALL ".join(parts)
 
@@ -528,7 +537,7 @@ async def bill_text_search(
     }
 
     try:
-        search_term = f"%{query.strip().lower()}%"
+        search_term = f"%{escape_like(query.strip().lower())}%"
         union_sql = _build_lobbying_union_query(query)
 
         rows = db.execute(

@@ -12,6 +12,7 @@ from typing import Optional, Dict, Any, List
 logger = logging.getLogger(__name__)
 
 from models.database import get_db, Bill
+from utils.sanitize import escape_like
 from models.tech_models import (
     TrackedTechCompany, SECTechFiling, TechPatent, GovernmentContract, LobbyingRecord, FTCEnforcement,
 )
@@ -73,8 +74,8 @@ def get_tech_recent_activity(limit: int = Query(10, ge=1, le=30), db: Session = 
 def get_tech_companies(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), q: Optional[str] = Query(None), sector_type: Optional[str] = Query(None), db: Session = Depends(get_db)):
     query = db.query(TrackedTechCompany).filter(TrackedTechCompany.is_active == 1)
     if q:
-        pattern = f"%{q}%"
-        query = query.filter((TrackedTechCompany.display_name.ilike(pattern)) | (TrackedTechCompany.company_id.ilike(pattern)) | (TrackedTechCompany.ticker.ilike(pattern)))
+        pattern = f"%{escape_like(q)}%"
+        query = query.filter((TrackedTechCompany.display_name.ilike(pattern, escape="\\")) | (TrackedTechCompany.company_id.ilike(pattern, escape="\\")) | (TrackedTechCompany.ticker.ilike(pattern, escape="\\")))
     if sector_type: query = query.filter(TrackedTechCompany.sector_type == sector_type)
     total = query.count()
     companies = query.order_by(TrackedTechCompany.display_name).offset(offset).limit(limit).all()

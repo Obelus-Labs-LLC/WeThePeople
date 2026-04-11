@@ -17,7 +17,7 @@ import time
 import hashlib
 import argparse
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List, Dict, Any
 
 import requests
@@ -419,7 +419,7 @@ def main():
 
                 # Mark as synced
                 co.needs_ingest = 0
-                co.last_full_refresh_at = datetime.utcnow()
+                co.last_full_refresh_at = datetime.now(timezone.utc)
                 session.commit()
             except Exception as e:
                 log.error(f"FAILED {cid}: {e}", exc_info=True)

@@ -69,7 +69,9 @@ def search_complaints(
         safe = method.replace("'", "''")
         where_clauses.append(f"upper(method) like '%{safe.upper()}%'")
     if state:
-        where_clauses.append(f"state='{state.upper()}'")
+        import re
+        safe_state = re.sub(r'[^A-Z]', '', state.upper())[:2]
+        where_clauses.append(f"state='{safe_state}'")
 
     if where_clauses:
         params["$where"] = " AND ".join(where_clauses)

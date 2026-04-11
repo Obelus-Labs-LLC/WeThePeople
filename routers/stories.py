@@ -24,6 +24,16 @@ from services.jwt_auth import get_current_user
 router = APIRouter(prefix="/stories", tags=["stories"])
 
 
+def _safe_json_loads(val):
+    """Parse JSON string, returning None on any error."""
+    if not val:
+        return None
+    try:
+        return json.loads(val) if isinstance(val, str) else val
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
 @router.get("/")
 def list_stories(
     sector: Optional[str] = Query(None),
@@ -168,8 +178,8 @@ def get_story(slug: str, db: Session = Depends(get_db)):
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    # Only show published stories to public (drafts visible via /stories?status=draft)
-    if story.status not in ("published", "draft"):
+    # Only show published stories to public
+    if story.status != "published":
         raise HTTPException(status_code=404, detail="Story not found")
 
     return {
@@ -186,7 +196,7 @@ def get_story(slug: str, db: Session = Depends(get_db)):
         "status": story.status,
         "verification_score": getattr(story, 'verification_score', None),
         "verification_tier": getattr(story, 'verification_tier', None),
-        "verification_data": json.loads(story.verification_data) if getattr(story, 'verification_data', None) else None,
+        "verification_data": _safe_json_loads(getattr(story, 'verification_data', None)),
         "published_at": story.published_at.isoformat() if story.published_at else None,
         "created_at": story.created_at.isoformat() if story.created_at else None,
     }

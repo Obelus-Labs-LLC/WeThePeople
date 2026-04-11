@@ -232,8 +232,8 @@ def _render_digest_html(digest: Dict[str, Any]) -> str:
         name = r.get("name", "Unknown")
         party = r.get("party", "")
         chamber = r.get("chamber", "")
-        trades = r.get("recent_trades", [])
-        votes = r.get("recent_votes", [])
+        trades = r.get("trades", [])
+        votes = r.get("votes", [])
         anomalies = r.get("anomalies", [])
 
         trade_count = len(trades)
@@ -364,8 +364,9 @@ def main():
                     html = _render_digest_html(digest)
                     _send_email(sub.email, subject, html)
 
-                # Update last_sent_at
-                sub.last_sent_at = datetime.now(timezone.utc)
+                # Update last_sent_at only when actually sent
+                if args.send:
+                    sub.last_sent_at = datetime.now(timezone.utc)
                 db.commit()
 
                 logger.info("    Saved to %s", filepath)

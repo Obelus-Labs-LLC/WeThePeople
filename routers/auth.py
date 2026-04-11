@@ -38,6 +38,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Import the limiter from main module for per-endpoint rate limits
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+limiter = Limiter(key_func=get_remote_address)
+
 
 # ---------------------------------------------------------------------------
 # Password hashing
@@ -128,6 +133,7 @@ class APIKeyListItem(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
+@limiter.limit("5/minute")
 def register(body: RegisterRequest, request: Request, db: Session = Depends(get_db)):
     """Create a new user account."""
     # Check for duplicate email
@@ -157,6 +163,7 @@ def register(body: RegisterRequest, request: Request, db: Session = Depends(get_
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Authenticate with email + password, receive JWT tokens."""
     user = db.query(User).filter(User.email == body.email.lower().strip()).first()
@@ -185,6 +192,7 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("10/minute")
 def refresh(body: RefreshRequest, request: Request, db: Session = Depends(get_db)):
     """Exchange a valid refresh token for a new access + refresh token pair."""
     payload = verify_token(body.refresh_token)

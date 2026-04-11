@@ -220,6 +220,20 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=3600,
         description="Agriculture enforcement actions from Federal Register",
     ),
+    JobDef(
+        name="sync_education_enforcement",
+        script="jobs/sync_education_enforcement.py",
+        interval_hours=72,
+        timeout_sec=3600,
+        description="Education enforcement actions from Federal Register",
+    ),
+    JobDef(
+        name="sync_telecom_enforcement",
+        script="jobs/sync_telecom_enforcement.py",
+        interval_hours=72,
+        timeout_sec=3600,
+        description="Telecom enforcement actions from Federal Register",
+    ),
 
     # ── Weekly (168h) ────────────────────────────────────────────
     JobDef(
@@ -249,6 +263,20 @@ JOB_REGISTRY: List[JobDef] = [
         interval_hours=168,
         timeout_sec=7200,
         description="Emissions, energy sector data",
+    ),
+    JobDef(
+        name="sync_education_data",
+        script="jobs/sync_education_data.py",
+        interval_hours=168,
+        timeout_sec=7200,
+        description="Education sector lobbying, contracts, SEC filings",
+    ),
+    JobDef(
+        name="sync_telecom_data",
+        script="jobs/sync_telecom_data.py",
+        interval_hours=168,
+        timeout_sec=7200,
+        description="Telecom sector lobbying, contracts, SEC filings",
     ),
     JobDef(
         name="sync_donations",

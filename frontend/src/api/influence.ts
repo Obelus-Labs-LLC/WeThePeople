@@ -33,7 +33,7 @@ export interface InfluenceLeadersResponse {
 }
 
 export type SpendingMetric = 'donations' | 'members' | 'lobbying';
-export type SectorFilter = 'finance' | 'health' | 'tech' | 'energy';
+export type SectorFilter = 'finance' | 'health' | 'tech' | 'energy' | 'transportation' | 'defense' | 'chemicals' | 'agriculture' | 'telecom' | 'education';
 
 export interface StateSpendingData {
   value: number;

@@ -535,8 +535,8 @@ export interface DonationsResponse {
 export async function getInstitutionLobbying(id: string, params?: { filing_year?: number; limit?: number; offset?: number }): Promise<LobbyingResponse> {
   const sp = new URLSearchParams();
   if (params?.filing_year) sp.set('filing_year', params.filing_year.toString());
-  if (params?.limit) sp.set('limit', params.limit.toString());
-  if (params?.offset) sp.set('offset', params.offset.toString());
+  if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+  if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
   return fetchJSON<LobbyingResponse>(`${API_BASE}/finance/institutions/${id}/lobbying?${sp}`);
 }
 

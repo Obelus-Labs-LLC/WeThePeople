@@ -54,19 +54,7 @@ _CHAT_WINDOW = 86400  # 24 hours
 
 
 def _get_remaining_questions(ip: str) -> int:
-    """Return how many Haiku questions this IP has left today.
-
-    Uses a read-only check against the persistent store (does NOT consume a token).
-    """
-    # Do a dry-run check: peek at the store without recording
-    allowed, remaining, _ = check_rate_limit(
-        ip=ip,
-        endpoint="chat",
-        max_requests=_CHAT_FREE_LIMIT + 1,  # +1 so peek never blocks
-        window_seconds=_CHAT_WINDOW,
-    )
-    # The remaining from the +1 trick gives us the true remaining
-    # But we need the real count, so just query properly:
+    """Return how many Haiku questions this IP has left today (read-only)."""
     from models.database import get_db
     from services.rate_limit_store import RateLimitRecord
     db = next(get_db())
@@ -109,6 +97,7 @@ def _consume_rate_limit(ip: str) -> int:
 
 _response_cache: dict[str, dict] = {}
 _CACHE_MAX_SIZE = 500
+_CACHE_TTL_SECONDS = 3600  # 1 hour
 
 
 def _cache_key(question: str) -> str:
@@ -122,7 +111,13 @@ def _cache_key(question: str) -> str:
 
 def _cache_get(question: str) -> Optional[dict]:
     key = _cache_key(question)
-    return _response_cache.get(key)
+    entry = _response_cache.get(key)
+    if entry is None:
+        return None
+    if time.time() - entry.get("_cached_at", 0) > _CACHE_TTL_SECONDS:
+        _response_cache.pop(key, None)
+        return None
+    return entry
 
 
 def _cache_set(question: str, response: dict) -> None:
@@ -131,6 +126,7 @@ def _cache_set(question: str, response: dict) -> None:
         keys = list(_response_cache.keys())[:100]
         for k in keys:
             _response_cache.pop(k, None)
+    response["_cached_at"] = time.time()
     _response_cache[_cache_key(question)] = response
 
 
@@ -163,8 +159,10 @@ def _call_haiku(question: str, context: Optional[dict] = None) -> dict:
 
     user_message = question
     if context:
-        page = context.get("page", "unknown")
-        entity_id = context.get("entity_id")
+        import re
+        # Sanitize context fields to prevent prompt injection
+        page = re.sub(r'[^a-zA-Z0-9/_-]', '', context.get("page", "unknown"))[:60]
+        entity_id = re.sub(r'[^a-zA-Z0-9_-]', '', context.get("entity_id", ""))[:60]
         user_message = f"[User is on page: {page}"
         if entity_id:
             user_message += f", viewing entity: {entity_id}"
@@ -187,7 +185,10 @@ def _call_haiku(question: str, context: Optional[dict] = None) -> dict:
         from services.budget import log_token_usage
         log_token_usage("chat_agent", model, in_tok, out_tok, cost, question[:100])
 
-    text = response.content[0].text.strip()
+    if not response.content:
+        text = "I wasn't able to generate a response. Please try rephrasing your question."
+    else:
+        text = response.content[0].text.strip()
 
     # Parse out ACTION: lines
     action = None
@@ -242,16 +243,10 @@ def ask_question(body: ChatRequest, request: Request):
             cached=True,
         )
 
-    # Call Haiku first, then consume rate limit only on success
     client_ip = request.client.host if request.client else "unknown"
 
-    # Pre-check rate limit (don't consume yet)
-    if _get_remaining_questions(client_ip) <= 0:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Daily limit reached: {_CHAT_FREE_LIMIT} AI questions per day. "
-                   f"Try again tomorrow, or ask a question that can be answered from our FAQ.",
-        )
+    # Consume rate limit BEFORE the Haiku call to prevent race conditions
+    remaining = _consume_rate_limit(client_ip)
 
     # Call Haiku
     try:
@@ -261,9 +256,6 @@ def ask_question(body: ChatRequest, request: Request):
         raise HTTPException(status_code=503, detail="AI chat is temporarily unavailable.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI request failed: {str(e)[:200]}")
-
-    # Consume rate limit AFTER successful Haiku call
-    remaining = _consume_rate_limit(client_ip)
 
     # Cache the response
     _cache_set(question, result)

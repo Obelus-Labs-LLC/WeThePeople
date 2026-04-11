@@ -61,10 +61,14 @@ def search_earmarks(
 
     from datetime import datetime
 
+    # Use current fiscal year start (Oct 1 of previous calendar year)
+    now = datetime.now()
+    fy_start_year = now.year if now.month >= 10 else now.year - 1
+    fy_start = f"{fy_start_year}-10-01"
     filters: Dict[str, Any] = {
         "award_type_codes": ["02", "03", "04", "05"],  # Block grants, project grants, cooperative agreements
         "time_period": [
-            {"start_date": "2023-10-01", "end_date": f"{datetime.now().strftime('%Y-%m-%d')}"}
+            {"start_date": fy_start, "end_date": now.strftime('%Y-%m-%d')}
         ],
     }
 

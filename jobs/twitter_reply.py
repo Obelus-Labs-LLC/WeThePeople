@@ -87,6 +87,10 @@ COMPANY_SECTORS = [
     ("/energy/companies", "companies", "energy", "energy/company"),
     ("/transportation/companies", "companies", "transportation", "transportation/company"),
     ("/defense/companies", "companies", "defense", "defense/company"),
+    ("/chemicals/companies", "companies", "chemicals", "chemicals/company"),
+    ("/agriculture/companies", "companies", "agriculture", "agriculture/company"),
+    ("/education/companies", "companies", "education", "education/company"),
+    ("/telecom/companies", "companies", "telecom", "telecom/company"),
 ]
 
 HASHTAGS = [
@@ -127,11 +131,11 @@ def content_hash(text: str) -> str:
 
 
 def replies_today(session) -> int:
-    """Count reply tweets posted today."""
+    """Count reply and quote tweets posted today."""
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     return (
         session.query(TweetLog)
-        .filter(TweetLog.posted_at >= today, TweetLog.category == "reply")
+        .filter(TweetLog.posted_at >= today, TweetLog.category.in_(["reply", "quote"]))
         .count()
     )
 
@@ -430,32 +434,36 @@ def run(tweet_id: str, entity_name: str, entity_type: Optional[str] = None,
     """Find entity, compose reply/quote-tweet, and post it."""
     mode = "quote" if quote else "reply"
     session = SessionLocal()
+    try:
+        _run_inner(session, tweet_id, entity_name, entity_type, dry_run, quote, mode)
+    finally:
+        session.close()
 
+
+def _run_inner(session, tweet_id: str, entity_name: str,
+               entity_type: Optional[str], dry_run: bool, quote: bool, mode: str):
+    """Inner logic for run() — session is managed by caller."""
     # Safety: rate limit
     count = replies_today(session)
     if count >= MAX_REPLIES_PER_DAY and not dry_run:
         log.error("Already posted %d replies today (max %d). Stopping.", count, MAX_REPLIES_PER_DAY)
-        session.close()
         return
 
     if quote:
         qcount = quotes_this_hour(session)
         if qcount >= MAX_QUOTES_PER_HOUR and not dry_run:
             log.error("Already posted %d quote-tweets this hour (max %d). Stopping.", qcount, MAX_QUOTES_PER_HOUR)
-            session.close()
             return
 
     # Safety: don't reply/quote the same tweet twice
     if already_replied_to(session, tweet_id):
         log.error("Already replied/quoted tweet %s. Stopping.", tweet_id)
-        session.close()
         return
 
     # Safety: don't reply to our own tweets
     if not dry_run:
         if is_own_tweet(tweet_id):
             log.error("Tweet %s is from our own account (@%s). Stopping.", tweet_id, OUR_USERNAME)
-            session.close()
             return
 
     # Step 1: Find entity
@@ -464,7 +472,6 @@ def run(tweet_id: str, entity_name: str, entity_type: Optional[str] = None,
 
     if not entity:
         log.error("Entity '%s' not found in any WTP sector.", entity_name)
-        session.close()
         return
 
     log.info("Found %s: %s (%s)", entity["type"], entity["name"], entity.get("sector", entity.get("party", "")))
@@ -491,7 +498,6 @@ def run(tweet_id: str, entity_name: str, entity_type: Optional[str] = None,
     reply_text = compose_reply(entity)
     if not reply_text:
         log.error("Could not compose a %s for %s.", mode, entity["name"])
-        session.close()
         return
 
     log.info("%s (%d chars):\n  %s", mode.title(), len(reply_text), reply_text)
@@ -505,7 +511,6 @@ def run(tweet_id: str, entity_name: str, entity_type: Optional[str] = None,
         print(f"  {reply_text}")
         print(f"  ---")
         print(f"  Replies today: {count}/{MAX_REPLIES_PER_DAY}")
-        session.close()
         return
 
     # Step 3: Post reply or quote-tweet
@@ -520,8 +525,6 @@ def run(tweet_id: str, entity_name: str, entity_type: Optional[str] = None,
         print(f"{mode.title()} posted: https://x.com/WTPForUs/status/{posted_id}")
     else:
         log.error("Failed to post %s.", mode)
-
-    session.close()
 
 
 # -- Auto-Quote Logic --
@@ -617,19 +620,24 @@ def run_auto_quote(dry_run: bool = False):
     Rate limited to MAX_QUOTES_PER_HOUR quote-tweets per hour.
     """
     session = SessionLocal()
+    try:
+        _run_auto_quote_inner(session, dry_run)
+    finally:
+        session.close()
 
+
+def _run_auto_quote_inner(session, dry_run: bool):
+    """Inner logic for run_auto_quote() — session is managed by caller."""
     # Safety: check daily rate limit
     count = replies_today(session)
     if count >= MAX_REPLIES_PER_DAY and not dry_run:
         log.info("Already posted %d tweets today (max %d). Skipping auto-quote.", count, MAX_REPLIES_PER_DAY)
-        session.close()
         return
 
     # Safety: check hourly quote limit
     qcount = quotes_this_hour(session)
     if qcount >= MAX_QUOTES_PER_HOUR and not dry_run:
         log.info("Already posted %d quote-tweets this hour (max %d). Skipping.", qcount, MAX_QUOTES_PER_HOUR)
-        session.close()
         return
 
     quotes_posted = 0
@@ -717,8 +725,6 @@ def run_auto_quote(dry_run: bool = False):
         log.info("No matching tweets found to quote-tweet this cycle.")
     else:
         log.info("Auto-quote complete: %d quote-tweets posted.", quotes_posted)
-
-    session.close()
 
 
 def main():

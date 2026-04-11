@@ -96,7 +96,7 @@ export default function InfluenceNetworkPage() {
   // Timeline playback
   const [timelineYear, setTimelineYear] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [yearRange, setYearRange] = useState<[number, number]>([2020, 2026]);
+  const [yearRange, setYearRange] = useState<[number, number]>([2020, new Date().getFullYear()]);
   const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load network

@@ -110,7 +110,7 @@ def get_db():
 # Many-to-many association table for action tags
 action_tags = Table(
     'action_tags', Base.metadata,
-    Column('action_id', Integer, ForeignKey('actions.id')),
+    Column('action_id', Integer, ForeignKey('actions.id', ondelete="CASCADE")),
     Column('tag', String)
 )
 
@@ -273,9 +273,12 @@ class Vote(Base):
     Primary source for vote evidence.
     """
     __tablename__ = "votes"
+    __table_args__ = (
+        UniqueConstraint("congress", "chamber", "roll_number", name="uq_votes_congress_chamber_roll"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    
+
     # Congress.gov identifiers
     congress = Column(Integer, index=True, nullable=False)       # 118, 119, etc.
     chamber = Column(String, index=True, nullable=False)          # "house" or "senate"
@@ -465,6 +468,9 @@ class PersonBill(Base):
     Separates sponsorship metadata from Action evidence table.
     """
     __tablename__ = "person_bills"
+    __table_args__ = (
+        UniqueConstraint("person_id", "bill_id", "relationship_type", name="uq_person_bills_person_bill_rel"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     person_id = Column(String, index=True, nullable=False)       # 'aoc', 'sanders', etc.
@@ -486,12 +492,15 @@ class MemberBillGroundTruth(Base):
     """
     Ground truth: Member bill relationships from authoritative Congress.gov API.
     Uses bioguide_id as canonical identity (not person_id).
-    
+
     This table serves as the "rail" to constrain matching - we only match claims
     to bills that the member actually sponsored/cosponsored.
     """
     __tablename__ = "member_bills_groundtruth"
-    
+    __table_args__ = (
+        UniqueConstraint("bioguide_id", "bill_id", "role", name="uq_member_bills_gt_bioguide_bill_role"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     
     # Member identity (Congress.gov canonical)

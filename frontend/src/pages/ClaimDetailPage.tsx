@@ -315,14 +315,16 @@ const ClaimDetailPage: React.FC = () => {
 
         {/* ── Footer ── */}
         <div className="flex justify-between items-center pt-8 mt-auto">
-          <a
-            href={claim.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-body text-slate-400 hover:text-white transition-colors text-sm"
-          >
-            View Source &rarr;
-          </a>
+          {claim.source_url && (
+            <a
+              href={claim.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-body text-slate-400 hover:text-white transition-colors text-sm"
+            >
+              View Source &rarr;
+            </a>
+          )}
           <Link
             to={`/politics/people/${claim.person_id}`}
             className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-full uppercase tracking-wider font-bold text-sm transition-colors"

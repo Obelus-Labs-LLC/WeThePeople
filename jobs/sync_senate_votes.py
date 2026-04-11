@@ -119,11 +119,11 @@ def match_senator(last_name: str, state: str, full_name: str, lis_member_id: str
     if norm in by_full_name:
         return by_full_name[norm]
 
-    # Strategy 3: just last name match (risky but better than nothing)
+    # Strategy 3: last name only — only if unambiguous (single match)
     norm_last = _normalize_name(last_name)
-    for (ln, st), pid in by_last_state.items():
-        if ln == norm_last:
-            return pid
+    matches = [pid for (ln, st), pid in by_last_state.items() if ln == norm_last]
+    if len(matches) == 1:
+        return matches[0]
 
     return None
 
