@@ -478,16 +478,97 @@ deduplication across dimensions.
 | 360 | Frontend | PersonProfilePage.tsx:160-199 | 20+ individual useState calls — excessive re-renders | Consolidate to useReducer |
 | 361 | Frontend | InfluenceGraph canvas | No accessibility fallback — invisible to screen readers | Add role="img" + aria-label |
 
+### REMAINING FINDINGS — MEDIUM (21)
+
+Previously omitted medium-severity findings from the same audit run.
+
+| # | Dimension | File | Bug | Fix |
+|---|-----------|------|-----|-----|
+| 362 | Error Handling | services/llm/client.py:95,178 | Budget warnings and parse errors via print() not structured logger | Use logger.warning() |
+| 363 | Error Handling | connectors/fara.py:86-93 | Double os.unlink + dead code block after finally | Remove dead code, import os at module level |
+| 364 | Error Handling | models/database.py:74,85 | `except (ImportError, Exception): pass` — redundant catch, invisible failures | Narrow to specific exceptions or log at DEBUG |
+| 365 | Error Handling | jobs/detect_stories.py:334, ai_summarize.py:240 | Token usage logging wrapped in `except Exception: pass` — lost cost visibility | Log at WARNING |
+| 366 | Error Handling | services/auth.py:152 | Rate limiter uses "unknown" IP behind reverse proxy — all proxied users share bucket | Fall back to X-Forwarded-For header |
+| 367 | Data Integrity | Multiple sector models | No dedup_hash column or UniqueConstraint on SAMEntity, SAMExclusion, RegulatoryComment etc. | Add dedupe_hash + UniqueConstraint |
+| 368 | Data Integrity | models/government_data_models.py, civic_models.py | FK-less polymorphic IDs (company_id, target_id) — no referential integrity | Add ForeignKey where possible |
+| 369 | Data Integrity | services/pipeline_reliability.py:75,235 | send_to_dlq/mark_processed commit internally — partial commits in larger transactions | Accept auto_commit param or let caller control |
+| 370 | Data Integrity | routers/stories.py:221 | publish_story db.commit() has no try/except | Wrap in try/except with rollback |
+| 371 | Concurrency | All sync jobs | Long transactions hold SQLite write lock during HTTP calls with rate-limit delays | Commit in smaller batches (every 50-100 records) |
+| 372 | Concurrency | routers/auth.py:536-571 | Stripe webhook creates session outside request context | Use Depends(get_db) |
+| 373 | Type Safety | routers/politics.py:218, services/bill_text.py:114 | format_text_receipt expects int bill_number, gets String from Action | Cast at call site or accept Union[int, str] |
+| 374 | Type Safety | models/database.py:286 vs frontend types.ts:261 | vote_session DB column vs "session" API field — manual rename in every endpoint | Add serialization helper or hybrid_property |
+| 375 | Type Safety | All sector routers | No Pydantic response_model on dashboard stats endpoints | Create sector dashboard Pydantic models |
+| 376 | Type Safety | routers/claims.py:45,77 | POST /verify and /verify-url have no response_model (VerificationResponse exists unused) | Apply response_model=VerificationResponse |
+| 377 | Type Safety | routers/auth.py (watchlist) | Watchlist POST/GET/DELETE return raw dicts without Pydantic schemas | Create WatchlistResponse model |
+| 378 | Type Safety | MoneyFlowPage.tsx:57 | Dynamic Plotly import typed as `any` — loses all type info | Use `typeof import('plotly.js')` |
+| 379 | Architecture | routers/ops.py:33-34, scheduler.py:48 | DLQ + scheduler state stored as flat JSON files on disk (not crash-safe) | Move DLQ to database |
+| 380 | Architecture | routers/finance.py | Finance uses "institutions" while all other sectors use "companies" | Document or alias |
+| 381 | Architecture | models/database.py + scheduler.py | SQLite WAL + file lock architecture assumes single server — can't scale | Document; migrate to PostgreSQL + distributed queue before scaling |
+| 382 | Architecture | models/database.py:72 | Model layer imports from router layer (record_db_query) | Move to utils/metrics.py |
+
+### REMAINING FINDINGS — LOW (45)
+
+| # | Dimension | File | Bug | Fix |
+|---|-----------|------|-----|-----|
+| 383 | Error Handling | connectors/congress.py:56-58 | get_tracked_members uses print() not logger | Use logger.warning() |
+| 384 | Error Handling | connectors/finnhub.py:57 | API key in query param could appear in error log URLs | Mask token in error logging |
+| 385 | Error Handling | connectors/opensanctions.py:62 | Auth header could leak if headers dict logged | Noted for security docs |
+| 386 | Error Handling | connectors/openstates.py:66-88 | 30-second retry waits too aggressive for production | Use circuit breaker from _base.py |
+| 387 | Error Handling | connectors/congress.py:64-91 | robust_get backoff maxes at 8s (too short for real 429), catches Exception broadly | Increase backoff for 429, narrow catch |
+| 388 | Error Handling | connectors/regulationsgov.py:62-82 | Returns None for both "not found" and "failed" — callers can't distinguish | Consider raising exception or typed result |
+| 389 | Error Handling | connectors/google_civic.py:71 | Returns None on 429 — indistinguishable from "no data found" | Raise specific exception |
+| 390 | Data Integrity | connectors/congress.py:330 | Silent title truncation at 250 chars | Log warning when truncated or increase limit |
+| 391 | Data Integrity | connectors/congress.py:311-312 | write_raw_log catches all exceptions — audit trail silently lost | Use proper logger |
+| 392 | Data Integrity | routers/stories.py:81-82 | getattr for verification columns masks potential schema issues | Switch to direct attribute access after migration |
+| 393 | Data Integrity | models/stories_models.py:45-47 | JSON columns (entity_ids, data_sources, evidence) default to NULL not empty | Add server_default="[]" or handle None |
+| 394 | Data Integrity | connectors/congress.py:379-389 | Bill.policy_area nullable — downstream consumers may not check | Ensure all consumers handle None |
+| 395 | Data Integrity | models/twitter_models.py:20 | TweetLog.posted_at Python-side lambda default | Change to server_default=func.now() |
+| 396 | Data Integrity | models/state_models.py:37 | StateLegislator.is_active Python-side default=True | Change to server_default="1" |
+| 397 | Data Integrity | jobs/sync_donations.py:70-71 | MD5 used for donation dedup (weaker than SHA256) | Switch to SHA256 for consistency |
+| 398 | Data Integrity | models/stories_models.py:45 | Story.entity_ids JSON array has no FK to entity tables | Consider junction table or app-level cleanup |
+| 399 | Performance | routers/anomalies.py:79-103 | Entity anomalies endpoint has no limit/offset params | Add pagination |
+| 400 | Performance | routers/defense.py:530-583 | Exclusions + SAM entity endpoints no limit — unbounded | Add limit/offset |
+| 401 | Performance | routers/auth.py:536 | Stripe webhook manual SessionLocal() instead of Depends | Use Depends(get_db) |
+| 402 | Performance | models/database.py:27-28 | SQLite engine has no pool_size configured | Add explicit pool config |
+| 403 | Performance | routers/lookup.py:55-58 | Blocking sync HTTP in sync endpoint (mitigated by cache + timeout) | Consider async or keep as-is |
+| 404 | Concurrency | services/rate_limit.py:40-86 | Disabled custom rate limiter has thread-unsafe shared state | If ever enabled, add asyncio.Lock() |
+| 405 | Concurrency | routers/digest.py:140-151 | _ZIP_STATE lazy init race (benign under GIL) | Use Lock() or init at import time |
+| 406 | Concurrency | connectors/congress.py:409-459 | Bill upsert race (protected by PK constraint) | Already safe; add IntegrityError handler |
+| 407 | Concurrency | connectors/congress_votes.py:89-98 | Vote ingestion race (protected by UniqueConstraint) | Already safe; add IntegrityError handler |
+| 408 | Concurrency | All 20+ sync jobs | Systemic check-then-act (protected by scheduler sequential lock) | Safe unless parallelism introduced |
+| 409 | Concurrency | jobs/scheduler.py:528-529 | Lock acquired after "Starting job" log — confusing under overlap | Log after acquiring lock |
+| 410 | Concurrency | jobs/scheduler.py:688-695 | Manual --run-now TOCTOU (acknowledged in code comment) | Acceptable; documented |
+| 411 | Concurrency | services/budget.py:69-86 | log_token_usage orphan sessions on commit failure | Add try/finally |
+| 412 | Type Safety | routers/politics_people.py:72 | _safe_json_loads returns None/dict/list/string — frontend expects string[] | Normalize to always return list |
+| 413 | Type Safety | components/BillPipeline.tsx:11 | `[key: string]: any` index signature defeats type checking | Remove and enumerate fields |
+| 414 | Type Safety | pages/PeoplePage.tsx:189 | Zip code lookup response untyped `(r: any)` | Type the civic API response |
+| 415 | Type Safety | pages/LoginPage.tsx:21, SignupPage.tsx:23 | `catch (err: any)` instead of `unknown` | Use `catch (err: unknown)` + narrow |
+| 416 | Type Safety | DomeGallery/Plasma/ChatAgent | Framework interop requires `as any` for Three.js/OGL/DOM | Use proper type extensions (low priority) |
+| 417 | Type Safety | DefenseComparePage.tsx:211 | Dynamic `(co as any)[metric.key]` property access | Use typed record/union |
+| 418 | Type Safety | CongressionalTradesPage.tsx:344,387 | Tanstack table meta typed as any | Extend ColumnMeta via module augmentation |
+| 419 | Type Safety | routers/auth.py:273 | `if body.expires_in_days:` — 0 treated as falsy (safe due to ge=1 constraint) | Use `is not None` for clarity |
+| 420 | Type Safety | models/stories_models.py:50 | Story status values not enumerated (just string column with comment) | Add Python enum or CheckConstraint |
+| 421 | Type Safety | models/response_schemas.py:68-78 | PersonDetailResponse missing fields backend actually returns | Add all returned fields |
+| 422 | Architecture | routers/infrastructure.py | Complete placeholder router mounted in app — bloats OpenAPI spec | Remove until implemented |
+| 423 | Architecture | All sector routers | Unused imports: `or_`, `Dict`, `Any`, `List` | Remove |
+| 424 | Architecture | connectors/datagov.py + regulationsgov.py | Regulations.gov URL defined in both connectors | Pick one canonical source |
+| 425 | Architecture | All sector routers | Inconsistent pagination defaults (limit=25/50, max=100/200) | Define standard pagination constants |
+| 426 | Architecture | All sector routers (x2 each) | Stock fundamentals serialization repeated ~18 times | Add to_dict() or serialize helper |
+| 427 | Architecture | main.py:68 | Deprecated @app.on_event("startup") API | Migrate to lifespan context manager |
+| 428 | Architecture | jobs/scheduler.py:22-24 | fcntl import is Unix-only (Windows fallback exists) | Document scheduler is Linux-only |
+| 429 | Architecture | models/database.py:9, db_compat.py:17 | DATABASE_URL read independently in 2 files | Import from one canonical source |
+| 430 | Frontend | components/ChatAgent.tsx:296 | Global `window.__wtpChatDragged` property — shared mutable state | Use a ref instead |
+| 431 | Frontend | pages/StoryDetailPage.tsx:212 | Markdown table parser fragile on malformed pipe patterns | Add bounds checking |
+| 432 | Frontend | components/DomeGallery.tsx:757 | dangerouslySetInnerHTML for CSS (safe — static content) | No action needed (documented) |
+| 433 | Frontend | App.tsx routes | Sector `:companyId` routes could theoretically conflict with static sub-paths | Consider prefix like /company/:id |
+| 434 | Frontend | frontend/src/api/client.ts:5 | Hardcoded localhost in JSDoc comment | Update comment |
+| 435 | Frontend | ChoroplethMap + InfluenceGraph | Heavy libraries not further code-split | Low priority — pages already lazy-loaded |
+| 436 | Frontend | Multiple pages | Color-only party indicators (blue D / red R) — accessibility | Add text labels alongside |
+
 ---
 
-**Total: 361 bugs tracked (Feb--Apr 2026)**
+**Total: 436 bugs tracked (Feb--Apr 2026)**
 
 - Original bug log (Feb-Apr fixes): 140
 - Deep Audit Session fixes (Apr 11): 98
-- Jane Street/Google/Goldman/Two Sigma Audit findings (Apr 11): 123
-
-Severity breakdown of audit findings:
-- Critical: 2
-- High: 29
-- Medium: 79
-- Low: 13 (sampled — many LOW findings omitted for brevity)
+- Jane Street/Google/Goldman/Two Sigma Audit findings (Apr 11): 198 (2 CRITICAL, 29 HIGH, 100 MEDIUM, 67 LOW)
