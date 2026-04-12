@@ -177,8 +177,7 @@ export default function CongressionalTradesPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    // TODO: Implement server-side pagination to reduce initial payload
-    const params = new URLSearchParams({ limit: '10000' });
+    const params = new URLSearchParams({ limit: '200' });
     if (filter !== 'all') params.set('transaction_type', filter);
     if (search) params.set('ticker', search.toUpperCase());
     fetch(`${API_BASE}/congressional-trades?${params}`)
