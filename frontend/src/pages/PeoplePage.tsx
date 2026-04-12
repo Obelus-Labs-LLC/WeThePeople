@@ -20,8 +20,8 @@ const PARTY_COLORS: Record<string, { solid: string; label: string }> = {
   I: { solid: '#A855F7', label: 'Independent' },
 };
 
-function partyInfo(party: string) {
-  return PARTY_COLORS[party?.charAt(0)] || { solid: '#6B7280', label: party };
+function partyInfo(party: string | null) {
+  return PARTY_COLORS[party?.charAt(0) || ''] || { solid: '#6B7280', label: party || 'Unknown' };
 }
 
 // ── Filter Pill (matching finance style) ──
@@ -212,11 +212,11 @@ export default function PeoplePage() {
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
-        (p) => p.display_name.toLowerCase().includes(q) || p.state.toLowerCase().includes(q)
+        (p) => p.display_name.toLowerCase().includes(q) || (p.state || '').toLowerCase().includes(q)
       );
     }
     if (partyFilter !== 'all') {
-      result = result.filter((p) => p.party.startsWith(partyFilter));
+      result = result.filter((p) => (p.party || '').startsWith(partyFilter));
     }
     if (chamberFilter !== 'all') {
       result = result.filter((p) =>

@@ -40,8 +40,8 @@ const PROGRESS_COLOR: Record<string, string> = {
 
 // ── Helpers ──
 
-function partyColor(party: string): string {
-  return PARTY_COLOR[party?.charAt(0)] || '#6B7280';
+function partyColor(party: string | null): string {
+  return PARTY_COLOR[party?.charAt(0) || ''] || '#6B7280';
 }
 
 function initials(name: string): string {

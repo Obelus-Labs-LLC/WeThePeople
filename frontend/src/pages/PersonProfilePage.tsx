@@ -765,7 +765,7 @@ export default function PersonProfilePage() {
               bioguideId={person?.bioguide_id}
               personName={person?.display_name || ''}
               personId={person_id}
-              party={person?.party}
+              party={person?.party ?? undefined}
             />
           )}
 
