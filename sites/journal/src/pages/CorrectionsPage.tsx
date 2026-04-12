@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, AlertTriangle, RefreshCw, FileX, Edit3, ArrowRight } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://api.wethepeopleforus.com';
+import { getApiBase } from '../api/client';
+
+const API_BASE = getApiBase();
 
 interface Correction {
   id: number;
