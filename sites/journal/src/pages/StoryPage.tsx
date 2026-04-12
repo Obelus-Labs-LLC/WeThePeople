@@ -5,8 +5,9 @@ import { CategoryBadge } from '../components/CategoryBadge';
 import { SectorTag } from '../components/SectorTag';
 import { StoryCard } from '../components/StoryCard';
 import { useStory } from '../hooks/useStories';
+import { getApiBase } from '../api/client';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://api.wethepeopleforus.com';
+const API_BASE = getApiBase();
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
