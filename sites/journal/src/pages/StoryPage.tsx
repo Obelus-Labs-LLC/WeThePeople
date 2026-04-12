@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Clock, FileText, Link2, Share2, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react';
+import { ArrowLeft, Clock, FileText, Link2, Share2, ShieldCheck, ShieldAlert, ShieldQuestion, AlertTriangle, Bot, Flag, ChevronDown, ChevronUp } from 'lucide-react';
 import { CategoryBadge } from '../components/CategoryBadge';
 import { SectorTag } from '../components/SectorTag';
 import { StoryCard } from '../components/StoryCard';
 import { useStory } from '../hooks/useStories';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://api.wethepeopleforus.com';
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -33,25 +36,53 @@ function renderInline(text: string): React.ReactNode[] {
   let key = 0;
 
   while (remaining.length > 0) {
-    // Bold: **text**
+    // Find the earliest match among all patterns
+    const linkMatch = remaining.match(/^(.*?)\[([^\]]+)\]\(([^)]+)\)(.*)/s);
     const boldMatch = remaining.match(/^(.*?)\*\*(.+?)\*\*(.*)/s);
-    if (boldMatch) {
+    const italicMatch = remaining.match(/^(.*?)\*(.+?)\*(.*)/s);
+
+    // Pick the earliest match by prefix length
+    type MatchType = { type: 'link' | 'bold' | 'italic'; match: RegExpMatchArray };
+    const candidates: MatchType[] = [];
+    if (linkMatch) candidates.push({ type: 'link', match: linkMatch });
+    if (boldMatch) candidates.push({ type: 'bold', match: boldMatch });
+    if (italicMatch) candidates.push({ type: 'italic', match: italicMatch });
+
+    if (candidates.length === 0) {
+      parts.push(<span key={key++}>{remaining}</span>);
+      break;
+    }
+
+    // Sort by prefix length (earliest match first)
+    candidates.sort((a, b) => (a.match[1]?.length ?? 0) - (b.match[1]?.length ?? 0));
+    const best = candidates[0];
+
+    if (best.type === 'link' && linkMatch) {
+      if (linkMatch[1]) parts.push(<span key={key++}>{linkMatch[1]}</span>);
+      const isExternal = linkMatch[3].startsWith('http');
+      parts.push(
+        <a
+          key={key++}
+          href={linkMatch[3]}
+          className="text-amber-400/80 hover:text-amber-400 underline underline-offset-2 transition-colors"
+          {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+        >
+          {linkMatch[2]}
+        </a>
+      );
+      remaining = linkMatch[4];
+    } else if (best.type === 'bold' && boldMatch) {
       if (boldMatch[1]) parts.push(<span key={key++}>{boldMatch[1]}</span>);
       parts.push(<strong key={key++} className="text-white font-semibold">{boldMatch[2]}</strong>);
       remaining = boldMatch[3];
-      continue;
-    }
-    // Italic: *text*
-    const italicMatch = remaining.match(/^(.*?)\*(.+?)\*(.*)/s);
-    if (italicMatch) {
+    } else if (best.type === 'italic' && italicMatch) {
       if (italicMatch[1]) parts.push(<span key={key++}>{italicMatch[1]}</span>);
       parts.push(<em key={key++} className="text-zinc-400 italic">{italicMatch[2]}</em>);
       remaining = italicMatch[3];
-      continue;
+    } else {
+      parts.push(<span key={key++}>{remaining}</span>);
+      break;
     }
-    // No more matches
-    parts.push(<span key={key++}>{remaining}</span>);
-    break;
   }
   return parts;
 }
@@ -188,6 +219,14 @@ export default function StoryPage() {
   const { slug } = useParams<{ slug: string }>();
   const { story, related, loading, error } = useStory(slug);
 
+  // All hooks must be called before any conditional returns (Rules of Hooks)
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportEmail, setReportEmail] = useState('');
+  const [reportDescription, setReportDescription] = useState('');
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const [correctionsOpen, setCorrectionsOpen] = useState(false);
+
   if (loading) {
     return (
       <main id="main-content" className="flex-1 flex items-center justify-center py-20">
@@ -221,6 +260,38 @@ export default function StoryPage() {
     );
   }
 
+  const handleReportSubmit = async () => {
+    if (!reportDescription.trim()) return;
+    setReportError('');
+    try {
+      const res = await fetch(`${API_BASE}/stories/report-error`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          story_slug: slug,
+          reporter_email: reportEmail || null,
+          description: reportDescription,
+        }),
+      });
+      if (res.ok) {
+        setReportSubmitted(true);
+      } else {
+        setReportError('Failed to submit report. Please try again.');
+      }
+    } catch {
+      setReportError('Network error. Please try again.');
+    }
+  };
+
+  const isRetracted = story.status === 'retracted';
+  const aiLabel = story.ai_generated === 'opus'
+    ? 'AI-Enhanced'
+    : story.ai_generated === 'human'
+      ? 'Human-Written'
+      : 'Algorithmically Generated';
+
+  const corrections = story.corrections ?? [];
+
   return (
     <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
       <article className="max-w-[720px] mx-auto">
@@ -232,6 +303,52 @@ export default function StoryPage() {
           <ArrowLeft size={14} />
           Back to Journal
         </Link>
+
+        {/* RETRACTION BANNER */}
+        {isRetracted && (
+          <div className="rounded-lg border-2 border-red-500/40 bg-red-950/30 p-5 mb-8">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={20} className="text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <h2 className="text-base font-bold text-red-400 mb-2">Story Retracted</h2>
+                <p className="text-sm text-red-300/80 leading-relaxed">
+                  {story.retraction_reason || 'This story has been retracted due to data accuracy concerns.'}
+                </p>
+                <p className="text-xs text-red-400/50 mt-3">
+                  WeThePeople is committed to accuracy. When we identify errors, we retract and correct.
+                  See our <Link to="/corrections" className="underline hover:text-red-300">corrections policy</Link>.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CORRECTION NOTICES */}
+        {corrections.length > 0 && !isRetracted && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-4 mb-8">
+            <button
+              onClick={() => setCorrectionsOpen(!correctionsOpen)}
+              className="flex items-center gap-2 w-full text-left cursor-pointer bg-transparent border-0 p-0"
+            >
+              <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+              <span className="text-sm font-semibold text-amber-400">
+                {corrections.length} correction{corrections.length > 1 ? 's' : ''} issued
+              </span>
+              {correctionsOpen ? <ChevronUp size={14} className="text-amber-400 ml-auto" /> : <ChevronDown size={14} className="text-amber-400 ml-auto" />}
+            </button>
+            {correctionsOpen && (
+              <div className="mt-3 space-y-3 border-t border-amber-500/20 pt-3">
+                {corrections.map((c, i) => (
+                  <div key={i} className="text-sm">
+                    <span className="text-xs text-amber-400/60 uppercase tracking-wider">{c.type}</span>
+                    {c.date && <span className="text-xs text-zinc-600 ml-2">{formatDate(c.date)}</span>}
+                    <p className="text-zinc-400 leading-relaxed mt-1">{c.description}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Category + sector */}
         <div className="flex items-center gap-2 mb-4">
@@ -247,8 +364,8 @@ export default function StoryPage() {
           {story.title}
         </h1>
 
-        {/* Byline */}
-        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500 mb-8 pb-8 border-b border-zinc-800">
+        {/* Byline with AI disclosure */}
+        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500 mb-4 pb-4 border-b border-zinc-800">
           <span className="font-medium text-zinc-400">WeThePeople Research</span>
           <span className="text-zinc-700">|</span>
           <span>{formatDate(story.published_at)}</span>
@@ -291,6 +408,32 @@ export default function StoryPage() {
           )}
         </div>
 
+        {/* AI generation disclosure + data freshness */}
+        <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-600 mb-8">
+          <span className="flex items-center gap-1">
+            <Bot size={12} />
+            {aiLabel}
+          </span>
+          {story.data_date_range && (
+            <>
+              <span className="text-zinc-800">|</span>
+              <span>Data period: {story.data_date_range}</span>
+            </>
+          )}
+          {story.data_freshness_at && (
+            <>
+              <span className="text-zinc-800">|</span>
+              <span>Data checked: {formatDate(story.data_freshness_at)}</span>
+            </>
+          )}
+          {story.updated_at && story.updated_at !== story.published_at && (
+            <>
+              <span className="text-zinc-800">|</span>
+              <span>Last updated: {formatDate(story.updated_at)}</span>
+            </>
+          )}
+        </div>
+
         {/* Summary / lede */}
         <div className="mb-8">
           <p className="text-lg text-zinc-300 leading-relaxed font-medium">
@@ -320,6 +463,70 @@ export default function StoryPage() {
             <Share2 size={14} />
             Share on X
           </button>
+        </div>
+
+        {/* Report an error */}
+        <div className="mb-10 pb-10 border-b border-zinc-800">
+          {!reportOpen && !reportSubmitted && (
+            <button
+              onClick={() => setReportOpen(true)}
+              className="inline-flex items-center gap-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors cursor-pointer bg-transparent border-0 p-0"
+            >
+              <Flag size={12} />
+              Report an error in this story
+            </button>
+          )}
+          {reportSubmitted && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-4">
+              <p className="text-sm text-emerald-400">
+                Thank you for your report. Our editorial team will review it promptly.
+              </p>
+            </div>
+          )}
+          {reportOpen && !reportSubmitted && (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5">
+              <h3 className="text-sm font-bold text-zinc-300 mb-3 flex items-center gap-2">
+                <Flag size={14} className="text-amber-400" />
+                Report an Error
+              </h3>
+              <p className="text-xs text-zinc-500 mb-4">
+                If you believe any information in this story is inaccurate, please describe the error below.
+                Our editorial team reviews all reports.
+              </p>
+              <div className="space-y-3">
+                <input
+                  type="email"
+                  placeholder="Your email (optional, for follow-up)"
+                  value={reportEmail}
+                  onChange={(e) => setReportEmail(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
+                />
+                <textarea
+                  placeholder="Describe the error you found..."
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  rows={3}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 resize-none"
+                />
+                {reportError && <p className="text-xs text-red-400">{reportError}</p>}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleReportSubmit}
+                    disabled={!reportDescription.trim()}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                  >
+                    Submit Report
+                  </button>
+                  <button
+                    onClick={() => setReportOpen(false)}
+                    className="px-4 py-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer bg-transparent border-0"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sources — data tables + original government sources + entity links */}

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Database, Shield, Eye, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Database, Shield, Eye, Bot, AlertTriangle, ArrowRight } from 'lucide-react';
 
 export default function AboutPage() {
   return (
@@ -28,7 +28,8 @@ export default function AboutPage() {
           <p className="text-zinc-300 leading-[1.85] text-base">
             The Influence Journal is the investigative arm of WeThePeople, a civic
             transparency platform that tracks how corporations lobby Congress, win
-            government contracts, face enforcement actions, and donate to politicians.
+            government contracts, face enforcement actions, and donate to politicians
+            across 11 sectors.
           </p>
           <p className="text-zinc-300 leading-[1.85] text-base">
             Every story published here is generated from public government records.
@@ -40,6 +41,69 @@ export default function AboutPage() {
           <p className="text-zinc-300 leading-[1.85] text-base">
             Our goal is simple: follow the money from industry to politics.
           </p>
+        </div>
+
+        {/* AI Disclosure — CRITICAL TRANSPARENCY */}
+        <h2
+          className="text-xl font-bold text-white mb-6"
+          style={{ fontFamily: 'Oswald, sans-serif' }}
+        >
+          How Stories Are Produced
+        </h2>
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6 mb-12 space-y-4">
+          <div className="flex items-start gap-3">
+            <Bot size={20} className="text-amber-400 shrink-0 mt-1" />
+            <div className="space-y-3 text-sm text-zinc-400 leading-relaxed">
+              <p>
+                <strong className="text-zinc-200">Stories on The Influence Journal are
+                generated using a combination of algorithmic pattern detection and AI.</strong>{' '}
+                We believe in full transparency about this process:
+              </p>
+              <ol className="list-decimal list-inside space-y-2 ml-1">
+                <li>
+                  <strong className="text-zinc-300">Pattern detection algorithms</strong> scan
+                  public government databases for noteworthy patterns: lobbying spikes, contract
+                  windfalls, enforcement gaps, stock trading overlaps with legislative activity,
+                  and more.
+                </li>
+                <li>
+                  <strong className="text-zinc-300">Structured skeletons</strong> are generated
+                  algorithmically from the raw data, with every dollar amount, count, and date
+                  pulled directly from government records.
+                </li>
+                <li>
+                  <strong className="text-zinc-300">AI narrative enhancement</strong> (using
+                  Anthropic's Claude) may be used to transform structured data into readable
+                  prose. When used, the AI is bound by strict rules: it cannot invent numbers,
+                  cannot editorialize, cannot accuse anyone of wrongdoing, and must include
+                  legal disclaimers.
+                </li>
+                <li>
+                  <strong className="text-zinc-300">Automated fact-checking</strong> re-verifies
+                  every key number against the source database before any story reaches the
+                  review queue.
+                </li>
+                <li>
+                  <strong className="text-zinc-300">Human editorial review</strong> is required
+                  before any story is published. No story goes live automatically.
+                </li>
+              </ol>
+              <p className="text-xs text-zinc-500 mt-3 border-t border-zinc-800 pt-3">
+                Each story's byline indicates how it was generated: "Algorithmically Generated"
+                for pure template-based stories, or "AI-Enhanced" for stories where Claude was
+                used for narrative prose. Our entire pipeline is{' '}
+                <a
+                  href="https://github.com/Obelus-Labs-LLC/WeThePeople"
+                  className="text-amber-400/70 hover:text-amber-400 transition-colors"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  open source
+                </a>{' '}
+                and auditable.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Principles */}
@@ -54,17 +118,27 @@ export default function AboutPage() {
             {
               icon: Database,
               title: 'Data-First',
-              description: 'Every claim is backed by public government data. We cite our sources so you can verify every finding independently.',
+              description: 'Every claim is backed by public government data. We cite our sources with direct links so you can verify every finding independently.',
             },
             {
               icon: Eye,
               title: 'Transparent Methodology',
-              description: 'Our data collection, analysis, and story generation pipeline is documented. We publish our methodology so you know exactly how we work.',
+              description: 'Our data collection, analysis, and story generation pipeline is documented and open source. We publish our methodology so you know exactly how we work.',
             },
             {
               icon: Shield,
               title: 'No Editorial Opinions',
               description: 'We present the data and let readers draw their own conclusions. Our stories contain facts and context, not opinions or partisan framing.',
+            },
+            {
+              icon: Bot,
+              title: 'AI Transparency',
+              description: 'Every story discloses whether it was algorithmically generated or AI-enhanced. We never hide the role of automation in our process.',
+            },
+            {
+              icon: AlertTriangle,
+              title: 'Corrections & Accountability',
+              description: 'When we get something wrong, we fix it publicly and promptly. All corrections, clarifications, and retractions are documented in our correction log.',
             },
           ].map((item) => {
             const Icon = item.icon;
@@ -93,7 +167,7 @@ export default function AboutPage() {
           Data Sources
         </h2>
         <p className="text-zinc-400 text-sm leading-relaxed mb-4">
-          Our investigations draw from 30+ public data sources across 7 sectors:
+          Our investigations draw from 30+ public data sources across 11 sectors:
         </p>
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-12">
           {[
@@ -124,6 +198,13 @@ export default function AboutPage() {
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-lg transition-colors text-sm font-medium"
           >
             Coverage Balance
+            <ArrowRight size={14} />
+          </Link>
+          <Link
+            to="/corrections"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-lg transition-colors text-sm font-medium"
+          >
+            Corrections & Retractions
             <ArrowRight size={14} />
           </Link>
           <Link

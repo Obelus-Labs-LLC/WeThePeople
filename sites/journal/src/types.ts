@@ -40,6 +40,12 @@ export interface StoryCitation {
   accessed_at?: string;
 }
 
+export interface StoryCorrection {
+  type: string;
+  description: string;
+  date: string;
+}
+
 export interface Story {
   id: string | number;
   slug: string;
@@ -49,6 +55,7 @@ export interface Story {
   body?: string;     // API format (detect_stories.py output)
   category: StoryCategory;
   sector: string;
+  status?: string;
   published_at: string;
   updated_at?: string;
   created_at?: string;
@@ -64,6 +71,12 @@ export interface Story {
   hero_image_url?: string;
   tags?: string[];
   entities?: string[];
+  // Editorial metadata
+  ai_generated?: string;
+  data_date_range?: string;
+  data_freshness_at?: string;
+  retraction_reason?: string;
+  corrections?: StoryCorrection[];
 }
 
 export interface StoriesResponse {

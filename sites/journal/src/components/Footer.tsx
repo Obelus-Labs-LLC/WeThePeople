@@ -41,6 +41,12 @@ export function Footer() {
             >
               Verify Data
             </Link>
+            <Link
+              to="/corrections"
+              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Corrections
+            </Link>
             <a
               href="https://wethepeopleforus.com"
               className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"

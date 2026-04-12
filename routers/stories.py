@@ -10,22 +10,34 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Query, HTTPException, Depends, Request
+from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
-from typing import Optional
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 
 from models.database import get_db
-from models.stories_models import Story
+from models.stories_models import Story, StoryCorrection
 from models.response_schemas import StoriesListResponse
 from services.jwt_auth import get_current_user
 from services.rbac import require_role
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 limiter = Limiter(key_func=get_remote_address)
+
+
+class CorrectionRequest(BaseModel):
+    correction_type: str = "correction"
+    description: str
+
+
+class ErrorReportRequest(BaseModel):
+    story_slug: str
+    reporter_email: Optional[str] = None
+    description: str
 
 
 def _safe_json_loads(val):
@@ -36,6 +48,45 @@ def _safe_json_loads(val):
         return json.loads(val) if isinstance(val, str) else val
     except (json.JSONDecodeError, TypeError):
         return None
+
+
+def _serialize_story_summary(s: Story) -> dict:
+    """Serialize a Story for list endpoints (no body)."""
+    return {
+        "id": s.id,
+        "title": s.title,
+        "slug": s.slug,
+        "summary": s.summary,
+        "category": s.category,
+        "sector": s.sector,
+        "entity_ids": s.entity_ids,
+        "evidence": s.evidence,
+        "status": s.status,
+        "verification_score": s.verification_score,
+        "verification_tier": s.verification_tier,
+        "ai_generated": getattr(s, "ai_generated", None),
+        "data_date_range": getattr(s, "data_date_range", None),
+        "data_freshness_at": (
+            s.data_freshness_at.isoformat()
+            if getattr(s, "data_freshness_at", None) else None
+        ),
+        "published_at": s.published_at.isoformat() if s.published_at else None,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+def _serialize_story_full(s: Story) -> dict:
+    """Serialize a Story with all fields for detail endpoints."""
+    base = _serialize_story_summary(s)
+    base.update({
+        "body": s.body,
+        "data_sources": s.data_sources,
+        "verification_data": _safe_json_loads(s.verification_data),
+        "correction_history": getattr(s, "correction_history", None) or [],
+        "retraction_reason": getattr(s, "retraction_reason", None),
+        "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+    })
+    return base
 
 
 @router.get("/")
@@ -72,24 +123,7 @@ def list_stories(
         "total": total,
         "limit": limit,
         "offset": offset,
-        "stories": [
-            {
-                "id": s.id,
-                "title": s.title,
-                "slug": s.slug,
-                "summary": s.summary,
-                "category": s.category,
-                "sector": s.sector,
-                "entity_ids": s.entity_ids,
-                "evidence": s.evidence,
-                "status": s.status,
-                "verification_score": s.verification_score,
-                "verification_tier": s.verification_tier,
-                "published_at": s.published_at.isoformat() if s.published_at else None,
-                "created_at": s.created_at.isoformat() if s.created_at else None,
-            }
-            for s in stories
-        ],
+        "stories": [_serialize_story_summary(s) for s in stories],
     }
 
 
@@ -113,23 +147,7 @@ def latest_stories(
         logger.warning("stories query failed (table may not exist): %s", e)
         return {"stories": []}
     return {
-        "stories": [
-            {
-                "id": s.id,
-                "title": s.title,
-                "slug": s.slug,
-                "summary": s.summary,
-                "body": s.body,
-                "category": s.category,
-                "sector": s.sector,
-                "entity_ids": s.entity_ids,
-                "data_sources": s.data_sources,
-                "verification_score": s.verification_score,
-                "verification_tier": s.verification_tier,
-                "published_at": s.published_at.isoformat() if s.published_at else None,
-            }
-            for s in stories
-        ],
+        "stories": [_serialize_story_full(s) for s in stories],
     }
 
 
@@ -182,28 +200,32 @@ def get_story(slug: str, db: Session = Depends(get_db)):
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    # Only show published stories to public
-    if story.status != "published":
+    # Show published and retracted stories (retracted shows retraction notice)
+    if story.status not in ("published", "retracted"):
         raise HTTPException(status_code=404, detail="Story not found")
 
-    return {
-        "id": story.id,
-        "title": story.title,
-        "slug": story.slug,
-        "summary": story.summary,
-        "body": story.body,
-        "category": story.category,
-        "sector": story.sector,
-        "entity_ids": story.entity_ids,
-        "data_sources": story.data_sources,
-        "evidence": story.evidence,
-        "status": story.status,
-        "verification_score": story.verification_score,
-        "verification_tier": story.verification_tier,
-        "verification_data": _safe_json_loads(story.verification_data),
-        "published_at": story.published_at.isoformat() if story.published_at else None,
-        "created_at": story.created_at.isoformat() if story.created_at else None,
-    }
+    result = _serialize_story_full(story)
+
+    # Load correction history from StoryCorrection table
+    try:
+        corrections = (
+            db.query(StoryCorrection)
+            .filter(StoryCorrection.story_id == story.id)
+            .order_by(desc(StoryCorrection.corrected_at))
+            .all()
+        )
+        result["corrections"] = [
+            {
+                "type": c.correction_type,
+                "description": c.description,
+                "date": c.corrected_at.isoformat() if c.corrected_at else None,
+            }
+            for c in corrections
+        ]
+    except Exception:
+        result["corrections"] = []
+
+    return result
 
 
 @router.post("/{slug}/publish")
@@ -231,3 +253,150 @@ def publish_story(slug: str, request: Request, user=Depends(require_role("admin"
         raise HTTPException(status_code=500, detail="Failed to publish story")
 
     return {"message": "Published", "slug": slug, "published_at": story.published_at.isoformat()}
+
+
+@router.post("/{slug}/retract")
+@limiter.limit("10/minute")
+def retract_story(
+    slug: str,
+    request: Request,
+    reason: str = Query(..., min_length=10),
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Retract a published story. The story remains visible with a retraction notice."""
+    story = db.query(Story).filter(Story.slug == slug).first()
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    story.status = "retracted"
+    story.retraction_reason = reason
+
+    # Add to correction history
+    correction = StoryCorrection(
+        story_id=story.id,
+        correction_type="retraction",
+        description=reason,
+        corrected_by="editorial",
+    )
+    db.add(correction)
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to retract story %s: %s", slug, e)
+        raise HTTPException(status_code=500, detail="Failed to retract story")
+
+    logger.info("Story retracted: %s — %s", slug, reason)
+    return {"message": "Retracted", "slug": slug, "reason": reason}
+
+
+@router.post("/{slug}/correct")
+@limiter.limit("10/minute")
+def correct_story(
+    slug: str,
+    body: CorrectionRequest,
+    request: Request,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Record a correction to a published story."""
+    story = db.query(Story).filter(Story.slug == slug).first()
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    correction = StoryCorrection(
+        story_id=story.id,
+        correction_type=body.correction_type,
+        description=body.description,
+        corrected_by="editorial",
+    )
+    db.add(correction)
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to add correction for %s: %s", slug, e)
+        raise HTTPException(status_code=500, detail="Failed to record correction")
+
+    return {"message": "Correction recorded", "slug": slug, "type": body.correction_type}
+
+
+@router.get("/corrections/all")
+def all_corrections(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """Public endpoint: list all corrections and retractions across all stories."""
+    try:
+        total = db.query(StoryCorrection).count()
+        corrections = (
+            db.query(StoryCorrection)
+            .order_by(desc(StoryCorrection.corrected_at))
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+        # Join story titles
+        story_ids = {c.story_id for c in corrections}
+        stories = {
+            s.id: s for s in db.query(Story).filter(Story.id.in_(story_ids)).all()
+        } if story_ids else {}
+
+        return {
+            "total": total,
+            "corrections": [
+                {
+                    "id": c.id,
+                    "story_id": c.story_id,
+                    "story_title": stories.get(c.story_id, Story(title="Unknown")).title,
+                    "story_slug": stories.get(c.story_id, Story(slug="unknown")).slug,
+                    "type": c.correction_type,
+                    "description": c.description,
+                    "date": c.corrected_at.isoformat() if c.corrected_at else None,
+                }
+                for c in corrections
+            ],
+        }
+    except Exception as e:
+        logger.warning("corrections query failed: %s", e)
+        return {"total": 0, "corrections": []}
+
+
+@router.post("/report-error")
+@limiter.limit("5/minute")
+def report_error(
+    body: ErrorReportRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Public endpoint: anyone can report an error in a story.
+
+    Creates a correction entry with type='reader_report' for editorial review.
+    """
+    story = db.query(Story).filter(Story.slug == body.story_slug).first()
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    contact = body.reporter_email or "anonymous"
+    correction = StoryCorrection(
+        story_id=story.id,
+        correction_type="reader_report",
+        description="[Report from %s] %s" % (contact, body.description),
+        corrected_by="reader",
+    )
+    db.add(correction)
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to save error report for %s: %s", body.story_slug, e)
+        raise HTTPException(status_code=500, detail="Failed to submit report")
+
+    logger.info("Error report received for %s from %s", body.story_slug, contact)
+    return {"message": "Thank you. Your report has been received and will be reviewed by our editorial team."}
