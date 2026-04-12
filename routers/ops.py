@@ -897,3 +897,196 @@ def story_queue_edit(
     db.commit()
     logger.info("story-queue edit: id=%d fields=%s", story_id, changed)
     return {"id": story.id, "slug": story.slug, "changed": changed}
+
+
+# ── Draft Quote-Tweet Queue (Gate 5 extension for Twitter monitor) ─────────────
+
+@router.get("/draft-queue")
+def draft_queue(
+    limit: int = 50,
+    offset: int = 0,
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """List draft quote-tweets awaiting human review.
+
+    The twitter_monitor generates drafts when it finds matching entities
+    in watchdog account tweets. Drafts must be approved here before posting.
+
+    Optional ?status=pending|approved|posted|rejected filter.
+    """
+    from models.twitter_models import DraftReply
+
+    query = db.query(DraftReply)
+    if status:
+        query = query.filter(DraftReply.status == status)
+    query = query.order_by(DraftReply.score.desc(), DraftReply.created_at.desc())
+
+    total = query.count()
+    drafts = query.offset(offset).limit(limit).all()
+
+    return {
+        "total": total,
+        "drafts": [
+            {
+                "id": d.id,
+                "target_tweet_id": d.target_tweet_id,
+                "target_username": d.target_username,
+                "target_text": d.target_text,
+                "suggested_text": d.suggested_text,
+                "matched_entity": d.matched_entity,
+                "matched_data": d.matched_data,
+                "score": d.score,
+                "status": d.status,
+                "created_at": d.created_at.isoformat() if d.created_at else None,
+                "posted_at": d.posted_at.isoformat() if d.posted_at else None,
+            }
+            for d in drafts
+        ],
+    }
+
+
+@router.get("/draft-queue/stats")
+def draft_queue_stats(db: Session = Depends(get_db)):
+    """Quick counts for draft queue."""
+    from models.twitter_models import DraftReply
+
+    pending = db.query(DraftReply).filter(DraftReply.status == "pending").count()
+    approved = db.query(DraftReply).filter(DraftReply.status == "approved").count()
+    posted = db.query(DraftReply).filter(DraftReply.status == "posted").count()
+    rejected = db.query(DraftReply).filter(DraftReply.status == "rejected").count()
+
+    return {
+        "pending": pending,
+        "approved": approved,
+        "posted": posted,
+        "rejected": rejected,
+        "total": pending + approved + posted + rejected,
+    }
+
+
+@router.post("/draft-queue/{draft_id}/approve")
+def draft_queue_approve(
+    draft_id: int,
+    db: Session = Depends(get_db),
+):
+    """Approve a draft quote-tweet for posting.
+
+    Sets status to 'approved'. The twitter_monitor --post-approved cron job
+    will pick it up and post it at the next cycle.
+    """
+    from models.twitter_models import DraftReply
+
+    draft = db.query(DraftReply).filter(DraftReply.id == draft_id).first()
+    if not draft:
+        raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+    if draft.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Can only approve pending drafts, not '{draft.status}'",
+        )
+
+    draft.status = "approved"
+    draft.reviewed_at = datetime.now(timezone.utc)
+    db.commit()
+    logger.info("draft-queue approve: id=%d entity=%s", draft_id, draft.matched_entity)
+    return {"id": draft.id, "status": "approved", "entity": draft.matched_entity}
+
+
+@router.get("/draft-queue/{draft_id}/approve")
+def draft_queue_approve_get(
+    draft_id: int,
+    db: Session = Depends(get_db),
+    _auth: None = Depends(require_press_key),
+):
+    """GET version for email link taps — approves the draft."""
+    from models.twitter_models import DraftReply
+
+    draft = db.query(DraftReply).filter(DraftReply.id == draft_id).first()
+    if not draft:
+        raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+    if draft.status == "pending":
+        draft.status = "approved"
+        draft.reviewed_at = datetime.now(timezone.utc)
+        db.commit()
+
+    return f"""<html><body style="font-family:sans-serif;text-align:center;padding:40px">
+    <h2>Draft #{draft_id} Approved</h2>
+    <p>Entity: {html.escape(draft.matched_entity or '')}</p>
+    <p>Will be posted at next cycle.</p>
+    </body></html>"""
+
+
+@router.post("/draft-queue/{draft_id}/reject")
+def draft_queue_reject(
+    draft_id: int,
+    db: Session = Depends(get_db),
+):
+    """Reject a draft quote-tweet. Retained in DB for auditing."""
+    from models.twitter_models import DraftReply
+
+    draft = db.query(DraftReply).filter(DraftReply.id == draft_id).first()
+    if not draft:
+        raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+    if draft.status not in ("pending", "approved"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Can only reject pending/approved drafts, not '{draft.status}'",
+        )
+
+    draft.status = "rejected"
+    draft.reviewed_at = datetime.now(timezone.utc)
+    db.commit()
+    logger.info("draft-queue reject: id=%d entity=%s", draft_id, draft.matched_entity)
+    return {"id": draft.id, "status": "rejected"}
+
+
+@router.get("/draft-queue/{draft_id}/reject")
+def draft_queue_reject_get(
+    draft_id: int,
+    db: Session = Depends(get_db),
+    _auth: None = Depends(require_press_key),
+):
+    """GET version for email link taps — rejects the draft."""
+    from models.twitter_models import DraftReply
+
+    draft = db.query(DraftReply).filter(DraftReply.id == draft_id).first()
+    if not draft:
+        raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+    if draft.status in ("pending", "approved"):
+        draft.status = "rejected"
+        draft.reviewed_at = datetime.now(timezone.utc)
+        db.commit()
+
+    return f"""<html><body style="font-family:sans-serif;text-align:center;padding:40px">
+    <h2>Draft #{draft_id} Rejected</h2>
+    <p>Entity: {html.escape(draft.matched_entity or '')}</p>
+    <p>Draft will not be posted.</p>
+    </body></html>"""
+
+
+@router.post("/draft-queue/{draft_id}/edit")
+def draft_queue_edit(
+    draft_id: int,
+    patch: Dict[str, Any],
+    db: Session = Depends(get_db),
+):
+    """Edit a draft's suggested_text before approving."""
+    from models.twitter_models import DraftReply
+
+    draft = db.query(DraftReply).filter(DraftReply.id == draft_id).first()
+    if not draft:
+        raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+    if draft.status not in ("pending", "approved"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Can only edit pending/approved drafts, not '{draft.status}'",
+        )
+
+    if "suggested_text" in patch and isinstance(patch["suggested_text"], str):
+        draft.suggested_text = patch["suggested_text"]
+        db.commit()
+        logger.info("draft-queue edit: id=%d", draft_id)
+        return {"id": draft.id, "status": draft.status, "updated": True}
+
+    raise HTTPException(status_code=400, detail="Only 'suggested_text' can be edited")

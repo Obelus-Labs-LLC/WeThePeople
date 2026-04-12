@@ -1,20 +1,24 @@
 """
-Twitter Monitor — Scan watchdog accounts and auto-quote-tweet with WTP data.
+Twitter Monitor — Scan watchdog accounts and generate data-backed quote-tweet drafts.
 
 Searches X for recent posts from transparency/watchdog accounts, extracts
 entity names (politicians, companies, tickers), matches them against the
-WTP database, and generates data-backed quote-tweets.
+WTP database, and generates draft quote-tweets for human review.
 
-Posts at most ONE auto-quote per day (stored in TweetLog with category='quote').
-All matches generate DraftReply records for manual review.
+Gate 5 Extension: ALL quote-tweets now go through human approval.
+Monitor generates drafts -> stored in draft_replies table -> human approves
+via /ops/draft-queue -> approved drafts are posted by a separate cron job.
+
+This eliminates the reputational risk of auto-posting responses to
+third-party content without editorial review.
 
 Target accounts:
     unusual_whales, OpenSecretsDC, CREWcrew, MapLightTech,
     POGOwatchdog, faramonitor, IssueOneReform
 
 Usage:
-    python jobs/twitter_monitor.py                # scan + auto-quote 1
-    python jobs/twitter_monitor.py --drafts-only  # only generate drafts, don't post
+    python jobs/twitter_monitor.py                # scan + generate drafts
+    python jobs/twitter_monitor.py --post-approved  # post approved drafts
     python jobs/twitter_monitor.py --dry-run      # print what would happen
 """
 
@@ -23,11 +27,10 @@ import sys
 import re
 import json
 import random
-import hashlib
 import argparse
 import logging
 import time
-from datetime import datetime, date, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
 import requests
@@ -35,31 +38,43 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from connectors.twitter import post_tweet, search_recent_tweets
+from connectors.twitter import post_tweet, search_recent_tweets, is_own_tweet
 from models.database import SessionLocal
 from models.twitter_models import TweetLog, DraftReply
 from sqlalchemy import text
+from utils.twitter_helpers import (
+    SITE, JOURNAL_SITE, OUR_USERNAME, MAX_POSTS_PER_DAY,
+    api_get, is_paused,
+    fmt_money, content_hash, entity_tweeted_recently,
+    posts_today, log_tweet,
+    build_url, build_profile_url,
+    content_is_safe, neutralize_language, validate_tweet_length,
+    format_sources, data_freshness_note,
+    is_safe_entity_match, FALSE_POSITIVE_NAMES, MIN_MATCH_LENGTH,
+)
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
-API_BASE = os.getenv("WTP_API_URL", "http://localhost:8006")
-SITE = "wethepeopleforus.com"
-JOURNAL_SITE = "journal.wethepeopleforus.com"
-OUR_USERNAME = "WTPForUs"
+# ── Configuration ──────────────────────────────────────────────────────────────
 
-# ── Target Accounts ──
-# Transparency/watchdog accounts whose tweets we monitor for entity mentions
+# Maximum drafts to generate per scan cycle
+MAX_DRAFTS_PER_CYCLE = 10
+
+# Maximum approved drafts to post per cycle (when running --post-approved)
+MAX_POSTS_PER_CYCLE = 3
+
+# Target accounts — transparency/watchdog orgs whose tweets we monitor
 TARGET_ACCOUNTS = [
     "unusual_whales",   # Congressional trades + options flow
     "OpenSecretsDC",    # Campaign finance / lobbying
-    "CREWcrew",         # Citizens for Responsibility and Ethics
-    "MapLightTech",     # Money in politics
-    "POGOwatchdog",     # Project on Government Oversight
-    "faramonitor",      # FARA foreign lobbying
-    "IssueOneReform",   # Money in politics reform
+    "CREWcrew",        # Citizens for Responsibility and Ethics
+    "MapLightTech",    # Money in politics
+    "POGOwatchdog",    # Project on Government Oversight
+    "faramonitor",     # FARA foreign lobbying
+    "IssueOneReform",  # Money in politics reform
 ]
 
 # All tracked-entity tables: (table_name, id_column, display_name_col, ticker_col, sector_slug)
@@ -77,7 +92,7 @@ ENTITY_TABLES = [
     ("tracked_telecom_companies", "company_id", "display_name", "ticker", "telecom"),
 ]
 
-# Lobbying tables for data lookup: (table, entity_col, entity_table)
+# Lobbying tables for data lookup
 LOBBYING_TABLES = [
     ("lobbying_records", "company_id", "tracked_tech_companies"),
     ("finance_lobbying_records", "institution_id", "tracked_institutions"),
@@ -106,102 +121,13 @@ CONTRACT_TABLES = [
 ]
 
 
-# ── Helpers ──
-
-def api_get(path: str, params: dict = None) -> dict:
-    """Fetch from WTP API."""
-    try:
-        r = requests.get(f"{API_BASE}{path}", params=params or {}, timeout=15)
-        r.raise_for_status()
-        return r.json()
-    except Exception as e:
-        log.warning("API call failed %s: %s", path, e)
-        return {}
-
-
-def _fmt_money(n: float) -> str:
-    if n >= 1_000_000_000:
-        return f"${n / 1_000_000_000:.1f}B"
-    if n >= 1_000_000:
-        return f"${n / 1_000_000:.1f}M"
-    if n >= 1_000:
-        return f"${n / 1_000:.0f}K"
-    return f"${n:,.0f}"
-
-
-def content_hash(text: str) -> str:
-    return hashlib.sha256(text.encode()).hexdigest()
-
-
-def entity_tweeted_recently(session, entity_name: str, days: int = 3) -> bool:
-    """Check if we tweeted/quoted about this entity in the last N days."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    recent = (
-        session.query(TweetLog)
-        .filter(TweetLog.posted_at >= cutoff)
-        .all()
-    )
-    name_lower = entity_name.lower()
-    for tweet in recent:
-        if tweet.text and name_lower in tweet.text.lower():
-            return True
-    return False
-
-
-def quotes_today(session) -> int:
-    """Count auto-quote tweets posted today (category='quote')."""
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    return (
-        session.query(TweetLog)
-        .filter(TweetLog.posted_at >= today, TweetLog.category == "quote")
-        .count()
-    )
-
-
-def all_posts_today(session) -> int:
-    """Count ALL tweets posted today (all categories, including bot tweets)."""
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    return session.query(TweetLog).filter(TweetLog.posted_at >= today).count()
-
-
-def already_drafted(session, tweet_id: str) -> bool:
-    """Check if we already created a draft for this tweet."""
-    return (
-        session.query(DraftReply)
-        .filter(DraftReply.target_tweet_id == tweet_id)
-        .first()
-        is not None
-    )
-
-
-def log_tweet(session, tweet_id: str, category: str, tweet_text: str):
-    """Log a posted tweet with retry on DB lock."""
-    for attempt in range(3):
-        try:
-            session.add(TweetLog(
-                tweet_id=tweet_id,
-                category=category,
-                content_hash=content_hash(tweet_text),
-                text=tweet_text,
-            ))
-            session.commit()
-            return
-        except Exception as e:
-            session.rollback()
-            if attempt < 2:
-                log.warning("DB locked on log_tweet, retry %d/3: %s", attempt + 1, e)
-                time.sleep(2)
-            else:
-                log.error("Failed to log tweet after 3 attempts: %s", e)
-
-
-# ── Entity Matching (direct DB queries) ──
+# ── Entity Matching (direct DB queries, with safety filters) ───────────────────
 
 def _build_entity_index(session) -> Dict[str, Dict[str, Any]]:
     """Build an in-memory index of all tracked entities for fast text matching.
 
-    Returns dict keyed by uppercase entity name -> {entity_id, display_name, ticker, sector, table, id_col}
-    Also indexes by ticker symbol.
+    Returns dict keyed by uppercase entity name -> entity info dict.
+    Applies safety filters to prevent false positive matches.
     """
     index = {}
 
@@ -231,24 +157,20 @@ def _build_entity_index(session) -> Dict[str, Dict[str, Any]]:
 
                 # Index by full display name (uppercase)
                 if display_name:
-                    index[display_name.upper()] = entry
+                    key = display_name.upper()
+                    # Only index if name meets minimum length for safety
+                    if len(key) >= MIN_MATCH_LENGTH or " " in key:
+                        index[key] = entry
 
-                    # Also index by last name for politicians
-                    if table == "tracked_members":
-                        parts = display_name.split()
-                        if len(parts) >= 2:
-                            last = parts[-1]
-                            # Only index last names > 4 chars to avoid false positives
-                            if len(last) > 4:
-                                key = last.upper()
-                                # Don't overwrite a more specific match
-                                if key not in index:
-                                    index[key] = entry
+                    # For politicians, index by "FIRST LAST" (full name only)
+                    # Do NOT index by last name alone — too many false positives
+                    if table == "tracked_members" and " " in display_name:
+                        # Full name is already indexed above
+                        pass
 
-                # Index by ticker symbol
-                if ticker:
+                # Index by ticker symbol (with $ prefix for safety)
+                if ticker and len(ticker) >= 2:
                     index[f"${ticker.upper()}"] = entry
-                    index[ticker.upper()] = entry
 
         except Exception as e:
             log.warning("Failed to index %s: %s", table, e)
@@ -257,22 +179,22 @@ def _build_entity_index(session) -> Dict[str, Dict[str, Any]]:
     return index
 
 
-def match_entities_in_text(text: str, entity_index: Dict[str, Dict]) -> List[Dict[str, Any]]:
+def match_entities_in_text(text_content: str, entity_index: Dict[str, Dict]) -> List[Dict[str, Any]]:
     """Find all WTP-tracked entities mentioned in tweet text.
 
-    Matching strategy:
-    1. Exact ticker match ($AAPL, $PFE)
-    2. Full display_name match (case-insensitive)
-    3. Last-name match for politicians (only if >4 chars)
+    Uses safe matching with false positive prevention:
+    1. Exact ticker match ($AAPL, $PFE) — safest
+    2. Full display_name match (case-insensitive) — requires word boundary for short names
+    3. Multi-word name match — safe (e.g., "Elizabeth Warren")
 
     Returns list of matched entity dicts, best matches first.
     """
     matches = []
     seen_ids = set()
-    text_upper = text.upper()
+    text_upper = text_content.upper()
 
     # 1. Ticker symbols: $AAPL, $PFE etc.
-    ticker_pattern = re.findall(r'\$([A-Z]{1,5})\b', text)
+    ticker_pattern = re.findall(r'\$([A-Z]{2,5})\b', text_content)
     for ticker in ticker_pattern:
         key = f"${ticker}"
         if key in entity_index:
@@ -282,28 +204,28 @@ def match_entities_in_text(text: str, entity_index: Dict[str, Dict]) -> List[Dic
                 matches.append(entry)
                 seen_ids.add(eid)
 
-    # 2. Full display name match
+    # 2. Full display name match (with safety filtering)
     for key, entry in entity_index.items():
         if key.startswith("$"):
             continue  # skip ticker entries, already handled
         eid = entry["entity_id"]
         if eid in seen_ids:
             continue
-        # Only match full names (at least 2 words) or sufficiently long single tokens
-        if len(key) > 6 and key in text_upper:
+
+        # Use safe matching (prevents false positives)
+        if is_safe_entity_match(key, text_upper):
             matches.append(entry)
             seen_ids.add(eid)
 
     return matches
 
 
-# ── Data Lookup ──
+# ── Data Lookup ────────────────────────────────────────────────────────────────
 
 def lookup_entity_data(session, entity: Dict[str, Any]) -> Dict[str, Any]:
-    """Pull lobbying spend, contract totals, enforcement, and trade counts for a matched entity.
+    """Pull lobbying spend, contract totals, and trade counts for a matched entity.
 
-    Returns a dict with keys: lobbying_total, contract_total, enforcement_count,
-    trades_count, top_issues, sector, profile_url
+    Returns a dict with all data needed for quote-tweet composition.
     """
     entity_id = entity["entity_id"]
     table = entity["table"]
@@ -321,18 +243,10 @@ def lookup_entity_data(session, entity: Dict[str, Any]) -> Dict[str, Any]:
         "trades_count": 0,
         "lobbying_filings": 0,
         "top_issues": [],
-        "profile_url": "",
+        "profile_url": build_profile_url(sector, entity_id, campaign="monitor"),
     }
 
-    # Build profile URL
-    if sector == "politics":
-        data["profile_url"] = f"{SITE}/politics/person/{entity_id}"
-    elif sector == "finance":
-        data["profile_url"] = f"{SITE}/finance/company/{entity_id}"
-    else:
-        data["profile_url"] = f"{SITE}/{sector}/company/{entity_id}"
-
-    # Look up lobbying data across all lobbying tables
+    # Lobbying data
     for lobby_table, lobby_id_col, lobby_entity_table in LOBBYING_TABLES:
         if lobby_entity_table == table:
             try:
@@ -359,7 +273,7 @@ def lookup_entity_data(session, entity: Dict[str, Any]) -> Dict[str, Any]:
                 pass
             break
 
-    # Look up contract data
+    # Contract data
     for contract_table, contract_id_col, contract_entity_table in CONTRACT_TABLES:
         if contract_entity_table == table:
             try:
@@ -373,7 +287,7 @@ def lookup_entity_data(session, entity: Dict[str, Any]) -> Dict[str, Any]:
                 log.debug("Contract lookup failed for %s in %s: %s", entity_id, contract_table, e)
             break
 
-    # Congressional trades (politicians only)
+    # Congressional trades (politicians)
     if sector == "politics":
         try:
             row = session.execute(text(
@@ -398,14 +312,13 @@ def lookup_entity_data(session, entity: Dict[str, Any]) -> Dict[str, Any]:
     return data
 
 
-# ── Quote-Tweet Composition ──
+# ── Quote-Tweet Composition ────────────────────────────────────────────────────
 
-def compose_quote_text(entity: Dict, data: Dict, include_journal_link: bool = True) -> str:
-    """Generate a quote-tweet text from matched entity data.
+def compose_quote_text(entity: Dict, data: Dict) -> str:
+    """Generate a factual quote-tweet from matched entity data.
 
-    Rotates between 4 template styles. Varies format to avoid repetition.
-    Returns the quote text (without the original tweet URL -- that's handled
-    by the quote_tweet_id parameter in the X API).
+    Uses neutral language with source attribution. Varies templates
+    to avoid repetition. Never implies wrongdoing or causation.
     """
     name = data["display_name"]
     lobbying = data["lobbying_total"]
@@ -417,14 +330,16 @@ def compose_quote_text(entity: Dict, data: Dict, include_journal_link: bool = Tr
     profile_url = data["profile_url"]
 
     candidates = []
+    freshness = data_freshness_note()
 
     # Template A: Lobbying + Contracts cross-reference
     if lobbying > 0 and contracts > 0:
-        source_list = "Data: Senate LDA Filings, USASpending.gov"
         text_a = (
-            f"{name} spent {_fmt_money(lobbying)} lobbying Congress "
-            f"while receiving {_fmt_money(contracts)} in federal contracts. "
-            f"Public record.\n\n{source_list}\n\n#FollowTheMoney"
+            f"{name} spent {fmt_money(lobbying)} lobbying Congress "
+            f"while receiving {fmt_money(contracts)} in federal contracts.\n\n"
+            f"Both documented in public filings {freshness}.\n\n"
+            f"Data: Senate LDA Filings, USASpending.gov\n\n"
+            f"#FollowTheMoney"
         )
         candidates.append(text_a)
 
@@ -432,14 +347,15 @@ def compose_quote_text(entity: Dict, data: Dict, include_journal_link: bool = Tr
     if filings > 0 and lobbying > 0:
         issues_str = ""
         if top_issues:
-            issues_str = ", ".join(top_issues[:2])
-            issues_str = f"Top issues: {issues_str}"
+            issues_str = f"Top issues: {', '.join(top_issues[:2])}"
         else:
-            issues_str = "What were they lobbying for?"
+            issues_str = "Full breakdown of lobbying targets available."
         text_b = (
             f"Since 2020, {name} filed {filings:,} lobbying disclosures "
-            f"totaling {_fmt_money(lobbying)}.\n\n"
-            f"{issues_str}\n\n#FollowTheMoney"
+            f"totaling {fmt_money(lobbying)} {freshness}.\n\n"
+            f"{issues_str}\n\n"
+            f"Source: Senate LDA Filings\n\n"
+            f"#CorporateLobbying"
         )
         candidates.append(text_b)
 
@@ -447,61 +363,103 @@ def compose_quote_text(entity: Dict, data: Dict, include_journal_link: bool = Tr
     if trades > 0 and ticker:
         lobby_note = ""
         if lobbying > 0:
-            lobby_note = f" Lobbying spend: {_fmt_money(lobbying)}."
+            lobby_note = f" Lobbying spend: {fmt_money(lobbying)}."
         text_c = (
             f"{trades} members of Congress traded ${ticker} stock.{lobby_note}\n\n"
-            f"All publicly disclosed under the STOCK Act.\n\n#CongressTrades"
+            f"All publicly disclosed under the STOCK Act.\n\n"
+            f"Source: House Financial Disclosures\n\n"
+            f"#CongressTrades"
         )
         candidates.append(text_c)
 
     # Template D: Politician trades
     if entity.get("sector") == "politics" and trades > 0:
         text_d = (
-            f"{name} made {trades:,} stock trade{'s' if trades != 1 else ''} while in office.\n\n"
-            f"Members of Congress are required to disclose trades within 45 days. "
-            f"Many don't.\n\n#CongressTrades"
+            f"{name} made {trades:,} stock trade{'s' if trades != 1 else ''} "
+            f"while in office.\n\n"
+            f"Members of Congress are required to disclose trades within 45 days "
+            f"under the STOCK Act.\n\n"
+            f"Source: House Financial Disclosures\n\n"
+            f"#CongressTrades #STOCKAct"
         )
         candidates.append(text_d)
 
-    # Template E: Enforcement fallback
+    # Template E: Lobbying-only (no contracts or trades)
     if lobbying > 0 and not contracts and not trades:
         text_e = (
             f"According to Senate filings, {name} spent "
-            f"{_fmt_money(lobbying)} lobbying Congress.\n\n"
+            f"{fmt_money(lobbying)} lobbying Congress {freshness}.\n\n"
             f"Who they lobbied. What they asked for. All public record.\n\n"
+            f"Source: Senate LDA Filings\n\n"
             f"#CorporateLobbying"
         )
         candidates.append(text_e)
 
     if not candidates:
-        # Generic fallback -- we have the entity but sparse data
+        # Generic fallback — we have the entity but sparse data
         candidates.append(
-            f"We track {name}. Lobbying, contracts, trades, enforcement "
-            f"-- all from public records.\n\n#FollowTheMoney"
+            f"We track {name} across lobbying, contracts, trades, and enforcement "
+            f"-- all from public records.\n\n"
+            f"#FollowTheMoney"
         )
 
     # Pick a random template
     quote_text = random.choice(candidates)
 
-    # Optionally append journal link (~70% of the time)
-    if include_journal_link and random.random() < 0.7 and profile_url:
+    # Append profile link (~70% of the time)
+    if profile_url and random.random() < 0.7:
         quote_text += f"\n\n{profile_url}"
 
+    # Safety: validate content
+    quote_text = neutralize_language(quote_text)
     return quote_text
 
 
-# ── Scanning Logic ──
+# ── Scoring ────────────────────────────────────────────────────────────────────
+
+def score_draft(draft: Dict) -> float:
+    """Score a draft for prioritization in the review queue.
+
+    Higher score = more data-rich = higher priority for posting.
+    """
+    ed = draft["entity_data"]
+    score = 0.0
+
+    if ed["lobbying_total"] > 0 and ed["contract_total"] > 0:
+        score += 3.0  # Cross-reference is gold
+    elif ed["lobbying_total"] > 0 or ed["contract_total"] > 0:
+        score += 1.0
+
+    if ed["trades_count"] > 0:
+        score += 2.0  # Congressional trades are high-engagement
+
+    if ed["top_issues"]:
+        score += 1.0  # Specificity adds value
+
+    # Bonus for high-engagement source accounts
+    high_engagement_accounts = {"unusual_whales", "OpenSecretsDC", "CREWcrew"}
+    if draft.get("username") in high_engagement_accounts:
+        score += 1.0
+
+    # Bonus for dollar amounts (more concrete data)
+    if ed["lobbying_total"] > 1_000_000:
+        score += 0.5
+    if ed["contract_total"] > 10_000_000:
+        score += 0.5
+
+    return score
+
+
+# ── Scanning Logic ─────────────────────────────────────────────────────────────
 
 def scan_account(username: str, session, entity_index: Dict,
                  drafts: List[Dict], max_tweets: int = 10):
     """Scan recent tweets from one account for entity matches.
 
-    Appends match dicts to `drafts` list. Each dict contains:
-    tweet_id, username, tweet_text, entity, entity_data, suggested_text
+    Appends match dicts to `drafts` list for human review.
     """
     log.info("Scanning @%s ...", username)
 
-    # Use search endpoint: from:username (more reliable on free tier than user timeline)
     query = f"from:{username} -is:retweet -is:reply"
     tweets = search_recent_tweets(query, max_results=max_tweets)
 
@@ -515,15 +473,15 @@ def scan_account(username: str, session, entity_index: Dict,
         tweet_id = str(tweet["id"])
         tweet_text = tweet.get("text", "")
 
-        # Skip retweets / quote-tweets that are just RT
+        # Skip retweets
         if tweet_text.startswith("RT @"):
             continue
 
         # Skip tweets we already drafted
-        if already_drafted(session, tweet_id):
+        if _already_drafted(session, tweet_id):
             continue
 
-        # Match entities
+        # Match entities (with safety filters)
         matches = match_entities_in_text(tweet_text, entity_index)
         if not matches:
             continue
@@ -553,28 +511,47 @@ def scan_account(username: str, session, entity_index: Dict,
         # Generate quote-tweet text
         quote_text = compose_quote_text(entity, entity_data)
 
-        drafts.append({
+        # Final safety check
+        if not content_is_safe(quote_text):
+            log.warning("  Generated quote for %s failed safety check, skipping", display_name)
+            continue
+
+        draft = {
             "tweet_id": tweet_id,
             "username": username,
             "tweet_text": tweet_text,
             "entity": entity,
             "entity_data": entity_data,
             "suggested_text": quote_text,
-        })
+        }
+        draft["score"] = score_draft(draft)
+        drafts.append(draft)
 
-        log.info("  Match: %s in tweet %s (lobby=%s, contracts=%s, trades=%d)",
-                 display_name, tweet_id,
-                 _fmt_money(entity_data["lobbying_total"]),
-                 _fmt_money(entity_data["contract_total"]),
+        log.info("  Match: %s in tweet %s (score=%.1f, lobby=%s, contracts=%s, trades=%d)",
+                 display_name, tweet_id, draft["score"],
+                 fmt_money(entity_data["lobbying_total"]),
+                 fmt_money(entity_data["contract_total"]),
                  entity_data["trades_count"])
+
+        if len(drafts) >= MAX_DRAFTS_PER_CYCLE:
+            break
+
+
+def _already_drafted(session, tweet_id: str) -> bool:
+    """Check if we already created a draft for this tweet."""
+    return (
+        session.query(DraftReply)
+        .filter(DraftReply.target_tweet_id == tweet_id)
+        .first()
+        is not None
+    )
 
 
 def save_drafts(session, drafts: List[Dict]):
-    """Save draft replies to the database for review."""
+    """Save draft replies to the database for human review."""
     saved = 0
     for d in drafts:
         try:
-            # Serialize entity_data as JSON for the matched_data column
             matched_data_json = json.dumps({
                 "lobbying_total": d["entity_data"]["lobbying_total"],
                 "contract_total": d["entity_data"]["contract_total"],
@@ -592,6 +569,7 @@ def save_drafts(session, drafts: List[Dict]):
                 suggested_text=d["suggested_text"],
                 matched_entity=d["entity"]["display_name"],
                 matched_data=matched_data_json,
+                score=d.get("score", 0.0),
                 status="pending",
             ))
             saved += 1
@@ -602,7 +580,7 @@ def save_drafts(session, drafts: List[Dict]):
         for attempt in range(3):
             try:
                 session.commit()
-                log.info("Saved %d draft replies", saved)
+                log.info("Saved %d draft replies for human review", saved)
                 return
             except Exception as e:
                 session.rollback()
@@ -613,56 +591,107 @@ def save_drafts(session, drafts: List[Dict]):
                     log.error("Failed to save drafts after 3 attempts: %s", e)
 
 
-def pick_best_draft(drafts: List[Dict]) -> Optional[Dict]:
-    """Pick the best draft to auto-quote based on data richness.
+# ── Post Approved Drafts ───────────────────────────────────────────────────────
 
-    Scoring:
-    - Has both lobbying + contracts: +3
-    - Has trades data: +2
-    - Has top issues: +1
-    - From higher-engagement accounts: +1
+def post_approved_drafts(dry_run: bool = False):
+    """Post drafts that have been approved by a human via /ops/draft-queue.
+
+    This is the ONLY way monitor content gets posted — no auto-posting.
+    Called by a separate cron job (e.g., every 2 hours).
     """
-    if not drafts:
-        return None
+    if is_paused():
+        log.warning("Bot is PAUSED. Skipping approved draft posting.")
+        return
 
-    high_engagement_accounts = {"unusual_whales", "OpenSecretsDC", "CREWcrew"}
-
-    scored = []
-    for d in drafts:
-        score = 0
-        ed = d["entity_data"]
-        if ed["lobbying_total"] > 0 and ed["contract_total"] > 0:
-            score += 3
-        elif ed["lobbying_total"] > 0 or ed["contract_total"] > 0:
-            score += 1
-        if ed["trades_count"] > 0:
-            score += 2
-        if ed["top_issues"]:
-            score += 1
-        if d["username"] in high_engagement_accounts:
-            score += 1
-        scored.append((score, d))
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-
-    # Return the best, or random from top 3 if tied
-    top_score = scored[0][0]
-    top_drafts = [d for s, d in scored if s == top_score]
-    return random.choice(top_drafts)
-
-
-# ── Main ──
-
-def run(drafts_only: bool = False, dry_run: bool = False):
-    """Main monitor loop: scan accounts, generate drafts, optionally auto-quote."""
     session = SessionLocal()
     try:
-        _run_inner(session, drafts_only, dry_run)
+        # Check daily post limit
+        count = posts_today(session)
+        if count >= MAX_POSTS_PER_DAY and not dry_run:
+            log.info("Daily post limit reached (%d). Skipping.", count)
+            return
+
+        # Get approved drafts, ordered by score (best first)
+        approved = (
+            session.query(DraftReply)
+            .filter(DraftReply.status == "approved")
+            .order_by(DraftReply.score.desc())
+            .limit(MAX_POSTS_PER_CYCLE)
+            .all()
+        )
+
+        if not approved:
+            log.info("No approved drafts to post.")
+            return
+
+        log.info("Found %d approved drafts to post", len(approved))
+        posted = 0
+
+        for draft in approved:
+            if posted >= MAX_POSTS_PER_CYCLE:
+                break
+            if posts_today(session) >= MAX_POSTS_PER_DAY:
+                log.info("Daily post limit reached during posting. Stopping.")
+                break
+
+            quote_text = draft.suggested_text
+            tweet_id = draft.target_tweet_id
+
+            if dry_run:
+                print(f"\n[DRY RUN] Would post approved draft #{draft.id}:")
+                print(f"  Entity: {draft.matched_entity}")
+                print(f"  Quote: {quote_text[:150]}...")
+                print(f"  Original: @{draft.target_username} tweet {tweet_id}")
+                posted += 1
+                continue
+
+            # Post as quote-tweet
+            posted_id = post_tweet(quote_text, quote_tweet_id=tweet_id)
+
+            if posted_id:
+                log.info("Posted approved draft #%d: https://x.com/%s/status/%s",
+                         draft.id, OUR_USERNAME, posted_id)
+                log_tweet(session, posted_id, "quote", quote_text, reply_to=tweet_id)
+
+                # Update draft status
+                draft.status = "posted"
+                draft.posted_at = datetime.now(timezone.utc)
+                session.commit()
+                posted += 1
+
+                # Pause between posts (natural pacing)
+                if posted < MAX_POSTS_PER_CYCLE:
+                    delay = random.randint(60, 300)  # 1-5 minutes between posts
+                    log.info("Waiting %ds before next post...", delay)
+                    time.sleep(delay)
+            else:
+                log.error("Failed to post approved draft #%d", draft.id)
+
+        log.info("Posted %d approved drafts", posted)
+
+    except Exception as e:
+        log.error("Error posting approved drafts: %s", e)
+        session.rollback()
     finally:
         session.close()
 
 
-def _run_inner(session, drafts_only: bool = False, dry_run: bool = False):
+# ── Main ───────────────────────────────────────────────────────────────────────
+
+def run(dry_run: bool = False):
+    """Main monitor loop: scan accounts, generate drafts for human review."""
+    if is_paused():
+        log.warning("Bot is PAUSED. Skipping monitor scan.")
+        return
+
+    session = SessionLocal()
+    try:
+        _run_inner(session, dry_run)
+    finally:
+        session.close()
+
+
+def _run_inner(session, dry_run: bool = False):
     """Inner run logic — session lifetime managed by run()."""
     # Build entity index from database
     entity_index = _build_entity_index(session)
@@ -680,7 +709,7 @@ def _run_inner(session, drafts_only: bool = False, dry_run: bool = False):
 
         # Brief pause between accounts to respect rate limits
         if not dry_run:
-            time.sleep(1)
+            time.sleep(2)
 
     log.info("Scan complete: %d matches found across %d accounts", len(drafts), len(TARGET_ACCOUNTS))
 
@@ -688,7 +717,10 @@ def _run_inner(session, drafts_only: bool = False, dry_run: bool = False):
         log.info("No new matches found this cycle.")
         return
 
-    # Save all drafts to database
+    # Sort by score
+    drafts.sort(key=lambda d: d.get("score", 0), reverse=True)
+
+    # Save all drafts for human review
     if not dry_run:
         save_drafts(session, drafts)
 
@@ -697,90 +729,28 @@ def _run_inner(session, drafts_only: bool = False, dry_run: bool = False):
         entity_name = d["entity"]["display_name"]
         ed = d["entity_data"]
         print(f"\n{'='*60}")
-        print(f"Draft #{i+1}: @{d['username']} -> {entity_name}")
+        print(f"Draft #{i+1} (score={d.get('score', 0):.1f}): @{d['username']} -> {entity_name}")
         print(f"  Tweet: {d['tweet_text'][:100]}...")
-        print(f"  Data:  lobby={_fmt_money(ed['lobbying_total'])} "
-              f"contracts={_fmt_money(ed['contract_total'])} "
+        print(f"  Data:  lobby={fmt_money(ed['lobbying_total'])} "
+              f"contracts={fmt_money(ed['contract_total'])} "
               f"trades={ed['trades_count']}")
         print(f"  Quote: {d['suggested_text'][:150]}...")
 
-    # Auto-quote: post ONE per day max
-    if drafts_only:
-        log.info("Drafts-only mode. Skipping auto-post.")
-        return
-
-    # Check overall daily cap (shared with twitter_bot: 4 tweets/day total)
-    total_today = all_posts_today(session)
-    if total_today >= 4 and not dry_run:
-        log.info("Overall daily cap reached (%d tweets today). Skipping auto-post.", total_today)
-        return
-
-    # Check if we already quoted today (1 quote/day from monitor)
-    already_quoted = quotes_today(session)
-    if already_quoted >= 1 and not dry_run:
-        log.info("Already posted %d quote-tweet(s) today. Skipping auto-post.", already_quoted)
-        return
-
-    # Pick the best draft to post
-    best = pick_best_draft(drafts)
-    if not best:
-        log.info("No suitable draft for auto-posting.")
-        return
-
-    quote_text = best["suggested_text"]
-    tweet_id = best["tweet_id"]
-    entity_name = best["entity"]["display_name"]
-
-    if dry_run:
-        print(f"\n{'='*60}")
-        print(f"[DRY RUN] Would auto-quote tweet {tweet_id} from @{best['username']}")
-        print(f"  Entity: {entity_name}")
-        print(f"  Quote ({len(quote_text)} chars):")
-        print(f"  ---")
-        print(f"  {quote_text}")
-        print(f"  ---")
-        return
-
-    # Add randomized delay (30-120 seconds) so it doesn't look automated
-    delay = random.randint(30, 120)
-    log.info("Auto-quote in %d seconds (entity: %s, tweet: %s)", delay, entity_name, tweet_id)
-    time.sleep(delay)
-
-    # Post the quote-tweet using the X API v2 quote_tweet_id parameter
-    posted_id = post_tweet(quote_text, quote_tweet_id=tweet_id)
-
-    if posted_id:
-        log.info("Auto-quote posted: https://x.com/%s/status/%s", OUR_USERNAME, posted_id)
-        log_tweet(session, posted_id, "quote", f"[reply_to:{tweet_id}] {quote_text}")
-
-        # Mark the draft as posted
-        try:
-            draft_row = (
-                session.query(DraftReply)
-                .filter(DraftReply.target_tweet_id == tweet_id)
-                .first()
-            )
-            if draft_row:
-                draft_row.status = "posted"
-                draft_row.posted_at = datetime.now(timezone.utc)
-                session.commit()
-        except Exception as e:
-            log.warning("Failed to update draft status: %s", e)
-            session.rollback()
-
-        print(f"Quote-tweet posted: https://x.com/{OUR_USERNAME}/status/{posted_id}")
-    else:
-        log.error("Failed to post auto-quote for tweet %s", tweet_id)
+    log.info(
+        "All %d drafts saved for human review. "
+        "Approve via /ops/draft-queue, then run with --post-approved.",
+        len(drafts)
+    )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="WTP Twitter Monitor — scan watchdog accounts and auto-quote with data"
+        description="WTP Twitter Monitor — scan watchdog accounts and generate draft quote-tweets"
     )
     parser.add_argument(
-        "--drafts-only",
+        "--post-approved",
         action="store_true",
-        help="Generate drafts but don't auto-post any quote-tweets",
+        help="Post drafts that have been approved by a human",
     )
     parser.add_argument(
         "--dry-run",
@@ -789,7 +759,10 @@ def main():
     )
     args = parser.parse_args()
 
-    run(drafts_only=args.drafts_only, dry_run=args.dry_run)
+    if args.post_approved:
+        post_approved_drafts(dry_run=args.dry_run)
+    else:
+        run(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
