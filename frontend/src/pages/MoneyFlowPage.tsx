@@ -58,7 +58,7 @@ export default function MoneyFlowPage() {
     // Dynamically import Plotly to reduce initial bundle
     import('plotly.js').then((Plotly) => {
       if (cancelled) return;
-      const P = (Plotly as { default?: typeof Plotly }).default || Plotly;
+      const P = (Plotly as unknown as { default?: typeof import('plotly.js') }).default || Plotly;
       plotlyRef.current = P as typeof import('plotly.js');
       setPlotlyLoaded(true);
 
@@ -96,7 +96,7 @@ export default function MoneyFlowPage() {
         height: 600,
       };
 
-      P.newPlot(plotRef.current, [trace], layout, {
+      P.newPlot(plotRef.current!, [trace], layout, {
         displayModeBar: false,
         responsive: true,
       });

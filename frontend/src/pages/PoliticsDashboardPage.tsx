@@ -127,16 +127,16 @@ function ChamberBar({ label, breakdown }: { label: string; breakdown: ChamberBre
   );
 }
 
-function partyColor(party: string): string {
-  return PARTY_COLORS[party?.charAt(0)] || '#6B7280';
+function partyColor(party: string | null): string {
+  return PARTY_COLORS[party?.charAt(0) || ''] || '#6B7280';
 }
 
-function partyLabel(party: string): string {
+function partyLabel(party: string | null): string {
   const p = party?.charAt(0);
   if (p === 'D') return 'Democrat';
   if (p === 'R') return 'Republican';
   if (p === 'I') return 'Independent';
-  return party;
+  return party || 'Unknown';
 }
 
 // ── Page ──
