@@ -88,6 +88,7 @@ export default function StoriesPage() {
   const limit = 12;
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     const params = new URLSearchParams();
     params.set('limit', String(limit));
@@ -98,11 +99,13 @@ export default function StoriesPage() {
     fetch(`${getApiBaseUrl()}/stories/?${params}`)
       .then((r) => r.ok ? r.json() : { stories: [], total: 0 })
       .then((d) => {
+        if (cancelled) return;
         setStories(d.stories || []);
         setTotal(d.total || 0);
       })
       .catch(() => setStories([]))
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, [sector, category, offset]);
 
   const featured = stories.length > 0 ? stories[0] : null;

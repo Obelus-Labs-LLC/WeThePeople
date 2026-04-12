@@ -106,6 +106,7 @@ export default function StoryDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     if (!slug) return;
     setLoading(true);
     fetch(`${getApiBaseUrl()}/stories/${encodeURIComponent(slug)}`)
@@ -113,9 +114,10 @@ export default function StoryDetailPage() {
         if (!r.ok) throw new Error('Story not found');
         return r.json();
       })
-      .then((d) => setStory(d))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .then((d) => { if (!cancelled) setStory(d); })
+      .catch((e) => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [slug]);
 
   if (loading) {
@@ -212,10 +214,14 @@ export default function StoryDetailPage() {
                 if (line.includes('|') && i + 1 < bodyLines.length && bodyLines[i + 1].trim().replace(/[\s|:-]/g, '') === '') {
                   const parseRow = (r: string) => r.split('|').map(c => c.trim()).filter(Boolean);
                   const headers = parseRow(line);
+                  if (headers.length === 0) { i++; continue; }
                   i += 2; // skip header + separator
                   const dataRows: string[][] = [];
                   while (i < bodyLines.length && bodyLines[i].includes('|') && bodyLines[i].trim()) {
-                    dataRows.push(parseRow(bodyLines[i]));
+                    const row = parseRow(bodyLines[i]);
+                    // Pad rows shorter than headers to prevent misalignment
+                    while (row.length < headers.length) row.push('');
+                    dataRows.push(row.slice(0, headers.length));
                     i++;
                   }
                   elements.push(

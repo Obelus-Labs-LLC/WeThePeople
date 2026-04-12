@@ -358,10 +358,10 @@ export default function InstitutionPage() {
             <AnomalyBadge entityType="company" entityId={institution_id || ''} />
           </div>
 
-          {(detail as any).ai_profile_summary && (
+          {detail.ai_profile_summary && (
             <div className="mb-6">
               <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
-              <p className="text-zinc-400 text-sm mt-1">{(detail as any).ai_profile_summary}</p>
+              <p className="text-zinc-400 text-sm mt-1">{detail.ai_profile_summary}</p>
             </div>
           )}
 

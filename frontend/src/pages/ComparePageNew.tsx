@@ -185,11 +185,13 @@ export default function ComparePageNew() {
 
   // ── Fetch members on mount ──
   useEffect(() => {
+    let cancelled = false;
     apiClient
       .getPeople({ limit: 500, active_only: true })
-      .then((res) => setAllPeople(res.people || []))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoadingPeople(false));
+      .then((res) => { if (!cancelled) setAllPeople(res.people || []); })
+      .catch((err) => { if (!cancelled) setError(err.message); })
+      .finally(() => { if (!cancelled) setLoadingPeople(false); });
+    return () => { cancelled = true; };
   }, []);
 
   // ── Derived: person lookup map ──
@@ -463,6 +465,8 @@ export default function ComparePageNew() {
                     <div
                       className="w-2 h-2 rounded-full shrink-0"
                       style={{ backgroundColor: partyColor(person.party) }}
+                      aria-label={person.party === 'D' ? 'Democrat' : person.party === 'R' ? 'Republican' : 'Independent'}
+                      role="img"
                     />
                     <button
                       onClick={() => removePerson(id)}

@@ -9,10 +9,10 @@ import { globalSearch, type SearchResults } from "../api/search";
 const FAQ: Record<string, string> = {
   "what data sources": "We pull from 35+ government APIs including Congress.gov, Senate LDA (lobbying), USASpending.gov (contracts), FEC (donations), SEC EDGAR (filings), SAM.gov (contractor data), Regulations.gov (regulatory comments), IT Dashboard (federal IT investments), OpenFDA, ClinicalTrials.gov, NHTSA, EPA GHGRP, PatentsView, and more. Visit our methodology page for the full list.",
   "how often updated": "Most data syncs daily via our automated scheduler. Congressional trades update within 24-48 hours of disclosure. Lobbying data updates quarterly when new Senate LDA filings are published.",
-  "what sectors": "We track 8 sectors: Politics, Finance, Health, Technology, Energy, Transportation, and Defense. Each sector has lobbying, contracts, and enforcement data linked to political activity.",
+  "what sectors": "We track 11 sectors: Politics, Finance, Health, Technology, Energy, Transportation, Defense, Chemicals, Agriculture, Telecommunications, and Education. Each sector has lobbying, contracts, and enforcement data linked to political activity.",
   "how does verification work": "Our claim verification pipeline extracts claims from text, matches them against 9 data sources (votes, trades, lobbying, contracts, enforcement, donations, committees, SEC filings), and scores them as Strong, Moderate, Weak, or Unverified.",
   "how many politicians": "We track 547 members of Congress including all current senators and representatives, with their voting records, stock trades, committee memberships, and campaign donations.",
-  "how many companies": "We track over 1,000 entities across Finance (144), Health (134), Technology (139), Energy (89), Transportation (73), and Defense (60) sectors.",
+  "how many companies": "We track over 1,000 entities across 11 sectors including Finance, Health, Technology, Energy, Transportation, Defense, Chemicals, Agriculture, Telecommunications, and Education.",
   "what is this": "WeThePeople is a civic transparency platform that tracks how corporations lobby Congress, win government contracts, face enforcement actions, and donate to politicians. Our goal is to help you follow the money from industry to politics.",
   "who built this": "WeThePeople was built by Obelus Labs LLC as an open-source civic transparency tool. The source code is available on GitHub.",
   "is this free": "Yes, WeThePeople is completely free to use. The platform is open-source and funded through GitHub Sponsors.",
@@ -139,6 +139,7 @@ export default function ChatAgent() {
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const draggedRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -293,10 +294,10 @@ export default function ChatAgent() {
             dragMomentum={false}
             dragElastic={0.1}
             whileDrag={{ scale: 1.1, cursor: "grabbing" }}
-            onDragStart={() => { (window as any).__wtpChatDragged = true; }}
-            onDragEnd={() => { const t = setTimeout(() => { (window as any).__wtpChatDragged = false; }, 100); timersRef.current.push(t); }}
+            onDragStart={() => { draggedRef.current = true; }}
+            onDragEnd={() => { const t = setTimeout(() => { draggedRef.current = false; }, 100); timersRef.current.push(t); }}
             onClick={() => {
-              if (!(window as any).__wtpChatDragged) {
+              if (!draggedRef.current) {
                 setOpen(true);
               }
             }}

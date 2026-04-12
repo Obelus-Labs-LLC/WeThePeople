@@ -114,7 +114,9 @@ def search_entity(
         return matches
 
     except requests.exceptions.RequestException as e:
-        logger.error("OpenSanctions search failed for '%s': %s", name, e)
+        # Mask API key from error message to prevent credential leakage
+        safe_msg = str(e).replace(API_KEY, "***") if API_KEY else str(e)
+        logger.error("OpenSanctions search failed for '%s': %s", name, safe_msg)
         return []
 
 

@@ -11,9 +11,12 @@ Auth: None required.
 
 import hashlib
 import json
+import logging
 import time
 import requests
 from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 GHGRP_BASE = "https://data.epa.gov/efservice"
 POLITE_DELAY = 1.0
@@ -56,10 +59,10 @@ def search_facilities_by_parent(parent_company: str, rows: int = 100) -> List[Di
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:
-        print(f"[EPA GHGRP] Error fetching facilities for '{parent_company}': {e}")
+        logger.error("Error fetching facilities for '%s': %s", parent_company, e)
         return []
     except (json.JSONDecodeError, ValueError):
-        print(f"[EPA GHGRP] Invalid JSON response for '{parent_company}'")
+        logger.error("Invalid JSON response for '%s'", parent_company)
         return []
 
     if not isinstance(data, list):
@@ -99,10 +102,10 @@ def get_facility_emissions(facility_id: int, rows: int = 200) -> List[Dict[str, 
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:
-        print(f"[EPA GHGRP] Error fetching emissions for facility {facility_id}: {e}")
+        logger.error("Error fetching emissions for facility %s: %s", facility_id, e)
         return []
     except (json.JSONDecodeError, ValueError):
-        print(f"[EPA GHGRP] Invalid JSON response for facility {facility_id}")
+        logger.error("Invalid JSON response for facility %s", facility_id)
         return []
 
     if not isinstance(data, list):
@@ -138,10 +141,10 @@ def get_facility_total_emissions(facility_id: int, rows: int = 100) -> List[Dict
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:
-        print(f"[EPA GHGRP] Error fetching sector emissions for facility {facility_id}: {e}")
+        logger.error("Error fetching sector emissions for facility %s: %s", facility_id, e)
         return []
     except (json.JSONDecodeError, ValueError):
-        print(f"[EPA GHGRP] Invalid JSON response for facility {facility_id}")
+        logger.error("Invalid JSON response for facility %s", facility_id)
         return []
 
     if not isinstance(data, list):

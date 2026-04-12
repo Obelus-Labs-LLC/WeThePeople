@@ -181,8 +181,8 @@ def _verify_story_numbers(db, story):
                         issues.append(
                             "Claimed %d trades for %s but DB has %d" % (claimed, eid, actual_trades)
                         )
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("Trade count validation skipped for %s: %s", eid, e)
 
     # Check lobbying spend totals
     for key in ["total_spend", "lobby_total", "total_lobbying_spend"]:
@@ -331,8 +331,8 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         try:
             from services.budget import log_token_usage
             log_token_usage("story_opus", OPUS_MODEL, in_tok, out_tok, cost, story_context[:100])
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("Failed to log token usage for story_opus: %s", e)
 
         # Strip any leftover {NARRATIVE_*} placeholders that Opus failed to replace
         import re

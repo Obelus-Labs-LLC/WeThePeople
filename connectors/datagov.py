@@ -272,7 +272,7 @@ def fetch_fda_device_recalls(
 # REGULATIONS.GOV — Federal Rulemaking
 # ============================================================================
 
-REGULATIONS_BASE = "https://api.regulations.gov/v4"
+from connectors.regulationsgov import REGULATIONS_BASE  # canonical source
 
 
 def fetch_dockets(

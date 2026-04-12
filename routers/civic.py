@@ -16,10 +16,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 
 from models.database import get_db
 from models.auth_models import User
@@ -32,6 +34,7 @@ from services.jwt_auth import get_current_user, get_optional_user
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/civic", tags=["civic"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Schemas ───────────────────────────────────────────────────────────
@@ -116,29 +119,35 @@ def _serialize_promise(p: Promise) -> dict:
 
 
 def _update_scores(db: Session, target_type: str, target_id: int):
-    """Recompute Wilson + hot scores after a vote change."""
-    ups = db.query(CivicVote).filter(
+    """Recompute Wilson + hot scores after a vote change.
+
+    Uses fresh COUNT queries and applies updates atomically to avoid
+    lost-update races when two concurrent voters modify the same target.
+    """
+    # Get fresh counts in the same transaction
+    ups = db.query(func.count(CivicVote.id)).filter(
         CivicVote.target_type == target_type,
         CivicVote.target_id == target_id,
         CivicVote.value == 1,
-    ).count()
-    downs = db.query(CivicVote).filter(
+    ).scalar() or 0
+    downs = db.query(func.count(CivicVote.id)).filter(
         CivicVote.target_type == target_type,
         CivicVote.target_id == target_id,
         CivicVote.value == -1,
-    ).count()
+    ).scalar() or 0
 
     ws = wilson_score(ups, downs)
 
     if target_type == "promise":
-        obj = db.query(Promise).filter(Promise.id == target_id).first()
+        model = Promise
     elif target_type == "proposal":
-        obj = db.query(Proposal).filter(Proposal.id == target_id).first()
+        model = Proposal
     elif target_type == "annotation":
-        obj = db.query(BillAnnotation).filter(BillAnnotation.id == target_id).first()
+        model = BillAnnotation
     else:
         return
 
+    obj = db.query(model).filter(model.id == target_id).with_for_update().first()
     if not obj:
         return
 
@@ -238,7 +247,8 @@ def get_promise(promise_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/promises", status_code=201)
-def create_promise(body: PromiseCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def create_promise(body: PromiseCreate, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     p = Promise(
         person_id=body.person_id,
         person_name=body.person_name,
@@ -280,9 +290,11 @@ def update_promise_status(
 
 
 @router.post("/promises/{promise_id}/milestones", status_code=201)
+@limiter.limit("10/minute")
 def add_milestone(
     promise_id: int,
     body: MilestoneCreate,
+    request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -338,7 +350,8 @@ def update_milestone(
 
 
 @router.post("/vote")
-def cast_vote(body: VoteRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def cast_vote(body: VoteRequest, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if body.target_type not in ("promise", "proposal", "annotation"):
         raise HTTPException(status_code=400, detail="Invalid target_type")
     if body.value not in (1, -1):
@@ -448,7 +461,8 @@ def get_proposal(proposal_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/proposals", status_code=201)
-def create_proposal(body: ProposalCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def create_proposal(body: ProposalCreate, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     p = Proposal(
         author_id=user.id,
         title=body.title,
@@ -532,7 +546,8 @@ def list_annotations(
 
 
 @router.post("/annotations", status_code=201)
-def create_annotation(body: AnnotationCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def create_annotation(body: AnnotationCreate, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if body.sentiment not in ("support", "oppose", "neutral", "question"):
         raise HTTPException(status_code=400, detail="sentiment must be support, oppose, neutral, or question")
     a = BillAnnotation(
@@ -616,8 +631,10 @@ def get_verification_status(user: User = Depends(get_current_user)):
 
 
 @router.post("/verify/residence")
+@limiter.limit("5/minute")
 def verify_residence(
     body: VerifyResidenceRequest,
+    request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

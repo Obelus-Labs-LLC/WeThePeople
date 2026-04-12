@@ -17,7 +17,7 @@ class TweetLog(Base):
     category = Column(String(50))
     content_hash = Column(String(64), unique=True)
     text = Column(Text)
-    posted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    posted_at = Column(DateTime, server_default=func.now())
 
 
 class DraftReply(Base):

@@ -14,6 +14,7 @@ from models.database import (
     Bill,
     TrackedMember,
 )
+from models.response_schemas import VotesListResponse
 from services.auth import require_press_key
 
 router = APIRouter(tags=["politics"])
@@ -42,7 +43,7 @@ def ingest_votes(request: Request, congress: int = Query(119), limit: int = Quer
     return {"ingested": count, "congress": congress, "limit": limit}
 
 
-@router.get("/votes")
+@router.get("/votes", response_model=VotesListResponse)
 def list_votes(
     congress: Optional[int] = Query(None),
     chamber: Optional[str] = Query(None),

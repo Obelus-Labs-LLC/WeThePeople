@@ -11,6 +11,7 @@ No API key required — public bulk CSV downloads.
 import csv
 import hashlib
 import io
+import os
 import tempfile
 import zipfile
 from typing import List, Dict, Any
@@ -84,13 +85,6 @@ def _download_and_parse_csv(url: str) -> List[Dict[str, Any]]:
         logger.info("Parsed %d rows from %s", len(rows), csv_name)
     finally:
         os.unlink(tmp_path)
-
-    # Clean up temp file
-    import os
-    try:
-        os.unlink(tmp_path)
-    except OSError:
-        pass
 
     return rows
 

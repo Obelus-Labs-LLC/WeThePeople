@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { UI_COLORS, PARTY_COLORS } from '../constants/colors';
 import { EmptyState, PartyBadge, ChamberBadge } from '../components/ui';
 
-const API_BASE = 'https://api.wethepeopleforus.com';
+import { API_BASE } from '../api/client';
 const ACCENT = '#10B981';
 
 interface Representative {

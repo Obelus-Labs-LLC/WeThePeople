@@ -11,16 +11,19 @@ Endpoints:
 import json
 import logging
 import os
+import threading
 import uuid
 from datetime import datetime, timedelta, date, timezone
 from typing import Optional, List, Dict, Any
 
 import requests as http_requests
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from sqlalchemy import func, desc
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from models.database import (
     get_db,
@@ -34,6 +37,7 @@ from models.digest_models import DigestSubscriber
 
 router = APIRouter(prefix="/digest", tags=["digest"])
 log = logging.getLogger("digest")
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Zip → State mapping (reuse from politics router) ──
@@ -135,6 +139,7 @@ _FALLBACK_ZIP_STATE: Dict[str, str] = {
 }
 
 _ZIP_STATE: Dict[str, str] = {}
+_zip_state_lock = threading.Lock()
 
 
 def _ensure_zip_map():
@@ -142,13 +147,16 @@ def _ensure_zip_map():
     global _ZIP_STATE
     if _ZIP_STATE:
         return
-    try:
-        from routers.politics import _ZIP_STATE as politics_zip
-        _ZIP_STATE.update(politics_zip)
-        log.debug("Loaded %d zip prefixes from politics router", len(_ZIP_STATE))
-    except (ImportError, AttributeError) as e:
-        log.warning("Could not import zip map from politics router (%s), using built-in fallback", e)
-        _ZIP_STATE.update(_FALLBACK_ZIP_STATE)
+    with _zip_state_lock:
+        if _ZIP_STATE:  # double-check after acquiring lock
+            return
+        try:
+            from routers.politics import _ZIP_STATE as politics_zip
+            _ZIP_STATE.update(politics_zip)
+            log.debug("Loaded %d zip prefixes from politics router", len(_ZIP_STATE))
+        except (ImportError, AttributeError) as e:
+            log.warning("Could not import zip map from politics router (%s), using built-in fallback", e)
+            _ZIP_STATE.update(_FALLBACK_ZIP_STATE)
 
 
 def _zip_to_state(zip_code: str) -> Optional[str]:
@@ -168,7 +176,8 @@ class SubscribeRequest(BaseModel):
 # ── Endpoints ──
 
 @router.post("/subscribe")
-def subscribe_to_digest(req: SubscribeRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def subscribe_to_digest(req: SubscribeRequest, request: Request, db: Session = Depends(get_db)):
     """Subscribe to the weekly influence digest."""
     # Validate zip code
     cleaned = "".join(c for c in req.zip_code if c.isdigit())[:5]
@@ -202,34 +211,29 @@ def subscribe_to_digest(req: SubscribeRequest, db: Session = Depends(get_db)):
     db.add(subscriber)
     try:
         db.commit()
+    except IntegrityError:
+        db.rollback()
+        return {"status": "already_subscribed", "message": "This email is already subscribed."}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Subscription failed: {str(e)}")
+        log.error("Subscription failed: %s", e)
+        raise HTTPException(status_code=500, detail="Subscription failed. Please try again later.")
 
     # Send verification email via Resend
-    resend_key = os.getenv("RESEND_API_KEY", "")
-    verify_url = f"https://api.wethepeopleforus.com/digest/verify/{verification_token}"
-    if resend_key:
-        try:
-            http_requests.post(
-                "https://api.resend.com/emails",
-                headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
-                json={
-                    "from": os.getenv("WTP_DIGEST_FROM", "digest@wethepeopleforus.com"),
-                    "to": [req.email],
-                    "subject": "Verify your WeThePeople digest subscription",
-                    "html": (
-                        f"<p>Thanks for subscribing to the WeThePeople weekly digest for ZIP {cleaned}.</p>"
-                        f'<p><a href="{verify_url}">Click here to verify your subscription</a></p>'
-                        f"<p>If you didn't request this, you can ignore this email.</p>"
-                    ),
-                },
-                timeout=10,
-            )
-        except Exception as e:
-            log.error("Failed to send verification email to %s: %s", req.email, e)
-    else:
-        log.warning("RESEND_API_KEY not set — verification email not sent to %s", req.email)
+    from services.email import send_email
+    api_base = os.getenv("WTP_API_BASE_URL", "https://api.wethepeopleforus.com")
+    verify_url = f"{api_base}/digest/verify/{verification_token}"
+    sent = send_email(
+        to=[req.email],
+        subject="Verify your WeThePeople digest subscription",
+        html=(
+            f"<p>Thanks for subscribing to the WeThePeople weekly digest for ZIP {cleaned}.</p>"
+            f'<p><a href="{verify_url}">Click here to verify your subscription</a></p>'
+            f"<p>If you didn't request this, you can ignore this email.</p>"
+        ),
+    )
+    if not sent:
+        log.warning("Verification email not sent to %s", req.email)
 
     return {
         "status": "subscribed",

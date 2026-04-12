@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { User, Star, Shield, LogOut, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { PRESS_TIER_PRICE } from '../config';
 
 interface WatchlistItem {
   id: number;
@@ -25,19 +26,26 @@ export default function AccountPage() {
   const [wlLoading, setWlLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     if (!isAuthenticated) return;
     const token = localStorage.getItem('wtp_access_token');
     fetch('/api/auth/watchlist', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((d) => setWatchlist(d.items || []))
+      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
+      .then((d) => { if (!cancelled) setWatchlist(d.items || []); })
       .catch(() => {})
-      .finally(() => setWlLoading(false));
+      .finally(() => { if (!cancelled) setWlLoading(false); });
+    return () => { cancelled = true; };
   }, [isAuthenticated]);
 
   const removeItem = async (id: number) => {
     const token = localStorage.getItem('wtp_access_token');
-    await fetch(`/api/auth/watchlist/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-    setWatchlist((prev) => prev.filter((i) => i.id !== id));
+    try {
+      const res = await fetch(`/api/auth/watchlist/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(res.statusText);
+      setWatchlist((prev) => prev.filter((i) => i.id !== id));
+    } catch {
+      // Delete failed — don't remove from UI
+    }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1A' }}><div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" /></div>;
@@ -125,7 +133,7 @@ export default function AccountPage() {
               }}
               className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400 transition-colors"
             >
-              Upgrade - $29/mo (7-day free trial)
+              Upgrade - {PRESS_TIER_PRICE} (7-day free trial)
             </button>
           </div>
         )}

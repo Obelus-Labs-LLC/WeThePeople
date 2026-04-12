@@ -65,6 +65,71 @@ def search_candidate(
         return []
 
 
+def search_candidates_research(
+    candidate: str = "",
+    state: Optional[str] = None,
+    cycle: Optional[int] = None,
+    limit: int = 25,
+) -> Dict[str, Any]:
+    """
+    Search FEC candidates with full detail for the research tools frontend.
+
+    Args:
+        candidate: Candidate name search term
+        state: 2-letter state code filter
+        cycle: Election cycle year (defaults to current even year)
+        limit: Max results (1-100)
+
+    Returns:
+        Dict with 'total' and 'candidates' list
+    """
+    if cycle is None:
+        from datetime import date
+        y = date.today().year
+        cycle = y if y % 2 == 0 else y + 1
+
+    params: Dict[str, Any] = {
+        "per_page": min(limit, 100),
+        "sort": "-receipts",
+        "cycle": cycle,
+        "is_active_candidate": "true",
+    }
+    if candidate.strip():
+        params["q"] = candidate.strip()
+    if state:
+        params["state"] = state.upper()
+
+    try:
+        data = http_client.get_fec("candidates/search/", params=params, use_cache=True)
+    except HTTPError as e:
+        logger.warning("FEC candidates research search failed: %s", e)
+        return {"total": 0, "candidates": []}
+
+    pagination = data.get("pagination", {})
+    total = pagination.get("count", 0)
+    results = data.get("results", [])
+
+    candidates = []
+    for c in results:
+        candidates.append({
+            "candidate_id": c.get("candidate_id", ""),
+            "name": c.get("name", ""),
+            "party": c.get("party_full", c.get("party", "")),
+            "office": c.get("office_full", c.get("office", "")),
+            "state": c.get("state", ""),
+            "district": c.get("district", ""),
+            "incumbent_challenge": c.get("incumbent_challenge_full", ""),
+            "total_receipts": c.get("receipts", 0),
+            "total_disbursements": c.get("disbursements", 0),
+            "cash_on_hand": c.get("cash_on_hand_end_period", 0),
+            "debt": c.get("debt_owed_by_committee", 0),
+            "cycle": cycle,
+            "fec_url": f"https://www.fec.gov/data/candidate/{c.get('candidate_id', '')}/" if c.get("candidate_id") else "",
+        })
+
+    return {"total": total, "candidates": candidates}
+
+
 def get_candidate(candidate_id: str) -> Optional[Dict[str, Any]]:
     """
     Fetch detailed info for a specific candidate.

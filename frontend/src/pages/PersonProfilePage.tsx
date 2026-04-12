@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useReducer, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient, getApiBaseUrl } from '../api/client';
@@ -151,159 +151,197 @@ function CardTitle({ children }: { children: React.ReactNode }) {
 }
 
 // ══════════════════════════════════════════════
+//  PersonProfilePage — State
+// ══════════════════════════════════════════════
+
+interface ProfileState {
+  person: Person | null;
+  profile: PersonProfile | null;
+  profileError: boolean;
+  performance: PersonPerformance | null;
+  performanceError: boolean;
+  stats: PersonStats | null;
+  graph: PersonGraphResponse | null;
+  committees: Array<Record<string, unknown>>;
+  overviewLoading: boolean;
+  activity: PersonActivityResponse | null;
+  activityEntries: PersonActivityEntry[];
+  activityLoading: boolean;
+  activityFilter: 'all' | 'sponsored' | 'cosponsored';
+  votesData: PersonVotesResponse | null;
+  voteEntries: PersonVoteEntry[];
+  votesLoading: boolean;
+  voteFilter: string;
+  finance: PersonFinance | null;
+  financeLoading: boolean;
+  donors: DonorData | null;
+  donorsLoading: boolean;
+  trades: Array<Record<string, unknown>>;
+  tradesLoading: boolean;
+  trends: { years: number[]; series: Record<string, number[]> } | null;
+  tab: TabKey;
+  loadedTabs: Set<TabKey>;
+}
+
+const initialState: ProfileState = {
+  person: null,
+  profile: null,
+  profileError: false,
+  performance: null,
+  performanceError: false,
+  stats: null,
+  graph: null,
+  committees: [],
+  overviewLoading: true,
+  activity: null,
+  activityEntries: [],
+  activityLoading: false,
+  activityFilter: 'all',
+  votesData: null,
+  voteEntries: [],
+  votesLoading: false,
+  voteFilter: 'all',
+  finance: null,
+  financeLoading: false,
+  donors: null,
+  donorsLoading: false,
+  trades: [],
+  tradesLoading: false,
+  trends: null,
+  tab: 'legislation',
+  loadedTabs: new Set<TabKey>(['legislation']),
+};
+
+type ProfileAction =
+  | { type: 'LOAD_FULL'; data: Record<string, unknown> }
+  | { type: 'LOAD_FULL_ERROR' }
+  | { type: 'SET_OVERVIEW_LOADING'; value: boolean }
+  | { type: 'APPEND_ACTIVITY'; entries: PersonActivityEntry[] }
+  | { type: 'SET_ACTIVITY_LOADING'; value: boolean }
+  | { type: 'SET_ACTIVITY_FILTER'; value: 'all' | 'sponsored' | 'cosponsored' }
+  | { type: 'APPEND_VOTES'; votes: PersonVoteEntry[] }
+  | { type: 'SET_VOTES_LOADING'; value: boolean }
+  | { type: 'SET_VOTE_FILTER'; value: string }
+  | { type: 'SET_FINANCE_LOADING'; value: boolean }
+  | { type: 'SET_DONORS_LOADING'; value: boolean }
+  | { type: 'SET_TRADES_LOADING'; value: boolean }
+  | { type: 'SET_TAB'; tab: TabKey };
+
+function profileReducer(state: ProfileState, action: ProfileAction): ProfileState {
+  switch (action.type) {
+    case 'LOAD_FULL': {
+      const d = action.data;
+      const loadedTabs = new Set(state.loadedTabs);
+      const patch: Partial<ProfileState> = { overviewLoading: false };
+
+      if (d.person) patch.person = d.person as Person;
+      if (d.profile) { patch.profile = d.profile as PersonProfile; patch.profileError = false; }
+      else { patch.profileError = true; }
+      if (d.performance) { patch.performance = d.performance as PersonPerformance; patch.performanceError = false; }
+      else { patch.performanceError = true; }
+      if (d.stats) patch.stats = d.stats as PersonStats;
+      if (d.committees) patch.committees = (d.committees as { committees?: unknown[] }).committees as Record<string, unknown>[] || [];
+      if (d.activity) {
+        const act = d.activity as PersonActivityResponse;
+        patch.activity = act;
+        patch.activityEntries = act.entries || [];
+        loadedTabs.add('legislation');
+      }
+      if (d.votes) {
+        const v = d.votes as PersonVotesResponse;
+        patch.votesData = v;
+        patch.voteEntries = v.votes || [];
+        loadedTabs.add('votes');
+      }
+      if (d.trends) patch.trends = d.trends as ProfileState['trends'];
+      if (d.finance) { patch.finance = d.finance as PersonFinance; loadedTabs.add('finance'); }
+      if (d.trades) { patch.trades = (d.trades as { trades?: unknown[] }).trades as Record<string, unknown>[] || []; loadedTabs.add('trades'); }
+      if (d.donors) { patch.donors = d.donors as DonorData; loadedTabs.add('donors'); }
+      if (d.graph) patch.graph = d.graph as PersonGraphResponse;
+
+      patch.loadedTabs = loadedTabs;
+      return { ...state, ...patch };
+    }
+    case 'LOAD_FULL_ERROR':
+      return { ...state, overviewLoading: false, profileError: true, performanceError: true };
+    case 'SET_OVERVIEW_LOADING':
+      return { ...state, overviewLoading: action.value };
+    case 'APPEND_ACTIVITY':
+      return { ...state, activityEntries: [...state.activityEntries, ...action.entries], activityLoading: false };
+    case 'SET_ACTIVITY_LOADING':
+      return { ...state, activityLoading: action.value };
+    case 'SET_ACTIVITY_FILTER':
+      return { ...state, activityFilter: action.value };
+    case 'APPEND_VOTES':
+      return { ...state, voteEntries: [...state.voteEntries, ...action.votes], votesLoading: false };
+    case 'SET_VOTES_LOADING':
+      return { ...state, votesLoading: action.value };
+    case 'SET_VOTE_FILTER':
+      return { ...state, voteFilter: action.value };
+    case 'SET_FINANCE_LOADING':
+      return { ...state, financeLoading: action.value };
+    case 'SET_DONORS_LOADING':
+      return { ...state, donorsLoading: action.value };
+    case 'SET_TRADES_LOADING':
+      return { ...state, tradesLoading: action.value };
+    case 'SET_TAB':
+      return { ...state, tab: action.tab };
+    default:
+      return state;
+  }
+}
+
+// ══════════════════════════════════════════════
 //  PersonProfilePage
 // ══════════════════════════════════════════════
 
 export default function PersonProfilePage() {
   const { person_id } = useParams<{ person_id: string }>();
+  const [ps, dispatch] = useReducer(profileReducer, initialState);
 
-  // ── State: basic person info ──
-  const [person, setPerson] = useState<Person | null>(null);
+  const {
+    person, profile, profileError, performance, performanceError,
+    stats, graph, committees, overviewLoading,
+    activity, activityEntries, activityLoading, activityFilter,
+    votesData, voteEntries, votesLoading, voteFilter,
+    finance, financeLoading, donors, donorsLoading,
+    trades, tradesLoading, trends, tab, loadedTabs,
+  } = ps;
 
-  // ── State: overview data (loaded on mount) ──
-  const [profile, setProfile] = useState<PersonProfile | null>(null);
-  const [profileError, setProfileError] = useState(false);
-  const [performance, setPerformance] = useState<PersonPerformance | null>(null);
-  const [performanceError, setPerformanceError] = useState(false);
-  const [stats, setStats] = useState<PersonStats | null>(null);
-  const [graph, setGraph] = useState<PersonGraphResponse | null>(null);
-  const [committees, setCommittees] = useState<Array<Record<string, unknown>>>([]);
-  const [overviewLoading, setOverviewLoading] = useState(true);
-
-  // ── State: legislation tab ──
-  const [activity, setActivity] = useState<PersonActivityResponse | null>(null);
-  const [activityEntries, setActivityEntries] = useState<PersonActivityEntry[]>([]);
-  const [activityLoading, setActivityLoading] = useState(false);
-  const [activityFilter, setActivityFilter] = useState<'all' | 'sponsored' | 'cosponsored'>('all');
-
-  // ── State: votes tab ──
-  const [votesData, setVotesData] = useState<PersonVotesResponse | null>(null);
-  const [voteEntries, setVoteEntries] = useState<PersonVoteEntry[]>([]);
-  const [votesLoading, setVotesLoading] = useState(false);
-  const [voteFilter, setVoteFilter] = useState<string>('all');
-
-  // ── State: finance tab ──
-  const [finance, setFinance] = useState<PersonFinance | null>(null);
-  const [financeLoading, setFinanceLoading] = useState(false);
-
-  // ── State: donors tab ──
-  const [donors, setDonors] = useState<DonorData | null>(null);
-  const [donorsLoading, setDonorsLoading] = useState(false);
-
-  // ── State: trades tab ──
-  const [trades, setTrades] = useState<Array<Record<string, unknown>>>([]);
-  const [tradesLoading, setTradesLoading] = useState(false);
-
-  // ── State: trends (overview) ──
-  const [trends, setTrends] = useState<{ years: number[]; series: Record<string, number[]> } | null>(null);
-
-  // ── Tabs ──
-  const [tab, setTab] = useState<TabKey>('legislation');
-  const [loadedTabs, setLoadedTabs] = useState<Set<TabKey>>(new Set(['legislation']));
-
-  // ── Mark tab loaded ──
-  const markLoaded = useCallback((t: TabKey) => {
-    setLoadedTabs((prev) => new Set(prev).add(t));
-  }, []);
+  const setTab = useCallback((t: TabKey) => dispatch({ type: 'SET_TAB', tab: t }), []);
+  const setActivityFilter = useCallback((v: 'all' | 'sponsored' | 'cosponsored') => dispatch({ type: 'SET_ACTIVITY_FILTER', value: v }), []);
+  const setVoteFilter = useCallback((v: string) => dispatch({ type: 'SET_VOTE_FILTER', value: v }), []);
 
   // ── Single combined fetch for all person data ──
   useEffect(() => {
     if (!person_id) return;
     let cancelled = false;
-    setOverviewLoading(true);
+    dispatch({ type: 'SET_OVERVIEW_LOADING', value: true });
 
     fetch(`${getApiBaseUrl()}/people/${person_id}/full`)
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((data) => {
-        if (cancelled) return;
-
-        // Person basic info
-        if (data.person) {
-          setPerson(data.person);
-        }
-
-        // Profile
-        if (data.profile) {
-          setProfile(data.profile);
-          setProfileError(false);
-        } else {
-          setProfileError(true);
-        }
-
-        // Performance
-        if (data.performance) {
-          setPerformance(data.performance);
-          setPerformanceError(false);
-        } else {
-          setPerformanceError(true);
-        }
-
-        // Stats
-        if (data.stats) setStats(data.stats);
-
-        // Committees
-        if (data.committees) setCommittees(data.committees.committees || []);
-
-        // Activity
-        if (data.activity) {
-          setActivity(data.activity);
-          setActivityEntries(data.activity.entries || []);
-          markLoaded('legislation');
-        }
-
-        // Votes
-        if (data.votes) {
-          setVotesData(data.votes);
-          setVoteEntries(data.votes.votes || []);
-          markLoaded('votes');
-        }
-
-        // Trends
-        if (data.trends) setTrends(data.trends);
-
-        // Finance
-        if (data.finance) {
-          setFinance(data.finance);
-          markLoaded('finance');
-        }
-
-        // Trades
-        if (data.trades) {
-          setTrades(data.trades.trades || []);
-          markLoaded('trades');
-        }
-
-        // Donors
-        if (data.donors) {
-          setDonors(data.donors);
-          markLoaded('donors');
-        }
-
-        // Graph
-        if (data.graph) setGraph(data.graph);
+        if (!cancelled) dispatch({ type: 'LOAD_FULL', data });
       })
       .catch(() => {
-        setProfileError(true);
-        setPerformanceError(true);
-      })
-      .finally(() => { if (!cancelled) setOverviewLoading(false); });
+        if (!cancelled) dispatch({ type: 'LOAD_FULL_ERROR' });
+      });
 
     return () => { cancelled = true; };
-  }, [person_id, markLoaded]);
+  }, [person_id]);
 
   // ── Load more: legislation ──
   const loadMoreActivity = useCallback(() => {
     if (!person_id || !activity) return;
     const nextOffset = activityEntries.length;
     if (nextOffset >= activity.total) return;
-    setActivityLoading(true);
+    dispatch({ type: 'SET_ACTIVITY_LOADING', value: true });
     apiClient
       .getPersonActivity(person_id, { limit: 50, offset: nextOffset })
       .then((res) => {
-        setActivityEntries((prev) => [...prev, ...(res.entries || [])]);
+        dispatch({ type: 'APPEND_ACTIVITY', entries: res.entries || [] });
       })
-      .catch(() => {})
-      .finally(() => setActivityLoading(false));
+      .catch(() => { dispatch({ type: 'SET_ACTIVITY_LOADING', value: false }); });
   }, [person_id, activity, activityEntries.length]);
 
   // ── Load more: votes ──
@@ -311,14 +349,13 @@ export default function PersonProfilePage() {
     if (!person_id || !votesData) return;
     const nextOffset = voteEntries.length;
     if (nextOffset >= votesData.total) return;
-    setVotesLoading(true);
+    dispatch({ type: 'SET_VOTES_LOADING', value: true });
     apiClient
       .getPersonVotes(person_id, { limit: 50, offset: nextOffset })
       .then((res) => {
-        setVoteEntries((prev) => [...prev, ...(res.votes || [])]);
+        dispatch({ type: 'APPEND_VOTES', votes: res.votes || [] });
       })
-      .catch(() => {})
-      .finally(() => setVotesLoading(false));
+      .catch(() => { dispatch({ type: 'SET_VOTES_LOADING', value: false }); });
   }, [person_id, votesData, voteEntries.length]);
 
   // ── Derived ──
@@ -496,10 +533,10 @@ export default function PersonProfilePage() {
           </div>
 
           {/* AI Profile Summary */}
-          {(profile as any)?.ai_profile_summary && (
+          {profile?.ai_profile_summary && (
             <div className="mb-6">
               <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
-              <p className="text-zinc-400 text-sm mt-1">{(profile as any).ai_profile_summary}</p>
+              <p className="text-zinc-400 text-sm mt-1">{profile.ai_profile_summary}</p>
             </div>
           )}
 
@@ -1252,7 +1289,7 @@ function FinanceTab({
     );
   }
 
-  const totals = finance.totals || {} as any;
+  const totals = (finance.totals ?? {}) as Record<string, number>;
   const top_donors = finance.top_donors || [];
   const committees = finance.committees || [];
   const candidate_id = finance.candidate_id;

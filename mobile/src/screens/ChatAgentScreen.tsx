@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 
-const API_BASE = 'https://api.wethepeopleforus.com';
+import { API_BASE } from '../api/client';
 const ACCENT = '#7C3AED';
 
 interface ChatAction {

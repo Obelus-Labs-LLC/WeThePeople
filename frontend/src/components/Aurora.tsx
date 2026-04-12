@@ -178,9 +178,9 @@ function Aurora(props: AuroraProps) {
       if (program) {
         program.uniforms.uTime.value = time * speed * 0.1;
         program.uniforms.uAmplitude.value = propsRef.current.amplitude ?? 1.0;
-        program.uniforms.uBlend.value = propsRef.current.blend ?? blend;
+        program.uniforms.uBlend.value = propsRef.current.blend ?? 0.5;
 
-        const stops = propsRef.current.colorStops ?? colorStops;
+        const stops = propsRef.current.colorStops ?? ['#5227FF', '#7cff67', '#5227FF'];
         program.uniforms.uColorStops.value = stops.map((hex: string) => {
           const c = new Color(hex);
           return [c.r, c.g, c.b];

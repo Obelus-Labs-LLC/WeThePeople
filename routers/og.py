@@ -5,8 +5,10 @@ Generates 1200x630 PNG images with entity stats for Twitter/Reddit/Slack unfurli
 """
 
 import logging
+import threading
 import time
 
+from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -146,8 +148,8 @@ def _svg_to_png(svg_str: str) -> tuple[bytes, str]:
         return svg_str.encode("utf-8"), "image/svg+xml"
 
 
-_og_cache: dict[str, tuple[tuple[bytes, str], float]] = {}
-_OG_CACHE_TTL = 3600  # 1 hour
+_og_cache: TTLCache = TTLCache(maxsize=200, ttl=3600)
+_og_cache_lock = threading.Lock()
 
 
 def _generate_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
@@ -239,19 +241,14 @@ def _generate_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
 
 def _cached_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
     """Return a cached OG image, regenerating if older than TTL."""
-    global _og_cache
     key = f"{entity_type}:{entity_id}"
-    now = time.time()
-    if key in _og_cache:
-        data, ts = _og_cache[key]
-        if now - ts < _OG_CACHE_TTL:
-            return data
+    with _og_cache_lock:
+        cached = _og_cache.get(key)
+    if cached is not None:
+        return cached
     result = _generate_og_image(entity_type, entity_id)
-    _og_cache[key] = (result, now)
-    # Evict expired entries if cache grows too large
-    if len(_og_cache) > 200:
-        cutoff = now - _OG_CACHE_TTL
-        _og_cache = {k: v for k, v in _og_cache.items() if v[1] > cutoff}
+    with _og_cache_lock:
+        _og_cache[key] = result
     return result
 
 

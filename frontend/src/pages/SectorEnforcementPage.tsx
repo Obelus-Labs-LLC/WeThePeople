@@ -127,6 +127,7 @@ interface EnforcementAction {
   source: string | null;
   entity_id: string;
   entity_name: string;
+  ai_summary?: string;
 }
 
 interface CompanyEnforcementStats {
@@ -531,8 +532,8 @@ export default function SectorEnforcementPage() {
                                         {action.description && (
                                           <p className="font-body text-xs text-white/50 mb-1 line-clamp-2">{action.description}</p>
                                         )}
-                                        {(action as any).ai_summary && (
-                                          <p className="text-zinc-400 text-sm italic mb-1">{(action as any).ai_summary}</p>
+                                        {action.ai_summary && (
+                                          <p className="text-zinc-400 text-sm italic mb-1">{action.ai_summary}</p>
                                         )}
                                         <div className="flex items-center gap-3 flex-wrap">
                                           {action.penalty_amount != null && action.penalty_amount > 0 && (
@@ -699,10 +700,10 @@ export default function SectorEnforcementPage() {
                                   {action.description && (
                                     <p className="font-body text-sm text-white/60 mb-3">{action.description}</p>
                                   )}
-                                  {(action as any).ai_summary && (
+                                  {action.ai_summary && (
                                     <div className="mb-3">
                                       <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
-                                      <p className="text-zinc-400 text-sm italic mt-1">{(action as any).ai_summary}</p>
+                                      <p className="text-zinc-400 text-sm italic mt-1">{action.ai_summary}</p>
                                     </div>
                                   )}
                                   <div className="flex flex-wrap gap-4">

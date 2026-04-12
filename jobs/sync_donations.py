@@ -67,8 +67,8 @@ if is_sqlite():
 Session = sessionmaker(bind=engine)
 
 
-def md5(text: str) -> str:
-    return hashlib.md5(text.encode()).hexdigest()
+def _dedupe_hash(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def parse_date_str(val: Optional[str]) -> Optional[date]:
@@ -374,7 +374,7 @@ def main():
                     )
 
                     # Build dedupe hash: entity + committee + candidate + amount + date
-                    dedupe = md5(f"{entity['entity_id']}:{cmte_id}:{candidate_id or recipient_name}:{amount}:{disb_date}")
+                    dedupe = _dedupe_hash(f"{entity['entity_id']}:{cmte_id}:{candidate_id or recipient_name}:{amount}:{disb_date}")
 
                     if not args.dry_run:
                         if session.query(CompanyDonation).filter_by(dedupe_hash=dedupe).first():

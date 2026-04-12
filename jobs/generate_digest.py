@@ -137,16 +137,19 @@ def _build_rep_digest(db, member: Any, since_date: date) -> Dict[str, Any]:
     }
 
 
-def generate_digest_for_subscriber(db, subscriber: DigestSubscriber) -> Dict[str, Any]:
+def generate_digest_for_subscriber(db, subscriber: DigestSubscriber, *, _cached_reps=None) -> Dict[str, Any]:
     """Generate the full digest for one subscriber."""
     state = subscriber.state or _zip_to_state(subscriber.zip_code)
     if not state:
         return {"error": f"No state found for zip {subscriber.zip_code}"}
 
-    members = _get_representatives(db, state)
-    seven_days_ago = date.today() - timedelta(days=7)
-
-    reps = [_build_rep_digest(db, m, seven_days_ago) for m in members]
+    # Use cached reps if provided (batch mode), otherwise compute fresh
+    if _cached_reps is not None:
+        reps = _cached_reps(state)
+    else:
+        members = _get_representatives(db, state)
+        seven_days_ago = date.today() - timedelta(days=7)
+        reps = [_build_rep_digest(db, m, seven_days_ago) for m in members]
 
     # Recent published stories (last 7 days)
     recent_stories = (
@@ -294,8 +297,9 @@ def _send_email(to: str, subject: str, html: str) -> bool:
         return False
 
     try:
+        from services.email import RESEND_API_URL
         resp = requests.post(
-            "https://api.resend.com/emails",
+            RESEND_API_URL,
             headers={
                 "Authorization": f"Bearer {RESEND_API_KEY}",
                 "Content-Type": "application/json",
@@ -345,10 +349,20 @@ def main():
         digest_dir = ROOT / "data" / "digests"
         digest_dir.mkdir(parents=True, exist_ok=True)
 
+        # Pre-compute rep digests per state to avoid redundant queries (#302)
+        seven_days_ago = date.today() - timedelta(days=7)
+        _state_reps_cache: Dict[str, list] = {}
+
+        def _cached_reps(state: str) -> list:
+            if state not in _state_reps_cache:
+                members = _get_representatives(db, state)
+                _state_reps_cache[state] = [_build_rep_digest(db, m, seven_days_ago) for m in members]
+            return _state_reps_cache[state]
+
         for sub in subscribers:
             logger.info("  Generating digest for %s (zip: %s)", sub.email, sub.zip_code)
             try:
-                digest = generate_digest_for_subscriber(db, sub)
+                digest = generate_digest_for_subscriber(db, sub, _cached_reps=_cached_reps)
 
                 # Save to file
                 safe_email = sub.email.replace("@", "_at_").replace(".", "_")

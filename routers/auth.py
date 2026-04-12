@@ -20,10 +20,14 @@ from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field, EmailStr
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from models.database import get_db, SessionLocal
 from models.auth_models import User, APIKeyRecord
+from models.response_schemas import (
+    WatchlistAddResponse, WatchlistListResponse, WatchlistCheckResponse,
+)
 from services.jwt_auth import (
     create_access_token,
     create_refresh_token,
@@ -148,7 +152,11 @@ def register(body: RegisterRequest, request: Request, db: Session = Depends(get_
         display_name=body.display_name,
     )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Email already registered")
     db.refresh(user)
 
     log_from_request(db, request, action="register", user_id=user.id, resource="users", resource_id=str(user.id))
@@ -270,7 +278,7 @@ def create_api_key(
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
 
     expires_at = None
-    if body.expires_in_days:
+    if body.expires_in_days is not None:
         expires_at = datetime.now(timezone.utc) + timedelta(days=body.expires_in_days)
 
     record = APIKeyRecord(
@@ -369,7 +377,7 @@ class WatchlistAddRequest(BaseModel):
     sector: str = ""
 
 
-@router.post("/watchlist", status_code=201)
+@router.post("/watchlist", status_code=201, response_model=WatchlistAddResponse)
 def add_to_watchlist(
     body: WatchlistAddRequest,
     user: User = Depends(get_current_user),
@@ -394,12 +402,16 @@ def add_to_watchlist(
         sector=body.sector,
     )
     db.add(item)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return {"status": "already_watching"}
     db.refresh(item)
     return {"status": "added", "id": item.id}
 
 
-@router.get("/watchlist")
+@router.get("/watchlist", response_model=WatchlistListResponse)
 def get_watchlist(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -449,7 +461,7 @@ def remove_from_watchlist(
     return None
 
 
-@router.get("/watchlist/check")
+@router.get("/watchlist/check", response_model=WatchlistCheckResponse)
 def check_watchlist(
     entity_type: str = Query(...),
     entity_id: str = Query(...),
@@ -511,7 +523,8 @@ def create_enterprise_checkout(
 
 
 @router.post("/webhook/stripe")
-async def stripe_webhook(request: Request):
+@limiter.limit("30/minute")
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     """Handle Stripe webhook events to upgrade/downgrade user roles."""
     import stripe
 
@@ -533,7 +546,6 @@ async def stripe_webhook(request: Request):
         logger.error("Stripe webhook verification failed: %s", e)
         raise HTTPException(status_code=400, detail="Invalid webhook")
 
-    db = SessionLocal()
     try:
         event_type = event.get("type", "") if isinstance(event, dict) else getattr(event, "type", "")
         event_data = event.get("data", {}) if isinstance(event, dict) else getattr(event, "data", {})
@@ -567,7 +579,9 @@ async def stripe_webhook(request: Request):
                 if user:
                     logger.warning("Payment failed for user %s", user.email)
 
-    finally:
-        db.close()
+    except Exception as e:
+        logger.error("Stripe webhook handler error: %s", e)
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Webhook processing failed")
 
     return {"status": "ok"}

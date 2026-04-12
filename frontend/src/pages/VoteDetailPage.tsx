@@ -97,12 +97,14 @@ const VoteDetailPage: React.FC = () => {
     useState<PositionFilter>("All");
 
   useEffect(() => {
+    let cancelled = false;
     if (!vote_id) return;
     setLoading(true);
     setError(null);
     apiClient
       .getVoteDetail(Number(vote_id))
       .then((data) => {
+        if (cancelled) return;
         setVote(data);
         setLoading(false);
       })
@@ -110,6 +112,7 @@ const VoteDetailPage: React.FC = () => {
         setError(err.message || "Failed to load vote details");
         setLoading(false);
       });
+    return () => { cancelled = true; };
   }, [vote_id]);
 
   const filteredMembers = useMemo(() => {

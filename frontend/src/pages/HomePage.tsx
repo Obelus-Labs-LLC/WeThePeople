@@ -50,10 +50,12 @@ function SuspiciousPatternsTeaser() {
   const [anomalies, setAnomalies] = useState<TopAnomaly[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
     fetch(`${ANOMALY_API}/anomalies/top?limit=3`)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
       .then((data) => setAnomalies(data.anomalies || []))
       .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   if (anomalies.length === 0) return null;
@@ -124,10 +126,12 @@ function LatestStoriesTeaser() {
   const [stories, setStories] = useState<StoryTeaser[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
     fetch(`${ANOMALY_API}/stories/latest?limit=3`)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
       .then((data) => setStories(Array.isArray(data) ? data : data.stories || []))
       .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   if (stories.length === 0) return null;
@@ -231,9 +235,11 @@ const HomePage: React.FC = () => {
   const zipInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    let cancelled = false;
     fetchInfluenceStats().then(setStats).catch(() => {});
     fetchTopLobbying(5).then((r) => setTopLobbying(r.leaders)).catch(() => {});
     fetchTopContracts(5).then((r) => setTopContracts(r.leaders)).catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   return (

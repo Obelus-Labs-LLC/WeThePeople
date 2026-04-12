@@ -42,6 +42,7 @@ function FilterPill({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className="flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 font-body text-sm font-medium transition-all duration-200"
       style={{
         borderColor: active ? color : 'rgba(255,255,255,0.1)',
@@ -172,21 +173,23 @@ export default function PeoplePage() {
   useInView(headerRef, { once: true, amount: 0.1 });
 
   useEffect(() => {
+    let cancelled = false;
     apiClient
       .getPeople({ limit: 600 })
       .then((res) => setPeople(res.people || []))
       .catch(() => {})
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, []);
 
   // ZIP code lookup
   const handleZipSearch = () => {
     if (zipCode.length < 5) return;
     fetch(`/api/representatives?zip=${zipCode}`)
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
+      .then((data: { representatives?: { person_id?: string }[]; results?: { person_id?: string }[] }) => {
         const reps = data.representatives || data.results || [];
-        const ids = reps.map((r: any) => r.person_id).filter(Boolean);
+        const ids = reps.map((r) => r.person_id).filter(Boolean) as string[];
         setZipRepIds(ids);
         setStateFilter('all');
         setCurrentPage(1);

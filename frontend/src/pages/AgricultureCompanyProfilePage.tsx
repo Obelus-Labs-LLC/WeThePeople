@@ -143,6 +143,8 @@ export default function AgricultureCompanyProfilePage() {
   useEffect(() => {
     if (!companyId) return;
 
+    let cancelled = false;
+
     if (activeTab === 'contracts' && !contractsLoaded) {
       Promise.all([
         getAgricultureCompanyContracts(companyId, { limit: 100 }),
@@ -181,6 +183,7 @@ export default function AgricultureCompanyProfilePage() {
         .then((r) => { setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true); })
         .catch(() => {});
     }
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, companyId]);
 
@@ -256,10 +259,10 @@ export default function AgricultureCompanyProfilePage() {
             <AnomalyBadge entityType="company" entityId={companyId || ''} />
           </div>
 
-          {(detail as any).ai_profile_summary && (
+          {detail.ai_profile_summary && (
             <div className="mb-6">
               <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
-              <p className="text-zinc-400 text-sm mt-1">{(detail as any).ai_profile_summary}</p>
+              <p className="text-zinc-400 text-sm mt-1">{detail.ai_profile_summary}</p>
             </div>
           )}
 

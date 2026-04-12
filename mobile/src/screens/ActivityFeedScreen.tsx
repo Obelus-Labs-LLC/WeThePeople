@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-const API_BASE = 'https://api.wethepeopleforus.com';
+import { API_BASE } from '../api/client';
 const ACCENT = '#475569';
 
 interface Activity {

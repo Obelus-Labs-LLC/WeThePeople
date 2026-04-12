@@ -11,22 +11,23 @@ import os
 import requests
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from sqlalchemy.exc import IntegrityError
 from models.database import SessionLocal, Vote, MemberVote
 
 logger = logging.getLogger(__name__)
 
-CONGRESS_API_KEY = os.getenv("API_KEY_CONGRESS")
+CONGRESS_API_KEY = os.getenv("API_KEY_CONGRESS") or os.getenv("CONGRESS_API_KEY", "")
 BASE_URL = "https://api.congress.gov/v3"
 
 
 def fetch_house_votes(congress: int = 119, limit: int = 250) -> List[Dict[str, Any]]:
     """
     Fetch House roll call votes for a given Congress.
-    
+
     Args:
         congress: Congress number (118, 119, etc.)
         limit: Max number of votes to fetch
-        
+
     Returns:
         List of vote dictionaries from API
     """
@@ -36,23 +37,30 @@ def fetch_house_votes(congress: int = 119, limit: int = 250) -> List[Dict[str, A
         "format": "json",
         "limit": limit,
     }
-    
-    response = requests.get(url, params=params, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    
+
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error("Failed to fetch House votes for congress %d: %s", congress, e)
+        return []
+    except (ValueError, KeyError) as e:
+        logger.error("Invalid JSON response for House votes: %s", e)
+        return []
+
     return data.get("votes", [])
 
 
 def fetch_vote_detail(congress: int, chamber: str, roll_number: int) -> Optional[Dict[str, Any]]:
     """
     Fetch detailed vote information including member positions.
-    
+
     Args:
         congress: Congress number
         chamber: "house" or "senate"
         roll_number: Roll call number
-        
+
     Returns:
         Vote detail dictionary with member positions
     """
@@ -61,11 +69,18 @@ def fetch_vote_detail(congress: int, chamber: str, roll_number: int) -> Optional
         "api_key": CONGRESS_API_KEY,
         "format": "json",
     }
-    
-    response = requests.get(url, params=params, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    
+
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error("Failed to fetch vote detail %s/%s/%d: %s", congress, chamber, roll_number, e)
+        return None
+    except (ValueError, KeyError) as e:
+        logger.error("Invalid JSON for vote %s/%s/%d: %s", congress, chamber, roll_number, e)
+        return None
+
     return data.get("vote")
 
 
@@ -83,7 +98,7 @@ def ingest_vote_with_members(congress: int, chamber: str, roll_number: int, pers
         vote_id if successful, None otherwise
     """
     db = SessionLocal()
-    
+
     try:
         # Check if vote already exists
         existing = db.query(Vote).filter(
@@ -91,16 +106,14 @@ def ingest_vote_with_members(congress: int, chamber: str, roll_number: int, pers
             Vote.chamber == chamber.lower(),
             Vote.roll_number == roll_number
         ).first()
-        
+
         if existing:
             logger.info("Vote %s/%s/%s already exists (id=%s)", congress, chamber, roll_number, existing.id)
-            db.close()
             return existing.id
-        
+
         # Fetch vote detail
         vote_data = fetch_vote_detail(congress, chamber, roll_number)
         if not vote_data:
-            db.close()
             return None
         
         # Extract vote metadata
@@ -148,7 +161,17 @@ def ingest_vote_with_members(congress: int, chamber: str, roll_number: int, pers
             metadata_json=vote_data,
         )
         db.add(vote)
-        db.flush()  # Get vote.id
+        try:
+            db.flush()  # Get vote.id
+        except IntegrityError:
+            db.rollback()
+            # Concurrent insert won — return existing vote
+            existing = db.query(Vote).filter(
+                Vote.congress == congress,
+                Vote.chamber == chamber.lower(),
+                Vote.roll_number == roll_number
+            ).first()
+            return existing.id if existing else None
         
         # Ingest member votes
         members = vote_data.get("members", [])

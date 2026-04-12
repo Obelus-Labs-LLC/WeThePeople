@@ -9,6 +9,7 @@ Provides visibility into:
   - Database stats (table row counts, file size, index count)
 """
 
+import html
 import json
 import os
 import time
@@ -59,15 +60,38 @@ def _save_json(path: Path, data: Any) -> None:
 
 
 def _load_dlq() -> List[Dict[str, Any]]:
-    """Load the dead letter queue from disk."""
-    data = _load_json(DLQ_FILE)
-    if isinstance(data, list):
-        return data
-    return []
+    """Load the dead letter queue from database (with JSON file fallback for legacy items)."""
+    from models.database import SessionLocal
+    from models.pipeline_models import FailedRecord
+
+    items: List[Dict[str, Any]] = []
+    db = SessionLocal()
+    try:
+        rows = db.query(FailedRecord).order_by(FailedRecord.created_at.desc()).limit(200).all()
+        for r in rows:
+            items.append({
+                "id": str(r.id),
+                "job": r.job_name,
+                "error": r.error_message,
+                "context": {"record_data": r.record_data} if r.record_data else {},
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "retries": r.retry_count,
+                "status": "resolved" if r.resolved_at else "pending",
+                "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+            })
+    finally:
+        db.close()
+
+    # Also load any legacy JSON items for backward compat
+    legacy = _load_json(DLQ_FILE)
+    if isinstance(legacy, list) and legacy:
+        items.extend(legacy)
+
+    return items
 
 
 def _save_dlq(items: List[Dict[str, Any]]) -> None:
-    """Persist the dead letter queue."""
+    """Persist legacy DLQ items to JSON (new items use database via pipeline_reliability)."""
     _save_json(DLQ_FILE, items)
 
 
@@ -90,35 +114,7 @@ def _get_db_path() -> Optional[str]:
 
 # Expected interval per job (hours). If a job hasn't run in 2x this, it's overdue.
 # This is a best-effort map — unknown jobs default to 24h.
-_EXPECTED_INTERVALS: Dict[str, float] = {
-    # Daily (24h)
-    "sync_votes": 24, "sync_senate_votes": 24,
-    "sync_trades_from_disclosures": 24,
-    "detect_anomalies": 24, "detect_stories": 24,
-    "story_review_digest": 24, "ai_summarize_daily": 24,
-    "sync_samgov": 24, "monitor_pipeline": 24,
-    # Every 4 hours
-    "twitter_monitor": 4,
-    # Every 48 hours
-    "sync_finance_political_data": 48, "sync_health_political_data": 48,
-    "sync_transportation_data": 48, "sync_defense_data": 48,
-    # Every 72 hours
-    "sync_finance_enforcement": 72, "sync_energy_enforcement": 72,
-    "sync_health_enforcement": 72, "sync_transportation_enforcement": 72,
-    "sync_defense_enforcement": 72,
-    "sync_chemicals_enforcement": 72, "sync_agriculture_enforcement": 72,
-    "sync_education_enforcement": 72, "sync_telecom_enforcement": 72,
-    # Weekly (168h)
-    "sync_finance_data": 168, "sync_health_data": 168, "sync_tech_data": 168,
-    "sync_energy_data": 168, "sync_donations": 168, "sync_nhtsa_data": 168,
-    "sync_fuel_economy": 168, "sync_chemicals_data": 168,
-    "sync_agriculture_data": 168, "sync_education_data": 168,
-    "sync_telecom_data": 168, "sync_regulatory_comments": 168,
-    "sync_it_dashboard": 168, "sync_site_scanning": 168,
-    "sync_fara_data": 168, "generate_digest": 168, "data_retention": 168,
-    # Monthly (720h)
-    "sync_state_data": 720,
-}
+from utils.job_intervals import EXPECTED_INTERVALS as _EXPECTED_INTERVALS
 
 
 # ---------------------------------------------------------------------------
@@ -130,20 +126,29 @@ def enqueue_dlq(
     error: str,
     context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Add a failed item to the dead letter queue. Returns the new item."""
-    item = {
-        "id": uuid.uuid4().hex[:12],
-        "job": job_name,
-        "error": error[:2000],
-        "context": context or {},
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "retries": 0,
-        "status": "pending",  # pending | retrying | resolved
-    }
-    items = _load_dlq()
-    items.append(item)
-    _save_dlq(items)
-    return item
+    """Add a failed item to the dead letter queue (database-backed). Returns the new item."""
+    from models.database import SessionLocal
+    from services.pipeline_reliability import send_to_dlq
+
+    db = SessionLocal()
+    try:
+        record = send_to_dlq(
+            db=db,
+            job_name=job_name,
+            record_data=context or {},
+            error=error,
+        )
+        return {
+            "id": str(record.id),
+            "job": job_name,
+            "error": error[:2000],
+            "context": context or {},
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+            "retries": 0,
+            "status": "pending",
+        }
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -747,7 +752,8 @@ def story_queue_approve_get(
     try:
         story = db.query(Story).filter(Story.id == story_id).first()
     except Exception as exc:
-        return HTMLResponse(f"<h2>Error</h2><p>{exc}</p>", status_code=500)
+        logger.error("Story queue approve error: %s", exc)
+        return HTMLResponse("<h2>Error</h2><p>Internal server error.</p>", status_code=500)
     if not story:
         return HTMLResponse(f"<h2>Not found</h2><p>Story {story_id} not found.</p>", status_code=404)
 
@@ -755,12 +761,13 @@ def story_queue_approve_get(
     # middleware.js SITE_URL and StoryCard <Link to="/story/${slug}">.
     journal_base = os.getenv("WTP_JOURNAL_BASE", "https://journal.wethepeopleforus.com")
     article_url = f"{journal_base}/story/{story.slug}" if story.slug else journal_base
+    safe_title = html.escape(story.title or "Untitled")
 
     if story.status == "published":
         return HTMLResponse(
             f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
             f"<h2 style='color:#16a34a'>Already published</h2>"
-            f"<p><strong>{story.title}</strong> was already approved.</p>"
+            f"<p><strong>{safe_title}</strong> was already approved.</p>"
             f"<p style='margin-top:24px'>"
             f"<a href='{article_url}' style='display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600'>View Article &rarr;</a>"
             f"</p>"
@@ -769,7 +776,7 @@ def story_queue_approve_get(
         )
     if story.status != "draft":
         return HTMLResponse(
-            f"<h2>Cannot approve</h2><p>Story is '{story.status}', not 'draft'.</p>",
+            f"<h2>Cannot approve</h2><p>Story is '{html.escape(story.status)}', not 'draft'.</p>",
             status_code=400,
         )
     story.status = "published"
@@ -779,7 +786,7 @@ def story_queue_approve_get(
     return HTMLResponse(
         f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
         f"<h2 style='color:#16a34a'>&#10003; Published</h2>"
-        f"<p><strong>{story.title}</strong> is now live.</p>"
+        f"<p><strong>{safe_title}</strong> is now live.</p>"
         f"<p style='color:#64748b;font-size:14px'>Published at {story.published_at.strftime('%Y-%m-%d %H:%M UTC')}</p>"
         f"<p style='margin-top:24px'>"
         f"<a href='{article_url}' style='display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600'>View Article &rarr;</a>"
@@ -800,16 +807,18 @@ def story_queue_reject_get(
     try:
         story = db.query(Story).filter(Story.id == story_id).first()
     except Exception as exc:
-        return HTMLResponse(f"<h2>Error</h2><p>{exc}</p>", status_code=500)
+        logger.error("Story queue reject error: %s", exc)
+        return HTMLResponse("<h2>Error</h2><p>Internal server error.</p>", status_code=500)
     if not story:
         return HTMLResponse(f"<h2>Not found</h2><p>Story {story_id} not found.</p>", status_code=404)
+    safe_title = html.escape(story.title or "Untitled")
     if story.status == "retracted":
         return HTMLResponse(
-            f"<h2>Already rejected</h2><p><strong>{story.title}</strong> was already retracted.</p>",
+            f"<h2>Already rejected</h2><p><strong>{safe_title}</strong> was already retracted.</p>",
         )
     if story.status not in ("draft", "published"):
         return HTMLResponse(
-            f"<h2>Cannot reject</h2><p>Story is '{story.status}'.</p>",
+            f"<h2>Cannot reject</h2><p>Story is '{html.escape(story.status)}'.</p>",
             status_code=400,
         )
     story.status = "retracted"
@@ -818,7 +827,7 @@ def story_queue_reject_get(
     return HTMLResponse(
         f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
         f"<h2 style='color:#dc2626'>&#10007; Rejected</h2>"
-        f"<p><strong>{story.title}</strong> has been retracted.</p>"
+        f"<p><strong>{safe_title}</strong> has been retracted.</p>"
         f"<p style='color:#64748b;font-size:14px'>Story is archived for audit purposes but not shown publicly.</p>"
         f"</body></html>"
     )

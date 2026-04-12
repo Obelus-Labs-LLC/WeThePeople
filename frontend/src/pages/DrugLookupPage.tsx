@@ -67,10 +67,12 @@ export default function DrugLookupPage() {
 
   // Load companies on mount
   useEffect(() => {
+    let cancelled = false;
     getHealthCompanies({ limit: 200 })
-      .then((res) => setCompanies(res.companies || []))
+      .then((res) => { if (!cancelled) setCompanies(res.companies || []); })
       .catch(() => {})
-      .finally(() => setInitialLoading(false));
+      .finally(() => { if (!cancelled) setInitialLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   // Search across all companies for a drug name

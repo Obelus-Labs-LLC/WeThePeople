@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Filter } from 'lucide-react';
 import { getApiBaseUrl } from '../api/client';
 import { fmtMoney as formatMoney } from '../utils/format';
+import CanvasErrorBoundary from '../components/CanvasErrorBoundary';
 
 const API_BASE = getApiBaseUrl();
 
@@ -34,29 +35,31 @@ export default function MoneyFlowPage() {
   const [loading, setLoading] = useState(true);
   const [sector, setSector] = useState<string>('');
   const plotRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Plotly is dynamically imported and has complex typing
-  const plotlyRef = useRef<any>(null);
+  const plotlyRef = useRef<typeof import('plotly.js') | null>(null);
   const [plotlyLoaded, setPlotlyLoaded] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     const params = new URLSearchParams();
     if (sector) params.set('sector', sector);
     fetch(`${API_BASE}/influence/money-flow?${params}`)
-      .then((r) => r.json())
-      .then((d) => setData(d))
+      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
+      .then((d) => { if (!cancelled) setData(d); })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [sector]);
 
   useEffect(() => {
+    let cancelled = false;
     if (!data || !plotRef.current || data.nodes.length === 0) return;
 
     // Dynamically import Plotly to reduce initial bundle
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Plotly dynamic import lacks proper typing
-    import('plotly.js').then((Plotly: any) => {
-      const P = Plotly.default || Plotly;
-      plotlyRef.current = P;
+    import('plotly.js').then((Plotly) => {
+      if (cancelled) return;
+      const P = (Plotly as { default?: typeof Plotly }).default || Plotly;
+      plotlyRef.current = P as typeof import('plotly.js');
       setPlotlyLoaded(true);
 
       const nodeColors = data.nodes.map((n) => GROUP_COLORS[n.group] || '#6B7280');
@@ -103,6 +106,7 @@ export default function MoneyFlowPage() {
 
     const node = plotRef.current;
     return () => {
+      cancelled = true;
       if (node && plotlyRef.current) {
         plotlyRef.current.purge(node);
       }
@@ -173,9 +177,11 @@ export default function MoneyFlowPage() {
             <p className="text-sm mt-2">Data will appear once lobbying and donation syncs complete.</p>
           </div>
         ) : (
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 overflow-hidden">
-            <div ref={plotRef} style={{ width: '100%', minHeight: 600 }} />
-          </div>
+          <CanvasErrorBoundary fallbackHeight="600px">
+            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 overflow-hidden">
+              <div ref={plotRef} style={{ width: '100%', minHeight: 600 }} />
+            </div>
+          </CanvasErrorBoundary>
         )}
 
         {/* Data source attribution */}

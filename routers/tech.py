@@ -117,7 +117,8 @@ def get_tech_company(company_id: str, db: Session = Depends(get_db)):
             bill_filters.append(Bill.title.ilike(pattern))
             bill_filters.append(Bill.policy_area.ilike(pattern))
         related_bills_count = db.query(func.count(Bill.bill_id)).filter(or_(*bill_filters)).scalar() or 0
-    except Exception: pass
+    except Exception as e:
+        logger.warning("Patent-policy bill query failed for %s: %s", company_id, e)
     patent_policy_summary = {"patent_count": patent_count, "lobbying_on_ip_policy": lobbying_on_ip, "related_bills": related_bills_count}
     return {"company_id": co.company_id, "display_name": co.display_name, "ticker": co.ticker, "sector_type": co.sector_type, "headquarters": co.headquarters, "logo_url": co.logo_url, "sec_cik": co.sec_cik, "patent_count": patent_count, "contract_count": contract_count, "filing_count": filing_count, "total_contract_value": total_contract_value, "latest_stock": latest_stock, "ai_profile_summary": co.ai_profile_summary, "sanctions_status": co.sanctions_status, "patent_policy_summary": patent_policy_summary}
 
@@ -241,10 +242,20 @@ def get_tech_comparison(ids: str = Query(..., description="Comma-separated compa
     lobbying_totals = dict(db.query(LobbyingRecord.company_id, func.sum(LobbyingRecord.income)).filter(LobbyingRecord.company_id.in_(company_ids)).group_by(LobbyingRecord.company_id).all())
     enforcement_counts = dict(db.query(FTCEnforcement.company_id, func.count(FTCEnforcement.id)).filter(FTCEnforcement.company_id.in_(company_ids)).group_by(FTCEnforcement.company_id).all())
     penalty_totals = dict(db.query(FTCEnforcement.company_id, func.sum(FTCEnforcement.penalty_amount)).filter(FTCEnforcement.company_id.in_(company_ids)).group_by(FTCEnforcement.company_id).all())
-    stock_map = {}
-    for cid in company_ids:
-        latest = db.query(StockFundamentals).filter_by(entity_type="tech_company", entity_id=cid).order_by(desc(StockFundamentals.snapshot_date)).first()
-        if latest: stock_map[cid] = latest
+    from sqlalchemy import func as sa_func
+    stock_subq = (
+        db.query(StockFundamentals.entity_id, sa_func.max(StockFundamentals.snapshot_date).label("max_date"))
+        .filter(StockFundamentals.entity_type == "tech_company", StockFundamentals.entity_id.in_(company_ids))
+        .group_by(StockFundamentals.entity_id)
+        .subquery()
+    )
+    stock_rows = (
+        db.query(StockFundamentals)
+        .join(stock_subq, (StockFundamentals.entity_id == stock_subq.c.entity_id) & (StockFundamentals.snapshot_date == stock_subq.c.max_date))
+        .filter(StockFundamentals.entity_type == "tech_company")
+        .all()
+    )
+    stock_map = {s.entity_id: s for s in stock_rows}
     results = []
     for cid in company_ids:
         co = companies.get(cid)
@@ -259,11 +270,13 @@ def get_tech_company_patent_policy(company_id: str, db: Session = Depends(get_db
     """Link a company's patents to lobbying filings and IP/tech policy bills in Congress."""
     co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Tech company not found")
-    patents = db.query(TechPatent).filter_by(company_id=company_id).all()
+    patent_count = db.query(func.count(TechPatent.id)).filter_by(company_id=company_id).scalar() or 0
+    # Count categories from cpc_codes without loading all patents into memory
+    cpc_rows = db.query(TechPatent.cpc_codes).filter(TechPatent.company_id == company_id, TechPatent.cpc_codes.isnot(None)).all()
     patent_categories: Dict[str, int] = {}
-    for p in patents:
-        if p.cpc_codes:
-            for code in p.cpc_codes.split(","):
+    for (cpc_codes,) in cpc_rows:
+        if cpc_codes:
+            for code in cpc_codes.split(","):
                 prefix = code.strip()[:3] if len(code.strip()) >= 3 else code.strip()
                 if prefix: patent_categories[prefix] = patent_categories.get(prefix, 0) + 1
     ip_keywords = ["patent", "intellectual property", "copyright", "innovation", "technology transfer", "trade secret", "trademark", "IP rights"]
@@ -284,7 +297,7 @@ def get_tech_company_patent_policy(company_id: str, db: Session = Depends(get_db
         bill_filters.append(Bill.policy_area.ilike(pattern))
     related_bills = db.query(Bill).filter(or_(*bill_filters)).order_by(desc(Bill.latest_action_date)).limit(25).all()
     bill_items = [{"bill_id": b.bill_id, "title": b.title, "congress": b.congress, "bill_type": b.bill_type, "bill_number": b.bill_number, "policy_area": b.policy_area, "status_bucket": b.status_bucket, "latest_action_text": b.latest_action_text, "latest_action_date": str(b.latest_action_date) if b.latest_action_date else None} for b in related_bills]
-    return {"company_id": company_id, "display_name": co.display_name, "patent_count": len(patents), "patent_categories": patent_categories, "lobbying_on_ip_policy": total_lobbying_on_ip, "ip_lobbying_spend": total_ip_lobbying_spend, "ip_lobbying_filings": ip_lobbying_items, "related_bills_count": len(related_bills), "related_bills": bill_items}
+    return {"company_id": company_id, "display_name": co.display_name, "patent_count": patent_count, "patent_categories": patent_categories, "lobbying_on_ip_policy": total_lobbying_on_ip, "ip_lobbying_spend": total_ip_lobbying_spend, "ip_lobbying_filings": ip_lobbying_items, "related_bills_count": len(related_bills), "related_bills": bill_items}
 
 
 @router.get("/companies/{company_id}/donations")

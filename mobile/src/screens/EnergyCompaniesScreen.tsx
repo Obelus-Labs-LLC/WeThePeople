@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-const API_BASE = 'https://api.wethepeopleforus.com';
+import { API_BASE } from '../api/client';
 
 const SECTOR_COLORS: Record<string, string> = {
   'oil & gas': '#475569',

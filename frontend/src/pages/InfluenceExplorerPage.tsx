@@ -83,18 +83,21 @@ export default function InfluenceExplorerPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       fetchInfluenceStats(),
       fetchTopLobbying(20),
       fetchTopContracts(20),
     ])
       .then(([s, l, c]) => {
+        if (cancelled) return;
         setStats(s);
         setTopLobbying(l.leaders);
         setTopContracts(c.leaders);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, []);
 
   return (

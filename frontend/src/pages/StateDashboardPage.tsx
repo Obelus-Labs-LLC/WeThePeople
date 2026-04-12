@@ -54,6 +54,7 @@ export default function StateDashboardPage() {
   const initialLoadedRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
     if (!code) return;
     setLoading(true);
     Promise.all([
@@ -61,16 +62,19 @@ export default function StateDashboardPage() {
       fetchStateLegislators(code, { limit: 50 }),
     ])
       .then(([dash, legs]) => {
+        if (cancelled) return;
         setDashboard(dash);
         setLegislators(legs.legislators);
         setLegTotal(legs.total);
       })
       .catch(() => {})
       .finally(() => { setLoading(false); initialLoadedRef.current = true; });
+    return () => { cancelled = true; };
   }, [code]);
 
   // Refetch legislators when filters change
   useEffect(() => {
+    let cancelled = false;
     if (!code || loading) return;
     if (!initialLoadedRef.current) return;
     fetchStateLegislators(code, {
@@ -81,10 +85,12 @@ export default function StateDashboardPage() {
       offset: legOffset,
     })
       .then((data) => {
+        if (cancelled) return;
         setLegislators(data.legislators);
         setLegTotal(data.total);
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [code, chamberFilter, partyFilter, legSearch, legOffset]);
 
   if (loading) {
@@ -583,6 +589,7 @@ function BillsTab({ stateCode, recentBills, totalBills }: { stateCode: string; r
   const [searching, setSearching] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     if (!search.trim() && offset === 0) {
       setBills(recentBills);
       return;
@@ -594,11 +601,13 @@ function BillsTab({ stateCode, recentBills, totalBills }: { stateCode: string; r
       offset,
     })
       .then((data) => {
+        if (cancelled) return;
         setBills(data.bills);
         setTotal(data.total);
       })
       .catch(() => {})
       .finally(() => setSearching(false));
+    return () => { cancelled = true; };
   }, [stateCode, search, offset]);
 
   return (

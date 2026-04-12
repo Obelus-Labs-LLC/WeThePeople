@@ -15,15 +15,18 @@ Usage:
 """
 
 import os
+from connectors.senate_lda import LDA_BASE
+from connectors.usaspending import USASPENDING_BASE
 import sys
 import hashlib
 import argparse
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -91,12 +94,12 @@ def fetch_lobbying(session, inst: TrackedInstitution):
     """Fetch lobbying disclosures from Senate LDA API with full pagination."""
     import time
     search_name = inst.display_name
-    current_year = datetime.now().year
+    current_year = datetime.now(timezone.utc).year
     years = list(range(current_year, 2019, -1))  # 2020-present
 
     count = 0
     for year in years:
-        page_url = "https://lda.senate.gov/api/v1/filings/"
+        page_url = LDA_BASE
         page_num = 0
 
         while page_url:
@@ -140,30 +143,38 @@ def fetch_lobbying(session, inst: TrackedInstitution):
                         if name:
                             gov_entities.add(name)
 
-                session.add(FinanceLobbyingRecord(
-                    institution_id=inst.institution_id,
-                    filing_uuid=filing_uuid,
-                    filing_year=r.get("filing_year", 0),
-                    filing_period=r.get("filing_period_display"),
-                    income=_safe_float(r.get("income")),
-                    expenses=_safe_float(r.get("expenses")),
-                    registrant_name=(r.get("registrant") or {}).get("name"),
-                    client_name=(r.get("client") or {}).get("name"),
-                    lobbying_issues=", ".join(sorted(set(issues))) if issues else None,
-                    government_entities=", ".join(sorted(gov_entities)) if gov_entities else None,
-                    specific_issues=" || ".join(descriptions) if descriptions else None,
-                    dedupe_hash=dedupe,
-                ))
-                count += 1
+                try:
+                    nested = session.begin_nested()
+                    session.add(FinanceLobbyingRecord(
+                        institution_id=inst.institution_id,
+                        filing_uuid=filing_uuid,
+                        filing_year=r.get("filing_year", 0),
+                        filing_period=r.get("filing_period_display"),
+                        income=_safe_float(r.get("income")),
+                        expenses=_safe_float(r.get("expenses")),
+                        registrant_name=(r.get("registrant") or {}).get("name"),
+                        client_name=(r.get("client") or {}).get("name"),
+                        lobbying_issues=", ".join(sorted(set(issues))) if issues else None,
+                        government_entities=", ".join(sorted(gov_entities)) if gov_entities else None,
+                        specific_issues=" || ".join(descriptions) if descriptions else None,
+                        dedupe_hash=dedupe,
+                    ))
+                    nested.commit()
+                    count += 1
+                except IntegrityError:
+                    nested.rollback()
 
-            # Commit after each page to avoid large transactions
+            # Commit after each page
             if count > 0:
                 session.commit()
 
             page_url = data.get("next")
             page_num += 1
 
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
     log.info(f"  [{inst.institution_id}] {count} new lobbying filings")
     return count
 
@@ -174,7 +185,7 @@ def fetch_contracts(session, inst: TrackedInstitution):
     """Fetch government contracts from USASpending.gov with pagination."""
     import time
     search_name = inst.display_name
-    url = "https://api.usaspending.gov/api/v2/search/spending_by_award/"
+    url = f"{USASPENDING_BASE}/search/spending_by_award/"
     page_size = 100  # API max per page
     page = 1
     count = 0
@@ -184,7 +195,7 @@ def fetch_contracts(session, inst: TrackedInstitution):
             "filters": {
                 "recipient_search_text": [search_name],
                 "award_type_codes": ["A", "B", "C", "D"],
-                "time_period": [{"start_date": "2015-01-01", "end_date": datetime.now().strftime("%Y-%m-%d")}],
+                "time_period": [{"start_date": "2015-01-01", "end_date": datetime.now(timezone.utc).strftime("%Y-%m-%d")}],
             },
             "fields": ["Award ID", "Award Amount", "Awarding Agency", "Description", "Start Date", "End Date", "Award Type"],
             "limit": page_size,
@@ -211,20 +222,25 @@ def fetch_contracts(session, inst: TrackedInstitution):
             if session.query(FinanceGovernmentContract).filter_by(dedupe_hash=dedupe).first():
                 continue
 
-            session.add(FinanceGovernmentContract(
-                institution_id=inst.institution_id,
-                award_id=award_id,
-                award_amount=r.get("Award Amount"),
-                awarding_agency=r.get("Awarding Agency"),
-                description=r.get("Description"),
-                start_date=parse_date(r.get("Start Date")),
-                end_date=parse_date(r.get("End Date")),
-                contract_type=r.get("Award Type"),
-                dedupe_hash=dedupe,
-            ))
-            count += 1
+            try:
+                nested = session.begin_nested()
+                session.add(FinanceGovernmentContract(
+                    institution_id=inst.institution_id,
+                    award_id=award_id,
+                    award_amount=r.get("Award Amount"),
+                    awarding_agency=r.get("Awarding Agency"),
+                    description=r.get("Description"),
+                    start_date=parse_date(r.get("Start Date")),
+                    end_date=parse_date(r.get("End Date")),
+                    contract_type=r.get("Award Type"),
+                    dedupe_hash=dedupe,
+                ))
+                nested.commit()
+                count += 1
+            except IntegrityError:
+                nested.rollback()
 
-        # Commit after each page to avoid large transactions
+        # Commit after each page
         if count > 0:
             session.commit()
 
@@ -233,7 +249,10 @@ def fetch_contracts(session, inst: TrackedInstitution):
         page += 1
         time.sleep(1)
 
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
     log.info(f"  [{inst.institution_id}] {count} new contracts")
     return count
 

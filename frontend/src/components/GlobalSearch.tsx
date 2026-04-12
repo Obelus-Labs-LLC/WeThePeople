@@ -232,7 +232,7 @@ export default function GlobalSearch() {
                           }`}
                         >
                           {p.photo_url ? (
-                            <img src={p.photo_url} alt="" className="w-8 h-8 rounded-full object-cover bg-white/10" />
+                            <img src={p.photo_url} alt={p.display_name} className="w-8 h-8 rounded-full object-cover bg-white/10" />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/40 text-xs font-bold">
                               {p.name.charAt(0)}

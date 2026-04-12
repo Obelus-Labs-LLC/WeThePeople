@@ -21,14 +21,17 @@ export default function CivicVerifyPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
     if (!isAuthenticated) return;
     fetchVerificationStatus()
       .then((data) => {
+        if (cancelled) return;
         setLevel(data.level);
         setVerifiedState(data.verified_state);
         setVerifiedZip(data.verified_zip);
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [isAuthenticated]);
 
   const handleVerify = async () => {

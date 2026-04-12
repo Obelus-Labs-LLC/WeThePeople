@@ -47,17 +47,20 @@ export default function DataExplorerPage() {
   const [metric, setMetric] = useState<'lobbying' | 'contracts' | 'enforcement'>('lobbying');
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     Promise.all([
-      fetch(`${API_BASE}/influence/stats`).then((r) => r.json()),
-      fetch(`${API_BASE}/influence/top-lobbying?limit=30`).then((r) => r.json()),
+      fetch(`${API_BASE}/influence/stats`).then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
+      fetch(`${API_BASE}/influence/top-lobbying?limit=30`).then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
     ])
       .then(([s, l]) => {
+        if (cancelled) return;
         setStats(s);
         setLeaders(l.leaders || []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, []);
 
   const toggleSector = (s: string) => {

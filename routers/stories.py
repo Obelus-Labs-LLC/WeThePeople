@@ -9,7 +9,9 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Query, HTTPException, Depends
+from fastapi import APIRouter, Query, HTTPException, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import Optional
@@ -20,8 +22,10 @@ from models.database import get_db
 from models.stories_models import Story
 from models.response_schemas import StoriesListResponse
 from services.jwt_auth import get_current_user
+from services.rbac import require_role
 
 router = APIRouter(prefix="/stories", tags=["stories"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 def _safe_json_loads(val):
@@ -79,8 +83,8 @@ def list_stories(
                 "entity_ids": s.entity_ids,
                 "evidence": s.evidence,
                 "status": s.status,
-                "verification_score": getattr(s, 'verification_score', None),
-                "verification_tier": getattr(s, 'verification_tier', None),
+                "verification_score": s.verification_score,
+                "verification_tier": s.verification_tier,
                 "published_at": s.published_at.isoformat() if s.published_at else None,
                 "created_at": s.created_at.isoformat() if s.created_at else None,
             }
@@ -120,8 +124,8 @@ def latest_stories(
                 "sector": s.sector,
                 "entity_ids": s.entity_ids,
                 "data_sources": s.data_sources,
-                "verification_score": getattr(s, 'verification_score', None),
-                "verification_tier": getattr(s, 'verification_tier', None),
+                "verification_score": s.verification_score,
+                "verification_tier": s.verification_tier,
                 "published_at": s.published_at.isoformat() if s.published_at else None,
             }
             for s in stories
@@ -194,16 +198,17 @@ def get_story(slug: str, db: Session = Depends(get_db)):
         "data_sources": story.data_sources,
         "evidence": story.evidence,
         "status": story.status,
-        "verification_score": getattr(story, 'verification_score', None),
-        "verification_tier": getattr(story, 'verification_tier', None),
-        "verification_data": _safe_json_loads(getattr(story, 'verification_data', None)),
+        "verification_score": story.verification_score,
+        "verification_tier": story.verification_tier,
+        "verification_data": _safe_json_loads(story.verification_data),
         "published_at": story.published_at.isoformat() if story.published_at else None,
         "created_at": story.created_at.isoformat() if story.created_at else None,
     }
 
 
 @router.post("/{slug}/publish")
-def publish_story(slug: str, user=Depends(get_current_user), db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def publish_story(slug: str, request: Request, user=Depends(require_role("admin")), db: Session = Depends(get_db)):
     """Publish a draft story (sets status to published and published_at timestamp)."""
     try:
         story = db.query(Story).filter(Story.slug == slug).first()
@@ -218,6 +223,11 @@ def publish_story(slug: str, user=Depends(get_current_user), db: Session = Depen
 
     story.status = "published"
     story.published_at = datetime.now(timezone.utc)
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to publish story %s: %s", slug, e)
+        raise HTTPException(status_code=500, detail="Failed to publish story")
 
     return {"message": "Published", "slug": slug, "published_at": story.published_at.isoformat()}

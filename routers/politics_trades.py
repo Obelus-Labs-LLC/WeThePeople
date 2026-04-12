@@ -11,13 +11,14 @@ from models.database import (
     TrackedMember,
     CongressionalTrade,
 )
+from models.response_schemas import TradesListResponse
 
 router = APIRouter(tags=["politics"])
 
 
 # ── Congressional Trades ──
 
-@router.get("/people/{person_id}/trades")
+@router.get("/people/{person_id}/trades", response_model=TradesListResponse)
 def get_person_trades(
     person_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
     transaction_type: Optional[str] = Query(None, description="purchase, sale, exchange"),
@@ -50,7 +51,7 @@ def get_person_trades(
         db.close()
 
 
-@router.get("/congressional-trades")
+@router.get("/congressional-trades", response_model=TradesListResponse)
 def get_all_congressional_trades(
     limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
     transaction_type: Optional[str] = Query(None),

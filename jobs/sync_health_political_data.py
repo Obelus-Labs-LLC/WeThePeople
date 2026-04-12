@@ -16,6 +16,8 @@ Usage:
 """
 
 import os
+from connectors.senate_lda import LDA_BASE
+from connectors.usaspending import USASPENDING_BASE
 import sys
 import hashlib
 import argparse
@@ -97,7 +99,7 @@ def fetch_lobbying(session, company: TrackedCompany):
 
     count = 0
     for year in years:
-        page_url = "https://lda.senate.gov/api/v1/filings/"
+        page_url = LDA_BASE
         page_num = 0
 
         while page_url:
@@ -175,7 +177,7 @@ def fetch_contracts(session, company: TrackedCompany):
     """Fetch government contracts from USASpending.gov with pagination."""
     import time
     search_name = company.display_name
-    url = "https://api.usaspending.gov/api/v2/search/spending_by_award/"
+    url = f"{USASPENDING_BASE}/search/spending_by_award/"
     page_size = 100  # API max per page
     page = 1
     count = 0

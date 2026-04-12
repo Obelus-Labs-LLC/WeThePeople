@@ -4,6 +4,11 @@ WeThePeople Automated Sync Scheduler
 Uses fastscheduler to run data sync jobs on a recurring schedule.
 All jobs run SEQUENTIALLY via a file lock to prevent SQLite write conflicts.
 
+CONCURRENCY MODEL: Sync jobs use check-then-act patterns (query-then-insert)
+that are safe ONLY because the file lock ensures sequential execution. If you
+ever introduce parallel job execution, each upsert must use INSERT OR IGNORE
+or ON CONFLICT DO NOTHING to prevent duplicate-key races.
+
 Usage:
     python jobs/scheduler.py                     # Start the scheduler daemon
     python jobs/scheduler.py --list              # Show all scheduled jobs and next run times
@@ -525,10 +530,9 @@ def _run_job(job: JobDef, dry_run: bool = False) -> Dict[str, Any]:
         result["finished_at"] = result["started_at"]
         return result
 
-    log.info("╔══ Starting job: %s", job.name)
-    log.info("║  Script: %s %s", job.script, " ".join(job.args))
-
     _lock.acquire(blocking=True)
+    log.info("╔══ Starting job: %s (lock acquired)", job.name)
+    log.info("║  Script: %s %s", job.script, " ".join(job.args))
     started = time.monotonic()
     try:
         cmd = [sys.executable, str(ROOT / job.script)] + job.args

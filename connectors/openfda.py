@@ -86,6 +86,65 @@ def _parse_event(event: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def search_enforcement(
+    product_type: str = "food",
+    search: str = "",
+    limit: int = 25,
+) -> Dict[str, Any]:
+    """
+    Search OpenFDA enforcement (recall) data by product description.
+
+    Args:
+        product_type: 'food', 'drug', or 'device'
+        search: Product description search term (optional)
+        limit: Max results (1-100)
+
+    Returns:
+        Dict with 'total' and 'recalls' list
+    """
+    if product_type not in ("food", "drug", "device"):
+        raise ValueError(f"Invalid product_type: {product_type}")
+
+    url = f"{OPENFDA_BASE}/{product_type}/enforcement.json"
+    params = _build_params(min(limit, 100))
+    if search.strip():
+        q = search.strip().replace('"', "")
+        params["search"] = f'product_description:"{q}"'
+
+    try:
+        resp = requests.get(url, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            return {"total": 0, "recalls": []}
+        logger.warning("OpenFDA %s enforcement error: %s", product_type, e)
+        return {"total": 0, "recalls": [], "error": str(e)}
+    except Exception as e:
+        logger.warning("OpenFDA %s enforcement request error: %s", product_type, e)
+        return {"total": 0, "recalls": [], "error": str(e)}
+
+    results = data.get("results", [])
+    total = data.get("meta", {}).get("results", {}).get("total", len(results))
+
+    recalls = []
+    for r in results:
+        recalls.append({
+            "recall_number": r.get("recall_number"),
+            "classification": r.get("classification"),
+            "status": r.get("status"),
+            "product_description": r.get("product_description"),
+            "reason_for_recall": r.get("reason_for_recall"),
+            "recall_initiation_date": r.get("recall_initiation_date"),
+            "recalling_firm": r.get("recalling_firm"),
+            "city": r.get("city"),
+            "state": r.get("state"),
+            "distribution_pattern": r.get("distribution_pattern"),
+        })
+
+    return {"total": total, "recalls": recalls}
+
+
 def fetch_adverse_events(
     manufacturer_name: str,
     limit: int = 100,

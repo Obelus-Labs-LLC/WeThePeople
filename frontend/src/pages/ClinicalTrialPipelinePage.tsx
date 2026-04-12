@@ -392,7 +392,7 @@ export default function ClinicalTrialPipelinePage() {
                       >
                         <div className="w-8 h-8 rounded border border-white/10 bg-white/[0.05] flex items-center justify-center shrink-0 p-1">
                           {comp.logoUrl ? (
-                            <img src={comp.logoUrl} alt="" className="w-full h-full object-contain" />
+                            <img src={comp.logoUrl} alt={comp.companyName} className="w-full h-full object-contain" />
                           ) : (
                             <Building2 size={14} className="text-white/30" />
                           )}

@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS, PARTY_COLORS } from '../constants/colors';
 import { EmptyState } from '../components/ui';
 
-const API_BASE = 'https://api.wethepeopleforus.com';
+import { API_BASE } from '../api/client';
 const ACCENT = '#1E40AF';
 
 const STATES = [

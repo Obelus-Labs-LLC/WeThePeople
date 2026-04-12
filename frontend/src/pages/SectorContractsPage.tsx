@@ -128,6 +128,7 @@ interface ContractItem {
   contract_type: string | null;
   entity_id: string;
   entity_name: string;
+  ai_summary?: string;
 }
 
 interface YearBucket {
@@ -361,8 +362,8 @@ function CompanyContractsPanel({ contracts, accent, accentRGB }: CompanyContract
             </div>
 
             {/* AI summary if present */}
-            {(ct as any).ai_summary && (
-              <p className="text-zinc-400 text-xs mb-2 leading-relaxed">{(ct as any).ai_summary}</p>
+            {ct.ai_summary && (
+              <p className="text-zinc-400 text-xs mb-2 leading-relaxed">{ct.ai_summary}</p>
             )}
 
             {/* Tags row: agency badge, date, type, source link */}

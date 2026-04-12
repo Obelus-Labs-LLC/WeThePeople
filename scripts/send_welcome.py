@@ -25,8 +25,9 @@ html = """
 </div>
 """
 
+from services.email import RESEND_API_URL
 r = requests.post(
-    "https://api.resend.com/emails",
+    RESEND_API_URL,
     headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
     json={
         "from": "WeThePeople <digest@wethepeopleforus.com>",

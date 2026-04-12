@@ -129,6 +129,7 @@ interface LobbyingFiling {
   government_entities: string | null;
   entity_id: string;
   entity_name: string;
+  ai_summary?: string;
 }
 
 interface IssueBreakdown {
@@ -241,12 +242,12 @@ export default function SectorLobbyingPage() {
           } else {
             existing.companies.set(filing.entity_id, { name: filing.entity_name, income });
           }
-          const aiSum = (filing as any).ai_summary;
+          const aiSum = filing.ai_summary;
           if (aiSum && !existing.aiSummaries.includes(aiSum)) existing.aiSummaries.push(aiSum);
         } else {
           const companies = new Map<string, { name: string; income: number }>();
           companies.set(filing.entity_id, { name: filing.entity_name, income });
-          const aiSum = (filing as any).ai_summary;
+          const aiSum = filing.ai_summary;
           issueMap.set(issue, {
             issue,
             totalIncome: income,

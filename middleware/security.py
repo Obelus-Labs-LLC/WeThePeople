@@ -30,7 +30,7 @@ _CSP_VALUE = (
     "style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data: https:; "
     "font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; "
-    "connect-src 'self' https://api.wethepeopleforus.com:8006"
+    "connect-src 'self' https://api.wethepeopleforus.com"
 )
 
 # HSTS: 1 year max-age, include subdomains

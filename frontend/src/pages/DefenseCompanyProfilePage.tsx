@@ -157,6 +157,8 @@ export default function DefenseCompanyProfilePage() {
   useEffect(() => {
     if (!companyId) return;
 
+    let cancelled = false;
+
     if (activeTab === 'contracts' && !contractsLoaded) {
       Promise.all([
         getDefenseCompanyContracts(companyId, { limit: 100 }),
@@ -200,6 +202,7 @@ export default function DefenseCompanyProfilePage() {
         .then((r) => { setDonations(r.donations || []); setDonationTotal(r.total); setDonationTotalAmount(r.total_amount || 0); setDonationsLoaded(true); })
         .catch(() => {});
     }
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, companyId]);
 

@@ -57,6 +57,7 @@ function FilterPill({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className="flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 font-body text-sm font-medium transition-all duration-200"
       style={{
         borderColor: active ? color : 'rgba(255,255,255,0.1)',

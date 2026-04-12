@@ -81,14 +81,17 @@ export default function CivicHubPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.allSettled([
       fetchPromises({ limit: 6, sort: 'hot' }),
       fetchProposals({ limit: 6, sort: 'hot' }),
     ]).then(([prom, prop]) => {
+        if (cancelled) return;
       if (prom.status === 'fulfilled') { setPromises(prom.value.items); setPromiseTotal(prom.value.total); }
       if (prop.status === 'fulfilled') { setProposals(prop.value.items); setProposalTotal(prop.value.total); }
       setLoading(false);
     });
+    return () => { cancelled = true; };
   }, []);
 
   return (

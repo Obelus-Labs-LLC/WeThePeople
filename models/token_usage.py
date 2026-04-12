@@ -21,10 +21,10 @@ class TokenUsageLog(Base):
     # Features: 'chat_agent', 'story_opus', 'story_haiku', 'ai_summarize',
     # 'claims_pipeline', 'twitter_bot', 'enrichment', 'test'
     model = Column(String, nullable=False, index=True)
-    input_tokens = Column(Integer, nullable=False, default=0)
-    output_tokens = Column(Integer, nullable=False, default=0)
-    total_tokens = Column(Integer, nullable=False, default=0)
-    cost_usd = Column(Float, nullable=False, default=0.0)
+    input_tokens = Column(Integer, nullable=False, server_default="0")
+    output_tokens = Column(Integer, nullable=False, server_default="0")
+    total_tokens = Column(Integer, nullable=False, server_default="0")
+    cost_usd = Column(Float, nullable=False, server_default="0.0")
     # Optional context
     detail = Column(String, nullable=True)  # e.g., story slug, entity_id, question preview
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)

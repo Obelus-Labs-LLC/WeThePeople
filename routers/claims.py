@@ -14,6 +14,7 @@ from sqlalchemy import func, desc
 from sqlalchemy.orm import Session
 
 from models.database import get_db, Claim, ClaimEvaluation, TrackedMember
+from models.response_schemas import VerificationResponse
 from services.auth import require_enterprise_or_rate_limit
 from services.claims.veritas_bridge import (
     run_verification as veritas_verify,
@@ -42,7 +43,7 @@ class VerifyUrlRequest(BaseModel):
 # POST endpoints (rate-limited)
 # ---------------------------------------------------------------------------
 
-@router.post("/verify")
+@router.post("/verify", response_model=VerificationResponse)
 def verify_text(
     body: VerifyTextRequest,
     auth: dict = Depends(require_enterprise_or_rate_limit),
@@ -71,10 +72,10 @@ def verify_text(
         return result
     except Exception as e:
         logger.error("Verification failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)[:200]}")
+        raise HTTPException(status_code=500, detail="Verification failed. Please try again later.")
 
 
-@router.post("/verify-url")
+@router.post("/verify-url", response_model=VerificationResponse)
 def verify_url(
     body: VerifyUrlRequest,
     auth: dict = Depends(require_enterprise_or_rate_limit),
@@ -98,7 +99,7 @@ def verify_url(
         return result
     except Exception as e:
         logger.error("URL verification failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)[:200]}")
+        raise HTTPException(status_code=500, detail="Verification failed. Please try again later.")
 
 
 # ---------------------------------------------------------------------------
@@ -386,4 +387,4 @@ def _safe_json(raw):
     try:
         return json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        return raw
+        return None

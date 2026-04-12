@@ -37,7 +37,7 @@ class User(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_login = Column(DateTime(timezone=True), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Tiered citizen verification (Consul-inspired)
     # Levels: 0=unverified (email only), 1=residence_verified, 2=document_verified

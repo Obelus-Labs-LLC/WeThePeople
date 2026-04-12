@@ -11,14 +11,10 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import (
-    Column, DateTime, Float, Integer, String, Text,
-    UniqueConstraint, text,
-)
+from sqlalchemy import text
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
 
-from models.database import Base
+from models.pipeline_models import FailedRecord, ProcessedRecord, DataQualityCheck  # noqa: F401
 from utils.db_compat import limit_sql
 from utils.logging import get_logger
 
@@ -30,29 +26,12 @@ logger = get_logger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class FailedRecord(Base):
-    """Records that failed during sync job processing.
-
-    Instead of silently dropping failures, jobs send broken records here
-    so they can be inspected, fixed, and retried later.
-    """
-    __tablename__ = "failed_records"
-
-    id = Column(Integer, primary_key=True, index=True)
-    job_name = Column(String(100), nullable=False, index=True)
-    record_data = Column(Text, nullable=False)  # JSON-serialized original record
-    error_message = Column(Text, nullable=False)
-    retry_count = Column(Integer, nullable=False, server_default="0")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    last_retry_at = Column(DateTime(timezone=True), nullable=True)
-    resolved_at = Column(DateTime(timezone=True), nullable=True)
-
-
 def send_to_dlq(
     db: Session,
     job_name: str,
     record_data: Any,
     error: str,
+    auto_commit: bool = True,
 ) -> FailedRecord:
     """Store a failed record in the dead letter queue.
 
@@ -61,6 +40,8 @@ def send_to_dlq(
         job_name: Name of the sync job that failed (e.g. "sync_finance_data").
         record_data: The raw record that caused the failure (dict/list/str).
         error: Error message or traceback string.
+        auto_commit: If True (default), commits immediately. Set False to let
+                     the caller control the transaction boundary.
 
     Returns:
         The created FailedRecord.
@@ -72,8 +53,11 @@ def send_to_dlq(
         error_message=str(error)[:5000],  # Truncate long tracebacks
     )
     db.add(item)
-    db.commit()
-    db.refresh(item)
+    if auto_commit:
+        db.commit()
+        db.refresh(item)
+    else:
+        db.flush()
     logger.warning("DLQ: %s — %s", job_name, str(error)[:200])
     return item
 
@@ -159,24 +143,6 @@ def resolve_dlq_item(db: Session, item_id: int) -> FailedRecord:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class ProcessedRecord(Base):
-    """Tracks which records have been successfully processed by each job.
-
-    Uses a SHA-256 hash of the record data to detect duplicates across runs.
-    This complements the per-table dedupe_hash columns by providing a
-    job-level deduplication layer.
-    """
-    __tablename__ = "processed_records"
-
-    __table_args__ = (
-        UniqueConstraint("job_name", "record_hash", name="uq_processed_job_hash"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    job_name = Column(String(100), nullable=False, index=True)
-    record_hash = Column(String(64), nullable=False, index=True)  # SHA-256 hex digest
-    processed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
 
 def _compute_hash(record_data: Any) -> str:
     """Compute a stable SHA-256 hash from record data.
@@ -215,13 +181,17 @@ def already_processed(db: Session, job_name: str, record_data: Any) -> bool:
     return exists is not None
 
 
-def mark_processed(db: Session, job_name: str, record_data: Any) -> ProcessedRecord:
+def mark_processed(
+    db: Session, job_name: str, record_data: Any, auto_commit: bool = True,
+) -> ProcessedRecord:
     """Mark a record as successfully processed.
 
     Args:
         db: SQLAlchemy session.
         job_name: Name of the sync job.
         record_data: The raw record (dict, str, etc.) that was processed.
+        auto_commit: If True (default), commits immediately. Set False to let
+                     the caller control the transaction boundary.
 
     Returns:
         The created ProcessedRecord.
@@ -232,8 +202,11 @@ def mark_processed(db: Session, job_name: str, record_data: Any) -> ProcessedRec
         record_hash=record_hash,
     )
     db.add(rec)
-    db.commit()
-    db.refresh(rec)
+    if auto_commit:
+        db.commit()
+        db.refresh(rec)
+    else:
+        db.flush()
     return rec
 
 
@@ -241,22 +214,6 @@ def mark_processed(db: Session, job_name: str, record_data: Any) -> ProcessedRec
 # 3. Data Quality Monitoring
 # ═══════════════════════════════════════════════════════════════════════════
 
-
-class DataQualityCheck(Base):
-    """Results of automated data quality checks.
-
-    Run after sync jobs to detect regressions: empty tables, missing
-    foreign keys, null fields that should be populated, etc.
-    """
-    __tablename__ = "data_quality_checks"
-
-    id = Column(Integer, primary_key=True, index=True)
-    check_name = Column(String(200), nullable=False, index=True)
-    table_name = Column(String(100), nullable=False, index=True)
-    expected_min = Column(Float, nullable=True)
-    actual_count = Column(Float, nullable=True)
-    passed = Column(Integer, nullable=False, index=True)  # SQLite: 0=fail, 1=pass
-    checked_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 def _count_rows(db: Session, table_name: str) -> int:

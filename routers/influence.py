@@ -44,20 +44,27 @@ from models.telecom_models import (
 from models.government_data_models import RegulatoryComment
 from models.response_schemas import InfluenceStatsResponse
 
+import threading
 import time as _time
 
 router = APIRouter(prefix="/influence", tags=["influence"])
 
 _freshness_cache: dict = {"ts": 0, "data": None}
-_FRESHNESS_TTL = 60  # seconds
+_freshness_lock = threading.Lock()
+_FRESHNESS_TTL = 300  # seconds
+
+_stats_cache: dict = {"ts": 0, "data": None}
+_stats_lock = threading.Lock()
+_STATS_TTL = 60  # seconds
 
 
 @router.get("/data-freshness")
 def data_freshness(db: Session = Depends(get_db)):
     """Return last-updated timestamps and record counts for each major data type."""
     now = _time.time()
-    if _freshness_cache["data"] is not None and (now - _freshness_cache["ts"]) < _FRESHNESS_TTL:
-        return _freshness_cache["data"]
+    with _freshness_lock:
+        if _freshness_cache["data"] is not None and (now - _freshness_cache["ts"]) < _FRESHNESS_TTL:
+            return _freshness_cache["data"]
 
     def _max_date_and_count(model, date_col):
         """Return (max_date_str_or_None, count) for a model/date column."""
@@ -146,14 +153,20 @@ def data_freshness(db: Session = Depends(get_db)):
         "trades": {"last_updated": trades_latest, "record_count": trades_count},
         "insider_trades": {"last_updated": insider_latest, "record_count": insider_count},
     }
-    _freshness_cache["ts"] = _time.time()
-    _freshness_cache["data"] = result
+    with _freshness_lock:
+        _freshness_cache["ts"] = _time.time()
+        _freshness_cache["data"] = result
     return result
 
 
 @router.get("/stats", response_model=InfluenceStatsResponse)
 def get_influence_stats(db: Session = Depends(get_db)):
     """Aggregate influence stats across all sectors."""
+    now = _time.time()
+    with _stats_lock:
+        if _stats_cache["data"] is not None and (now - _stats_cache["ts"]) < _STATS_TTL:
+            return _stats_cache["data"]
+
     # Lobbying totals
     finance_lobbying = db.query(func.sum(FinanceLobbyingRecord.income)).scalar() or 0
     health_lobbying = db.query(func.sum(HealthLobbyingRecord.income)).scalar() or 0
@@ -198,7 +211,7 @@ def get_influence_stats(db: Session = Depends(get_db)):
         TrackedMember.is_active == 1
     ).scalar() or 0
 
-    return {
+    result = {
         "total_lobbying_spend": total_lobbying,
         "total_contract_value": total_contracts,
         "total_enforcement_actions": total_enforcement,
@@ -216,6 +229,11 @@ def get_influence_stats(db: Session = Depends(get_db)):
             "telecom": {"lobbying": telecom_lobbying, "contracts": telecom_contracts, "enforcement": telecom_enforcement},
         },
     }
+
+    with _stats_lock:
+        _stats_cache["data"] = result
+        _stats_cache["ts"] = _time.time()
+    return result
 
 
 @router.get("/top-lobbying")
@@ -608,7 +626,7 @@ def get_influence_network(
         return build_influence_network(db, entity_type, entity_id, depth=depth, limit=limit)
     except Exception as e:
         logger.exception("Influence network error for %s/%s: %s", entity_type, entity_id, e)
-        raise HTTPException(status_code=500, detail=f"Network build failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Network build failed. Please try again later.")
 
 
 @router.get("/closed-loops")

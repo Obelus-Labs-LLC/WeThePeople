@@ -252,154 +252,154 @@ def _query_contracts(sector: str, limit: int, db: Session):
 # ── Enforcement endpoints ──
 
 @router.get("/finance/enforcement")
-def finance_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def finance_enforcement_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_enforcement("finance", limit, db)
 
 
 @router.get("/health/enforcement")
-def health_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def health_enforcement_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_enforcement("health", limit, db)
 
 
 @router.get("/tech/enforcement")
-def tech_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def tech_enforcement_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_enforcement("tech", limit, db)
 
 
 @router.get("/energy/enforcement")
-def energy_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def energy_enforcement_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_enforcement("energy", limit, db)
 
 
 @router.get("/transportation/enforcement")
-def transportation_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def transportation_enforcement_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_enforcement("transportation", limit, db)
 
 
 @router.get("/defense/enforcement")
-def defense_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def defense_enforcement_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_enforcement("defense", limit, db)
 
 
 @router.get("/chemicals/enforcement")
-def chemicals_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def chemicals_enforcement_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_enforcement("chemicals", limit, db)
 
 
 @router.get("/agriculture/enforcement")
-def agriculture_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def agriculture_enforcement_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_enforcement("agriculture", limit, db)
 
 
 @router.get("/telecom/enforcement")
-def telecom_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def telecom_enforcement_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_enforcement("telecom", limit, db)
 
 
 @router.get("/education/enforcement")
-def education_enforcement_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def education_enforcement_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_enforcement("education", limit, db)
 
 
 # ── Lobbying endpoints ──
 
 @router.get("/finance/lobbying")
-def finance_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def finance_lobbying_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_lobbying("finance", limit, db)
 
 
 @router.get("/health/lobbying")
-def health_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def health_lobbying_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_lobbying("health", limit, db)
 
 
 @router.get("/tech/lobbying")
-def tech_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def tech_lobbying_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_lobbying("tech", limit, db)
 
 
 @router.get("/energy/lobbying")
-def energy_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def energy_lobbying_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_lobbying("energy", limit, db)
 
 
 @router.get("/transportation/lobbying")
-def transportation_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def transportation_lobbying_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_lobbying("transportation", limit, db)
 
 
 @router.get("/defense/lobbying")
-def defense_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def defense_lobbying_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_lobbying("defense", limit, db)
 
 
 @router.get("/chemicals/lobbying")
-def chemicals_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def chemicals_lobbying_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_lobbying("chemicals", limit, db)
 
 
 @router.get("/agriculture/lobbying")
-def agriculture_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def agriculture_lobbying_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_lobbying("agriculture", limit, db)
 
 
 @router.get("/telecom/lobbying")
-def telecom_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def telecom_lobbying_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_lobbying("telecom", limit, db)
 
 
 @router.get("/education/lobbying")
-def education_lobbying_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def education_lobbying_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_lobbying("education", limit, db)
 
 
 # ── Contracts endpoints ──
 
 @router.get("/finance/contracts")
-def finance_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def finance_contracts_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_contracts("finance", limit, db)
 
 
 @router.get("/health/contracts")
-def health_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def health_contracts_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_contracts("health", limit, db)
 
 
 @router.get("/tech/contracts")
-def tech_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def tech_contracts_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_contracts("tech", limit, db)
 
 
 @router.get("/energy/contracts")
-def energy_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def energy_contracts_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_contracts("energy", limit, db)
 
 
 @router.get("/transportation/contracts")
-def transportation_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def transportation_contracts_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_contracts("transportation", limit, db)
 
 
 @router.get("/defense/contracts")
-def defense_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def defense_contracts_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_contracts("defense", limit, db)
 
 
 @router.get("/chemicals/contracts")
-def chemicals_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def chemicals_contracts_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_contracts("chemicals", limit, db)
 
 
 @router.get("/agriculture/contracts")
-def agriculture_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def agriculture_contracts_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_contracts("agriculture", limit, db)
 
 
 @router.get("/telecom/contracts")
-def telecom_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def telecom_contracts_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_contracts("telecom", limit, db)
 
 
 @router.get("/education/contracts")
-def education_contracts_all(limit: int = Query(500, ge=1, le=2000), db: Session = Depends(get_db)):
+def education_contracts_all(limit: int = Query(500, ge=1, le=500), db: Session = Depends(get_db)):
     return _query_contracts("education", limit, db)

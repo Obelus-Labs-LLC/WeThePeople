@@ -85,7 +85,7 @@ function InstitutionSelector({
           {selected ? (
             <>
               {selected.logo_url ? (
-                <img src={selected.logo_url} alt="" className="h-6 w-6 rounded object-contain flex-shrink-0" />
+                <img src={selected.logo_url} alt={selected.display_name} className="h-6 w-6 rounded object-contain flex-shrink-0" />
               ) : (
                 <Building2 size={18} className="text-white/30 flex-shrink-0" />
               )}
@@ -147,7 +147,7 @@ function InstitutionSelector({
                 }`}
               >
                 {inst.logo_url ? (
-                  <img src={inst.logo_url} alt="" className="h-5 w-5 rounded object-contain flex-shrink-0" />
+                  <img src={inst.logo_url} alt={inst.display_name} className="h-5 w-5 rounded object-contain flex-shrink-0" />
                 ) : (
                   <Building2 size={16} className="text-white/20 flex-shrink-0" />
                 )}

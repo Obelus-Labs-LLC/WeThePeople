@@ -65,6 +65,7 @@ def log_token_usage(feature: str, model: str, input_tokens: int, output_tokens: 
     Features: 'chat_agent', 'story_opus', 'ai_summarize',
     'claims_pipeline', 'twitter_bot', 'enrichment', 'test'
     """
+    db = None
     try:
         from models.database import SessionLocal
         from models.token_usage import TokenUsageLog
@@ -81,9 +82,13 @@ def log_token_usage(feature: str, model: str, input_tokens: int, output_tokens: 
             detail=(detail or "")[:500],
         ))
         db.commit()
-        db.close()
     except Exception as e:
-        logger.warning("Failed to log token usage: %s", e)
+        logger.warning("Failed to log token usage for feature=%s model=%s: %s", feature, model, e)
+        if db:
+            db.rollback()
+    finally:
+        if db:
+            db.close()
 
 
 def load_ledger() -> Dict[str, Any]:
@@ -96,10 +101,10 @@ def load_ledger() -> Dict[str, Any]:
                     return json.loads(f.read())
                 finally:
                     _unlock_file(f)
-        except (json.JSONDecodeError, Exception):
-            pass
+        except (json.JSONDecodeError, Exception) as e:
+            logger.warning("Budget ledger corrupted or unreadable, using defaults: %s", e)
     return {
-        "month": datetime.now().strftime("%Y-%m"),
+        "month": datetime.now(timezone.utc).strftime("%Y-%m"),
         "remaining_balance": 10.38,
     }
 
@@ -131,6 +136,62 @@ def check_budget(estimated_cost: float = 0.01) -> Tuple[bool, float]:
         )
         return False, remaining
     return True, remaining
+
+
+def reserve_and_spend(estimated_cost: float, cost: float, model: str = "",
+                      input_tokens: int = 0, output_tokens: int = 0) -> Tuple[bool, float]:
+    """
+    Atomically check budget and record spend under a single file lock.
+
+    Prevents concurrent callers from overdrawing by combining check + spend
+    into one locked operation.
+
+    Returns:
+        (allowed, remaining_balance_after)
+    """
+    if cost <= 0:
+        return True, load_ledger().get("remaining_balance", 0)
+
+    BUDGET_FILE.parent.mkdir(parents=True, exist_ok=True)
+    # Open for read+write to hold lock across check and write
+    try:
+        with open(BUDGET_FILE, "r+") as f:
+            _lock_file(f)
+            try:
+                ledger = json.loads(f.read())
+            except (json.JSONDecodeError, ValueError):
+                ledger = {"month": datetime.now(timezone.utc).strftime("%Y-%m"), "remaining_balance": 10.38}
+
+            remaining = ledger.get("remaining_balance", 0)
+            if remaining < estimated_cost:
+                _unlock_file(f)
+                logger.warning("Budget reserve failed: $%.4f remaining, need $%.4f", remaining, estimated_cost)
+                return False, remaining
+
+            # Ensure WTP entry exists
+            if PROJECT_KEY not in ledger:
+                ledger[PROJECT_KEY] = {"total_cost": 0.0, "call_count": 0, "last_call": None}
+            wtp = ledger[PROJECT_KEY]
+            wtp["total_cost"] = round(wtp.get("total_cost", 0.0) + cost, 6)
+            wtp["call_count"] = wtp.get("call_count", 0) + 1
+            wtp["last_call"] = datetime.now(timezone.utc).isoformat()
+            ledger["remaining_balance"] = round(remaining - cost, 6)
+
+            f.seek(0)
+            f.truncate()
+            f.write(json.dumps(ledger, indent=2, default=str))
+            _unlock_file(f)
+
+        logger.info(
+            "Budget: WTP spent $%.4f (%s, %d in/%d out), total $%.4f, $%.2f remaining",
+            cost, model or "unknown", input_tokens, output_tokens,
+            wtp["total_cost"], ledger["remaining_balance"]
+        )
+        return True, ledger["remaining_balance"]
+    except FileNotFoundError:
+        # File doesn't exist yet — fall back to record_spend
+        record_spend(cost, model, input_tokens, output_tokens)
+        return True, load_ledger().get("remaining_balance", 0)
 
 
 def record_spend(cost: float, model: str = "", input_tokens: int = 0, output_tokens: int = 0) -> None:

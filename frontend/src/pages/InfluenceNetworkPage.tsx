@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Search, Share2, ArrowLeft, Play, Pause, RotateCcw } from 'lucide-react';
 import InfluenceGraph from '../components/InfluenceGraph';
+import CanvasErrorBoundary from '../components/CanvasErrorBoundary';
 import {
   fetchInfluenceNetwork,
   type NetworkNode,
@@ -101,25 +102,28 @@ export default function InfluenceNetworkPage() {
 
   // Load network
   useEffect(() => {
+    let cancelled = false;
     if (!entityType || !entityId) return;
     setLoading(true);
     setError(null);
     fetchInfluenceNetwork(entityType, entityId, depth, 80)
-      .then(setData)
-      .catch((err) => setError(err.message || 'Failed to load network'))
-      .finally(() => setLoading(false));
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch((err) => { if (!cancelled) setError(err.message || 'Failed to load network'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [entityType, entityId, depth]);
 
   // Search debounce
   useEffect(() => {
+    let cancelled = false;
     if (!searchQuery || searchQuery.length < 2) {
       setSearchResults([]);
       return;
     }
     const timer = setTimeout(() => {
-      searchEntities(searchQuery).then(setSearchResults);
+      searchEntities(searchQuery).then((r) => { if (!cancelled) setSearchResults(r); });
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [searchQuery]);
 
   // Close search dropdown on click outside or Escape
@@ -469,12 +473,14 @@ export default function InfluenceNetworkPage() {
             </div>
           </div>
         ) : (
-          <InfluenceGraph
-            nodes={nodes}
-            edges={edges}
-            visibleEdgeTypes={visibleTypes}
-            timelineYear={timelineYear}
-          />
+          <CanvasErrorBoundary fallbackHeight="500px">
+            <InfluenceGraph
+              nodes={nodes}
+              edges={edges}
+              visibleEdgeTypes={visibleTypes}
+              timelineYear={timelineYear}
+            />
+          </CanvasErrorBoundary>
         )}
       </div>
     </div>

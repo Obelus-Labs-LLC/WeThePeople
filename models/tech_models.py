@@ -7,58 +7,31 @@ USPTO patents, and government contracts (USASpending).
 
 from sqlalchemy import (
     Column, String, Integer, DateTime, Float, Text, Date,
-    ForeignKey, UniqueConstraint, JSON
+    ForeignKey, UniqueConstraint
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
 from models.database import Base
+from models.sector_mixins import (
+    TrackedEntityMixin, SECFilingMixin, GovernmentContractMixin,
+    LobbyingRecordMixin, EnforcementMixin,
+)
 
 
-class TrackedTechCompany(Base):
+class TrackedTechCompany(TrackedEntityMixin, Base):
     """
     Curated list of technology companies to monitor.
-    Mirrors TrackedCompany pattern from health sector.
     """
     __tablename__ = "tracked_tech_companies"
 
-    id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(String, unique=True, nullable=False, index=True)  # 'apple', 'alphabet'
-    display_name = Column(String, nullable=False)  # 'Apple Inc.'
-    ticker = Column(String, nullable=True, index=True)  # 'AAPL'
-    sector_type = Column(String, nullable=False, index=True)  # 'platform', 'enterprise', 'semiconductor', 'automotive', 'media'
-
-    # Cross-reference names/IDs for API lookups
-    sec_cik = Column(String, nullable=True, index=True)  # SEC EDGAR CIK number (zero-padded 10 digits)
+    company_id = Column(String, unique=True, nullable=False, index=True)
     uspto_assignee_name = Column(String, nullable=True)  # Exact assignee name in USPTO PatentsView
-    usaspending_recipient_name = Column(String, nullable=True)  # Recipient name in USASpending.gov
-
-    # Metadata
-    logo_url = Column(String, nullable=True)
-    headquarters = Column(String, nullable=True)
-    is_active = Column(Integer, nullable=False, server_default="1", index=True)  # SQLite: 0=inactive, 1=active
-
-    # AI-generated profile summary
-    ai_profile_summary = Column(Text, nullable=True)
-
-    # OpenSanctions status
-    sanctions_status = Column(String, nullable=True)
-    sanctions_data = Column(Text, nullable=True)
-    sanctions_checked_at = Column(DateTime(timezone=True), nullable=True)
-
-    # Scheduling state
-    needs_ingest = Column(Integer, nullable=False, server_default="1", index=True)
-    last_full_refresh_at = Column(DateTime(timezone=True), nullable=True, index=True)
-
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
-class SECTechFiling(Base):
+class SECTechFiling(SECFilingMixin, Base):
     """
     SEC EDGAR filings for tracked tech companies (10-K, 10-Q, 8-K, etc.).
-    Mirrors SECHealthFiling from health sector but FK to tracked_tech_companies.
     """
     __tablename__ = "sec_tech_filings"
 
@@ -66,22 +39,8 @@ class SECTechFiling(Base):
         UniqueConstraint("accession_number", name="uq_sec_tech_filings_accession"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
     company_id = Column(String, ForeignKey("tracked_tech_companies.company_id"), nullable=False, index=True)
 
-    accession_number = Column(String, nullable=False, index=True)
-    form_type = Column(String, nullable=False, index=True)  # '10-K', '10-Q', '8-K', 'DEF 14A'
-    filing_date = Column(Date, nullable=True, index=True)
-    primary_doc_url = Column(String, nullable=True)
-    filing_url = Column(String, nullable=True)
-    description = Column(Text, nullable=True)
-
-    dedupe_hash = Column(String, nullable=False, index=True)
-
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    # Relationships
     company = relationship("TrackedTechCompany", backref="sec_filings")
 
 
@@ -107,14 +66,12 @@ class TechPatent(Base):
 
     dedupe_hash = Column(String, nullable=False, index=True)
 
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    # Relationships
     company = relationship("TrackedTechCompany", backref="patents")
 
 
-class GovernmentContract(Base):
+class GovernmentContract(GovernmentContractMixin, Base):
     """
     Federal government contracts awarded to tracked tech companies.
     Data from USASpending.gov.
@@ -125,30 +82,12 @@ class GovernmentContract(Base):
         UniqueConstraint("dedupe_hash", name="uq_government_contracts_hash"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
     company_id = Column(String, ForeignKey("tracked_tech_companies.company_id"), nullable=False, index=True)
 
-    award_id = Column(String, nullable=True, index=True)  # USASpending generated_internal_id
-    award_amount = Column(Float, nullable=True, index=True)  # USD
-    awarding_agency = Column(String, nullable=True, index=True)  # 'Department of Defense', etc.
-    description = Column(Text, nullable=True)
-    start_date = Column(Date, nullable=True, index=True)
-    end_date = Column(Date, nullable=True)
-    contract_type = Column(String, nullable=True, index=True)  # 'Definitive Contract', etc.
-
-    # AI-generated summary
-    ai_summary = Column(Text, nullable=True)
-
-    dedupe_hash = Column(String, nullable=False, index=True)
-
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    # Relationships
     company = relationship("TrackedTechCompany", backref="government_contracts")
 
 
-class LobbyingRecord(Base):
+class LobbyingRecord(LobbyingRecordMixin, Base):
     """
     Lobbying disclosure filings from the Senate LDA API.
     Each record represents one quarterly filing from a lobbying firm
@@ -160,33 +99,12 @@ class LobbyingRecord(Base):
         UniqueConstraint("dedupe_hash", name="uq_lobbying_records_hash"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
     company_id = Column(String, ForeignKey("tracked_tech_companies.company_id"), nullable=False, index=True)
 
-    filing_uuid = Column(String, nullable=True, index=True)  # Senate LDA filing UUID
-    filing_year = Column(Integer, nullable=False, index=True)
-    filing_period = Column(String, nullable=True)  # 'Q1', 'Q2', 'Q3', 'Q4', 'Mid-Year', 'Year-End'
-    income = Column(Float, nullable=True)  # Amount paid to lobbying firm this period (USD)
-    expenses = Column(Float, nullable=True)  # Self-reported expenses if self-filing
-    registrant_name = Column(String, nullable=True, index=True)  # Lobbying firm name
-    client_name = Column(String, nullable=True)  # Client organization as filed
-    lobbying_issues = Column(Text, nullable=True)  # Comma-separated issue codes
-    government_entities = Column(Text, nullable=True)  # Comma-separated entities lobbied
-    specific_issues = Column(Text, nullable=True)
-
-    # AI-generated summary
-    ai_summary = Column(Text, nullable=True)
-
-    dedupe_hash = Column(String, nullable=False, index=True)
-
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    # Relationships
     company = relationship("TrackedTechCompany", backref="lobbying_records")
 
 
-class FTCEnforcement(Base):
+class FTCEnforcement(EnforcementMixin, Base):
     """
     FTC/DOJ enforcement actions against tracked tech companies.
     Sourced from curated seed data + FTC Legal Library scraping.
@@ -197,24 +115,6 @@ class FTCEnforcement(Base):
         UniqueConstraint("dedupe_hash", name="uq_ftc_enforcement_hash"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
     company_id = Column(String, ForeignKey("tracked_tech_companies.company_id"), nullable=False, index=True)
 
-    case_title = Column(String, nullable=False)
-    case_date = Column(Date, nullable=True, index=True)
-    case_url = Column(String, nullable=True)
-    enforcement_type = Column(String, nullable=True, index=True)  # 'Consent Order', 'Federal Court', 'Administrative'
-    penalty_amount = Column(Float, nullable=True)  # USD fine/penalty amount
-    description = Column(Text, nullable=True)
-    source = Column(String, nullable=True)  # 'FTC', 'DOJ', 'FTC/State AGs'
-
-    # AI-generated summary
-    ai_summary = Column(Text, nullable=True)
-
-    dedupe_hash = Column(String, nullable=False, index=True)
-
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    # Relationships
     company = relationship("TrackedTechCompany", backref="enforcement_actions")

@@ -20,29 +20,13 @@ Usage:
 import time
 from typing import Tuple
 
-from sqlalchemy import Column, Integer, String, Float, Index
 from sqlalchemy.orm import Session
 
-from models.database import Base, get_db
+from models.database import get_db
+from models.rate_limit_models import RateLimitRecord  # noqa: F401 — re-export for existing importers
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-class RateLimitRecord(Base):
-    """Tracks per-IP, per-endpoint request counts within sliding windows."""
-
-    __tablename__ = "rate_limit_records"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    ip_address = Column(String(45), nullable=False, index=True)   # IPv4 or IPv6
-    endpoint = Column(String(100), nullable=False, index=True)
-    window_start = Column(Float, nullable=False)                  # epoch seconds
-    request_count = Column(Integer, nullable=False, default=1)
-
-    __table_args__ = (
-        Index("ix_ratelimit_ip_endpoint", "ip_address", "endpoint"),
-    )
 
 
 def check_rate_limit(
@@ -83,7 +67,19 @@ def check_rate_limit(
             RateLimitRecord.window_start < window_start,
         ).delete(synchronize_session=False)
 
-        # Count requests in the current window
+        # Optimistic insert: record the request first, then count.
+        # This avoids the TOCTOU race where two concurrent requests both
+        # pass the count check before either inserts.
+        record = RateLimitRecord(
+            ip_address=ip,
+            endpoint=endpoint,
+            window_start=now,
+            request_count=1,
+        )
+        db.add(record)
+        db.flush()  # Write to DB so it's visible in the count below
+
+        # Count requests in the current window (including the one we just added)
         current_count = (
             db.query(RateLimitRecord)
             .filter(
@@ -94,8 +90,10 @@ def check_rate_limit(
             .count()
         )
 
-        if current_count >= max_requests:
-            # Find the oldest record to compute reset time
+        if current_count > max_requests:
+            # Over limit — remove the record we just added and deny
+            db.delete(record)
+            db.commit()
             oldest = (
                 db.query(RateLimitRecord.window_start)
                 .filter(
@@ -107,20 +105,10 @@ def check_rate_limit(
                 .first()
             )
             reset_time = (oldest[0] + window_seconds) if oldest else (now + window_seconds)
-            db.commit()
             return False, 0, reset_time
 
-        # Record this request
-        record = RateLimitRecord(
-            ip_address=ip,
-            endpoint=endpoint,
-            window_start=now,
-            request_count=1,
-        )
-        db.add(record)
         db.commit()
-
-        remaining = max(0, max_requests - current_count - 1)
+        remaining = max(0, max_requests - current_count)
         reset_time = now + window_seconds
         return True, remaining, reset_time
 

@@ -18,8 +18,10 @@ import hashlib
 import logging
 import os
 import time
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 from dotenv import load_dotenv
@@ -30,6 +32,25 @@ logger = logging.getLogger(__name__)
 
 REGULATIONS_BASE = "https://api.regulations.gov/v4"
 POLITE_DELAY = 0.5
+
+
+class ApiResultStatus(Enum):
+    SUCCESS = "success"
+    NOT_FOUND = "not_found"
+    RATE_LIMITED = "rate_limited"
+    ERROR = "error"
+
+
+@dataclass
+class ApiResult:
+    """Typed result from _api_get that distinguishes not-found from failure."""
+    status: ApiResultStatus
+    data: Optional[Dict] = None
+    error: Optional[str] = None
+
+    @property
+    def ok(self) -> bool:
+        return self.status == ApiResultStatus.SUCCESS
 
 
 def _get_api_key() -> str:
@@ -54,8 +75,11 @@ def _parse_date(val: Optional[str]) -> Optional[str]:
     return val
 
 
-def _api_get(path: str, params: Dict, api_key: str) -> Optional[Dict]:
-    """Make a GET request to Regulations.gov API."""
+def _api_get(path: str, params: Dict, api_key: str) -> ApiResult:
+    """Make a GET request to Regulations.gov API.
+
+    Returns ApiResult with status indicating success, not_found, rate_limited, or error.
+    """
     url = f"{REGULATIONS_BASE}{path}"
     headers = {"X-Api-Key": api_key}
 
@@ -64,22 +88,22 @@ def _api_get(path: str, params: Dict, api_key: str) -> Optional[Dict]:
             time.sleep(POLITE_DELAY)
             resp = requests.get(url, params=params, headers=headers, timeout=30)
             resp.raise_for_status()
-            return resp.json()
+            return ApiResult(status=ApiResultStatus.SUCCESS, data=resp.json())
         except requests.exceptions.HTTPError as e:
             if e.response is not None and e.response.status_code == 429:
                 logger.warning("Regulations.gov rate limit reached, retrying in 60s (attempt %d/3)", attempt + 1)
                 time.sleep(60)
                 continue
             elif e.response is not None and e.response.status_code == 404:
-                return None
+                return ApiResult(status=ApiResultStatus.NOT_FOUND)
             else:
                 logger.error("Regulations.gov request failed: %s", e)
-            return None
-        except Exception as e:
+                return ApiResult(status=ApiResultStatus.ERROR, error=str(e))
+        except requests.exceptions.RequestException as e:
             logger.error("Regulations.gov request failed: %s", e)
-            return None
+            return ApiResult(status=ApiResultStatus.ERROR, error=str(e))
     logger.error("Regulations.gov request failed after 3 retries (429)")
-    return None
+    return ApiResult(status=ApiResultStatus.RATE_LIMITED, error="Rate limited after 3 retries")
 
 
 def fetch_comments_by_org(
@@ -111,11 +135,11 @@ def fetch_comments_by_org(
 
     for page_num in range(1, max_pages + 1):
         params["page[number]"] = page_num
-        data = _api_get("/comments", params, api_key)
-        if not data:
+        result = _api_get("/comments", params, api_key)
+        if not result.ok:
             break
 
-        items = data.get("data", [])
+        items = result.data.get("data", [])
         if not items:
             break
 
@@ -145,7 +169,7 @@ def fetch_comments_by_org(
                 "dedupe_hash": h,
             })
 
-        meta = data.get("meta", {})
+        meta = result.data.get("meta", {})
         total_pages = meta.get("totalPages", 1)
         if page_num >= total_pages:
             break
@@ -179,11 +203,11 @@ def fetch_documents(
 
     for page_num in range(1, max_pages + 1):
         params["page[number]"] = page_num
-        data = _api_get("/documents", params, api_key)
-        if not data:
+        result = _api_get("/documents", params, api_key)
+        if not result.ok:
             break
 
-        items = data.get("data", [])
+        items = result.data.get("data", [])
         if not items:
             break
 
@@ -210,7 +234,7 @@ def fetch_documents(
                 "dedupe_hash": h,
             })
 
-        meta = data.get("meta", {})
+        meta = result.data.get("meta", {})
         if page_num >= meta.get("totalPages", 1):
             break
 
@@ -227,11 +251,11 @@ def fetch_docket(
     if not api_key:
         return None
 
-    data = _api_get(f"/dockets/{docket_id}", {}, api_key)
-    if not data:
+    result = _api_get(f"/dockets/{docket_id}", {}, api_key)
+    if not result.ok:
         return None
 
-    item = data.get("data", {})
+    item = result.data.get("data", {})
     attrs = item.get("attributes", {})
 
     return {
