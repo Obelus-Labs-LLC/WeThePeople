@@ -392,7 +392,7 @@ def story_dedupe_hash(story) -> str:
         elif isinstance(v, str):
             buckets.append(f"{k}={v[:40]}")
     payload = f"{category}|{','.join(entity_ids)}|{'|'.join(buckets)}"
-    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def format_issues(issues: List[Issue]) -> str:

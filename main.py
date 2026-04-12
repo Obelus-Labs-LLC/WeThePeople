@@ -8,6 +8,8 @@ All route logic lives in routers/. This file handles:
 """
 
 import os
+import threading
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,12 +30,28 @@ _logger = get_logger(__name__)
 _rate_limit = os.getenv("WTP_RATE_LIMIT", "60/minute")
 limiter = Limiter(key_func=get_remote_address, default_limits=[_rate_limit])
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context: startup/shutdown logic."""
+    if os.getenv("DISABLE_STARTUP_FETCH") != "1":
+        def _bg_fetch():
+            try:
+                from connectors.federal_register import fetch_presidential_documents
+                fetch_presidential_documents(pages=3)
+                _logger.info("Federal Register data loaded successfully")
+            except Exception as e:
+                _logger.warning("Failed to load Federal Register data: %s", e)
+        threading.Thread(target=_bg_fetch, daemon=True).start()
+    yield
+
+
 app = FastAPI(
     title="WeThePeople API",
     description="Civic transparency platform tracking corporate influence on Congress across 11 sectors",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
@@ -63,19 +81,6 @@ if _cors_origins:
     )
 
 
-# --- Startup ---
-# TODO: migrate to lifespan context manager when upgrading FastAPI
-@app.on_event("startup")
-async def startup_event():
-    """Fetch recent presidential documents on startup."""
-    if os.getenv("DISABLE_STARTUP_FETCH") == "1":
-        return
-    try:
-        from connectors.federal_register import fetch_presidential_documents
-        fetch_presidential_documents(pages=3)
-        _logger.info("Federal Register data loaded successfully")
-    except Exception as e:
-        _logger.warning("Failed to load Federal Register data: %s", e)
 
 
 # --- Mount Routers ---
@@ -182,5 +187,9 @@ v1.include_router(og_router)
 v1.include_router(stories_router)
 v1.include_router(research_tools_router)
 v1.include_router(fara_router)
+v1.include_router(metrics_router)
+v1.include_router(ops_router)
+v1.include_router(lookup_router)
+v1.include_router(civic_router)
 
 app.include_router(v1)

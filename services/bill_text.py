@@ -7,7 +7,7 @@ Phase 3.2: Direct links to actual legislative text on Congress.gov.
 
 import os
 import requests
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -111,7 +111,7 @@ def get_congress_gov_text_url(congress: int, bill_type: str, bill_number: int, v
     return base
 
 
-def format_text_receipt(congress: int, bill_type: str, bill_number: int) -> Dict:
+def format_text_receipt(congress: int, bill_type: str, bill_number: Union[int, str]) -> Dict:
     """
     Build a complete text receipt with all available versions.
     

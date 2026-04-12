@@ -82,11 +82,13 @@ export default function CommitteesPage() {
   const [loadingMembers, setLoadingMembers] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
 
     fetch(`${getApiBaseUrl()}/committees`)
       .then((res) => {
+        if (cancelled) return;
         if (res.status === 404) {
           setDataUnavailable(true);
           return null;
@@ -95,15 +97,16 @@ export default function CommitteesPage() {
         return res.json();
       })
       .then((data: CommitteesResponse | null) => {
+        if (cancelled) return;
         if (data) {
           setCommittees(data.committees || []);
         }
       })
-      .catch((err) => {
-        // Treat fetch errors (e.g. network) gracefully
-        setDataUnavailable(true);
+      .catch(() => {
+        if (!cancelled) setDataUnavailable(true);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   const toggleExpand = async (committee: Committee) => {

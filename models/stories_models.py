@@ -6,7 +6,7 @@ Stories are drafted by Claude from structured evidence, reviewed, then published
 """
 
 from sqlalchemy import (
-    Column, String, Integer, Float, DateTime, Text,
+    CheckConstraint, Column, String, Integer, Float, DateTime, Text,
     UniqueConstraint, JSON,
 )
 from sqlalchemy.sql import func
@@ -24,8 +24,11 @@ class Story(Base):
     """
     __tablename__ = "stories"
 
+    VALID_STATUSES = ("draft", "published", "archived")
+
     __table_args__ = (
         UniqueConstraint("slug", name="uq_story_slug"),
+        CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_story_status"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -42,9 +45,9 @@ class Story(Base):
     # Sectors: finance, health, tech, energy, transportation, defense, politics, or null for cross-sector
 
     # Structured data
-    entity_ids = Column(JSON, nullable=True)  # ["company-id-1", "person-id-2"]
-    data_sources = Column(JSON, nullable=True)  # ["/finance/institutions/123", "/influence/top-lobbying"]
-    evidence = Column(JSON, nullable=True)  # {"lobbying_spend": 5200000, "contract_amount": 120000000, ...}
+    entity_ids = Column(JSON, nullable=False, server_default="[]")  # ["company-id-1", "person-id-2"]
+    data_sources = Column(JSON, nullable=False, server_default="[]")  # ["/finance/institutions/123", "/influence/top-lobbying"]
+    evidence = Column(JSON, nullable=False, server_default="{}")  # {"lobbying_spend": 5200000, "contract_amount": 120000000, ...}
 
     # Workflow
     status = Column(String, nullable=False, server_default="draft", index=True)
@@ -58,3 +61,10 @@ class Story(Base):
     published_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    @staticmethod
+    def validate_entity_ids(entity_ids: list) -> list:
+        """Validate entity_ids are non-empty strings (app-level FK check)."""
+        if not entity_ids:
+            return []
+        return [eid for eid in entity_ids if isinstance(eid, str) and eid.strip()]

@@ -15,8 +15,16 @@ import {
   useReactTable,
   type SortingState,
   type ColumnFiltersState,
+  type RowData,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
+
+declare module '@tanstack/react-table' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    hiddenOnMobile?: boolean;
+  }
+}
 
 const API_BASE = getApiBaseUrl();
 
@@ -153,6 +161,7 @@ export default function CongressionalTradesPage() {
 
   // Fetch timeline when ticker search changes
   useEffect(() => {
+    let cancelled = false;
     if (!search || search.length < 1) {
       setTimelineTrades([]);
       return;
@@ -162,22 +171,26 @@ export default function CongressionalTradesPage() {
       .then((data) => setTimelineTrades(data.trades || []))
       .catch(() => setTimelineTrades([]))
       .finally(() => setTimelineLoading(false));
+    return () => { cancelled = true; };
   }, [search, timelineRange]);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     // TODO: Implement server-side pagination to reduce initial payload
     const params = new URLSearchParams({ limit: '10000' });
     if (filter !== 'all') params.set('transaction_type', filter);
     if (search) params.set('ticker', search.toUpperCase());
     fetch(`${API_BASE}/congressional-trades?${params}`)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
       .then((data) => {
+        if (cancelled) return;
         setTrades(data.trades || []);
         setTotal(data.total || 0);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, [filter, search]);
 
   // Client-side member name filter
@@ -341,7 +354,7 @@ export default function CongressionalTradesPage() {
                 {table.getHeaderGroups().map((hg) => (
                   <tr key={hg.id} className="border-b border-white/10">
                     {hg.headers.map((header) => {
-                      const hiddenOnMobile = (header.column.columnDef.meta as any)?.hiddenOnMobile;
+                      const hiddenOnMobile = header.column.columnDef.meta?.hiddenOnMobile;
                       return (
                         <th
                           key={header.id}
@@ -384,7 +397,7 @@ export default function CongressionalTradesPage() {
                       className="border-b border-white/5 hover:bg-white/[0.03] transition-colors"
                     >
                       {row.getVisibleCells().map((cell) => {
-                        const hiddenOnMobile = (cell.column.columnDef.meta as any)?.hiddenOnMobile;
+                        const hiddenOnMobile = cell.column.columnDef.meta?.hiddenOnMobile;
                         return (
                           <td
                             key={cell.id}

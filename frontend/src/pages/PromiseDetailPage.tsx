@@ -26,11 +26,13 @@ export default function PromiseDetailPage() {
   const [voting, setVoting] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     if (!promiseId) return;
     fetchPromise(parseInt(promiseId))
-      .then(setPromise)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .then((p) => { if (!cancelled) setPromise(p); })
+      .catch((e) => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [promiseId]);
 
   const handleVote = async (value: 1 | -1) => {

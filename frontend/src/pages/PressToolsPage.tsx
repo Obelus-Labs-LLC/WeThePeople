@@ -50,12 +50,14 @@ const PressToolsPage: React.FC = () => {
 
   // Load runtime info if key exists
   useEffect(() => {
+    let cancelled = false;
     if (!hasKey) return;
     const key = getPressApiKey();
     fetch(`${API_BASE}/ops/runtime`, {
       headers: { "X-WTP-API-KEY": key },
     })
       .then((r) => {
+        if (cancelled) return;
         if (r.status === 401) {
           // Key expired or invalid
           handleClearKey();
@@ -64,9 +66,11 @@ const PressToolsPage: React.FC = () => {
         return r.json();
       })
       .then((data) => {
+        if (cancelled) return;
         if (data) setRuntimeInfo(data);
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [hasKey]);
 
   if (!hasKey) {

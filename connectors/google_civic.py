@@ -21,6 +21,11 @@ Rate limit: 25,000 requests/day (free tier)
 import re
 from typing import Optional, List, Dict, Any
 
+
+class CivicApiRateLimitError(Exception):
+    """Raised when Google Civic API returns 429 rate limit."""
+    pass
+
 from utils.http_client import config
 from utils.logging import get_logger, setup_logging
 
@@ -63,7 +68,7 @@ def _civic_get(endpoint: str, params: Optional[Dict[str, str]] = None) -> Option
 
         if response.status_code == 429:
             logger.warning("Google Civic API rate limited (429)")
-            return None
+            raise CivicApiRateLimitError("Google Civic API rate limited (429)")
         elif response.status_code == 400:
             error_data = response.json() if response.text else {}
             error_msg = error_data.get("error", {}).get("message", response.text[:200])

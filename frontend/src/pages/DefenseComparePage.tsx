@@ -208,7 +208,7 @@ export default function DefenseComparePage() {
                     </thead>
                     <tbody>
                       {group.metrics.map((metric) => {
-                        const values = comparison.map((co) => (co as any)[metric.key] as number | null);
+                        const values = comparison.map((co) => co[metric.key as keyof DefenseComparisonItem] as number | null);
                         const numericValues = values.filter((v): v is number => v != null && !isNaN(v));
                         const best = numericValues.length > 0 ? (metric.lowerIsBetter ? Math.min(...numericValues) : Math.max(...numericValues)) : null;
                         return (

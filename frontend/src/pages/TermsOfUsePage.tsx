@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Footer from '../components/Footer';
+import { LEGAL_LAST_UPDATED } from '../config';
 
 export default function TermsOfUsePage() {
   return (
@@ -11,7 +12,7 @@ export default function TermsOfUsePage() {
         </Link>
 
         <h1 className="text-3xl font-bold mb-2">Terms of Use</h1>
-        <p className="text-sm text-slate-400 mb-8">Last updated: March 18, 2026</p>
+        <p className="text-sm text-slate-400 mb-8">Last updated: {LEGAL_LAST_UPDATED}</p>
 
         <div className="prose prose-invert prose-sm max-w-none space-y-6 text-slate-300 leading-relaxed">
           <section>

@@ -166,6 +166,7 @@ export default function TechCompanyProfilePage() {
   // Lazy load tab data
   useEffect(() => {
     if (!companyId) return;
+    let cancelled = false;
 
     if (activeTab === 'patents' && !patentsLoaded) {
       Promise.all([
@@ -173,6 +174,7 @@ export default function TechCompanyProfilePage() {
         getTechCompanyPatentPolicy(companyId).catch(() => null),
       ])
         .then(([r, pp]) => {
+        if (cancelled) return;
           setPatents(r.patents || []); setPatentTotal(r.total); setPatentsLoaded(true);
           if (pp) { setPatentPolicy(pp); setPatentPolicyLoaded(true); }
         })
@@ -185,6 +187,7 @@ export default function TechCompanyProfilePage() {
         getTechCompanyContractTrends(companyId).catch(() => ({ trends: [] })),
       ])
         .then(([c, s, t]) => {
+        if (cancelled) return;
           setContracts(c.contracts || []); setContractTotal(c.total);
           if (s) setContractSummary(s);
           setContractTrends(t.trends || []);
@@ -198,6 +201,7 @@ export default function TechCompanyProfilePage() {
         getTechCompanyLobbySummary(companyId).catch(() => null),
       ])
         .then(([l, s]) => {
+        if (cancelled) return;
           setLobbying(l.filings || []); setLobbyTotal(l.total);
           if (s) setLobbySummary(s);
           setLobbyingLoaded(true);
@@ -207,6 +211,7 @@ export default function TechCompanyProfilePage() {
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getTechCompanyEnforcement(companyId, { limit: 100 })
         .then((r) => {
+        if (cancelled) return;
           setEnforcement(r.actions || []); setEnforcementTotal(r.total);
           setTotalPenalties(r.total_penalties || 0);
           setEnforcementLoaded(true);
@@ -215,9 +220,10 @@ export default function TechCompanyProfilePage() {
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getTechCompanyFilings(companyId, { limit: 100 })
-        .then((r) => { setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true); })
+        .then((r) => { if (!cancelled) { setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true); } })
         .catch(() => {});
     }
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, companyId]);
 
@@ -329,10 +335,10 @@ export default function TechCompanyProfilePage() {
             <AnomalyBadge entityType="company" entityId={companyId || ''} />
           </div>
 
-          {(detail as any).ai_profile_summary && (
+          {detail.ai_profile_summary && (
             <div className="mb-6">
               <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
-              <p className="text-zinc-400 text-sm mt-1">{(detail as any).ai_profile_summary}</p>
+              <p className="text-zinc-400 text-sm mt-1">{detail.ai_profile_summary}</p>
             </div>
           )}
 

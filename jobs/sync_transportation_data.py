@@ -11,6 +11,9 @@ Usage:
 """
 
 import os
+from connectors.sec_edgar import SEC_BROWSE_BASE
+from connectors.senate_lda import LDA_BASE
+from connectors.usaspending import USASPENDING_BASE
 import sys
 import time
 import hashlib
@@ -123,7 +126,7 @@ def fetch_sec_filings(session, company: TrackedTransportationCompany, limit: int
             form_type=forms[i],
             filing_date=parse_date(dates[i]) if i < len(dates) else None,
             primary_doc_url=filing_url,
-            filing_url=f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={forms[i]}&dateb=&owner=include&count=10",
+            filing_url=f"{SEC_BROWSE_BASE}?action=getcompany&CIK={cik}&type={forms[i]}&dateb=&owner=include&count=10",
             description=descs[i] if i < len(descs) else None,
             dedupe_hash=dedupe,
         ))
@@ -139,7 +142,7 @@ def fetch_sec_filings(session, company: TrackedTransportationCompany, limit: int
 def fetch_contracts(session, company: TrackedTransportationCompany):
     """Fetch government contracts from USASpending.gov with pagination."""
     search_name = company.usaspending_recipient_name or company.display_name
-    url = "https://api.usaspending.gov/api/v2/search/spending_by_award/"
+    url = f"{USASPENDING_BASE}/search/spending_by_award/"
     page_size = 100
     page = 1
     count = 0
@@ -219,7 +222,7 @@ def fetch_lobbying(session, company: TrackedTransportationCompany):
     count = 0
 
     for year in years:
-        page_url = "https://lda.senate.gov/api/v1/filings/"
+        page_url = LDA_BASE
         page_num = 0
         headers = {"Accept": "application/json"}
 

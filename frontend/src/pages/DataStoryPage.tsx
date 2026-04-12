@@ -34,13 +34,15 @@ export default function DataStoryPage() {
   const [animatingBars, setAnimatingBars] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     Promise.all([
-      fetch(`${API_BASE}/influence/stats`).then((r) => r.json()),
-      fetch(`${API_BASE}/influence/top-lobbying?limit=10`).then((r) => r.json()),
-      fetch(`${API_BASE}/influence/top-contracts?limit=10`).then((r) => r.json()),
+      fetch(`${API_BASE}/influence/stats`).then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
+      fetch(`${API_BASE}/influence/top-lobbying?limit=10`).then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
+      fetch(`${API_BASE}/influence/top-contracts?limit=10`).then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
     ])
       .then(([stats, lobbyLeaders, contractLeaders]) => {
+        if (cancelled) return;
         const bySector = stats.by_sector || {};
         const storySteps: StoryStep[] = [
           {
@@ -97,7 +99,8 @@ export default function DataStoryPage() {
         setSteps(storySteps);
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   // Trigger bar animation on step change

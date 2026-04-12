@@ -116,6 +116,7 @@ export default function BillDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     if (!bill_id) return;
     setLoading(true);
     setError(null);
@@ -123,6 +124,7 @@ export default function BillDetailPage() {
     apiClient
       .getBill(bill_id)
       .then((billRes) => {
+        if (cancelled) return;
         setBill(billRes);
         // Fetch related actions after we have the bill data
         return apiClient
@@ -138,8 +140,9 @@ export default function BillDetailPage() {
             // Non-critical — don't fail the page
           });
       })
-      .catch((err) => setError(err.message || 'Failed to load bill'))
-      .finally(() => setLoading(false));
+      .catch((err) => { if (!cancelled) setError(err.message || 'Failed to load bill'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [bill_id]);
 
   // ── Loading ──

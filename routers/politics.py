@@ -74,6 +74,38 @@ def _safe_json_loads(value):
         return None
 
 
+# ── Balance of Power (lightweight summary, avoids loading 600 people) ──
+
+@router.get("/balance-of-power")
+def balance_of_power(db: Session = Depends(get_db)):
+    """Party counts by chamber — used by BalanceOfPowerPage instead of fetching all people."""
+    rows = (
+        db.query(TrackedMember.chamber, TrackedMember.party, func.count())
+        .filter(TrackedMember.is_active == 1)
+        .group_by(TrackedMember.chamber, TrackedMember.party)
+        .all()
+    )
+    result = {"house": {"democrat": 0, "republican": 0, "independent": 0, "total": 0},
+              "senate": {"democrat": 0, "republican": 0, "independent": 0, "total": 0}}
+    for chamber, party, count in rows:
+        key = "house" if "house" in (chamber or "").lower() else "senate"
+        p = (party or "")[:1].upper()
+        if p == "D":
+            result[key]["democrat"] += count
+        elif p == "R":
+            result[key]["republican"] += count
+        else:
+            result[key]["independent"] += count
+        result[key]["total"] += count
+    result["total"] = {
+        "total": result["house"]["total"] + result["senate"]["total"],
+        "democrat": result["house"]["democrat"] + result["senate"]["democrat"],
+        "republican": result["house"]["republican"] + result["senate"]["republican"],
+        "independent": result["house"]["independent"] + result["senate"]["independent"],
+    }
+    return result
+
+
 # ── Actions (global) ──
 
 @router.get("/actions/recent")
@@ -85,6 +117,22 @@ def recent_actions(limit: int = Query(10, ge=1, le=200), db: Session = Depends(g
           .order_by(desc(Action.date))
           .limit(limit).all()
     )
+
+    # Batch-fetch all referenced bills in one query to avoid N+1
+    bill_keys = set()
+    for a, _url in rows:
+        if a.bill_congress and a.bill_type and a.bill_number:
+            bill_keys.add((a.bill_congress, a.bill_type, a.bill_number))
+
+    bill_map: Dict[tuple, Bill] = {}
+    if bill_keys:
+        from sqlalchemy import tuple_
+        bills = db.query(Bill).filter(
+            tuple_(Bill.congress, Bill.bill_type, Bill.bill_number).in_(list(bill_keys))
+        ).all()
+        for b in bills:
+            bill_map[(b.congress, b.bill_type, b.bill_number)] = b
+
     results = []
     for a, url in rows:
         item: Dict[str, Any] = {
@@ -100,13 +148,9 @@ def recent_actions(limit: int = Query(10, ge=1, le=200), db: Session = Depends(g
             "bill_status": None,
             "bill_title": None,
         }
-        # Attach bill status + title if this action references a bill
+        # Attach bill status + title from pre-fetched map
         if a.bill_congress and a.bill_type and a.bill_number:
-            bill = (
-                db.query(Bill)
-                .filter_by(congress=a.bill_congress, bill_type=a.bill_type, bill_number=a.bill_number)
-                .first()
-            )
+            bill = bill_map.get((a.bill_congress, a.bill_type, a.bill_number))
             if bill:
                 item["bill_status"] = getattr(bill, "status_bucket", None)
                 item["bill_title"] = getattr(bill, "title", None)
@@ -360,7 +404,7 @@ def match_claim_multi_category(
         db.query(Action, SourceDocument.url)
           .join(SourceDocument, Action.source_id == SourceDocument.id)
           .filter(Action.person_id == claim.person_id)
-          .order_by(desc(Action.date)).limit(2000).all()
+          .order_by(desc(Action.date)).limit(500).all()
     )
 
     all_matches = []

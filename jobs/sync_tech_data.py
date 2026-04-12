@@ -39,6 +39,9 @@ from utils.logging import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
+# Commit every BATCH_SIZE records to avoid holding SQLite write lock too long
+BATCH_SIZE = 50
+
 
 def _parse_date(val) -> date | None:
     """Parse YYYY-MM-DD string or return None. Handles YYYYMMDD too."""
@@ -93,8 +96,10 @@ def sync_sec_filings(company: TrackedTechCompany, db) -> int:
         )
         db.add(record)
         inserted += 1
+        if inserted % BATCH_SIZE == 0:
+            db.commit()
 
-    if inserted:
+    if inserted % BATCH_SIZE != 0:
         db.commit()
     logger.info("SEC filings for %s: %d new of %d total", company.company_id, inserted, len(filings))
     return inserted
@@ -126,8 +131,10 @@ def sync_patents(company: TrackedTechCompany, db) -> int:
         )
         db.add(record)
         inserted += 1
+        if inserted % BATCH_SIZE == 0:
+            db.commit()
 
-    if inserted:
+    if inserted % BATCH_SIZE != 0:
         db.commit()
     logger.info("Patents for %s: %d new of %d total", company.company_id, inserted, len(patents))
     return inserted
@@ -242,8 +249,10 @@ def sync_lobbying(company: TrackedTechCompany, db) -> int:
         )
         db.add(record)
         inserted += 1
+        if inserted % BATCH_SIZE == 0:
+            db.commit()
 
-    if inserted:
+    if inserted % BATCH_SIZE != 0:
         db.commit()
     logger.info("Lobbying for %s: %d new of %d total", company.company_id, inserted, len(filings))
     return inserted

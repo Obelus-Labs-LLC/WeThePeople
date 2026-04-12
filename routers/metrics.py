@@ -114,6 +114,14 @@ def record_error() -> None:
         _error_count += 1
 
 
+# Register the db query hook so models/database.py can record without importing routers
+try:
+    from utils.metrics_hooks import set_db_query_hook
+    set_db_query_hook(record_db_query)
+except ImportError:
+    pass
+
+
 # --- DB size helper ---
 
 def _get_db_size_bytes() -> int:

@@ -84,6 +84,7 @@ export default function AnomaliesPage() {
   const [entityFilter] = useState<string>(initialEntity);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     const params = new URLSearchParams();
     if (patternFilter && patternFilter !== 'all') params.set('pattern_type', patternFilter);
@@ -100,8 +101,9 @@ export default function AnomaliesPage() {
     }
 
     fetch(url)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
       .then((data: AnomalyResponse) => {
+        if (cancelled) return;
         setAnomalies(data.anomalies || []);
         setTotal(data.total || 0);
       })
@@ -110,6 +112,7 @@ export default function AnomaliesPage() {
         setTotal(0);
       })
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, [patternFilter, minScore, entityFilter, searchParams]);
 
   return (
@@ -140,6 +143,7 @@ export default function AnomaliesPage() {
             <button
               key={p}
               onClick={() => setPatternFilter(p)}
+              aria-pressed={patternFilter === p}
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
                 patternFilter === p
                   ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'

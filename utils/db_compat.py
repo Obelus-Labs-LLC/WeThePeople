@@ -10,6 +10,7 @@ Usage:
 """
 
 import os
+import re
 from sqlalchemy import func, text, literal_column, event, JSON
 from sqlalchemy.sql import expression
 from sqlalchemy.types import TypeDecorator, Text as SAText
@@ -163,8 +164,22 @@ def limit_sql(n: int) -> str:
 
 # --- Table introspection ---
 
+_SAFE_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+
+def _validate_identifier(name: str) -> str:
+    """Validate that a SQL identifier contains only safe characters.
+
+    Prevents SQL injection in table/column name interpolation.
+    """
+    if not _SAFE_IDENTIFIER_RE.match(name):
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    return name
+
+
 def table_exists_sql(table_name: str) -> str:
     """Return SQL to check if a table exists."""
+    _validate_identifier(table_name)
     if is_sqlite():
         return f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
     elif is_oracle():
@@ -175,6 +190,7 @@ def table_exists_sql(table_name: str) -> str:
 
 def table_columns_sql(table_name: str) -> str:
     """Return SQL to list columns of a table."""
+    _validate_identifier(table_name)
     if is_sqlite():
         return f"PRAGMA table_info({table_name})"
     elif is_oracle():
@@ -195,6 +211,7 @@ def all_tables_sql() -> str:
 
 def table_row_count_sql(table_name: str) -> str:
     """Return SQL to count rows in a table. Uses quoted identifier for safety."""
+    _validate_identifier(table_name)
     if is_oracle():
         return f'SELECT COUNT(*) FROM "{table_name.upper()}"'
     else:

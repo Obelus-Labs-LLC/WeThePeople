@@ -3,7 +3,12 @@ Government Data Models — Cross-Sector
 
 Tables for data from SAM.gov, Regulations.gov, IT Dashboard, and GSA Site Scanning.
 These tables are cross-sector — a single company_id field (plain String, no FK)
-links to tracked companies in any of the 7 sector tables.
+links to tracked companies in any of the 11 sector tables.
+
+FK Note: company_id columns here are intentionally polymorphic (no ForeignKey).
+A single row can reference companies in tracked_tech_companies, tracked_health_companies,
+tracked_energy_companies, etc. Use validate_cross_sector_company_id() at write time
+to verify referential integrity at the application level.
 """
 
 from sqlalchemy import (
@@ -13,6 +18,33 @@ from sqlalchemy import (
 from sqlalchemy.sql import func
 
 from models.database import Base
+
+
+# Polymorphic company_id tables for cross-sector validation
+_TRACKED_TABLES = [
+    "tracked_tech_companies", "tracked_companies", "tracked_energy_companies",
+    "tracked_defense_companies", "tracked_transportation_companies",
+    "tracked_chemical_companies", "tracked_agriculture_companies",
+    "tracked_education_companies", "tracked_telecom_companies",
+    "tracked_finance_institutions",
+]
+
+
+def validate_cross_sector_company_id(db_session, company_id: str) -> bool:
+    """Check that company_id exists in at least one sector's tracked table.
+
+    Call at write time to maintain referential integrity for polymorphic IDs.
+    Returns True if company_id is found in any sector table.
+    """
+    from sqlalchemy import text
+    for table in _TRACKED_TABLES:
+        result = db_session.execute(
+            text(f"SELECT 1 FROM {table} WHERE company_id = :cid LIMIT 1"),
+            {"cid": company_id},
+        ).fetchone()
+        if result:
+            return True
+    return False
 
 
 # ── SAM.gov Exclusions ──────────────────────────────────────────────────

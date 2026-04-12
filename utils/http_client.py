@@ -41,6 +41,7 @@ class _Config:
     FEC_API_KEY = os.getenv("FEC_API_KEY", "DEMO_KEY")
     FEC_API_BASE = "https://api.open.fec.gov/v1"
     DATAGOV_API_KEY = os.getenv("DATAGOV_API_KEY", "DEMO_KEY")
+    GOOGLE_CIVIC_API_KEY = os.getenv("API_KEY_GOOGLE_CIVIC", "")
 
 
 config = _Config()
@@ -81,7 +82,7 @@ class HTTPClient:
         cache_dir: Path = None,
         cache_ttl: int = None
     ):
-        self.timeout = timeout or config.HTTP_TIMEOUT
+        self.timeout = timeout if timeout is not None else config.HTTP_TIMEOUT
         self.max_retries = max_retries or config.HTTP_MAX_RETRIES
         self.cache_enabled = cache_enabled if cache_enabled is not None else config.CACHE_ENABLED
         self.cache_ttl = cache_ttl or config.CACHE_TTL
@@ -97,12 +98,6 @@ class HTTPClient:
         key_str = json.dumps(key_data, sort_keys=True)
         return hashlib.md5(key_str.encode()).hexdigest()
     
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=1, max=10),
-        retry=retry_if_exception_type((RateLimitError, ServerError, requests.exceptions.Timeout, requests.exceptions.ConnectionError)),
-        reraise=True
-    )
     def _request_with_retry(
         self,
         method: str,
@@ -110,30 +105,41 @@ class HTTPClient:
         params: Optional[dict] = None,
         **kwargs
     ) -> requests.Response:
-        """Make HTTP request with retry logic."""
-        try:
-            response = requests.request(
-                method,
-                url,
-                params=params,
-                timeout=self.timeout,
-                **kwargs
-            )
-            
-            # Handle specific status codes
-            if response.status_code == 429:
-                raise RateLimitError(429, "Rate limit exceeded")
-            elif response.status_code in (401, 403):
-                raise AuthError(response.status_code, "Authentication failed")
-            elif response.status_code == 503:
-                raise ServerError(503, "Service unavailable")
-            elif response.status_code >= 400:
-                raise HTTPError(response.status_code, response.text[:200])
-            
-            return response
-            
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
-            raise  # Let tenacity retry these directly
+        """Make HTTP request with retry logic using self.max_retries."""
+        retrier = retry(
+            stop=stop_after_attempt(self.max_retries),
+            wait=wait_exponential(multiplier=2, min=1, max=10),
+            retry=retry_if_exception_type((RateLimitError, ServerError, requests.exceptions.Timeout, requests.exceptions.ConnectionError)),
+            reraise=True
+        )
+
+        @retrier
+        def _do_request():
+            try:
+                response = requests.request(
+                    method,
+                    url,
+                    params=params,
+                    timeout=self.timeout,
+                    **kwargs
+                )
+
+                # Handle specific status codes
+                if response.status_code == 429:
+                    raise RateLimitError(429, "Rate limit exceeded")
+                elif response.status_code in (401, 403):
+                    raise AuthError(response.status_code, "Authentication failed")
+                elif response.status_code == 503:
+                    raise ServerError(503, "Service unavailable")
+                elif response.status_code >= 400:
+                    raise HTTPError(response.status_code, response.text[:200])
+
+                return response
+
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+                raise  # Let tenacity retry these directly
+
+        return _do_request()
     
     def get(
         self,
@@ -168,7 +174,10 @@ class HTTPClient:
         
         # Make request
         response = self._request_with_retry("GET", url, params=params, **kwargs)
-        data = response.json()
+        try:
+            data = response.json()
+        except (ValueError, requests.exceptions.JSONDecodeError) as e:
+            raise HTTPError(response.status_code, f"Non-JSON response: {str(e)[:100]}")
         
         # Store in cache
         if use_cache and self.cache_enabled:

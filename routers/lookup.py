@@ -8,11 +8,14 @@ GET /lookup/{zip_code}
 """
 
 import logging
+import threading
 import time
 import requests
 from datetime import date, timedelta, datetime, timezone
 from difflib import SequenceMatcher
 from typing import Optional, Dict, Any, List, Tuple
+
+from cachetools import TTLCache
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import func, desc
@@ -34,9 +37,9 @@ router = APIRouter(tags=["lookup"])
 log = logging.getLogger("lookup")
 
 
-# ── District lookup cache (zip -> (results, timestamp)) ──
-_district_cache: Dict[str, Tuple[list, float]] = {}
-_CACHE_TTL = 3600  # 1 hour
+# ── District lookup cache (zip -> results, TTL 1 hour) ──
+_district_cache: TTLCache = TTLCache(maxsize=500, ttl=3600)
+_district_lock = threading.Lock()
 
 
 def _cached_district_lookup(zip_code: str) -> Optional[list]:
@@ -45,11 +48,10 @@ def _cached_district_lookup(zip_code: str) -> Optional[list]:
     Returns list of {"name", "party", "state", "district"} or None on failure.
     Caches results for 1 hour.
     """
-    now = time.time()
-    if zip_code in _district_cache:
-        results, ts = _district_cache[zip_code]
-        if now - ts < _CACHE_TTL:
-            return results
+    with _district_lock:
+        cached = _district_cache.get(zip_code)
+    if cached is not None:
+        return cached
 
     try:
         resp = requests.get(
@@ -59,7 +61,8 @@ def _cached_district_lookup(zip_code: str) -> Optional[list]:
         resp.raise_for_status()
         data = resp.json()
         results = data.get("results", [])
-        _district_cache[zip_code] = (results, now)
+        with _district_lock:
+            _district_cache[zip_code] = results
         return results
     except Exception as e:
         log.warning("whoismyrepresentative.com lookup failed for %s: %s", zip_code, e)

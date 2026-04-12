@@ -13,6 +13,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 from models.database import get_db, Anomaly
+from models.response_schemas import AnomaliesListResponse
 
 router = APIRouter(prefix="/anomalies", tags=["anomalies"])
 
@@ -32,7 +33,7 @@ def _serialize_anomaly(a: Anomaly) -> dict:
     }
 
 
-@router.get("")
+@router.get("", response_model=AnomaliesListResponse)
 def list_anomalies(
     pattern_type: Optional[str] = Query(None, description="Filter by pattern type"),
     entity_type: Optional[str] = Query(None, description="Filter by entity type (person, company)"),
@@ -81,6 +82,8 @@ def entity_anomalies(
     entity_type: str,
     entity_id: str,
     min_score: float = Query(0, ge=0, le=10),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
     """Anomalies for a specific entity."""
@@ -94,12 +97,15 @@ def entity_anomalies(
     if min_score > 0:
         q = q.filter(Anomaly.score >= min_score)
 
-    rows = q.order_by(desc(Anomaly.score)).all()
+    total = q.count()
+    rows = q.order_by(desc(Anomaly.score)).offset(offset).limit(limit).all()
 
     return {
         "entity_type": entity_type,
         "entity_id": entity_id,
-        "total": len(rows),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
         "anomalies": [_serialize_anomaly(a) for a in rows],
     }
 

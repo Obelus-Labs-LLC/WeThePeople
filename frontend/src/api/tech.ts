@@ -63,6 +63,7 @@ export interface TechCompanyDetail {
   sanctions_data?: Record<string, unknown>;
   sanctions_checked_at?: string;
   patent_policy_summary?: TechPatentPolicySummary;
+  ai_profile_summary?: string;
 }
 
 export interface TechPatentItem {

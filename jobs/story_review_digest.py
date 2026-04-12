@@ -157,8 +157,9 @@ def send_email(subject: str, html: str) -> bool:
         log.warning("RESEND_API_KEY not set — refusing to send")
         return False
     try:
+        from services.email import RESEND_API_URL
         resp = requests.post(
-            "https://api.resend.com/emails",
+            RESEND_API_URL,
             headers={
                 "Authorization": f"Bearer {RESEND_API_KEY}",
                 "Content-Type": "application/json",

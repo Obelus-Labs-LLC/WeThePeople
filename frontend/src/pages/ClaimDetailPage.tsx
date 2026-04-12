@@ -59,12 +59,14 @@ const ClaimDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     if (!claim_id) return;
     setLoading(true);
     setError(null);
     apiClient
       .getClaim(claim_id)
       .then((data) => {
+        if (cancelled) return;
         setClaim(data);
         setLoading(false);
       })
@@ -72,6 +74,7 @@ const ClaimDetailPage: React.FC = () => {
         setError(err.message || "Failed to load claim");
         setLoading(false);
       });
+    return () => { cancelled = true; };
   }, [claim_id]);
 
   // ── Loading ──

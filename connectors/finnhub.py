@@ -74,10 +74,13 @@ def fetch_congressional_trades(
         logger.error("Finnhub congressional trades request timed out (symbol=%s)", symbol)
         raise
     except requests.exceptions.HTTPError as e:
-        logger.error("Finnhub HTTP error (symbol=%s): %s", symbol, e)
+        # Mask token from error URL to prevent API key leakage in logs
+        safe_msg = str(e).replace(API_KEY, "***") if API_KEY else str(e)
+        logger.error("Finnhub HTTP error (symbol=%s): %s", symbol, safe_msg)
         raise
     except Exception as e:
-        logger.error("Finnhub request failed (symbol=%s): %s", symbol, e)
+        safe_msg = str(e).replace(API_KEY, "***") if API_KEY else str(e)
+        logger.error("Finnhub request failed (symbol=%s): %s", symbol, safe_msg)
         raise
 
     # Finnhub returns {"data": [...]} for this endpoint

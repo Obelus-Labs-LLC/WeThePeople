@@ -57,7 +57,7 @@ class Promise(Base):
 
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     milestones = relationship("Milestone", back_populates="promise", cascade="all, delete-orphan")
     votes = relationship("CivicVote", primaryjoin="and_(CivicVote.target_type=='promise', foreign(CivicVote.target_id)==Promise.id)", viewonly=True)
@@ -135,7 +135,7 @@ class Proposal(Base):
     published_at = Column(DateTime(timezone=True), nullable=True)
     closed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 # ── Bill Section Annotations ──────────────────────────────────────────

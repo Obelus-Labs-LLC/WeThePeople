@@ -30,7 +30,7 @@ import os
 import sqlite3
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -109,7 +109,7 @@ def _load_budget_ledger() -> Dict[str, Any]:
                     _unlock_file(f)
         except (json.JSONDecodeError, Exception):
             pass
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     return {
         "month": now.strftime("%Y-%m"),
         "hedgebrain": {"total_cost": 0.0, "call_count": 0, "last_call": None},
@@ -132,7 +132,7 @@ def _save_budget_ledger(ledger: Dict[str, Any]) -> None:
 def check_budget() -> Dict[str, Any]:
     """Check if WeThePeople has budget remaining."""
     ledger = _load_budget_ledger()
-    current_month = datetime.now().strftime("%Y-%m")
+    current_month = datetime.now(timezone.utc).strftime("%Y-%m")
     if ledger.get("month") != current_month:
         # New month — reset all projects
         for key in ["hedgebrain", "guardian", "wethepeople"]:
@@ -162,7 +162,7 @@ def check_budget() -> Dict[str, Any]:
 def record_spend(cost: float) -> None:
     """Record API spend for WeThePeople."""
     ledger = _load_budget_ledger()
-    current_month = datetime.now().strftime("%Y-%m")
+    current_month = datetime.now(timezone.utc).strftime("%Y-%m")
     if ledger.get("month") != current_month:
         for key in ["hedgebrain", "guardian", "wethepeople"]:
             ledger[key] = {"total_cost": 0.0, "call_count": 0, "last_call": None}
@@ -175,7 +175,7 @@ def record_spend(cost: float) -> None:
         ledger["wethepeople"].get("total_cost", 0.0) + cost, 4
     )
     ledger["wethepeople"]["call_count"] = ledger["wethepeople"].get("call_count", 0) + 1
-    ledger["wethepeople"]["last_call"] = datetime.now().isoformat()
+    ledger["wethepeople"]["last_call"] = datetime.now(timezone.utc).isoformat()
     _save_budget_ledger(ledger)
     logger.info(
         f"Budget: wethepeople spent ${cost:.4f} this call, "
@@ -237,8 +237,8 @@ def call_claude(system_prompt: str, user_prompt: str,
     try:
         from services.budget import log_token_usage
         log_token_usage("ai_summarize", model, input_tokens, output_tokens, cost, user_prompt[:100])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to log token usage for ai_summarize: %s", e)
     logger.info(
         f"Claude ({model.split('-')[1]}): {elapsed:.1f}s, "
         f"{input_tokens} in / {output_tokens} out, ${cost:.4f}"

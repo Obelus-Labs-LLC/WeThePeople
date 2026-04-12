@@ -73,15 +73,29 @@ function getProfileRoute(node: NetworkNode): string | null {
   return null;
 }
 
-// ── Image cache for photo_url ──
-const imageCache: Record<string, HTMLImageElement> = {};
+// ── Bounded LRU image cache for photo_url ──
+const IMAGE_CACHE_MAX = 200;
+const imageCache = new Map<string, HTMLImageElement>();
 
 function getImage(url: string): HTMLImageElement | null {
-  if (imageCache[url]) return imageCache[url];
+  const cached = imageCache.get(url);
+  if (cached) {
+    // Move to end (most recently used)
+    imageCache.delete(url);
+    imageCache.set(url, cached);
+    return cached;
+  }
   const img = new Image();
   img.src = url;
-  img.onload = () => { imageCache[url] = img; };
-  return imageCache[url] || null;
+  img.onload = () => {
+    // Evict oldest if at capacity
+    if (imageCache.size >= IMAGE_CACHE_MAX) {
+      const oldest = imageCache.keys().next().value;
+      if (oldest !== undefined) imageCache.delete(oldest);
+    }
+    imageCache.set(url, img);
+  };
+  return null;
 }
 
 // ── Types for the graph ──
@@ -375,7 +389,7 @@ export default function InfluenceGraph({
   }, []);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full" style={{ minHeight: 400 }}>
+    <div ref={containerRef} role="img" aria-label="Influence network graph showing connections between politicians, companies, and legislation" className="relative w-full h-full" style={{ minHeight: 400 }}>
       <ForceGraph2D
         ref={fgRef}
         graphData={graphData}

@@ -2,7 +2,7 @@
  * WTP API Client - Type-safe wrapper with runtime validation
  *
  * Usage:
- *   const client = new WTPClient('http://localhost:8002');
+ *   const client = new WTPClient(getApiBaseUrl());
  *   const people = await client.getPeople({ has_ledger: true, limit: 10 });
  *
  * If the backend contract is violated, this throws ContractViolationError
@@ -25,6 +25,8 @@ import type {
   VoteDetailResponse,
   ActionSearchResponse,
   DashboardStats,
+  BalanceOfPower,
+  PersonCommitteesResponse,
   RecentAction,
   LedgerSummary,
   CompareResponse,
@@ -86,23 +88,35 @@ export class WTPClient {
   }
 
   private async fetchJSON<T>(url: string): Promise<T> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return response.json();
   }
 
   /** Fetch with X-WTP-API-KEY header for press-tier endpoints */
   private async fetchPressJSON<T>(url: string): Promise<T> {
-    const headers: Record<string, string> = {};
-    const key = getPressApiKey();
-    if (key) headers['X-WTP-API-KEY'] = key;
-    const response = await fetch(url, { headers });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const headers: Record<string, string> = {};
+      const key = getPressApiKey();
+      if (key) headers['X-WTP-API-KEY'] = key;
+      const response = await fetch(url, { headers, signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return response.json();
   }
 
   /** GET /people */
@@ -196,6 +210,12 @@ export class WTPClient {
     return this.fetchJSON<DashboardStats>(url);
   }
 
+  /** GET /balance-of-power */
+  async getBalanceOfPower(): Promise<BalanceOfPower> {
+    const url = `${this.baseUrl}/balance-of-power`;
+    return this.fetchJSON<BalanceOfPower>(url);
+  }
+
   /** GET /actions/recent */
   async getRecentActions(limit: number = 10): Promise<RecentAction[]> {
     const url = `${this.baseUrl}/actions/recent?limit=${limit}`;
@@ -265,9 +285,9 @@ export class WTPClient {
   }
 
   /** GET /people/{id}/committees — Committees a politician sits on */
-  async getPersonCommittees(personId: string): Promise<any> {
+  async getPersonCommittees(personId: string): Promise<PersonCommitteesResponse> {
     const url = `${this.baseUrl}/people/${encodeURIComponent(personId)}/committees`;
-    return this.fetchJSON<any>(url);
+    return this.fetchJSON<PersonCommitteesResponse>(url);
   }
 
   /** GET /actions/search — Search actions with filters */

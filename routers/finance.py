@@ -45,9 +45,10 @@ def get_finance_dashboard_stats(db: Session = Depends(get_db)):
     return {"total_institutions": total_institutions, "total_filings": total_filings, "total_financials": total_financials, "total_complaints": total_complaints, "total_fred_observations": total_fred, "total_press_releases": total_press, "total_lobbying": total_lobbying, "total_lobbying_spend": total_lobbying_spend, "total_contracts": total_contracts, "total_contract_value": total_contract_value, "total_enforcement": total_enforcement, "total_penalties": total_penalties, "total_insider_trades": total_insider_trades, "by_sector": by_sector}
 
 
+@router.get("/companies")
 @router.get("/institutions")
 def get_finance_institutions(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), q: Optional[str] = Query(None, description="Search by name or ticker"), sector_type: Optional[str] = Query(None), db: Session = Depends(get_db)):
-    """List tracked financial institutions."""
+    """List tracked financial institutions. Also available at /finance/companies for consistency."""
     query = db.query(TrackedInstitution).filter(TrackedInstitution.is_active == 1)
     if q:
         like = f"%{escape_like(q.strip().lower())}%"

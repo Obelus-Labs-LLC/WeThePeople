@@ -97,10 +97,12 @@ function AdverseEventsTab({ companyId }: { companyId: string }) {
   const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     getHealthCompanyAdverseEvents(companyId, { limit: 50 })
-      .then((res) => { setEvents(res.adverse_events || []); setTotal(res.total); })
+      .then((res) => { if (!cancelled) { setEvents(res.adverse_events || []); setTotal(res.total); } })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   const handleLoadMore = () => {
@@ -225,10 +227,12 @@ function RecallsTab({ companyId }: { companyId: string }) {
   const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     getHealthCompanyRecalls(companyId, { limit: 50 })
-      .then((res) => { setRecalls(res.recalls || []); setTotal(res.total); })
+      .then((res) => { if (!cancelled) { setRecalls(res.recalls || []); setTotal(res.total); } })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   const handleLoadMore = () => {
@@ -334,10 +338,12 @@ function TrialsTab({ companyId }: { companyId: string }) {
   const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     getHealthCompanyTrials(companyId, { limit: 50 })
-      .then((res) => { setTrials(res.trials || []); setTotal(res.total); })
+      .then((res) => { if (!cancelled) { setTrials(res.trials || []); setTotal(res.total); } })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   const handleLoadMore = () => {
@@ -462,6 +468,7 @@ function PaymentsFilingsTab({ companyId, company }: { companyId: string; company
   const [paymentFilter, setPaymentFilter] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       getHealthCompanyPayments(companyId, { limit: 50 }),
       getHealthCompanyPaymentSummary(companyId),
@@ -469,13 +476,15 @@ function PaymentsFilingsTab({ companyId, company }: { companyId: string; company
       getHealthCompanyStock(companyId),
     ])
       .then(([payRes, sumRes, filRes, stockRes]) => {
+        if (cancelled) return;
         setPayments(payRes.payments || []);
         setPaymentSummary(sumRes);
         setFilings(filRes.filings || []);
         setStock(stockRes.stock);
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   if (loading) return <LoadingSpinner />;
@@ -841,13 +850,15 @@ function LobbyingTab({ companyId }: { companyId: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       getHealthCompanyLobbying(companyId, { limit: 50 }),
       getHealthCompanyLobbySummary(companyId),
     ])
-      .then(([lobbyRes, sumRes]) => { setFilings(lobbyRes.filings || []); setSummary(sumRes); })
+      .then(([lobbyRes, sumRes]) => { if (!cancelled) { setFilings(lobbyRes.filings || []); setSummary(sumRes); } })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   if (loading) return <LoadingSpinner />;
@@ -911,10 +922,12 @@ function ContractsTab({ companyId }: { companyId: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     getHealthCompanyContracts(companyId, { limit: 50 })
-      .then((res) => setContracts(res.contracts || []))
+      .then((res) => { if (!cancelled) setContracts(res.contracts || []); })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   if (loading) return <LoadingSpinner />;
@@ -954,10 +967,12 @@ function EnforcementTab({ companyId }: { companyId: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     getHealthCompanyEnforcement(companyId, { limit: 50 })
-      .then((res) => { setActions(res.actions || []); setTotalPenalties(res.total_penalties || 0); })
+      .then((res) => { if (!cancelled) { setActions(res.actions || []); setTotalPenalties(res.total_penalties || 0); } })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   if (loading) return <LoadingSpinner />;
@@ -1108,10 +1123,10 @@ export default function HealthCompanyProfilePage() {
             </p>
           )}
 
-          {(company as any).ai_profile_summary && (
+          {company.ai_profile_summary && (
             <div className="mb-6">
               <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
-              <p className="text-zinc-400 text-sm mt-1">{(company as any).ai_profile_summary}</p>
+              <p className="text-zinc-400 text-sm mt-1">{company.ai_profile_summary}</p>
             </div>
           )}
 

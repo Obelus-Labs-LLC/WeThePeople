@@ -11,6 +11,7 @@ from models.database import (
     TrackedMember,
 )
 from models.committee_models import Committee, CommitteeMembership
+from models.response_schemas import CommitteesListResponse
 
 router = APIRouter(tags=["politics"])
 
@@ -52,7 +53,7 @@ def _serialize_membership(m: CommitteeMembership, member_info: Optional[TrackedM
 
 # ── Committee Endpoints ──
 
-@router.get("/committees")
+@router.get("/committees", response_model=CommitteesListResponse)
 def list_committees(
     chamber: Optional[str] = Query(None, description="Filter by chamber: house, senate, joint"),
     include_subcommittees: bool = Query(False, description="Include subcommittees in listing"),

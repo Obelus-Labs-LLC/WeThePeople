@@ -47,7 +47,7 @@ function getSectorLabel(sector: string): string {
 
 function FilterPill({ label, count, active, color, onClick }: { label: string; count: number; active: boolean; color: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 font-body text-sm font-medium transition-all duration-200"
+    <button onClick={onClick} aria-pressed={active} className="flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 font-body text-sm font-medium transition-all duration-200"
       style={{ borderColor: active ? color : 'rgba(255,255,255,0.1)', backgroundColor: active ? `${color}15` : 'transparent', color: active ? color : 'rgba(255,255,255,0.5)' }}>
       {label}
       <span className="rounded-full px-1.5 py-0.5 font-mono text-[10px]" style={{ backgroundColor: active ? `${color}33` : 'rgba(255,255,255,0.1)', color: active ? color : 'rgba(255,255,255,0.4)' }}>{count}</span>

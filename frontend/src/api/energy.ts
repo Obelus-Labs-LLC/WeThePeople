@@ -77,6 +77,7 @@ export interface EnergyCompanyDetail {
   sanctions_status?: string;
   sanctions_data?: Record<string, unknown>;
   sanctions_checked_at?: string;
+  ai_profile_summary?: string;
 }
 
 export interface EnergyFilingItem {

@@ -63,6 +63,7 @@ export default function InfluenceMapPage() {
 
   // Fetch data when metric or sector changes
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
     const sectorParam = sector === 'all' ? undefined : sector;
@@ -70,6 +71,7 @@ export default function InfluenceMapPage() {
       .then((res) => setStateData(res.states))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, [metric, sector]);
 
   // Compute totals

@@ -61,7 +61,8 @@ function getApiUrl(): string {
   return PRODUCTION_API;
 }
 
-const BASE_URL: string = getApiUrl();
+export const API_BASE: string = getApiUrl();
+const BASE_URL: string = API_BASE;
 
 class WTPClient {
   private baseUrl: string;

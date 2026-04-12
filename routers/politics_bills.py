@@ -15,6 +15,11 @@ from models.database import (
     TrackedMember,
     MemberBillGroundTruth,
 )
+from models.response_schemas import (
+    BillsListResponse,
+    BillDetailResponse,
+    BillEnrichmentStats,
+)
 
 router = APIRouter(tags=["politics"])
 
@@ -45,7 +50,7 @@ def _bill_type_label(bill_type: str) -> str:
 
 # ── Bills ──
 
-@router.get("/bills")
+@router.get("/bills", response_model=BillsListResponse)
 def list_bills(
     limit: int = Query(25, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -144,7 +149,7 @@ def list_bills(
         db.close()
 
 
-@router.get("/bills/enrichment/stats")
+@router.get("/bills/enrichment/stats", response_model=BillEnrichmentStats)
 def get_bill_enrichment_stats():
     """Bill enrichment coverage stats."""
     db = SessionLocal()
@@ -166,7 +171,7 @@ def get_bill_enrichment_stats():
         db.close()
 
 
-@router.get("/bills/{bill_id}")
+@router.get("/bills/{bill_id}", response_model=BillDetailResponse)
 def get_bill(bill_id: str):
     """Full bill detail."""
     db = SessionLocal()
@@ -222,7 +227,7 @@ def get_bill(bill_id: str):
         db.close()
 
 
-@router.get("/bills/{bill_id}/timeline")
+@router.get("/bills/{bill_id}/timeline")  # response shape varies per bill
 def get_bill_timeline(bill_id: str):
     """Bill timeline with action history."""
     db = SessionLocal()

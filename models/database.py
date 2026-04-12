@@ -1,12 +1,13 @@
 import os
 import time
 
-from sqlalchemy import create_engine, event, Column, String, Integer, DateTime, ForeignKey, Text, Table, JSON, Date, Float, UniqueConstraint
+from sqlalchemy import create_engine, event, Column, String, Integer, DateTime, ForeignKey, Text, Table, JSON, Date, Float, UniqueConstraint, Index
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import func
 
-DATABASE_URL = os.getenv("WTP_DB_URL") or "sqlite:///./wethepeople.db"
+from utils.db_compat import DATABASE_URL  # canonical source in db_compat
 
 # If DATABASE_URL starts with "oracle", build the full connection URL from env vars
 if DATABASE_URL.startswith("oracle"):
@@ -23,9 +24,16 @@ _db_logger.info("Database: %s", _safe_url)
 _SLOW_QUERY_THRESHOLD_MS = 500
 
 # Dialect-specific engine configuration
+# SCALING NOTE: SQLite WAL mode supports one writer + multiple readers on a
+# single server. For horizontal scaling (multiple app processes on separate
+# hosts), migrate to PostgreSQL and replace the file-based scheduler lock with
+# a distributed queue (e.g. Redis + Celery or pg_advisory_lock).
 _engine_kwargs = {}
 if DATABASE_URL.startswith("sqlite"):
     _engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60}
+    _engine_kwargs["pool_size"] = 5
+    _engine_kwargs["max_overflow"] = 10
+    _engine_kwargs["pool_pre_ping"] = True
 elif "oracle" in DATABASE_URL:
     # Oracle: connection pooling + thick mode params
     _engine_kwargs["pool_size"] = 10
@@ -66,13 +74,15 @@ def _after_cursor_execute(conn, cursor, statement, parameters, context, executem
     start = start_times.pop()
     duration_ms = (time.monotonic() - start) * 1000
 
-    # Record in metrics
+    # Record in metrics (via callback hook — no router imports in model layer)
     is_slow = duration_ms > _SLOW_QUERY_THRESHOLD_MS
     try:
-        from routers.metrics import record_db_query
-        record_db_query(slow=is_slow)
-    except (ImportError, Exception):
-        pass
+        from utils.metrics_hooks import notify_db_query
+        notify_db_query(slow=is_slow)
+    except ImportError:
+        pass  # metrics_hooks not installed
+    except Exception as e:
+        _db_logger.debug("notify_db_query failed: %s", e)
 
     if is_slow:
         # Truncate SQL for logging (avoid dumping huge INSERTs)
@@ -81,8 +91,10 @@ def _after_cursor_execute(conn, cursor, statement, parameters, context, executem
         try:
             from middleware.tracing import get_trace_id
             trace_id = get_trace_id()
-        except (ImportError, Exception):
-            pass
+        except ImportError:
+            pass  # tracing middleware not installed
+        except Exception as e:
+            _db_logger.debug("get_trace_id failed: %s", e)
         _db_logger.warning(
             "Slow query: %.1fms | %s",
             duration_ms, sql_preview,
@@ -124,7 +136,7 @@ class Person(Base):
     
     # Timestamps for audit trail
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class SourceDocument(Base):
     """Citation-first design: normalize source documents for traceability"""
@@ -134,25 +146,31 @@ class SourceDocument(Base):
     publisher = Column(String)
     retrieved_at = Column(DateTime(timezone=True))
     content_hash = Column(String)  # For detecting changes to source
-    
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class Action(Base):
     __tablename__ = "actions"
+    __table_args__ = (
+        UniqueConstraint("person_id", "bill_congress", "bill_type", "bill_number", "action_type",
+                         name="uq_actions_person_bill"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    person_id = Column(String, nullable=True, index=True)
-    source_id = Column(Integer, ForeignKey("source_documents.id"))  # Normalized source reference
+    person_id = Column(String, ForeignKey("tracked_members.person_id", ondelete="SET NULL"), nullable=True, index=True)
+    source_id = Column(Integer, ForeignKey("source_documents.id", ondelete="SET NULL"))  # Normalized source reference
     title = Column(String)
     summary = Column(Text)
-    date = Column(DateTime)
+    date = Column(DateTime(timezone=True), index=True)
+    action_type = Column(String, nullable=True, index=True)  # "Sponsored" or "Cosponsored"
     metadata_json = Column(JSON, nullable=True)  # Structured metadata from API responses
-    
+
     # Bill identifiers for efficient querying
     bill_congress = Column(Integer, nullable=True)
     bill_type = Column(String, nullable=True)
-    bill_number = Column(String, nullable=True)
+    bill_number = Column(Integer, nullable=True)
     
     # Enriched data fields (extracted from metadata_json for faster querying)
     policy_area = Column(String, nullable=True)
@@ -161,8 +179,8 @@ class Action(Base):
     
     # Timestamps for versioning and debugging
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
     # Relationships
     source = relationship("SourceDocument", backref="actions")
 
@@ -183,8 +201,8 @@ class GoldLedgerEntry(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    claim_id = Column(Integer, ForeignKey("claims.id"), nullable=False, index=True)
-    evaluation_id = Column(Integer, ForeignKey("claim_evaluations.id"), nullable=False, index=True)
+    claim_id = Column(Integer, ForeignKey("claims.id", ondelete="CASCADE"), nullable=False, index=True)
+    evaluation_id = Column(Integer, ForeignKey("claim_evaluations.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Canonical identity fields
     person_id = Column(String, nullable=False, index=True)
@@ -198,7 +216,7 @@ class GoldLedgerEntry(Base):
 
     # Canonical match outputs (mirrors ClaimEvaluation, but materialized)
     matched_bill_id = Column(String, nullable=True, index=True)
-    best_action_id = Column(Integer, ForeignKey("actions.id"), nullable=True, index=True)
+    best_action_id = Column(Integer, ForeignKey("actions.id", ondelete="SET NULL"), nullable=True, index=True)
     score = Column(Float, nullable=True)
     tier = Column(String, nullable=False, index=True)
     relevance = Column(String, nullable=True, index=True)
@@ -208,7 +226,7 @@ class GoldLedgerEntry(Base):
     why_json = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class Claim(Base):
     __tablename__ = "claims"
@@ -219,34 +237,34 @@ class Claim(Base):
     intent = Column(String, index=True, nullable=True)  # sponsored, voted_for, etc.
     claim_date = Column(Date, nullable=True)
     claim_source_url = Column(String, nullable=True)
-    
+
     # Bill references extracted from source article text
     # JSON array of bill IDs: ["H.R. 1234", "S. 5678"]
     bill_refs_json = Column(Text, nullable=True)
-    
+
     # Deduplication: stable hash of (person_id + normalized_text + source_url)
     # Normalized = lowercase, collapse whitespace, strip punctuation
     claim_hash = Column(String, unique=True, nullable=False, index=True)
-    
+
     # Dirty flag system: track when evaluations need recomputation
     # Set to True when matched bill lifecycle data changes
     # Cleared when recompute job runs
     needs_recompute = Column(Integer, nullable=False, server_default="0", index=True)  # SQLite: 0=False, 1=True
-    
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class ClaimEvaluation(Base):
     __tablename__ = "claim_evaluations"
 
     id = Column(Integer, primary_key=True, index=True)
 
-    claim_id = Column(Integer, ForeignKey("claims.id"), index=True, nullable=False)
+    claim_id = Column(Integer, ForeignKey("claims.id", ondelete="CASCADE"), index=True, nullable=False)
     person_id = Column(String, index=True, nullable=False)
 
     # best matched action (nullable if none)
-    best_action_id = Column(Integer, ForeignKey("actions.id"), index=True, nullable=True)
+    best_action_id = Column(Integer, ForeignKey("actions.id", ondelete="SET NULL"), index=True, nullable=True)
 
     score = Column(Float, nullable=True)
 
@@ -263,8 +281,8 @@ class ClaimEvaluation(Base):
     # Legacy explainability snapshot (optional but useful)
     why_json = Column(Text, nullable=True)
 
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class Vote(Base):
@@ -309,8 +327,17 @@ class Vote(Base):
     ai_summary = Column(Text, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    @hybrid_property
+    def session(self):
+        """Alias for vote_session — consistent API serialization as 'session'."""
+        return self.vote_session
+
+    @session.setter
+    def session(self, value):
+        self.vote_session = value
 
 
 class MemberVote(Base):
@@ -328,7 +355,7 @@ class MemberVote(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     
-    vote_id = Column(Integer, ForeignKey("votes.id"), index=True, nullable=False)
+    vote_id = Column(Integer, ForeignKey("votes.id", ondelete="CASCADE"), index=True, nullable=False)
     person_id = Column(String, index=True, nullable=True)         # "aoc", "schumer", etc. — nullable for members not yet in our system
     
     # Vote position
@@ -341,8 +368,8 @@ class MemberVote(Base):
     state = Column(String, nullable=True)
     
     # Timestamps
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     # Relationships
     vote = relationship("Vote", backref="member_votes")
@@ -369,7 +396,7 @@ class Bill(Base):
     status_bucket = Column(String, index=True, nullable=True)     # "introduced", "in_committee", "passed_house", etc.
     status_reason = Column(String, nullable=True)                 # Triggering action_text snippet (for transparency)
     latest_action_text = Column(String, nullable=True)
-    latest_action_date = Column(DateTime, nullable=True)
+    latest_action_date = Column(DateTime(timezone=True), nullable=True)
     
     # Enrichment flag: mark bills that need full detail fetch
     needs_enrichment = Column(Integer, nullable=False, server_default="1", index=True)  # SQLite: 0=enriched, 1=needs_enrichment
@@ -378,15 +405,15 @@ class Bill(Base):
     summary_text = Column(Text, nullable=True)                    # CRS summary from Congress API
     summary_date = Column(String, nullable=True)                  # Date of the summary version
     full_text_url = Column(String, nullable=True)                 # URL to latest text version on congress.gov
-    introduced_date = Column(DateTime, nullable=True)             # Date bill was introduced
+    introduced_date = Column(DateTime(timezone=True), nullable=True)             # Date bill was introduced
     subjects_json = Column(JSON, nullable=True)                   # JSON array of subject strings from Congress API
 
     # Raw data
     metadata_json = Column(JSON, nullable=True)
     
     # Timestamps
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class BillAction(Base):
@@ -400,10 +427,10 @@ class BillAction(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Bill reference
-    bill_id = Column(String, ForeignKey("bills.bill_id"), index=True, nullable=False)
+    bill_id = Column(String, ForeignKey("bills.bill_id", ondelete="CASCADE"), index=True, nullable=False)
     
     # Action details
-    action_date = Column(DateTime, index=True, nullable=False)
+    action_date = Column(DateTime(timezone=True), index=True, nullable=False)
     action_text = Column(String, nullable=False)                  # Full text from Congress.gov
     action_code = Column(String, index=True, nullable=True)       # "Intro-H", "H11100", "Passed/agreed to in House"
     
@@ -416,7 +443,7 @@ class BillAction(Base):
     dedupe_hash = Column(String, unique=True, nullable=True)      # Hash of (bill_id, action_date, action_text)
     
     # Timestamps
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationships
     bill = relationship("Bill", backref="actions")
@@ -432,7 +459,7 @@ class TrackedMember(Base):
     id = Column(Integer, primary_key=True, index=True)
     person_id = Column(String, unique=True, nullable=False, index=True)  # 'aoc', 'sanders'
     bioguide_id = Column(String, unique=True, nullable=False, index=True)  # 'O000172'
-    display_name = Column(String, nullable=False)  # 'Alexandria Ocasio-Cortez'
+    display_name = Column(String, nullable=False, index=True)  # 'Alexandria Ocasio-Cortez'
     chamber = Column(String, nullable=False, index=True)  # 'house' or 'senate'
     state = Column(String, nullable=True)  # 'NY', 'VT', etc.
     party = Column(String, nullable=True)  # 'D', 'R', 'I'
@@ -458,8 +485,8 @@ class TrackedMember(Base):
     last_full_refresh_at = Column(DateTime(timezone=True), nullable=True, index=True)
     
     # Timestamps
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class PersonBill(Base):
@@ -474,15 +501,15 @@ class PersonBill(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     person_id = Column(String, index=True, nullable=False)       # 'aoc', 'sanders', etc.
-    bill_id = Column(String, ForeignKey("bills.bill_id"), index=True, nullable=False)  # 'hr2670-118'
+    bill_id = Column(String, ForeignKey("bills.bill_id", ondelete="CASCADE"), index=True, nullable=False)  # 'hr2670-118'
     relationship_type = Column(String, index=True, nullable=False)  # 'Sponsored' or 'Cosponsored'
     
     # Source citation
     source_url = Column(String, nullable=True)
     
     # Timestamps
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     # Relationships
     bill = relationship("Bill", backref="person_links")
@@ -514,11 +541,11 @@ class MemberBillGroundTruth(Base):
     
     # Provenance
     source = Column(String, nullable=False)                     # "congress.gov.api.v3"
-    fetched_at = Column(DateTime, server_default=func.now(), nullable=False)
+    fetched_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Timestamps
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class PipelineRun(Base):
@@ -550,6 +577,7 @@ class CompanyDonation(Base):
 
     __table_args__ = (
         UniqueConstraint("dedupe_hash", name="uq_company_donations_hash"),
+        Index("ix_company_donations_entity", "entity_type", "entity_id"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -626,7 +654,7 @@ class Anomaly(Base):
     title = Column(String(500), nullable=False)                    # Human-readable headline
     description = Column(Text, nullable=True)                      # Detailed explanation
     evidence = Column(Text, nullable=True)                         # JSON: related records
-    detected_at = Column(DateTime, server_default=func.now(), nullable=False)
+    detected_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     dedupe_hash = Column(String(64), nullable=False, index=True)
 
 
@@ -648,8 +676,8 @@ import models.twitter_models  # noqa: F401 — register tweet log table
 import models.government_data_models  # noqa: F401 — register SAM, Regulations.gov, IT Dashboard, Site Scanning tables
 import models.auth_models  # noqa: F401 — register User, APIKeyRecord, AuditLog tables
 import models.civic_models  # noqa: F401 — register promises, badges, proposals, annotations
-import services.rate_limit_store  # noqa: F401 — register rate_limit_records table
-import services.pipeline_reliability  # noqa: F401 — register DLQ, processed_records, data_quality_checks tables
+import models.rate_limit_models  # noqa: F401 — register rate_limit_records table
+import models.pipeline_models  # noqa: F401 — register DLQ, processed_records, data_quality_checks tables
 import models.telecom_models  # noqa: F401 — register telecom sector tables
 import models.education_models  # noqa: F401 — register education sector tables
 import models.token_usage  # noqa: F401 — register token usage tracking table

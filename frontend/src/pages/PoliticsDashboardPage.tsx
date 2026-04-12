@@ -154,6 +154,7 @@ export default function PoliticsDashboardPage() {
   useInView(headerRef, { once: true, amount: 0.1 });
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       apiClient.getDashboardStats(),
       apiClient.getPeople({ limit: 6, has_ledger: true }),
@@ -162,6 +163,7 @@ export default function PoliticsDashboardPage() {
       apiClient.getPeople({ limit: 600 }),
     ])
       .then(([s, p, a, all]) => {
+        if (cancelled) return;
         setStats(s);
         setPeople(p.people || []);
         setActions(a || []);
@@ -169,6 +171,7 @@ export default function PoliticsDashboardPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, []);
 
   const partyCounts = React.useMemo(() => {

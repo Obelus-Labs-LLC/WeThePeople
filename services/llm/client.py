@@ -22,6 +22,7 @@ _client: Optional[Anthropic] = None
 # Default model — configurable via env var, falls back to Sonnet 4
 DEFAULT_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-4-20250514")
 
+logger = logging.getLogger(__name__)
 _cost_logger = logging.getLogger(__name__ + ".cost")
 
 
@@ -92,7 +93,7 @@ def extract_claims_from_text(
     # Budget check before calling
     allowed, remaining = check_budget(estimated_cost=0.05)
     if not allowed:
-        print(f"  [BUDGET] Skipping LLM call: only ${remaining:.2f} remaining")
+        logger.warning("Skipping LLM call: only $%.2f remaining", remaining)
         return []
 
     delay = 1.0
@@ -135,7 +136,7 @@ def extract_claims_from_text(
                 or "529" in error_str
                 or "500" in error_str
             ):
-                print(f"  [RETRY] Attempt {attempt + 1}/{max_retries}: {error_str[:100]}")
+                logger.warning("LLM retry attempt %d/%d: %s", attempt + 1, max_retries, error_str[:100])
                 time.sleep(delay)
                 delay *= 2
                 continue
@@ -176,10 +177,10 @@ def _parse_claims_response(response_text: str) -> List[Dict]:
             try:
                 data = json.loads(match.group())
             except json.JSONDecodeError:
-                print(f"  [WARN] Could not parse LLM response as JSON")
+                logger.warning("Could not parse LLM response as JSON")
                 return []
         else:
-            print(f"  [WARN] No JSON array found in LLM response")
+            logger.warning("No JSON array found in LLM response")
             return []
 
     # Handle both {"claims": [...]} and direct [...] formats
@@ -187,7 +188,7 @@ def _parse_claims_response(response_text: str) -> List[Dict]:
         data = data["claims"]
 
     if not isinstance(data, list):
-        print(f"  [WARN] Expected list, got {type(data)}")
+        logger.warning("Expected list from LLM, got %s", type(data).__name__)
         return []
 
     # Validate and normalize each claim

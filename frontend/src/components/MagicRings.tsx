@@ -1,5 +1,14 @@
 import { useEffect, useRef, memo } from 'react';
-import * as THREE from 'three';
+import {
+  WebGLRenderer,
+  Scene,
+  OrthographicCamera,
+  Vector2,
+  Color,
+  ShaderMaterial,
+  Mesh,
+  PlaneGeometry,
+} from 'three';
 
 const vertexShader = `
 void main() {
@@ -104,9 +113,9 @@ function MagicRings({
     const mount = mountRef.current;
     if (!mount) return;
 
-    let renderer: THREE.WebGLRenderer;
+    let renderer: WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ alpha: true });
+      renderer = new WebGLRenderer({ alpha: true });
     } catch {
       return;
     }
@@ -118,16 +127,16 @@ function MagicRings({
     renderer.setClearColor(0x000000, 0);
     mount.appendChild(renderer.domElement);
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0.1, 10);
+    const scene = new Scene();
+    const camera = new OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0.1, 10);
     camera.position.z = 1;
 
     const uniforms = {
       uTime: { value: 0 },
       uAttenuation: { value: 0 },
-      uResolution: { value: new THREE.Vector2() },
-      uColor: { value: new THREE.Color() },
-      uColorTwo: { value: new THREE.Color() },
+      uResolution: { value: new Vector2() },
+      uColor: { value: new Color() },
+      uColorTwo: { value: new Color() },
       uLineThickness: { value: 0 },
       uBaseRadius: { value: 0 },
       uRadiusStep: { value: 0 },
@@ -141,8 +150,8 @@ function MagicRings({
       uFadeOut: { value: 0.75 },
     };
 
-    const material = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms, transparent: true });
-    const quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    const material = new ShaderMaterial({ vertexShader, fragmentShader, uniforms, transparent: true });
+    const quad = new Mesh(new PlaneGeometry(1, 1), material);
     scene.add(quad);
 
     const resize = () => {

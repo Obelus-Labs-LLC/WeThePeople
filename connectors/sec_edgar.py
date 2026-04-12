@@ -19,6 +19,8 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 SUBMISSIONS_BASE = "https://data.sec.gov/submissions/CIK{cik}.json"
+SEC_BROWSE_BASE = "https://www.sec.gov/cgi-bin/browse-edgar"
+EFTS_BASE = "https://efts.sec.gov/LATEST"
 
 HEADERS = {
     "User-Agent": "WeThePeople/1.0 (contact@wethepeopleforus.com)",

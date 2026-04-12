@@ -18,8 +18,8 @@ export interface Person {
   display_name: string;
   bioguide_id: string;
   chamber: string;
-  state: string;
-  party: string;
+  state: string | null;
+  party: string | null;
   is_active: boolean;
   photo_url: string | null;
   sanctions_status?: string;
@@ -138,6 +138,7 @@ export interface PersonProfile {
   infobox: Record<string, string>;
   sections: Record<string, string>;
   url: string | null;
+  ai_profile_summary?: string;
 }
 
 // /people/{id}/finance response (FEC)
@@ -215,6 +216,20 @@ export interface DashboardStats {
   match_rate: number;
 }
 
+// /balance-of-power response
+export interface ChamberBreakdown {
+  total: number;
+  democrat: number;
+  republican: number;
+  independent: number;
+}
+
+export interface BalanceOfPower {
+  house: ChamberBreakdown;
+  senate: ChamberBreakdown;
+  total: ChamberBreakdown;
+}
+
 // /actions/recent response
 export interface RecentAction {
   id: number;
@@ -258,7 +273,7 @@ export interface Vote {
   id: number;
   congress: number;
   chamber: string;
-  session: number;
+  session: number | null;
   roll_number: number;
   vote_date: string | null;
   question: string;
@@ -334,6 +349,7 @@ export interface PersonVoteEntry {
   related_bill_number: number | null;
   bill_title: string | null;
   bill_summary: string | null;
+  ai_summary: string | null;
 }
 
 export interface PersonVotesResponse {
@@ -375,6 +391,27 @@ export interface MemberVoteEntry {
 export interface VoteDetailResponse extends Vote {
   source_url: string | null;
   member_votes: MemberVoteEntry[];
+  ai_summary: string | null;
+}
+
+// /people/{id}/committees response
+export interface CommitteeEntry {
+  thomas_id: string;
+  name: string;
+  chamber: string;
+  committee_type: string | null;
+  url: string | null;
+  parent_thomas_id: string | null;
+  role: string | null;
+  rank: number | null;
+  party: string | null;
+}
+
+export interface PersonCommitteesResponse {
+  person_id: string;
+  display_name: string;
+  total: number;
+  committees: CommitteeEntry[];
 }
 
 // /actions/search response

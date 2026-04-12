@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
 
-const API_BASE = 'https://api.wethepeopleforus.com';
+import { API_BASE } from '../api/client';
 
 const SECTOR_COLORS: Record<string, string> = {
   specialty: '#F59E0B',

@@ -8,8 +8,11 @@ from fastapi import APIRouter, Query, HTTPException, Depends
 from sqlalchemy import func, desc, case
 from typing import Optional, Dict, Any
 from datetime import date
+import threading
 import time as _time
 import json
+
+from cachetools import TTLCache
 
 from models.database import (
     SessionLocal,
@@ -42,12 +45,20 @@ router = APIRouter(tags=["politics"])
 # ── Helpers ──
 
 def _safe_json_loads(value):
+    """Parse JSON string, always normalizing to a list for frontend compatibility."""
     if not value:
-        return None
+        return []
     try:
-        return json.loads(value)
+        parsed = json.loads(value)
     except Exception:
-        return None
+        return []
+    if isinstance(parsed, list):
+        return parsed
+    if isinstance(parsed, dict):
+        return [parsed]
+    if isinstance(parsed, str):
+        return [parsed]
+    return []
 
 
 def _serialize_gold_row(row: GoldLedgerEntry) -> Dict[str, Any]:
@@ -96,20 +107,20 @@ def _bill_type_label(bill_type: str) -> str:
     return labels.get(bill_type, bill_type)
 
 
-# ── Cached external lookups (TTL-based) ──
+# ── Cached external lookups (thread-safe TTL cache with bounded size) ──
 
-_profile_cache: dict = {}
-_PROFILE_TTL = 3600  # 1 hour
+_profile_cache: TTLCache = TTLCache(maxsize=500, ttl=3600)
+_profile_lock = threading.Lock()
 
 
 def _cached_with_ttl(cache_key: str, fetch_fn):
-    now = _time.time()
-    if cache_key in _profile_cache:
-        ts, val = _profile_cache[cache_key]
-        if now - ts < _PROFILE_TTL:
-            return val
+    with _profile_lock:
+        cached = _profile_cache.get(cache_key)
+    if cached is not None:
+        return cached
     result = fetch_fn()
-    _profile_cache[cache_key] = (now, result)
+    with _profile_lock:
+        _profile_cache[cache_key] = result
     return result
 
 
@@ -327,6 +338,13 @@ def get_person_directory_entry(person_id: str):
         row = db.query(TrackedMember).filter(TrackedMember.person_id == person_id).one_or_none()
         if row is None:
             raise HTTPException(status_code=404, detail={"error": "person not found", "person_id": person_id})
+        sanctions_data_raw = row.sanctions_data
+        sanctions_data_parsed = None
+        if sanctions_data_raw:
+            try:
+                sanctions_data_parsed = json.loads(sanctions_data_raw)
+            except (ValueError, TypeError):
+                sanctions_data_parsed = None
         return {
             "person_id": row.person_id,
             "display_name": row.display_name,
@@ -338,6 +356,8 @@ def get_person_directory_entry(person_id: str):
             "photo_url": row.photo_url,
             "ai_profile_summary": row.ai_profile_summary,
             "sanctions_status": row.sanctions_status,
+            "sanctions_data": sanctions_data_parsed,
+            "sanctions_checked_at": row.sanctions_checked_at.isoformat() if row.sanctions_checked_at else None,
         }
     finally:
         db.close()

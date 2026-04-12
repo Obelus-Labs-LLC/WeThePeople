@@ -24,7 +24,7 @@ class TrackedInstitution(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     institution_id = Column(String, unique=True, nullable=False, index=True)  # 'jpmorgan', 'goldman-sachs'
-    display_name = Column(String, nullable=False)  # 'JPMorgan Chase & Co.'
+    display_name = Column(String, nullable=False, index=True)  # 'JPMorgan Chase & Co.'
     ticker = Column(String, nullable=True, index=True)  # 'JPM'
     sector_type = Column(String, nullable=False, index=True)  # 'bank', 'investment', 'insurance', 'fintech'
 

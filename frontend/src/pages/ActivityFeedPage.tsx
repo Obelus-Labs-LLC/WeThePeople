@@ -42,11 +42,13 @@ export default function ActivityFeedPage() {
   useInView(headerRef, { once: true, amount: 0.1 });
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       apiClient.getRecentActions(100),
       apiClient.getVotes({ limit: 20 }),
     ])
       .then(([actionsRes, votesRes]) => {
+        if (cancelled) return;
         setActions(actionsRes || []);
         setVotes(votesRes.votes || []);
       })
@@ -54,6 +56,7 @@ export default function ActivityFeedPage() {
         setError(err instanceof Error ? err.message : 'Failed to load activity feed');
       })
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, []);
 
   if (loading) {

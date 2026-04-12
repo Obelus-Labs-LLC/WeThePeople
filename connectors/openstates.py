@@ -76,16 +76,19 @@ def fetch_state_legislators(
                     timeout=30,
                 )
                 if resp.status_code == 429:
-                    wait = (attempt + 1) * 30
-                    logger.warning("Rate limited on '%s', waiting %ds...", state, wait)
+                    wait = min(5 * (2 ** attempt), 60)  # 5s, 10s, 20s (capped at 60s)
+                    logger.warning("Rate limited on '%s', waiting %ds (attempt %d/%d)...", state, wait, attempt + 1, MAX_RETRIES)
                     time.sleep(wait)
                     continue
                 resp.raise_for_status()
                 data = resp.json()
                 break
-            except Exception as e:
+            except requests.exceptions.RequestException as e:
                 logger.error("OpenStates legislators fetch failed for '%s': %s", state, e)
-                break
+                if attempt < MAX_RETRIES - 1:
+                    time.sleep(5 * (2 ** attempt))
+                else:
+                    break
         if data is None:
             break
 
@@ -174,16 +177,19 @@ def fetch_state_bills(
                 timeout=30,
             )
             if resp.status_code == 429:
-                wait = (attempt + 1) * 30
-                logger.warning("Rate limited on bills '%s', waiting %ds...", state, wait)
+                wait = min(5 * (2 ** attempt), 60)  # 5s, 10s, 20s (capped at 60s)
+                logger.warning("Rate limited on bills '%s', waiting %ds (attempt %d/%d)...", state, wait, attempt + 1, MAX_RETRIES)
                 time.sleep(wait)
                 continue
             resp.raise_for_status()
             data = resp.json()
             break
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             logger.error("OpenStates bills fetch failed for '%s': %s", state, e)
-            return []
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(5 * (2 ** attempt))
+            else:
+                return []
     if data is None:
         return []
 

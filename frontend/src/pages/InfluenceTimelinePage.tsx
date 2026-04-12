@@ -55,6 +55,7 @@ export default function InfluenceTimelinePage() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
   useEffect(() => {
+    let cancelled = false;
     if (!entityId) {
       setLoading(false);
       return;
@@ -71,8 +72,9 @@ export default function InfluenceTimelinePage() {
     });
 
     fetch(`${API_BASE}/influence/network?${params}`)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
       .then((data) => {
+        if (cancelled) return;
         const timelineEvents: TimelineEvent[] = [];
 
         // Extract events from edges
@@ -130,6 +132,7 @@ export default function InfluenceTimelinePage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, [entityType, entityId]);
 
   const filteredEvents = filterCategory === 'all'

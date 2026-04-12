@@ -38,8 +38,10 @@ export default function StateExplorerPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
     fetchStates()
       .then((data) => {
+        if (cancelled) return;
         const map: Record<string, StateListEntry> = {};
         for (const s of data.states) {
           map[s.code] = s;
@@ -48,6 +50,7 @@ export default function StateExplorerPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, []);
 
   const filteredStates = useMemo(() => {

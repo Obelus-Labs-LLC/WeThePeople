@@ -149,7 +149,11 @@ def require_enterprise_or_rate_limit(
         return {"tier": "pro", "rate_limited": False}
 
     # --- 4. Anonymous free tier: persistent IP rate limit ---
-    client_ip = request.client.host if request.client else "unknown"
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+    else:
+        client_ip = request.client.host if request.client else "unknown"
 
     allowed, remaining, reset_time = check_rate_limit(
         ip=client_ip,

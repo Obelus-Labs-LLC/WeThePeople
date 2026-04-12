@@ -41,29 +41,37 @@ _BLOCKED_NETWORKS = [
 ]
 
 
-def _is_safe_url(url: str) -> bool:
-    """Validate a user-supplied URL to prevent SSRF attacks."""
+def _is_safe_url(url: str) -> Optional[str]:
+    """Validate a user-supplied URL to prevent SSRF attacks.
+
+    Returns the first safe resolved IP address, or None if URL is blocked.
+    The caller must use the returned IP to avoid DNS rebinding attacks.
+    """
     try:
         parsed = urlparse(url)
     except Exception:
-        return False
+        return None
     if parsed.scheme not in ("http", "https"):
-        return False
+        return None
     hostname = parsed.hostname
     if not hostname:
-        return False
+        return None
     if hostname in ("localhost", "metadata.google.internal"):
-        return False
+        return None
     try:
         resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
         for family, _, _, _, sockaddr in resolved:
             ip = ipaddress.ip_address(sockaddr[0])
+            blocked = False
             for net in _BLOCKED_NETWORKS:
                 if ip in net:
-                    return False
+                    blocked = True
+                    break
+            if not blocked:
+                return str(ip)
+        return None  # All resolved IPs are blocked
     except (socket.gaierror, ValueError):
-        return False
-    return True
+        return None
 
 
 def _call_veritas(endpoint: str, method: str = "GET", json_body: dict = None, timeout: int = 60) -> Optional[dict]:
@@ -386,7 +394,8 @@ def run_verification(db: Session, text_input: str, source_url: Optional[str] = N
 
 def run_verification_from_url(db: Session, url: str) -> Dict[str, Any]:
     """Run verification on content fetched from a URL."""
-    if not _is_safe_url(url):
+    safe_ip = _is_safe_url(url)
+    if not safe_ip:
         return {
             "claims_extracted": 0,
             "claims": [],
@@ -400,9 +409,14 @@ def run_verification_from_url(db: Session, url: str) -> Dict[str, Any]:
     }, timeout=30)
 
     if not result:
-        # Fallback: fetch and extract text ourselves
+        # Fallback: fetch and extract text ourselves, using pinned IP to prevent DNS rebinding
         try:
-            resp = requests.get(url, timeout=30)
+            parsed = urlparse(url)
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            pinned_url = f"{parsed.scheme}://{safe_ip}:{port}{parsed.path}"
+            if parsed.query:
+                pinned_url += f"?{parsed.query}"
+            resp = requests.get(pinned_url, headers={"Host": parsed.hostname}, timeout=30, verify=parsed.scheme == "https")
             resp.raise_for_status()
             try:
                 from trafilatura import extract

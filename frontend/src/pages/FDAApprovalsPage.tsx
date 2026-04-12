@@ -83,6 +83,7 @@ export default function FDAApprovalsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
+    let cancelled = false;
     async function loadData() {
       try {
         // Try fetching FDA approvals endpoint
@@ -94,8 +95,11 @@ export default function FDAApprovalsPage() {
           setApiAvailable(false);
         }
 
+        if (cancelled) return;
+
         // Also fetch recent recalls as FDA activity data
         const companiesRes = await getHealthCompanies({ limit: 30 });
+        if (cancelled) return;
         const companies = companiesRes.companies || [];
 
         const recallSets = await Promise.all(
@@ -111,6 +115,8 @@ export default function FDAApprovalsPage() {
               .catch(() => [] as (RecallItem & { companyId: string; companyName: string })[])
           )
         );
+
+        if (cancelled) return;
 
         const allRecalls = recallSets
           .flat()
@@ -130,6 +136,7 @@ export default function FDAApprovalsPage() {
     }
 
     loadData();
+    return () => { cancelled = true; };
   }, []);
 
   if (loading) {

@@ -1,10 +1,14 @@
+import logging
 import os
 import requests
 import time
 import json
 from pathlib import Path
 from datetime import datetime, timezone
+from typing import Any, Dict
 from models.database import SessionLocal, Action, SourceDocument, Bill, BillAction
+
+logger = logging.getLogger(__name__)
 from utils.normalization import (
     normalize_bill_id,
     compute_action_dedupe_hash,
@@ -12,10 +16,11 @@ from utils.normalization import (
     extract_committee_from_action
 )
 from sqlalchemy import exists
+from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
 
 load_dotenv()
-API_KEY = os.getenv("API_KEY_CONGRESS", "")
+API_KEY = os.getenv("API_KEY_CONGRESS") or os.getenv("CONGRESS_API_KEY", "")
 HEADERS = {"X-API-Key": API_KEY} if API_KEY else {}
 
 # Legacy MEMBERS dict (kept for reference/fallback)
@@ -54,7 +59,7 @@ def get_tracked_members():
         finally:
             session.close()
     except Exception as e:
-        print(f"  Warning: Could not load tracked members from DB: {e}")
+        logger.warning("Could not load tracked members from DB: %s", e)
     return MEMBERS
 
 # ============================================================================
@@ -62,32 +67,40 @@ def get_tracked_members():
 # ============================================================================
 
 def robust_get(url, headers, params=None, retries=5):
-    """Make HTTP GET with exponential backoff for rate limits and server errors"""
+    """Make HTTP GET with exponential backoff for rate limits and server errors."""
+    r = None
     for attempt in range(retries):
         try:
             r = requests.get(url, headers=headers, params=params, timeout=30)
-            
+
             # Success
             if r.status_code == 200:
                 return r
-            
-            # Rate limit or server error - retry with backoff
-            if r.status_code in [429, 500, 503]:
-                wait_time = (2 ** attempt) * 0.5  # 0.5s, 1s, 2s, 4s, 8s
-                print(f"  ⚠️  Status {r.status_code}, retrying in {wait_time}s... (attempt {attempt + 1}/{retries})")
+
+            # Rate limit — use longer backoff (Congress.gov 429s need real cooldown)
+            if r.status_code == 429:
+                wait_time = min((2 ** attempt) * 5, 120)  # 5s, 10s, 20s, 40s, 80s
+                logger.warning("429 rate limited, retrying in %.1fs (attempt %d/%d)", wait_time, attempt + 1, retries)
                 time.sleep(wait_time)
                 continue
-            
-            # Other errors - return immediately
+
+            # Server error — standard exponential backoff
+            if r.status_code in [500, 502, 503, 504]:
+                wait_time = (2 ** attempt) * 1.0  # 1s, 2s, 4s, 8s, 16s
+                logger.warning("Status %d, retrying in %.1fs (attempt %d/%d)", r.status_code, wait_time, attempt + 1, retries)
+                time.sleep(wait_time)
+                continue
+
+            # Other errors (4xx) - return immediately, no retry
             return r
-            
-        except Exception as e:
-            print(f"  ❌ Request exception: {e}")
+
+        except requests.exceptions.RequestException as e:
+            logger.error("Request exception (attempt %d/%d): %s", attempt + 1, retries, e)
             if attempt < retries - 1:
                 time.sleep(2 ** attempt)
             else:
                 raise
-    
+
     return r  # Return last attempt
 
 
@@ -101,7 +114,7 @@ def fetch_paged(url, item_key, limit_pages=5):
         
         r = robust_get(url, HEADERS, params)
         if r.status_code != 200:
-            print(f"  ❌ Pagination failed at offset {offset}: {r.status_code}")
+            logger.error("Pagination failed at offset %d: %d", offset, r.status_code)
             break
         
         data = r.json()
@@ -120,23 +133,80 @@ def fetch_paged(url, item_key, limit_pages=5):
 # MEMBER-CENTRIC ENDPOINTS
 # ============================================================================
 
+def search_bills(query: str, congress: int = 119, limit: int = 25) -> Dict[str, Any]:
+    """
+    Search congressional bills via Congress.gov API.
+
+    Args:
+        query: Search term (lobbying issue, industry term, etc.)
+        congress: Congress number (default 119)
+        limit: Max results
+
+    Returns:
+        Dict with 'total_bills' and 'bills' list
+    """
+    if not API_KEY:
+        raise ValueError("Congress.gov API key not configured")
+
+    url = "https://api.congress.gov/v3/bill"
+    params = {
+        "query": query.strip(),
+        "limit": limit,
+        "api_key": API_KEY,
+        "format": "json",
+    }
+    if congress:
+        params["congress"] = congress
+
+    try:
+        r = robust_get(url, HEADERS, params=params)
+        if r.status_code != 200:
+            logger.warning("Congress.gov bill search error %d: %s", r.status_code, r.text[:200])
+            return {"total_bills": 0, "bills": []}
+        data = r.json()
+    except Exception as e:
+        logger.warning("Congress.gov bill search request error: %s", e)
+        return {"total_bills": 0, "bills": []}
+
+    total_bills = data.get("pagination", {}).get("count", 0)
+    bills = []
+
+    for b in data.get("bills", []):
+        bill_type = b.get("type", "").lower()
+        bill_number = b.get("number", "")
+        bill_congress = b.get("congress", congress)
+        latest = b.get("latestAction", {})
+
+        bills.append({
+            "bill_id": f"{bill_type}{bill_number}-{bill_congress}",
+            "title": b.get("title", ""),
+            "policy_area": b.get("policyArea", {}).get("name", "") if isinstance(b.get("policyArea"), dict) else b.get("policyArea", ""),
+            "latest_action": latest.get("text", "") if isinstance(latest, dict) else str(latest),
+            "latest_action_date": latest.get("actionDate", "") if isinstance(latest, dict) else "",
+            "sponsor": b.get("sponsor", {}).get("fullName", "") if isinstance(b.get("sponsor"), dict) else "",
+            "url": b.get("url", f"https://www.congress.gov/bill/{bill_congress}th-congress/{bill_type}-bill/{bill_number}"),
+        })
+
+    return {"total_bills": total_bills, "bills": bills}
+
+
 def fetch_member_sponsored(bioguide_id, limit_pages=5):
     """Fetch bills sponsored by a specific member"""
     url = f"https://api.congress.gov/v3/member/{bioguide_id}/sponsored-legislation"
-    print(f"  📥 Fetching sponsored legislation for {bioguide_id}...")
-    
+    logger.info("Fetching sponsored legislation for %s", bioguide_id)
+
     items = fetch_paged(url, "sponsoredLegislation", limit_pages)
-    print(f"  ✅ Found {len(items)} sponsored bills")
+    logger.info("Found %d sponsored bills for %s", len(items), bioguide_id)
     return items
 
 
 def fetch_member_cosponsored(bioguide_id, limit_pages=5):
     """Fetch bills cosponsored by a specific member"""
     url = f"https://api.congress.gov/v3/member/{bioguide_id}/cosponsored-legislation"
-    print(f"  📥 Fetching cosponsored legislation for {bioguide_id}...")
-    
+    logger.info("Fetching cosponsored legislation for %s", bioguide_id)
+
     items = fetch_paged(url, "cosponsoredLegislation", limit_pages)
-    print(f"  ✅ Found {len(items)} cosponsored bills")
+    logger.info("Found %d cosponsored bills for %s", len(items), bioguide_id)
     return items
 
 
@@ -155,45 +225,43 @@ def ingest_member_legislation(limit_pages=5, person_ids=None):
     session = SessionLocal()
     total_added = 0
 
-    all_members = get_tracked_members()
+    try:
+        all_members = get_tracked_members()
 
-    # Filter to specific members if requested
-    if person_ids:
-        members_to_process = {k: v for k, v in all_members.items() if k in person_ids}
-        missing = set(person_ids) - set(members_to_process.keys())
-        if missing:
-            print(f"  Warning: These person_ids not found in tracked members: {missing}")
-    else:
-        members_to_process = all_members
+        # Filter to specific members if requested
+        if person_ids:
+            members_to_process = {k: v for k, v in all_members.items() if k in person_ids}
+            missing = set(person_ids) - set(members_to_process.keys())
+            if missing:
+                logger.warning("These person_ids not found in tracked members: %s", missing)
+        else:
+            members_to_process = all_members
 
-    print(f"Processing {len(members_to_process)} members...")
+        logger.info("Processing %d members...", len(members_to_process))
 
-    for person_name, bioguide_id in members_to_process.items():
-        print(f"\n{'='*60}")
-        print(f"Processing: {person_name.upper()} ({bioguide_id})")
-        print(f"{'='*60}")
-        
-        member_added = 0
-        
-        # Fetch sponsored bills
-        sponsored = fetch_member_sponsored(bioguide_id, limit_pages)
-        for bill in sponsored:
-            if process_bill_item(session, person_name, bill, "Sponsored"):
-                member_added += 1
-        
-        # Fetch cosponsored bills
-        cosponsored = fetch_member_cosponsored(bioguide_id, limit_pages)
-        for bill in cosponsored:
-            if process_bill_item(session, person_name, bill, "Cosponsored"):
-                member_added += 1
-        
-        total_added += member_added
-        print(f"  ✅ Added {member_added} new actions for {person_name}")
-    
-    session.close()
-    print(f"\n{'='*60}")
-    print(f"✅ Ingestion complete — {total_added} total new legislative actions")
-    print(f"{'='*60}")
+        for person_name, bioguide_id in members_to_process.items():
+            logger.info("Processing: %s (%s)", person_name.upper(), bioguide_id)
+
+            member_added = 0
+
+            # Fetch sponsored bills
+            sponsored = fetch_member_sponsored(bioguide_id, limit_pages)
+            for bill in sponsored:
+                if process_bill_item(session, person_name, bill, "Sponsored"):
+                    member_added += 1
+
+            # Fetch cosponsored bills
+            cosponsored = fetch_member_cosponsored(bioguide_id, limit_pages)
+            for bill in cosponsored:
+                if process_bill_item(session, person_name, bill, "Cosponsored"):
+                    member_added += 1
+
+            total_added += member_added
+            logger.info("Added %d new actions for %s", member_added, person_name)
+
+        logger.info("Ingestion complete — %d total new legislative actions", total_added)
+    finally:
+        session.close()
 
 
 # ============================================================================
@@ -265,7 +333,11 @@ def fetch_bill_text_url(congress: int, bill_type: str, bill_number: int) -> str 
 
 
 def find_or_create_source(session, url):
-    """Find existing SourceDocument or create new one"""
+    """Find existing SourceDocument or create new one.
+
+    Handles TOCTOU race: if concurrent insert wins, catch IntegrityError
+    and return the existing record.
+    """
     source = session.query(SourceDocument).filter(SourceDocument.url == url).first()
     if not source:
         source = SourceDocument(
@@ -275,7 +347,11 @@ def find_or_create_source(session, url):
             content_hash=None
         )
         session.add(source)
-        session.flush()  # Get the ID without committing
+        try:
+            session.flush()  # Get the ID without committing
+        except IntegrityError:
+            session.rollback()
+            source = session.query(SourceDocument).filter(SourceDocument.url == url).first()
     return source
 
 
@@ -308,8 +384,11 @@ def write_raw_log(person_id, match_type, bill, source_url, status):
     try:
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(audit_data, f, indent=2)
-    except Exception as e:
-        print("❌ RAW LOG FAILED:", e)
+    except OSError as e:
+        logger.error(
+            "RAW LOG FAILED for %s/%s (path=%s): %s",
+            person_id, filename, out_path, e,
+        )
 
 
 def process_bill_item(session, person_name, bill, action_type):
@@ -327,7 +406,13 @@ def process_bill_item(session, person_name, bill, action_type):
     bill_id = normalize_bill_id(congress, bill_type, bill_number)
     
     # Get title and URL
-    title = bill.get("title", "")[:250] or f"{bill_type.upper()} {bill_number}"
+    raw_title = (bill.get("title") or "").strip()
+    if len(raw_title) > 500:
+        logger.warning("Bill %s/%s/%s title truncated from %d to 500 chars", congress, bill_type, bill_number, len(raw_title))
+        title = raw_title[:500]
+    else:
+        title = raw_title
+    title = title or f"{bill_type.upper()} {bill_number}"
     source_url = bill.get("url")  # API URL or congress.gov URL
     
     # Try to get congress.gov URL if available
@@ -339,27 +424,27 @@ def process_bill_item(session, person_name, bill, action_type):
     # Find or create SourceDocument
     source = find_or_create_source(session, source_url)
     
-    # Check if Action already exists using bill identifiers (true identity)
+    # Check if Action already exists using bill identifiers + action_type (true identity)
     exists_action = session.query(Action).filter(
         Action.person_id == person_name,
         Action.bill_congress == congress,
         Action.bill_type == bill_type,
-        Action.bill_number == bill_number
+        Action.bill_number == bill_number,
+        Action.action_type == action_type,
     ).first()
-    
+
     if exists_action:
         write_raw_log(person_name, action_type, bill, source_url, "skipped")
         return False
     
-    # Get date
+    # Get date — store None if unparseable rather than silently defaulting to now()
     date_str = bill.get("introducedDate") or bill.get("latestAction", {}).get("actionDate")
+    action_date = None
     if date_str:
         try:
-            action_date = datetime.strptime(date_str, "%Y-%m-%d")
-        except Exception:
-            action_date = datetime.now(timezone.utc)
-    else:
-        action_date = datetime.now(timezone.utc)
+            action_date = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            pass  # Store None — logged at query time if needed
     
     # Build metadata from bill item
     metadata = {
@@ -394,6 +479,7 @@ def process_bill_item(session, person_name, bill, action_type):
         title=title,
         summary=f"{action_type} bill: {bill_type.upper()} {bill_number}",
         date=action_date,
+        action_type=action_type,
         source_id=source.id,
         metadata_json=metadata,
         bill_congress=congress,
@@ -404,19 +490,25 @@ def process_bill_item(session, person_name, bill, action_type):
         latest_action_date=latest_action_date_str,
     )
     session.add(action)
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        write_raw_log(person_name, action_type, bill, source_url, "skipped")
+        return False
     
     # Upsert Bill record (one row per bill, normalized)
     existing_bill = session.query(Bill).filter(Bill.bill_id == bill_id).first()
-    
+
     if not existing_bill:
         # Create Bill record
         latest_action_date_dt = None
         if latest_action_date_str:
             try:
-                latest_action_date_dt = datetime.strptime(latest_action_date_str, "%Y-%m-%d")
-            except:
+                latest_action_date_dt = datetime.strptime(latest_action_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
                 pass
-        
+
         bill_record = Bill(
             bill_id=bill_id,
             congress=congress,
@@ -429,6 +521,12 @@ def process_bill_item(session, person_name, bill, action_type):
             metadata_json=bill
         )
         session.add(bill_record)
+        try:
+            session.flush()
+        except IntegrityError:
+            session.rollback()
+            # Concurrent insert won - reload the existing record
+            existing_bill = session.query(Bill).filter(Bill.bill_id == bill_id).first()
         
         # If we have latest action, add it to BillAction timeline
         if latest_action_text and latest_action_date_str:
@@ -445,7 +543,7 @@ def process_bill_item(session, person_name, bill, action_type):
                 action_code = latest_action_obj.get("actionCode") if latest_action_obj else None
                 chamber = extract_chamber_from_action(action_code, latest_action_text)
                 committee = extract_committee_from_action(latest_action_text, latest_action_obj)
-                
+
                 bill_action = BillAction(
                     bill_id=bill_id,
                     action_date=latest_action_date_dt or action_date,
@@ -457,6 +555,10 @@ def process_bill_item(session, person_name, bill, action_type):
                     dedupe_hash=dedupe_hash
                 )
                 session.add(bill_action)
+                try:
+                    session.flush()
+                except IntegrityError:
+                    session.rollback()  # BillAction already exists, safe to skip
     
     try:
         session.commit()
@@ -467,5 +569,5 @@ def process_bill_item(session, person_name, bill, action_type):
         return True
     except Exception as e:
         session.rollback()
-        print(f"  ⚠️  Failed to save {bill_type} {bill_number}: {e}")
+        logger.warning("Failed to save %s %s: %s", bill_type, bill_number, e)
         return False

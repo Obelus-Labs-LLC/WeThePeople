@@ -11,8 +11,11 @@ Rate limit: 10 Haiku questions per IP per day (free tier).
 import hashlib
 import logging
 import os
+import threading
 import time
 from typing import Optional
+
+from cachetools import TTLCache
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -95,9 +98,8 @@ def _consume_rate_limit(ip: str) -> int:
 # Response cache (in-memory, keyed by normalized question hash)
 # ---------------------------------------------------------------------------
 
-_response_cache: dict[str, dict] = {}
-_CACHE_MAX_SIZE = 500
-_CACHE_TTL_SECONDS = 3600  # 1 hour
+_response_cache: TTLCache = TTLCache(maxsize=500, ttl=3600)
+_cache_lock = threading.Lock()
 
 
 def _cache_key(question: str) -> str:
@@ -111,23 +113,14 @@ def _cache_key(question: str) -> str:
 
 def _cache_get(question: str) -> Optional[dict]:
     key = _cache_key(question)
-    entry = _response_cache.get(key)
-    if entry is None:
-        return None
-    if time.time() - entry.get("_cached_at", 0) > _CACHE_TTL_SECONDS:
-        _response_cache.pop(key, None)
-        return None
-    return entry
+    with _cache_lock:
+        return _response_cache.get(key)
 
 
 def _cache_set(question: str, response: dict) -> None:
-    if len(_response_cache) >= _CACHE_MAX_SIZE:
-        # Evict oldest 100 entries
-        keys = list(_response_cache.keys())[:100]
-        for k in keys:
-            _response_cache.pop(k, None)
-    response["_cached_at"] = time.time()
-    _response_cache[_cache_key(question)] = response
+    key = _cache_key(question)
+    with _cache_lock:
+        _response_cache[key] = response
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +236,9 @@ def ask_question(body: ChatRequest, request: Request):
             cached=True,
         )
 
-    client_ip = request.client.host if request.client else "unknown"
+    # Use X-Forwarded-For (first hop) if behind reverse proxy, else direct client IP
+    forwarded = request.headers.get("x-forwarded-for")
+    client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
 
     # Consume rate limit BEFORE the Haiku call to prevent race conditions
     remaining = _consume_rate_limit(client_ip)
@@ -255,7 +250,8 @@ def ask_question(body: ChatRequest, request: Request):
         # ANTHROPIC_API_KEY not set
         raise HTTPException(status_code=503, detail="AI chat is temporarily unavailable.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI request failed: {str(e)[:200]}")
+        logger.error("AI request failed: %s", e)
+        raise HTTPException(status_code=500, detail="AI request failed. Please try again later.")
 
     # Cache the response
     _cache_set(question, result)

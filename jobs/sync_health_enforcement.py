@@ -36,7 +36,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./wethepeople.db")
-FR_BASE = "https://www.federalregister.gov/api/v1"
+from connectors.federal_register import BASE_URL as FR_BASE
 
 AGENCY_SLUGS = {
     "FDA": "food-and-drug-administration",

@@ -37,6 +37,19 @@ function assertField(data: JsonValue, field: string, type: string, endpoint: str
   }
 }
 
+function assertNullableField(data: JsonValue, field: string, type: string, endpoint: string) {
+  if (!(field in data)) {
+    throw new ContractViolationError(endpoint, field, `missing field`);
+  }
+  if (data[field] !== null && typeof data[field] !== type) {
+    throw new ContractViolationError(
+      endpoint,
+      field,
+      `expected ${type} or null, got ${typeof data[field]}`
+    );
+  }
+}
+
 function assertArray(data: JsonValue, field: string, endpoint: string) {
   if (!(field in data)) {
     throw new ContractViolationError(endpoint, field, `missing field`);
@@ -56,10 +69,10 @@ export function validatePeopleResponse(data: JsonValue): asserts data is PeopleR
   if (data.people.length > 0) {
     const person = data.people[0];
     assertField(person, 'person_id', 'string', `${endpoint}[0]`);
-    assertField(person, 'display_name', 'string', `${endpoint}[0]`);
-    assertField(person, 'chamber', 'string', `${endpoint}[0]`);
-    assertField(person, 'state', 'string', `${endpoint}[0]`);
-    assertField(person, 'party', 'string', `${endpoint}[0]`);
+    assertNullableField(person, 'display_name', 'string', `${endpoint}[0]`);
+    assertNullableField(person, 'chamber', 'string', `${endpoint}[0]`);
+    assertNullableField(person, 'state', 'string', `${endpoint}[0]`);
+    assertNullableField(person, 'party', 'string', `${endpoint}[0]`);
     assertField(person, 'is_active', 'boolean', `${endpoint}[0]`);
   }
 }

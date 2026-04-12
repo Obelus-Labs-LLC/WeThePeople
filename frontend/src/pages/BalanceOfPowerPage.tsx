@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Users, Scale, Activity, FileText } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
-import type { Person, DashboardStats } from '../api/types';
+import type { DashboardStats, BalanceOfPower } from '../api/types';
 import SpotlightCard from '../components/SpotlightCard';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 
@@ -14,22 +14,6 @@ interface ChamberBreakdown {
   democrat: number;
   republican: number;
   independent: number;
-}
-
-function computeBreakdown(people: Person[], chamber: 'house' | 'senate'): ChamberBreakdown {
-  const filtered = people.filter((p) =>
-    chamber === 'house'
-      ? p.chamber.toLowerCase().includes('house') || p.chamber.toLowerCase() === 'lower'
-      : p.chamber.toLowerCase().includes('senate') || p.chamber.toLowerCase() === 'upper'
-  );
-  let democrat = 0, republican = 0, independent = 0;
-  filtered.forEach((p) => {
-    const party = p.party?.charAt(0);
-    if (party === 'D') democrat++;
-    else if (party === 'R') republican++;
-    else independent++;
-  });
-  return { total: filtered.length, democrat, republican, independent };
 }
 
 function pct(n: number, total: number): number {
@@ -151,7 +135,9 @@ function PartyBar({ label, breakdown }: { label: string; breakdown: ChamberBreak
 // ── Page ──
 
 export default function BalanceOfPowerPage() {
-  const [people, setPeople] = useState<Person[]>([]);
+  const [house, setHouse] = useState<ChamberBreakdown>({ total: 0, democrat: 0, republican: 0, independent: 0 });
+  const [senate, setSenate] = useState<ChamberBreakdown>({ total: 0, democrat: 0, republican: 0, independent: 0 });
+  const [total, setTotal] = useState<ChamberBreakdown>({ total: 0, democrat: 0, republican: 0, independent: 0 });
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -160,26 +146,22 @@ export default function BalanceOfPowerPage() {
   useInView(headerRef, { once: true, amount: 0.1 });
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
-      apiClient.getPeople({ limit: 600 }),
+      apiClient.getBalanceOfPower(),
       apiClient.getDashboardStats(),
     ])
-      .then(([pRes, sRes]) => {
-        setPeople(pRes.people || []);
+      .then(([bop, sRes]) => {
+        if (cancelled) return;
+        setHouse(bop.house);
+        setSenate(bop.senate);
+        setTotal(bop.total);
         setStats(sRes);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    return () => { cancelled = true; };
   }, []);
-
-  const house = useMemo(() => computeBreakdown(people, 'house'), [people]);
-  const senate = useMemo(() => computeBreakdown(people, 'senate'), [people]);
-  const total = useMemo(() => ({
-    total: people.length,
-    democrat: house.democrat + senate.democrat,
-    republican: house.republican + senate.republican,
-    independent: house.independent + senate.independent,
-  }), [people, house, senate]);
 
   if (loading) {
     return (

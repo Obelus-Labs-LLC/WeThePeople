@@ -30,12 +30,15 @@ export default function BadgesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.allSettled([fetchBadges(), fetchMyBadges()])
       .then(([b, e]) => {
+        if (cancelled) return;
         if (b.status === 'fulfilled') setBadges(b.value.items);
         if (e.status === 'fulfilled') setEarned(e.value.items);
         setLoading(false);
       });
+    return () => { cancelled = true; };
   }, []);
 
   const earnedSlugs = new Set(earned.map((e) => e.badge_slug));

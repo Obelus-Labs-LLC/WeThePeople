@@ -34,7 +34,7 @@ class StateLegislator(Base):
     party = Column(String, nullable=True)  # 'D', 'R', 'I'
     district = Column(String, nullable=True)
     photo_url = Column(String, nullable=True)
-    is_active = Column(Boolean, default=True, index=True)
+    is_active = Column(Boolean, server_default="1", index=True)
 
     dedupe_hash = Column(String, nullable=False, index=True)
 

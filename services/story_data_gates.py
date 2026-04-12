@@ -162,7 +162,19 @@ def gate_global(db: Session) -> Tuple[bool, List[DataIssue]]:
 # Query helpers
 # ──────────────────────────────────────────────────────────────────────────
 
+import re
+_SAFE_SQL_IDENT = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+
+def _validate_ident(name: str) -> str:
+    """Validate SQL identifier to prevent injection."""
+    if not _SAFE_SQL_IDENT.match(name):
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    return name
+
+
 def _count(db: Session, table: str) -> int | None:
+    _validate_ident(table)
     try:
         row = db.execute(text(f"SELECT COUNT(*) FROM {table}")).fetchone()
         return int(row[0]) if row else 0
@@ -172,6 +184,8 @@ def _count(db: Session, table: str) -> int | None:
 
 
 def _count_distinct(db: Session, table: str, col: str) -> int | None:
+    _validate_ident(table)
+    _validate_ident(col)
     try:
         row = db.execute(
             text(f"SELECT COUNT(DISTINCT {col}) FROM {table} WHERE {col} IS NOT NULL")
