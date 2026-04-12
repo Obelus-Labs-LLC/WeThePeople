@@ -24,11 +24,16 @@ class Story(Base):
     """
     __tablename__ = "stories"
 
-    VALID_STATUSES = ("draft", "published", "archived")
+    VALID_STATUSES = ("draft", "published", "archived", "retracted")
+
+    VALID_VERIFICATION_TIERS = ("verified", "partially_verified", "unverified")
 
     __table_args__ = (
         UniqueConstraint("slug", name="uq_story_slug"),
-        CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_story_status"),
+        CheckConstraint(
+            "status IN ('draft', 'published', 'archived', 'retracted')",
+            name="ck_story_status",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -39,24 +44,32 @@ class Story(Base):
 
     # Classification
     category = Column(String, nullable=False, index=True)
-    # Categories: lobbying_spike, contract_windfall, enforcement_gap,
-    # trade_cluster, cross_sector, regulatory_influence, it_failure
     sector = Column(String, nullable=True, index=True)
-    # Sectors: finance, health, tech, energy, transportation, defense, politics, or null for cross-sector
 
     # Structured data
-    entity_ids = Column(JSON, nullable=False, server_default="[]")  # ["company-id-1", "person-id-2"]
-    data_sources = Column(JSON, nullable=False, server_default="[]")  # ["/finance/institutions/123", "/influence/top-lobbying"]
-    evidence = Column(JSON, nullable=False, server_default="{}")  # {"lobbying_spend": 5200000, "contract_amount": 120000000, ...}
+    entity_ids = Column(JSON, nullable=False, server_default="[]")
+    data_sources = Column(JSON, nullable=False, server_default="[]")
+    evidence = Column(JSON, nullable=False, server_default="{}")
 
     # Workflow
     status = Column(String, nullable=False, server_default="draft", index=True)
-    # Status: draft, published, archived
 
     # Verification (claims pipeline)
     verification_score = Column(Float, nullable=True)  # 0.0-1.0 overall
     verification_tier = Column(String, nullable=True, index=True)  # 'verified', 'partially_verified', 'unverified'
     verification_data = Column(Text, nullable=True)  # Full JSON from claims pipeline
+
+    # Editorial metadata
+    correction_history = Column(JSON, nullable=True, server_default="[]")
+    # List of {date, type, description} entries for corrections/retractions
+    retraction_reason = Column(Text, nullable=True)
+    # Why the story was retracted (null unless status == 'retracted')
+    data_date_range = Column(String, nullable=True)
+    # Human-readable date range of underlying data, e.g. "Jan 2020 - Mar 2026"
+    data_freshness_at = Column(DateTime(timezone=True), nullable=True)
+    # When the underlying data was last refreshed/verified
+    ai_generated = Column(String, nullable=True, server_default="algorithmic")
+    # 'algorithmic' = template-generated, 'opus' = AI-enhanced prose, 'human' = manually written
 
     published_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -68,3 +81,25 @@ class Story(Base):
         if not entity_ids:
             return []
         return [eid for eid in entity_ids if isinstance(eid, str) and eid.strip()]
+
+
+class StoryCorrection(Base):
+    """Tracks corrections, updates, and retractions for published stories.
+
+    Every editorial change to a published story gets a row here, creating
+    an auditable correction history that readers can view.
+    """
+    __tablename__ = "story_corrections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    story_id = Column(Integer, nullable=False, index=True)
+
+    correction_type = Column(String, nullable=False)
+    # 'correction' = factual fix, 'update' = new info added,
+    # 'retraction' = story pulled, 'clarification' = wording improved
+
+    description = Column(Text, nullable=False)
+    # What was wrong and what was fixed
+
+    corrected_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    corrected_by = Column(String, nullable=True)  # 'system', 'editorial', or username
