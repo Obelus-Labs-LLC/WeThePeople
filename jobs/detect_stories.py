@@ -45,10 +45,11 @@ from sqlalchemy import text, func, desc
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("detect_stories")
 
-# ── Opus daily cap: 2 AI-enhanced stories per day ──
+# ── Opus daily cap: 5 AI-enhanced stories per day ──
 # Only Opus-enhanced stories pass the 4000-char floor for the draft queue.
 # Non-enhanced skeletons are discarded, not saved as drafts.
-OPUS_DAILY_CAP = 2
+# Budget: ~$0.15/story x 5/day = ~$0.75/day = ~$23/month
+OPUS_DAILY_CAP = 5
 OPUS_MODEL = "claude-opus-4-20250514"
 
 
@@ -1972,7 +1973,7 @@ def detect_pac_committee_pipeline(db):
         if data["total"] < 5000 or data["committee_total"] < 2000:
             continue
         pct = (data["committee_total"] / data["total"]) * 100 if data["total"] > 0 else 0
-        if pct < 60:  # At least 60% going to oversight committee members
+        if pct < 10:  # At least 10% going to oversight committee members (noteworthy given dozens of committees)
             continue
 
         sector = data["entity_type"]
@@ -2139,7 +2140,7 @@ def detect_fara_domestic_overlap(db):
         # Get active FARA registrant names
         fara_firms = db.execute(text(
             "SELECT DISTINCT registrant_name FROM fara_registrants "
-            "WHERE status = 'Active' AND registrant_name IS NOT NULL"
+            "WHERE LOWER(status) = 'active' AND registrant_name IS NOT NULL"
         )).fetchall()
         fara_names = set(r[0].strip().lower() for r in fara_firms if r[0])
     except Exception as e:
@@ -2170,7 +2171,7 @@ def detect_fara_domestic_overlap(db):
                 try:
                     fp_rows = db.execute(text(
                         "SELECT foreign_principal_name, country FROM fara_foreign_principals "
-                        "WHERE LOWER(registrant_name) = :rname AND status = 'Active'"
+                        "WHERE LOWER(registrant_name) = :rname AND LOWER(status) = 'active'"
                     ), {"rname": reg_name.strip().lower()}).fetchall()
                 except Exception:
                     fp_rows = []
