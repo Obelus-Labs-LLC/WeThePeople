@@ -20,7 +20,6 @@ Patterns:
 Usage:
     python jobs/detect_stories.py
     python jobs/detect_stories.py --dry-run
-    python jobs/detect_stories.py --max-stories 8
 """
 
 import sys
@@ -2350,14 +2349,12 @@ def detect_revolving_door(db):
 def main():
     parser = argparse.ArgumentParser(description="Detect and generate data stories")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--max-stories", type=int, default=20)
     args = parser.parse_args()
 
     Base.metadata.create_all(engine)
     db = SessionLocal()
 
     all_stories = []
-    target = args.max_stories
 
     # ── Gate 1: pre-detector data quality ──
     # Skip any sector whose underlying tables are stale, sparse, or have
@@ -2395,33 +2392,24 @@ def main():
     sector_order = [i for i, (_, s, _, _) in enumerate(LOBBYING_TABLES) if s not in gated_sectors]
     random.shuffle(sector_order)
 
-    log.info("Running story detection (target: %d stories, %d sectors active)...",
-             target, len(sector_order))
+    log.info("Running story detection (%d sectors active)...", len(sector_order))
 
-    # ── ROUND-ROBIN DETECTION ──
-    # Every detector gets a turn before any gets a second.
-    # This ensures story variety across all categories instead of
-    # one prolific detector (lobby_then_win) filling every slot.
-    CATEGORY_CAPS = {
-        "lobbying_spike": 2,
-        "contract_windfall": 2,
-        "penalty_contract_ratio": 2,
-        "lobbying_breakdown": 0,     # Paused — 8 already published
-    }
-    category_counts = defaultdict(int)
-    pattern_contributed = defaultdict(int)  # track per-pattern output
+    # ── PHASE 1: COLLECT CANDIDATES ──
+    # Run every detector once (1 story each). No target cap — we want
+    # one candidate from every category so we can pick the best 5.
+    PAUSED_CATEGORIES = {"lobbying_breakdown"}  # 8 already published
+    pattern_contributed = defaultdict(int)
 
-    # ALL patterns: sector-based and global, shuffled for fairness
     sector_patterns = [
-        ("lobby_then_win", detect_lobby_then_win, None),
-        ("enforcement_disappearance", detect_enforcement_disappearance, None),
-        ("contract_timing", detect_contract_timing, None),
-        ("penalty_gap", detect_penalty_gap, "penalty_contract_ratio"),
-        ("lobby_contract_loop", detect_lobby_contract_loop, None),
-        ("tax_lobbying", detect_tax_lobbying, None),
-        ("budget_lobbying", detect_budget_lobbying, None),
-        ("top_spender", detect_top_spender, "lobbying_spike"),
-        ("contract_windfall", detect_contract_windfall, "contract_windfall"),
+        ("lobby_then_win", detect_lobby_then_win),
+        ("enforcement_disappearance", detect_enforcement_disappearance),
+        ("contract_timing", detect_contract_timing),
+        ("penalty_gap", detect_penalty_gap),
+        ("lobby_contract_loop", detect_lobby_contract_loop),
+        ("tax_lobbying", detect_tax_lobbying),
+        ("budget_lobbying", detect_budget_lobbying),
+        ("top_spender", detect_top_spender),
+        ("contract_windfall", detect_contract_windfall),
     ]
 
     global_patterns = [
@@ -2432,59 +2420,44 @@ def main():
         ("fara_domestic_overlap", detect_fara_domestic_overlap),
     ]
 
-    # Phase 1: Run each global pattern once (1 story max each).
-    # Global patterns are the most investigative — trades, FARA, revolving door.
+    # Global patterns first (cross-sector, most investigative)
     for pattern_name, detect_fn in global_patterns:
-        if len(all_stories) >= target:
-            break
         try:
             found = detect_fn(db)
             for s in found:
+                if s.category in PAUSED_CATEGORIES:
+                    continue
                 if not story_exists(db, s.slug):
                     all_stories.append(s)
                     pattern_contributed[pattern_name] += 1
-                    category_counts[s.category] += 1
                     log.info("  [%s] [%s] %s", pattern_name, s.sector or "cross", s.title[:60])
-                    break  # 1 per pattern per round
+                    break  # 1 per detector
         except Exception as e:
             log.warning("Pattern %s failed: %s", pattern_name, e)
 
-    # Phase 2: Round-robin through sector patterns.
-    # Each pattern gets 1 story from 1 random sector per round.
-    # Multiple rounds until target is hit.
-    MAX_ROUNDS = 3
-    for rnd in range(MAX_ROUNDS):
-        if len(all_stories) >= target:
-            break
-        random.shuffle(sector_order)
-        for pattern_name, detect_fn, cap_category in sector_patterns:
-            if len(all_stories) >= target:
-                break
-            if cap_category and category_counts.get(cap_category, 0) >= CATEGORY_CAPS.get(cap_category, target):
-                continue
-            # Pick one sector per pattern per round
-            for si in sector_order:
-                try:
-                    found = detect_fn(db, sector_idx=si)
-                    added = False
-                    for s in found:
-                        if cap_category and category_counts.get(cap_category, 0) >= CATEGORY_CAPS.get(cap_category, target):
-                            break
-                        if not story_exists(db, s.slug):
-                            all_stories.append(s)
-                            pattern_contributed[pattern_name] += 1
-                            category_counts[s.category] += 1
-                            log.info("  [%s] [%s] %s", pattern_name, s.sector or "cross", s.title[:60])
-                            added = True
-                            break  # 1 per pattern per round
-                    if added:
-                        break  # move to next pattern
-                except Exception as e:
-                    log.warning("Pattern %s failed for sector %d: %s", pattern_name, si, e)
+    # Sector patterns: 1 story from 1 random sector each
+    random.shuffle(sector_order)
+    for pattern_name, detect_fn in sector_patterns:
+        for si in sector_order:
+            try:
+                found = detect_fn(db, sector_idx=si)
+                added = False
+                for s in found:
+                    if s.category in PAUSED_CATEGORIES:
+                        continue
+                    if not story_exists(db, s.slug):
+                        all_stories.append(s)
+                        pattern_contributed[pattern_name] += 1
+                        log.info("  [%s] [%s] %s", pattern_name, s.sector or "cross", s.title[:60])
+                        added = True
+                        break
+                if added:
+                    break
+            except Exception as e:
+                log.warning("Pattern %s failed for sector %d: %s", pattern_name, si, e)
 
-    log.info("Pattern variety: %s", dict(pattern_contributed))
-
-    log.info("\nGenerated %d stories", len(all_stories))
+    log.info("Collected %d candidates from %d detectors: %s",
+             len(all_stories), len(pattern_contributed), dict(pattern_contributed))
 
     if args.dry_run:
         for s in all_stories:
@@ -2492,83 +2465,91 @@ def main():
         db.close()
         return
 
-    # ── Opus enhancement: upgrade the best 2 stories per day ──
+    # ── PHASE 2: SELECT DIVERSE 5 ──
+    # Pick stories from 5 different categories, rotating which categories
+    # get priority each day so all 14 types cycle through the week.
     opus_used = _opus_stories_today(db)
     opus_remaining = max(0, OPUS_DAILY_CAP - opus_used)
-    if opus_remaining > 0 and all_stories:
-        log.info("Opus daily cap: %d/%d used, enhancing up to %d stories", opus_used, OPUS_DAILY_CAP, opus_remaining)
-        # Prioritize investigative patterns for Opus enhancement
-        investigative_categories = {
-            "trade_timing", "regulatory_loop", "enforcement_immunity",
-            "cross_sector", "revolving_door", "foreign_lobbying",
-        }
-        # Sort: investigative first, then by body length (shorter = more room for improvement)
-        candidates = sorted(all_stories, key=lambda s: (
-            0 if s.category in investigative_categories else 1,
-            len(s.body or ""),
-        ))
+    if opus_remaining <= 0:
+        log.info("Opus daily cap reached (%d/%d), no stories to enhance", opus_used, OPUS_DAILY_CAP)
+        db.close()
+        return
 
-        enhanced = 0
-        for s in candidates:
-            if enhanced >= opus_remaining:
-                break
-            # Build context string for Opus
-            evidence = s.evidence if isinstance(s.evidence, dict) else {}
-            context = "Category: %s. Sector: %s. Title: %s. Summary: %s." % (
-                s.category, s.sector or "cross-sector", s.title, s.summary or ""
+    # Group candidates by category
+    by_category = defaultdict(list)
+    for s in all_stories:
+        by_category[s.category].append(s)
+
+    # Rotate category priority daily using day-of-year offset
+    all_categories = sorted(by_category.keys())
+    day_offset = datetime.now(timezone.utc).timetuple().tm_yday
+    rotated = all_categories[day_offset % len(all_categories):] + all_categories[:day_offset % len(all_categories)]
+
+    selected = []
+    used_categories = set()
+    for cat in rotated:
+        if len(selected) >= opus_remaining:
+            break
+        if cat in used_categories:
+            continue
+        if by_category[cat]:
+            selected.append(by_category[cat][0])
+            used_categories.add(cat)
+
+    log.info("Selected %d stories from %d categories for Opus: %s",
+             len(selected), len(used_categories), list(used_categories))
+
+    # ── PHASE 3: OPUS ENHANCE ONLY THE SELECTED ──
+    enhanced = 0
+    for s in selected:
+        context = "Category: %s. Sector: %s. Title: %s. Summary: %s." % (
+            s.category, s.sector or "cross-sector", s.title, s.summary or ""
+        )
+
+        # Build skeleton with narrative placeholders
+        body = s.body or ""
+        sections = body.split("\n## ")
+        if len(sections) >= 2:
+            skeleton = sections[0]
+            skeleton += "\n## " + sections[1]
+            first_section_lines = sections[1].split("\n\n", 1)
+            if len(first_section_lines) > 1:
+                skeleton = "## " + first_section_lines[0] + "\n\n{NARRATIVE_LEAD}\n\n" + first_section_lines[1]
+            else:
+                skeleton = "## " + sections[1] + "\n\n{NARRATIVE_LEAD}"
+
+            for i, sec in enumerate(sections[2:], 2):
+                skeleton += "\n\n## " + sec
+
+            if "Spend estimated" in skeleton or "Est. Spend" in skeleton:
+                skeleton = skeleton.replace(
+                    "*Spend estimated by dividing each filing",
+                    "{NARRATIVE_ISSUES}\n\n*Spend estimated by dividing each filing"
+                )
+                if "{NARRATIVE_ISSUES}" not in skeleton:
+                    skeleton = skeleton.replace(
+                        "income across its listed issues.*",
+                        "income across its listed issues.*\n\n{NARRATIVE_ISSUES}"
+                    )
+
+            skeleton = skeleton.replace(
+                "## Data Sources",
+                "{NARRATIVE_CONNECTION}\n\n## Data Sources"
             )
 
-            # Build skeleton with narrative placeholders
-            body = s.body or ""
-            # Insert {NARRATIVE_LEAD} after first ## heading
-            sections = body.split("\n## ")
-            if len(sections) >= 2:
-                # Rebuild with narrative placeholders
-                skeleton = sections[0]  # Everything before first ##
-                skeleton += "\n## " + sections[1]  # First section header
-                # Insert NARRATIVE_LEAD after the first data paragraph
-                first_section_lines = sections[1].split("\n\n", 1)
-                if len(first_section_lines) > 1:
-                    skeleton = "## " + first_section_lines[0] + "\n\n{NARRATIVE_LEAD}\n\n" + first_section_lines[1]
-                else:
-                    skeleton = "## " + sections[1] + "\n\n{NARRATIVE_LEAD}"
+            opus_body = _write_opus_narrative(skeleton, context, category=s.category)
+            if opus_body:
+                s.body = opus_body
+                s.ai_generated = "opus"
+                if not isinstance(s.evidence, dict):
+                    s.evidence = {}
+                s.evidence = {**s.evidence, "generator": "opus"}
+                enhanced += 1
+                log.info("  [OPUS] Enhanced: %s", s.title[:60])
 
-                # Add remaining sections
-                for i, sec in enumerate(sections[2:], 2):
-                    skeleton += "\n\n## " + sec
-
-                # Insert NARRATIVE_ISSUES after issue table
-                if "Spend estimated" in skeleton or "Est. Spend" in skeleton:
-                    skeleton = skeleton.replace(
-                        "*Spend estimated by dividing each filing",
-                        "{NARRATIVE_ISSUES}\n\n*Spend estimated by dividing each filing"
-                    )
-                    if "{NARRATIVE_ISSUES}" not in skeleton:
-                        skeleton = skeleton.replace(
-                            "income across its listed issues.*",
-                            "income across its listed issues.*\n\n{NARRATIVE_ISSUES}"
-                        )
-
-                # Insert NARRATIVE_CONNECTION before Data Sources
-                skeleton = skeleton.replace(
-                    "## Data Sources",
-                    "{NARRATIVE_CONNECTION}\n\n## Data Sources"
-                )
-
-                opus_body = _write_opus_narrative(skeleton, context, category=s.category)
-                if opus_body:
-                    s.body = opus_body
-                    s.ai_generated = "opus"
-                    # Tag the story so the daily-cap counter finds it.
-                    if not isinstance(s.evidence, dict):
-                        s.evidence = {}
-                    s.evidence = {**s.evidence, "generator": "opus"}
-                    enhanced += 1
-                    log.info("  [OPUS] Enhanced: %s", s.title[:60])
-
-        log.info("Opus enhancement complete: %d stories upgraded", enhanced)
-    elif opus_remaining == 0:
-        log.info("Opus daily cap reached (%d/%d), skipping enhancement", opus_used, OPUS_DAILY_CAP)
+    # Replace all_stories with only the enhanced ones
+    all_stories = [s for s in selected if s.ai_generated == "opus"]
+    log.info("Opus enhancement complete: %d/%d stories upgraded", enhanced, len(selected))
 
     # ── Gate 3 + Gate 4: validate + fact-check every draft ──
     # Stories that pass BOTH gates are saved with status='draft' for the
