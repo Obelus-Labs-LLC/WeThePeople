@@ -45,7 +45,9 @@ from sqlalchemy import text, func, desc
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("detect_stories")
 
-# ── Opus daily cap: max 2 AI-enhanced stories per day ──
+# ── Opus daily cap: 2 AI-enhanced stories per day ──
+# Only Opus-enhanced stories pass the 4000-char floor for the draft queue.
+# Non-enhanced skeletons are discarded, not saved as drafts.
 OPUS_DAILY_CAP = 2
 OPUS_MODEL = "claude-opus-4-20250514"
 
@@ -2573,8 +2575,11 @@ def main():
     rejected_validator = 0
     rejected_factcheck = 0
     rejected_dupe = 0
+    rejected_short = 0
     seen_slugs = set()
     seen_dedupe_hashes = set()
+
+    MINIMUM_BODY_CHARS = 4000
 
     for s in all_stories:
         if s.slug in seen_slugs:
@@ -2582,6 +2587,14 @@ def main():
             continue
         if story_exists(db, s.slug):
             rejected_dupe += 1
+            continue
+
+        # Gate 2.5: minimum length floor — no skeleton-only stories in the queue
+        body_len = len(s.body or "")
+        if body_len < MINIMUM_BODY_CHARS:
+            log.warning("LENGTH REJECT: %s | %d chars (min %d)",
+                        s.title[:60], body_len, MINIMUM_BODY_CHARS)
+            rejected_short += 1
             continue
 
         # Gate 3: deterministic validators
@@ -2632,9 +2645,10 @@ def main():
     if saved:
         db.commit()
     log.info(
-        "Gate summary: %d drafts saved, %d rejected by Gate-3, %d rejected by Gate-4, %d dupes. "
+        "Gate summary: %d drafts saved, %d too short (<4000 chars), %d rejected by Gate-3, "
+        "%d rejected by Gate-4, %d dupes. "
         "Drafts are NOT published until a human approves them via /ops/story-queue.",
-        saved, rejected_validator, rejected_factcheck, rejected_dupe,
+        saved, rejected_short, rejected_validator, rejected_factcheck, rejected_dupe,
     )
 
     db.close()
