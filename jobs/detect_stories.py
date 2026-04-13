@@ -400,7 +400,7 @@ CONTRACT_TABLES = [
 ]
 
 ENFORCEMENT_TABLES = [
-    ("enforcement_actions", "tech", "company_id", "tracked_tech_companies"),
+    ("ftc_enforcement_actions", "tech", "company_id", "tracked_tech_companies"),
     ("finance_enforcement_actions", "finance", "institution_id", "tracked_institutions"),
     ("health_enforcement_actions", "health", "company_id", "tracked_companies"),
     ("energy_enforcement_actions", "energy", "company_id", "tracked_energy_companies"),
@@ -2349,7 +2349,7 @@ def detect_revolving_door(db):
 def main():
     parser = argparse.ArgumentParser(description="Detect and generate data stories")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--max-stories", type=int, default=8)
+    parser.add_argument("--max-stories", type=int, default=20)
     args = parser.parse_args()
 
     Base.metadata.create_all(engine)
@@ -2397,21 +2397,20 @@ def main():
     log.info("Running story detection (target: %d stories, %d sectors active)...",
              target, len(sector_order))
 
-    # Run each pattern across shuffled sectors until we hit target.
-    # Per-category caps prevent any single pattern from dominating the output.
-    # PRIORITY REBALANCING: Cap generic categories aggressively, let investigative
-    # categories (trade_timing, enforcement_immunity, regulatory_loop) fill more slots.
+    # ── ROUND-ROBIN DETECTION ──
+    # Every detector gets a turn before any gets a second.
+    # This ensures story variety across all categories instead of
+    # one prolific detector (lobby_then_win) filling every slot.
     CATEGORY_CAPS = {
-        "lobbying_spike": 1,         # One per run — these are common, save slots for richer stories
-        "contract_windfall": 1,      # One per run
-        "penalty_contract_ratio": 1, # One per run
-        "lobbying_breakdown": 0,     # Temporarily paused — 8 already published, lowest editorial value
+        "lobbying_spike": 2,
+        "contract_windfall": 2,
+        "penalty_contract_ratio": 2,
+        "lobbying_breakdown": 0,     # Paused — 8 already published
     }
     category_counts = defaultdict(int)
+    pattern_contributed = defaultdict(int)  # track per-pattern output
 
-    # REBALANCED ORDER: Investigative patterns first, generic last.
-    # This ensures trade_timing, enforcement, and relationship stories
-    # get generated before caps fill up with lobbying/contract summaries.
+    # ALL patterns: sector-based and global, shuffled for fairness
     sector_patterns = [
         ("lobby_then_win", detect_lobby_then_win, None),
         ("enforcement_disappearance", detect_enforcement_disappearance, None),
@@ -2424,30 +2423,6 @@ def main():
         ("contract_windfall", detect_contract_windfall, "contract_windfall"),
     ]
 
-    for pattern_name, detect_fn, cap_category in sector_patterns:
-        if len(all_stories) >= target:
-            break
-        for si in sector_order:
-            if len(all_stories) >= target:
-                break
-            # Check per-category cap
-            if cap_category and category_counts[cap_category] >= CATEGORY_CAPS.get(cap_category, target):
-                break
-            try:
-                found = detect_fn(db, sector_idx=si)
-                for s in found:
-                    if cap_category and category_counts[cap_category] >= CATEGORY_CAPS.get(cap_category, target):
-                        break
-                    if not story_exists(db, s.slug):
-                        all_stories.append(s)
-                        category_counts[s.category] += 1
-                        log.info("  [%s] [%s] %s", pattern_name, s.sector or "cross", s.title[:60])
-            except Exception as e:
-                log.warning("Pattern %s failed for sector %d: %s", pattern_name, si, e)
-
-    # Non-sector patterns (run once, cross-sector).
-    # PRIORITIZED: Trade timing and PAC pipeline stories are the most
-    # investigative and unique. Run them first before cap fills.
     global_patterns = [
         ("trade_before_legislation", detect_trade_before_legislation),
         ("pac_committee_pipeline", detect_pac_committee_pipeline),
@@ -2456,6 +2431,8 @@ def main():
         ("fara_domestic_overlap", detect_fara_domestic_overlap),
     ]
 
+    # Phase 1: Run each global pattern once (1 story max each).
+    # Global patterns are the most investigative — trades, FARA, revolving door.
     for pattern_name, detect_fn in global_patterns:
         if len(all_stories) >= target:
             break
@@ -2464,9 +2441,47 @@ def main():
             for s in found:
                 if not story_exists(db, s.slug):
                     all_stories.append(s)
+                    pattern_contributed[pattern_name] += 1
+                    category_counts[s.category] += 1
                     log.info("  [%s] [%s] %s", pattern_name, s.sector or "cross", s.title[:60])
+                    break  # 1 per pattern per round
         except Exception as e:
             log.warning("Pattern %s failed: %s", pattern_name, e)
+
+    # Phase 2: Round-robin through sector patterns.
+    # Each pattern gets 1 story from 1 random sector per round.
+    # Multiple rounds until target is hit.
+    MAX_ROUNDS = 3
+    for rnd in range(MAX_ROUNDS):
+        if len(all_stories) >= target:
+            break
+        random.shuffle(sector_order)
+        for pattern_name, detect_fn, cap_category in sector_patterns:
+            if len(all_stories) >= target:
+                break
+            if cap_category and category_counts.get(cap_category, 0) >= CATEGORY_CAPS.get(cap_category, target):
+                continue
+            # Pick one sector per pattern per round
+            for si in sector_order:
+                try:
+                    found = detect_fn(db, sector_idx=si)
+                    added = False
+                    for s in found:
+                        if cap_category and category_counts.get(cap_category, 0) >= CATEGORY_CAPS.get(cap_category, target):
+                            break
+                        if not story_exists(db, s.slug):
+                            all_stories.append(s)
+                            pattern_contributed[pattern_name] += 1
+                            category_counts[s.category] += 1
+                            log.info("  [%s] [%s] %s", pattern_name, s.sector or "cross", s.title[:60])
+                            added = True
+                            break  # 1 per pattern per round
+                    if added:
+                        break  # move to next pattern
+                except Exception as e:
+                    log.warning("Pattern %s failed for sector %d: %s", pattern_name, si, e)
+
+    log.info("Pattern variety: %s", dict(pattern_contributed))
 
     log.info("\nGenerated %d stories", len(all_stories))
 
