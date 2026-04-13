@@ -288,12 +288,19 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "incomplete data, note the limitation in one sentence without speculating about why.\n"
         "R12. NAME THE ENTITY. Every narrative paragraph about a specific company or person must "
         "name that entity at least once using the exact display name from the skeleton.\n"
-        "R13. PARAGRAPH LENGTHS AND MINIMUM LENGTH. Each narrative paragraph must be at least "
-        "3 full sentences. NARRATIVE_LEAD: exactly 2 substantial paragraphs (minimum 80 words combined). "
-        "NARRATIVE_ISSUES: 1-2 paragraphs (minimum 60 words). "
-        "NARRATIVE_CONNECTION: exactly 2 paragraphs including the R8 disclaimer sentence (minimum 60 words). "
-        "Any additional {NARRATIVE_*} placeholders: 1-2 paragraphs (minimum 50 words each). "
-        "The entire article body must be at least 900 words. Write thoroughly.\n"
+        "R13. PARAGRAPH LENGTHS AND MINIMUM LENGTH — CRITICAL. This is a hard rejection rule. "
+        "NARRATIVE_LEAD: exactly 2 substantial paragraphs (minimum 120 words combined). Provide context "
+        "on the entity, its industry position, and why the data matters to the public interest. "
+        "NARRATIVE_ISSUES: 2 paragraphs (minimum 100 words). Analyze the policy areas being targeted, "
+        "explain what these lobbying issues mean in plain language, and connect them to real legislation. "
+        "NARRATIVE_CONNECTION: exactly 2 paragraphs including the R8 disclaimer sentence (minimum 100 words). "
+        "Draw connections between the data points (lobbying spend, contracts, enforcement), explain what "
+        "the public record shows when these are viewed together, and provide the mandatory disclaimer. "
+        "Any additional {NARRATIVE_*} placeholders: 2 paragraphs (minimum 80 words each). "
+        "Each narrative paragraph must be at least 4 full sentences. "
+        "The ENTIRE article body (data + narrative combined) must be at least 4000 characters and "
+        "at least 700 words of written narrative. Articles under 4000 characters WILL BE REJECTED. "
+        "Write thoroughly, with the depth expected of investigative data journalism.\n"
         "R14. NO NEW SECTIONS. Do not add conclusions, calls to action, 'what this means' sections, "
         "or 'next steps'. End exactly where the skeleton ends.\n"
         "R15. STORY SHAPE GUIDANCE. For this %s story: %s\n"
@@ -319,7 +326,7 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
     try:
         response = client.messages.create(
             model=OPUS_MODEL,
-            max_tokens=4000,
+            max_tokens=6000,
             messages=[{"role": "user", "content": prompt}],
         )
         result = response.content[0].text
