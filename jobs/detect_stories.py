@@ -227,6 +227,9 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
 
     story_shape = _detect_story_shape(category)
 
+    # Category-appropriate disclaimer for R8 prompt rule
+    r8_disclaimer = _get_disclaimer(category)
+
     # Shape-specific guidance
     shape_guidance = {
         "company-focused": "Emphasize that company's lobbying portfolio and linked contracts.",
@@ -275,11 +278,9 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "or trades occurring in the future. If a date in the skeleton is after %d, say 'the most recent "
         "year on record' and do not state the year.\n"
         "R8. REQUIRED DISCLAIMER — CRITICAL. This rule rejects automatically. You MUST include "
-        "the following sentence verbatim somewhere in your narrative output (place it at the end of "
+        "the following disclaimer verbatim somewhere in your narrative output (place it at the end of "
         "NARRATIVE_CONNECTION if that placeholder exists, otherwise at the end of your last narrative "
-        "paragraph): 'Lobbying is legal activity protected under the First Amendment. Government "
-        "contracts are awarded through competitive bidding processes. Correlation between lobbying "
-        "expenditures and contract awards does not prove causation.' Do not paraphrase it. "
+        "paragraph): '" + r8_disclaimer + "' Do not paraphrase it. "
         "Do not omit it. It must appear in every story.\n"
         "R9. PRESERVE STRUCTURE. Replace ONLY the {NARRATIVE_*} placeholders. Do not add, remove, "
         "reorder, or edit any markdown headings, bullet points, or source lines outside "
@@ -712,20 +713,49 @@ def compute_verification_score(story, db):
     return round(score, 2), tier
 
 
-_DISCLAIMER = (
+_DISCLAIMER_LOBBYING = (
     "Lobbying is legal activity protected under the First Amendment. "
     "Government contracts are awarded through competitive bidding processes. "
     "Correlation between lobbying expenditures and contract awards does not prove causation."
 )
-_DISCLAIMER_CATEGORIES = {
-    "lobbying", "contract", "contract_windfall", "penalty_gap",
-    "lobby_contract_loop", "tax_lobbying", "budget_lobbying",
-    "lobby_then_win", "enforcement_disappearance", "pac_committee_pipeline",
-    "contract_timing", "regulatory_loop", "regulatory_capture",
-    "enforcement_immunity", "penalty_contract_ratio", "lobbying_spike",
-    "revolving_door", "bipartisan_buying", "prolific_trader",
-    "cross_sector", "budget_influence", "trade_timing", "foreign_lobbying",
-}
+_DISCLAIMER_TRADE = (
+    "Congressional stock trading is legal under current law, subject to STOCK Act disclosure requirements. "
+    "Proximity between a trade and legislative activity does not prove the use of non-public information. "
+    "All trade data comes from publicly filed financial disclosures."
+)
+_DISCLAIMER_FARA = (
+    "Foreign agent registration under FARA is a legal transparency requirement, not an indication of wrongdoing. "
+    "Many registered entities conduct routine commercial or diplomatic representation. "
+    "All data comes from publicly filed FARA registration documents."
+)
+_DISCLAIMER_PAC = (
+    "PAC donations are legal political contributions regulated by the Federal Election Commission. "
+    "Donations to committee members do not prove quid pro quo or improper influence. "
+    "All data comes from publicly filed FEC campaign finance records."
+)
+
+def _get_disclaimer(category):
+    """Return the appropriate disclaimer for a story category."""
+    trade_cats = {"prolific_trader", "trade_timing", "trade_cluster"}
+    fara_cats = {"foreign_lobbying"}
+    pac_cats = {"bipartisan_buying"}
+    lobby_cats = {
+        "lobbying", "contract", "contract_windfall", "penalty_gap",
+        "lobby_contract_loop", "tax_lobbying", "budget_lobbying",
+        "lobby_then_win", "enforcement_disappearance", "contract_timing",
+        "regulatory_loop", "regulatory_capture", "enforcement_immunity",
+        "penalty_contract_ratio", "lobbying_spike", "revolving_door",
+        "cross_sector", "budget_influence",
+    }
+    if category in trade_cats:
+        return _DISCLAIMER_TRADE
+    if category in fara_cats:
+        return _DISCLAIMER_FARA
+    if category in pac_cats:
+        return _DISCLAIMER_PAC
+    if category in lobby_cats:
+        return _DISCLAIMER_LOBBYING
+    return _DISCLAIMER_LOBBYING  # safe default
 
 
 def make_story(title, summary, body, category, sector, entity_ids, data_sources,
@@ -738,18 +768,19 @@ def make_story(title, summary, body, category, sector, entity_ids, data_sources,
     """
     # Inject disclaimer ONCE for lobbying/contract stories.
     # Count existing occurrences and only add if zero.
-    disclaimer_count = body.count("Lobbying is legal activity protected under the First Amendment")
-    if category in _DISCLAIMER_CATEGORIES and disclaimer_count == 0:
-        body = body.rstrip() + "\n\n" + _DISCLAIMER
+    disclaimer = _get_disclaimer(category)
+    disclaimer_count = body.count(disclaimer[:40])  # match on first 40 chars
+    if disclaimer_count == 0:
+        body = body.rstrip() + "\n\n" + disclaimer
     elif disclaimer_count > 1:
-        # Remove all but the last occurrence (keep the one in Data Sources footer)
-        parts = body.split(_DISCLAIMER)
+        # Remove all but the last occurrence
+        parts = body.split(disclaimer)
         body = parts[0]
         for i, part in enumerate(parts[1:], 1):
             if i == len(parts) - 1:
-                body += _DISCLAIMER + part  # Keep last one
+                body += disclaimer + part
             else:
-                body += part  # Drop intermediate ones
+                body += part
 
     story = Story(
         title=title,

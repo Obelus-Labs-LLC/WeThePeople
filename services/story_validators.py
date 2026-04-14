@@ -134,10 +134,16 @@ RATIO_RE = re.compile(r"\b(\d{3,}[\d,]*)[- ]to[- ]?1\b|\b1-to-(\d{3,}[\d,]*)\b",
 YEAR_RE = re.compile(r"\b(20\d{2})\b")
 
 # Disclosure clause that every story must carry — this is the editorial policy.
+# Each category type has its own disclaimer; we check for key fragments from any.
 REQUIRED_DISCLAIMER_FRAGMENTS = [
+    # Lobbying/contracts disclaimer
     "Lobbying is legal activity",
-    "First Amendment",
-    "does not prove causation",
+    # Trade disclaimer
+    "Congressional stock trading is legal",
+    # FARA disclaimer
+    "Foreign agent registration under FARA",
+    # PAC disclaimer
+    "PAC donations are legal political contributions",
 ]
 
 
@@ -271,20 +277,11 @@ def validate_draft(
                                 f"body references year {year} > {current_year}"))
             break
 
-    # 11. Required disclaimer — every story must carry the boilerplate
-    # This set must stay in sync with _DISCLAIMER_CATEGORIES in detect_stories.py
+    # 11. Required disclaimer — every story must carry a category-appropriate disclaimer
     have_any = any(frag in body for frag in REQUIRED_DISCLAIMER_FRAGMENTS)
-    if not have_any and category in {
-        "lobbying", "contract", "contract_windfall", "penalty_gap",
-        "lobby_contract_loop", "tax_lobbying", "budget_lobbying",
-        "lobby_then_win", "enforcement_disappearance", "pac_committee_pipeline",
-        "contract_timing", "regulatory_loop", "regulatory_capture",
-        "enforcement_immunity", "penalty_contract_ratio", "lobbying_spike",
-        "revolving_door", "bipartisan_buying", "prolific_trader",
-        "cross_sector", "budget_influence", "trade_timing", "foreign_lobbying",
-    }:
+    if not have_any:
         issues.append(Issue(CRITICAL, "missing_disclaimer",
-                            "lobbying/contract stories must carry the First Amendment disclaimer"))
+                            "story must carry a category-appropriate disclaimer"))
 
     # 12. Dedupe hash — refuse to publish two near-identical stories in one run
     dedupe_hash = story_dedupe_hash(story)
