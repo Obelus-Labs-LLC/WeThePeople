@@ -58,7 +58,9 @@ def _escape(s: str) -> str:
         return ""
     return (s.replace("&", "&amp;")
              .replace("<", "&lt;")
-             .replace(">", "&gt;"))
+             .replace(">", "&gt;")
+             .replace('"', "&quot;")
+             .replace("'", "&#x27;"))
 
 
 def _story_card(story: Story) -> str:
@@ -198,16 +200,24 @@ def main():
                         help="Send even if queue is empty (for layout testing)")
     args = parser.parse_args()
 
+    # Track last-sent time to avoid re-emailing old drafts every day.
+    # Stored in a small file next to the script.
+    last_sent_file = ROOT / "data" / ".review_digest_last_sent"
+    last_sent_at = None
+    if last_sent_file.exists():
+        try:
+            last_sent_at = datetime.fromisoformat(last_sent_file.read_text().strip())
+        except (ValueError, OSError):
+            pass
+
     db = SessionLocal()
     try:
-        drafts = (
-            db.query(Story)
-            .filter(Story.status == "draft")
-            .order_by(desc(Story.created_at))
-            .limit(100)
-            .all()
-        )
-        log.info("Found %d draft(s) in the queue", len(drafts))
+        query = db.query(Story).filter(Story.status == "draft")
+        if last_sent_at and not args.force:
+            query = query.filter(Story.created_at >= last_sent_at)
+        drafts = query.order_by(desc(Story.created_at)).limit(100).all()
+        log.info("Found %d new draft(s) in the queue (since %s)",
+                 len(drafts), last_sent_at or "beginning")
 
         html = render_html(drafts)
 
@@ -224,7 +234,12 @@ def main():
             return
 
         subject = f"WTP Review Queue — {len(drafts)} draft{'s' if len(drafts) != 1 else ''} pending"
-        send_email(subject, html)
+        if send_email(subject, html):
+            try:
+                last_sent_file.parent.mkdir(parents=True, exist_ok=True)
+                last_sent_file.write_text(datetime.now(timezone.utc).isoformat())
+            except OSError as exc:
+                log.warning("Failed to write last-sent timestamp: %s", exc)
     finally:
         db.close()
 

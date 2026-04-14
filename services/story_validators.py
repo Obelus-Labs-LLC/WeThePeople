@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -70,7 +71,8 @@ FORBIDDEN_PHRASES = [
     "influence peddling",
     "efficiency strategy",          # Opus spun "contract-to-lobby ratio" this way
     "lobbying efficiency",
-    "return on",                    # "ROI on lobbying" is editorial framing
+    "return on lobbying",           # "ROI on lobbying" is editorial framing
+    "return on investment",          # editorial framing for govt data
     "return-on-lobbying",
     "suggests either",              # speculation hedge
     "one dollar for every",         # ratio spin
@@ -233,7 +235,7 @@ def validate_draft(
 
     # 5. Entity existence — detector MUST have attached at least one entity
     entity_ids = story.entity_ids if isinstance(story.entity_ids, list) else []
-    if not entity_ids and category not in {"sector_wide", "tax_lobbying", "budget_influence"}:
+    if not entity_ids and category not in {"tax_lobbying", "budget_influence"}:
         issues.append(Issue(CRITICAL, "no_entity_ids",
                             "story has no entity_ids and is not a sector-wide piece"))
 
@@ -372,7 +374,7 @@ def story_dedupe_hash(story) -> str:
     hash to the same value even if cents jiggle.
     """
     category = story.category or ""
-    entity_ids = sorted(story.entity_ids) if isinstance(story.entity_ids, list) else []
+    entity_ids = sorted(eid for eid in (story.entity_ids or []) if isinstance(eid, str))
     # Round evidence numbers to nearest 10% bucket so "$10.8M" and "$10.7M"
     # produce identical hashes.
     evidence = story.evidence if isinstance(story.evidence, dict) else {}
@@ -380,12 +382,12 @@ def story_dedupe_hash(story) -> str:
     for k in sorted(evidence.keys()):
         v = evidence[k]
         if isinstance(v, (int, float)) and v:
-            # log-scale bucket: rounds to 2 significant figures
-            import math
-            if v > 0:
-                exp = int(math.floor(math.log10(v)))
-                sig = round(v / (10 ** exp), 1)
-                buckets.append(f"{k}={sig}e{exp}")
+            av = abs(v)
+            if av > 0:
+                exp = int(math.floor(math.log10(av)))
+                sig = round(av / (10 ** exp), 1)
+                sign = "-" if v < 0 else ""
+                buckets.append(f"{k}={sign}{sig}e{exp}")
         elif isinstance(v, str):
             buckets.append(f"{k}={v[:40]}")
     payload = f"{category}|{','.join(entity_ids)}|{'|'.join(buckets)}"

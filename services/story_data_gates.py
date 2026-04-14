@@ -98,15 +98,21 @@ def gate_sector(db: Session, sector: str) -> Tuple[bool, List[DataIssue]]:
         issues.append(DataIssue("lobby_too_sparse", "warn",
                                 f"{lobby_table} has {distinct} distinct {id_col}s"))
 
-    # 3. Future-date check on lobbying
-    bad_future = _count_future_dates(db, lobby_table, "posting_time_dt", now)
-    if bad_future:
+    # 3. Future-date check on lobbying (created_at is the only datetime col)
+    bad_future = _count_future_dates(db, lobby_table, "created_at", now)
+    if bad_future is None:
+        issues.append(DataIssue("lobby_table_missing", "critical",
+                                f"{lobby_table} is missing or unreadable"))
+    elif bad_future:
         issues.append(DataIssue("lobby_future_dates", "critical",
                                 f"{lobby_table} has {bad_future} rows dated after now"))
 
-    # 4. Future-date check on contracts
-    bad_future_c = _count_future_dates(db, contract_table, "action_date", now)
-    if bad_future_c:
+    # 4. Future-date check on contracts (start_date is the date column)
+    bad_future_c = _count_future_dates(db, contract_table, "start_date", now)
+    if bad_future_c is None:
+        issues.append(DataIssue("contract_table_missing", "critical",
+                                f"{contract_table} is missing or unreadable"))
+    elif bad_future_c:
         issues.append(DataIssue("contract_future_dates", "critical",
                                 f"{contract_table} has {bad_future_c} rows dated after now"))
 
@@ -197,6 +203,8 @@ def _count_distinct(db: Session, table: str, col: str) -> int | None:
 
 
 def _count_future_dates(db: Session, table: str, col: str, now: datetime) -> int | None:
+    _validate_ident(table)
+    _validate_ident(col)
     try:
         row = db.execute(
             text(f"SELECT COUNT(*) FROM {table} WHERE {col} > :cutoff"),
@@ -209,6 +217,8 @@ def _count_future_dates(db: Session, table: str, col: str, now: datetime) -> int
 
 
 def _rows_since(db: Session, table: str, col: str, cutoff: datetime) -> int | None:
+    _validate_ident(table)
+    _validate_ident(col)
     try:
         row = db.execute(
             text(f"SELECT COUNT(*) FROM {table} WHERE {col} >= :cutoff"),
@@ -221,6 +231,10 @@ def _rows_since(db: Session, table: str, col: str, cutoff: datetime) -> int | No
 
 
 def _count_orphans(db: Session, table: str, col: str, parent_table: str, parent_col: str) -> int | None:
+    _validate_ident(table)
+    _validate_ident(col)
+    _validate_ident(parent_table)
+    _validate_ident(parent_col)
     try:
         row = db.execute(text(
             f"SELECT COUNT(*) FROM (SELECT DISTINCT {col} AS eid FROM {table}) x "

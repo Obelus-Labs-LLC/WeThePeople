@@ -29,9 +29,16 @@ router = APIRouter(prefix="/stories", tags=["stories"])
 limiter = Limiter(key_func=get_remote_address)
 
 
+VALID_CORRECTION_TYPES = {"correction", "clarification", "retraction", "reader_report", "update"}
+
+
 class CorrectionRequest(BaseModel):
     correction_type: str = "correction"
     description: str
+
+    def model_post_init(self, __context):
+        if self.correction_type not in VALID_CORRECTION_TYPES:
+            raise ValueError(f"correction_type must be one of {VALID_CORRECTION_TYPES}")
 
 
 class ErrorReportRequest(BaseModel):
@@ -129,7 +136,7 @@ def list_stories(
 
 @router.get("/latest", response_model=StoriesListResponse)
 def latest_stories(
-    limit: int = Query(5, ge=1, le=200),
+    limit: int = Query(5, ge=1, le=50),
     category: Optional[str] = Query(None),
     sector: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -187,6 +194,80 @@ def story_stats(db: Session = Depends(get_db)):
         "by_sector": by_sector,
         "by_category": by_category,
     }
+
+
+@router.get("/corrections/all")
+def all_corrections(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """Public endpoint: list all corrections and retractions across all stories."""
+    try:
+        total = db.query(StoryCorrection).count()
+        corrections = (
+            db.query(StoryCorrection)
+            .order_by(desc(StoryCorrection.corrected_at))
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+        story_ids = {c.story_id for c in corrections}
+        stories = {
+            s.id: s for s in db.query(Story).filter(Story.id.in_(story_ids)).all()
+        } if story_ids else {}
+
+        return {
+            "total": total,
+            "corrections": [
+                {
+                    "id": c.id,
+                    "story_id": c.story_id,
+                    "story_title": stories.get(c.story_id, Story(title="Unknown")).title,
+                    "story_slug": stories.get(c.story_id, Story(slug="unknown")).slug,
+                    "type": c.correction_type,
+                    "description": c.description,
+                    "date": c.corrected_at.isoformat() if c.corrected_at else None,
+                }
+                for c in corrections
+            ],
+        }
+    except Exception as e:
+        logger.warning("corrections query failed: %s", e)
+        return {"total": 0, "corrections": []}
+
+
+@router.post("/report-error")
+@limiter.limit("5/minute")
+def report_error(
+    body: ErrorReportRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Public endpoint: anyone can report an error in a story."""
+    story = db.query(Story).filter(Story.slug == body.story_slug).first()
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    contact = body.reporter_email or "anonymous"
+    correction = StoryCorrection(
+        story_id=story.id,
+        correction_type="reader_report",
+        description="[Report from %s] %s" % (contact, body.description),
+        corrected_by="reader",
+    )
+    db.add(correction)
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to save error report for %s: %s", body.story_slug, e)
+        raise HTTPException(status_code=500, detail="Failed to submit report")
+
+    logger.info("Error report received for %s from %s", body.story_slug, contact)
+    return {"message": "Thank you. Your report has been received and will be reviewed by our editorial team."}
 
 
 @router.get("/{slug}")
@@ -324,79 +405,3 @@ def correct_story(
     return {"message": "Correction recorded", "slug": slug, "type": body.correction_type}
 
 
-@router.get("/corrections/all")
-def all_corrections(
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
-):
-    """Public endpoint: list all corrections and retractions across all stories."""
-    try:
-        total = db.query(StoryCorrection).count()
-        corrections = (
-            db.query(StoryCorrection)
-            .order_by(desc(StoryCorrection.corrected_at))
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
-
-        # Join story titles
-        story_ids = {c.story_id for c in corrections}
-        stories = {
-            s.id: s for s in db.query(Story).filter(Story.id.in_(story_ids)).all()
-        } if story_ids else {}
-
-        return {
-            "total": total,
-            "corrections": [
-                {
-                    "id": c.id,
-                    "story_id": c.story_id,
-                    "story_title": stories.get(c.story_id, Story(title="Unknown")).title,
-                    "story_slug": stories.get(c.story_id, Story(slug="unknown")).slug,
-                    "type": c.correction_type,
-                    "description": c.description,
-                    "date": c.corrected_at.isoformat() if c.corrected_at else None,
-                }
-                for c in corrections
-            ],
-        }
-    except Exception as e:
-        logger.warning("corrections query failed: %s", e)
-        return {"total": 0, "corrections": []}
-
-
-@router.post("/report-error")
-@limiter.limit("5/minute")
-def report_error(
-    body: ErrorReportRequest,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """Public endpoint: anyone can report an error in a story.
-
-    Creates a correction entry with type='reader_report' for editorial review.
-    """
-    story = db.query(Story).filter(Story.slug == body.story_slug).first()
-    if not story:
-        raise HTTPException(status_code=404, detail="Story not found")
-
-    contact = body.reporter_email or "anonymous"
-    correction = StoryCorrection(
-        story_id=story.id,
-        correction_type="reader_report",
-        description="[Report from %s] %s" % (contact, body.description),
-        corrected_by="reader",
-    )
-    db.add(correction)
-
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        logger.error("Failed to save error report for %s: %s", body.story_slug, e)
-        raise HTTPException(status_code=500, detail="Failed to submit report")
-
-    logger.info("Error report received for %s from %s", body.story_slug, contact)
-    return {"message": "Thank you. Your report has been received and will be reviewed by our editorial team."}

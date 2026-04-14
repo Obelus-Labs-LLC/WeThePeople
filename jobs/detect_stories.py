@@ -71,18 +71,20 @@ def _opus_stories_today(db):
 def _detect_story_shape(category):
     """Determine story shape from category for the prompt."""
     company_cats = {"lobbying_spike", "contract_windfall", "enforcement_immunity",
-                    "regulatory_loop", "regulatory_capture", "penalty_contract_ratio",
-                    "lobbying_breakdown"}
+                    "penalty_contract_ratio", "enforcement_disappearance"}
     politician_cats = {"trade_cluster", "trade_timing", "prolific_trader",
                        "stock_act_violation", "committee_stock_trade"}
     sector_cats = {"tax_lobbying", "budget_influence"}
-    # Everything else is relationship-based
+    foreign_cats = {"fara_concentration"}
+    pac_cats = {"pac_donation_pattern"}
     if category in company_cats:
         return "company-focused"
     elif category in politician_cats:
         return "politician-focused"
     elif category in sector_cats:
         return "sector-wide"
+    elif category in foreign_cats or category in pac_cats:
+        return "relationship-based"
     else:
         return "relationship-based"
 
@@ -165,26 +167,28 @@ def _verify_story_numbers(db, story):
     body = story.body or ""
 
     # Check trade counts against actual congressional_trades table
+    # Only query person_ids (not company IDs or bill IDs) to avoid false rejects
     entity_ids = story.entity_ids if isinstance(story.entity_ids, list) else []
-    for eid in entity_ids:
-        # If the story mentions trade counts, verify against the source table
-        try:
-            row = db.execute(text(
-                "SELECT COUNT(*) FROM congressional_trades WHERE person_id = :eid"
-            ), {"eid": eid}).fetchone()
-            if row:
-                actual_trades = row[0]
-                # Check if the body claims a higher number than exists
-                import re
-                # Look for patterns like "547 stock trades" or "executed 547"
-                for match in re.finditer(r'(\d+)\s+(?:stock\s+)?trades?', body):
-                    claimed = int(match.group(1))
-                    if claimed > actual_trades * 1.1:  # Allow 10% margin for rounding
-                        issues.append(
-                            "Claimed %d trades for %s but DB has %d" % (claimed, eid, actual_trades)
-                        )
-        except Exception as e:
-            log.warning("Trade count validation skipped for %s: %s", eid, e)
+    trade_categories = {"prolific_trader", "trade_timing", "trade_cluster",
+                        "committee_stock_trade", "stock_act_violation"}
+    if story.category in trade_categories:
+        for eid in entity_ids:
+            if not isinstance(eid, str):
+                continue
+            try:
+                row = db.execute(text(
+                    "SELECT COUNT(*) FROM congressional_trades WHERE person_id = :eid"
+                ), {"eid": eid}).fetchone()
+                if row and row[0] > 0:
+                    actual_trades = row[0]
+                    for match in re.finditer(r'(\d+)\s+(?:stock\s+)?trades?', body):
+                        claimed = int(match.group(1))
+                        if claimed > actual_trades * 1.1:
+                            issues.append(
+                                "Claimed %d trades for %s but DB has %d" % (claimed, eid, actual_trades)
+                            )
+            except Exception as e:
+                log.warning("Trade count validation skipped for %s: %s", eid, e)
 
     # Check lobbying spend totals
     for key in ["total_spend", "lobby_total", "total_lobbying_spend"]:
@@ -317,16 +321,18 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "- Do not add any extra text, explanations, or JSON outside the markdown article.\n\n"
         "CONTEXT: %s\n"
         "STORY_SHAPE: %s\n"
-        "ENRICHED_SKELETON:\n%s"
+        "ENRICHED_SKELETON:\n"
     ) % (
         story_shape,
         datetime.now(timezone.utc).year,
         datetime.now(timezone.utc).year,
         story_shape, shape_guidance.get(story_shape, ""),
-        story_context, story_shape, skeleton
-    )
+        story_context, story_shape,
+    ) + skeleton  # skeleton appended raw to avoid % chars in data breaking formatting
 
-    try:
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+      try:
         response = client.messages.create(
             model=OPUS_MODEL,
             max_tokens=6000,
@@ -369,9 +375,17 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         result = '\n'.join(_strip_dashes(l) for l in result.splitlines())
 
         return result
-    except Exception as e:
-        log.warning("Opus narrative generation failed: %s", e)
-        return None
+      except Exception as e:
+        if attempt < max_retries:
+            import time
+            wait = 5 * (attempt + 1)
+            log.warning("Opus attempt %d/%d failed (%s), retrying in %ds...",
+                        attempt + 1, max_retries + 1, e, wait)
+            time.sleep(wait)
+        else:
+            log.warning("Opus narrative generation failed after %d attempts: %s",
+                        max_retries + 1, e)
+            return None
 
 # All lobbying tables with their sector label and entity ID column
 LOBBYING_TABLES = [
@@ -446,7 +460,8 @@ def entity_story_recent(db, entity_id, category, days=7):
     try:
         return db.query(Story).filter(
             Story.category == category,
-            Story.published_at >= cutoff,
+            Story.status.in_(["published", "draft"]),
+            Story.created_at >= cutoff,
             Story.entity_ids.contains(entity_id),
         ).first() is not None
     except Exception:
@@ -454,7 +469,8 @@ def entity_story_recent(db, entity_id, category, days=7):
         like_pattern = f'%"{entity_id}"%'
         return db.query(Story).filter(
             Story.category == category,
-            Story.published_at >= cutoff,
+            Story.status.in_(["published", "draft"]),
+            Story.created_at >= cutoff,
             func.cast(Story.entity_ids, text("TEXT")).like(like_pattern),
         ).first() is not None
 
@@ -736,7 +752,8 @@ _DISCLAIMER_PAC = (
 
 def _get_disclaimer(category):
     """Return the appropriate disclaimer for a story category."""
-    trade_cats = {"prolific_trader", "trade_timing", "trade_cluster"}
+    trade_cats = {"prolific_trader", "trade_timing", "trade_cluster",
+                   "committee_stock_trade", "stock_act_violation"}
     fara_cats = {"foreign_lobbying"}
     pac_cats = {"bipartisan_buying"}
     lobby_cats = {
@@ -769,7 +786,7 @@ def make_story(title, summary, body, category, sector, entity_ids, data_sources,
     # Inject disclaimer ONCE for lobbying/contract stories.
     # Count existing occurrences and only add if zero.
     disclaimer = _get_disclaimer(category)
-    disclaimer_count = body.count(disclaimer[:40])  # match on first 40 chars
+    disclaimer_count = body.count(disclaimer)
     if disclaimer_count == 0:
         body = body.rstrip() + "\n\n" + disclaimer
     elif disclaimer_count > 1:
@@ -1930,7 +1947,7 @@ def detect_enforcement_disappearance(db, sector_idx=None):
 
         body += "## The Question\n\n"
         body += "Did %s clean up its practices, or did lobbying influence reduce regulatory scrutiny? " % name
-        body += "The public record shows both the enforcement history and the lobbying spend. Draw your own conclusions.\n\n"
+        body += "The public record shows both the enforcement history and the lobbying spend.\n\n"
 
         body += "## Data Sources\n\n"
         body += "- **Enforcement**: Federal Register\n"
@@ -2423,7 +2440,10 @@ def main():
     sector_order = [i for i, (_, s, _, _) in enumerate(LOBBYING_TABLES) if s not in gated_sectors]
     random.shuffle(sector_order)
 
-    log.info("Running story detection (%d sectors active)...", len(sector_order))
+    if not sector_order:
+        log.error("Gate-1: ALL sectors gated — no sector detectors will run this cycle")
+    log.info("Running story detection (%d sectors active, %d gated)...",
+             len(sector_order), len(gated_sectors))
 
     # ── PHASE 1: COLLECT CANDIDATES ──
     # Run every detector once (1 story each). No target cap — we want
@@ -2553,14 +2573,17 @@ def main():
         # Build skeleton with narrative placeholders
         body = s.body or ""
         sections = body.split("\n## ")
-        if len(sections) >= 2:
-            skeleton = sections[0]
-            skeleton += "\n## " + sections[1]
+        if len(sections) < 2:
+            log.warning("  [OPUS] SKIP (no sections): %s", s.title[:60])
+            continue
+        if True:
+            # sections[0] = preamble before first ##, sections[1+] = headed sections
+            preamble = sections[0]
             first_section_lines = sections[1].split("\n\n", 1)
             if len(first_section_lines) > 1:
-                skeleton = "## " + first_section_lines[0] + "\n\n{NARRATIVE_LEAD}\n\n" + first_section_lines[1]
+                skeleton = preamble + "\n## " + first_section_lines[0] + "\n\n{NARRATIVE_LEAD}\n\n" + first_section_lines[1]
             else:
-                skeleton = "## " + sections[1] + "\n\n{NARRATIVE_LEAD}"
+                skeleton = preamble + "\n## " + sections[1] + "\n\n{NARRATIVE_LEAD}"
 
             for i, sec in enumerate(sections[2:], 2):
                 skeleton += "\n\n## " + sec

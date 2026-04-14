@@ -653,12 +653,22 @@ class StoryReviewDecision(BaseModel):
     reason: Optional[str] = None
 
 
+class StoryEditPatch(BaseModel):
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    body: Optional[str] = None
+    category: Optional[str] = None
+    sector: Optional[str] = None
+
+
 @router.get("/story-queue")
 def story_queue(
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
 ):
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
     """List all draft stories awaiting human review, newest first.
 
     Stories appear here after auto-generation passes Gates 1-4 but before
@@ -730,7 +740,12 @@ def story_queue_approve(
 
     story.status = "published"
     story.published_at = datetime.now(timezone.utc)
-    db.commit()
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Failed to approve story %d: %s", story_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to approve story")
     logger.info("story-queue approve: id=%d slug=%s reason=%s",
                 story_id, story.slug, (decision.reason if decision else ""))
     return {
@@ -744,10 +759,15 @@ def story_queue_approve(
 @router.get("/story-queue/{story_id}/approve")
 def story_queue_approve_get(
     story_id: int,
+    confirm: Optional[str] = None,
     db: Session = Depends(get_db),
     _auth: None = Depends(require_press_key),
 ):
-    """GET version for email link taps — approves the story and returns a confirmation page."""
+    """GET version for email link taps — shows a confirmation page first.
+
+    Two-step: initial GET shows a confirm button (safe against email scanners
+    that prefetch links). Only `?confirm=yes` actually publishes.
+    """
     from fastapi.responses import HTMLResponse
     try:
         story = db.query(Story).filter(Story.id == story_id).first()
@@ -757,10 +777,9 @@ def story_queue_approve_get(
     if not story:
         return HTMLResponse(f"<h2>Not found</h2><p>Story {story_id} not found.</p>", status_code=404)
 
-    # Public URL lives on the journal subdomain. Must match sites/journal
-    # middleware.js SITE_URL and StoryCard <Link to="/story/${slug}">.
     journal_base = os.getenv("WTP_JOURNAL_BASE", "https://journal.wethepeopleforus.com")
-    article_url = f"{journal_base}/story/{story.slug}" if story.slug else journal_base
+    safe_slug = html.escape(story.slug or "")
+    article_url = f"{journal_base}/story/{safe_slug}" if safe_slug else journal_base
     safe_title = html.escape(story.title or "Untitled")
 
     if story.status == "published":
@@ -771,7 +790,6 @@ def story_queue_approve_get(
             f"<p style='margin-top:24px'>"
             f"<a href='{article_url}' style='display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600'>View Article &rarr;</a>"
             f"</p>"
-            f"<p style='color:#64748b;font-size:12px;margin-top:16px'>{article_url}</p>"
             f"</body></html>"
         )
     if story.status != "draft":
@@ -779,10 +797,39 @@ def story_queue_approve_get(
             f"<h2>Cannot approve</h2><p>Story is '{html.escape(story.status)}', not 'draft'.</p>",
             status_code=400,
         )
+
+    # Step 1: show confirmation page (email scanners stop here)
+    if confirm != "yes":
+        from urllib.parse import urlencode, urlparse, parse_qs, urlunparse, urljoin
+        from starlette.requests import Request
+        # Build the confirm URL by appending &confirm=yes
+        # We reconstruct from the current path to preserve the key param
+        key_param = f"key={html.escape(os.getenv('WTP_PRESS_API_KEY', os.getenv('WTP_PRESS_KEY', '')))}"
+        confirm_url = f"/ops/story-queue/{story_id}/approve?{key_param}&amp;confirm=yes"
+        return HTMLResponse(
+            f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
+            f"<h2>Approve this story?</h2>"
+            f"<p><strong>{safe_title}</strong></p>"
+            f"<p style='color:#64748b;font-size:13px;margin-bottom:24px;'>"
+            f"{html.escape((story.summary or '')[:200])}</p>"
+            f"<a href='{confirm_url}' style='display:inline-block;background:#16a34a;color:#fff;"
+            f"text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:16px;'>"
+            f"Confirm Publish</a>"
+            f"<p style='color:#94a3b8;font-size:11px;margin-top:16px;'>Click to confirm. "
+            f"This extra step prevents email scanners from auto-approving stories.</p>"
+            f"</body></html>"
+        )
+
+    # Step 2: confirmed — publish
     story.status = "published"
     story.published_at = datetime.now(timezone.utc)
-    db.commit()
-    logger.info("story-queue approve (GET): id=%d slug=%s", story_id, story.slug)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Failed to approve story %d: %s", story_id, exc)
+        return HTMLResponse("<h2>Error</h2><p>Failed to publish story.</p>", status_code=500)
+    logger.info("story-queue approve (GET+confirm): id=%d slug=%s", story_id, story.slug)
     return HTMLResponse(
         f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
         f"<h2 style='color:#16a34a'>&#10003; Published</h2>"
@@ -791,7 +838,6 @@ def story_queue_approve_get(
         f"<p style='margin-top:24px'>"
         f"<a href='{article_url}' style='display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600'>View Article &rarr;</a>"
         f"</p>"
-        f"<p style='color:#64748b;font-size:12px;margin-top:16px'>{article_url}</p>"
         f"</body></html>"
     )
 
@@ -799,10 +845,14 @@ def story_queue_approve_get(
 @router.get("/story-queue/{story_id}/reject")
 def story_queue_reject_get(
     story_id: int,
+    confirm: Optional[str] = None,
     db: Session = Depends(get_db),
     _auth: None = Depends(require_press_key),
 ):
-    """GET version for email link taps — rejects the story and returns a confirmation page."""
+    """GET version for email link taps — shows confirmation page first.
+
+    Two-step: initial GET shows confirm button. Only `?confirm=yes` retracts.
+    """
     from fastapi.responses import HTMLResponse
     try:
         story = db.query(Story).filter(Story.id == story_id).first()
@@ -821,9 +871,34 @@ def story_queue_reject_get(
             f"<h2>Cannot reject</h2><p>Story is '{html.escape(story.status)}'.</p>",
             status_code=400,
         )
+
+    # Step 1: show confirmation page
+    if confirm != "yes":
+        key_param = f"key={html.escape(os.getenv('WTP_PRESS_API_KEY', os.getenv('WTP_PRESS_KEY', '')))}"
+        confirm_url = f"/ops/story-queue/{story_id}/reject?{key_param}&amp;confirm=yes"
+        return HTMLResponse(
+            f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
+            f"<h2>Reject this story?</h2>"
+            f"<p><strong>{safe_title}</strong></p>"
+            f"<p style='color:#64748b;font-size:13px;margin-bottom:24px;'>"
+            f"{html.escape((story.summary or '')[:200])}</p>"
+            f"<a href='{confirm_url}' style='display:inline-block;background:#dc2626;color:#fff;"
+            f"text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:16px;'>"
+            f"Confirm Reject</a>"
+            f"<p style='color:#94a3b8;font-size:11px;margin-top:16px;'>Click to confirm. "
+            f"This extra step prevents email scanners from auto-rejecting stories.</p>"
+            f"</body></html>"
+        )
+
+    # Step 2: confirmed — retract
     story.status = "retracted"
-    db.commit()
-    logger.info("story-queue reject (GET): id=%d slug=%s", story_id, story.slug)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Failed to reject story %d: %s", story_id, exc)
+        return HTMLResponse("<h2>Error</h2><p>Failed to reject story.</p>", status_code=500)
+    logger.info("story-queue reject (GET+confirm): id=%d slug=%s", story_id, story.slug)
     return HTMLResponse(
         f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
         f"<h2 style='color:#dc2626'>&#10007; Rejected</h2>"
@@ -855,7 +930,12 @@ def story_queue_reject(
         )
 
     story.status = "retracted"
-    db.commit()
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Failed to reject story %d: %s", story_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to reject story")
     logger.info("story-queue reject: id=%d slug=%s reason=%s",
                 story_id, story.slug, (decision.reason if decision else ""))
     return {
@@ -868,7 +948,7 @@ def story_queue_reject(
 @router.post("/story-queue/{story_id}/edit")
 def story_queue_edit(
     story_id: int,
-    patch: Dict[str, Any],
+    patch: StoryEditPatch,
     db: Session = Depends(get_db),
 ):
     """Human edits a draft before approving.
@@ -888,13 +968,16 @@ def story_queue_edit(
             detail=f"Can only edit drafts, not '{story.status}'",
         )
 
-    allowed = {"title", "summary", "body", "category", "sector"}
     changed = []
-    for key, value in patch.items():
-        if key in allowed and isinstance(value, (str, type(None))):
-            setattr(story, key, value)
-            changed.append(key)
-    db.commit()
+    for key, value in patch.model_dump(exclude_unset=True).items():
+        setattr(story, key, value)
+        changed.append(key)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Failed to edit story %d: %s", story_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to edit story")
     logger.info("story-queue edit: id=%d fields=%s", story_id, changed)
     return {"id": story.id, "slug": story.slug, "changed": changed}
 
