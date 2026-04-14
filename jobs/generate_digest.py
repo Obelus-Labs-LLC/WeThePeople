@@ -144,11 +144,11 @@ def generate_digest_for_subscriber(db, subscriber: DigestSubscriber, *, _cached_
         return {"error": f"No state found for zip {subscriber.zip_code}"}
 
     # Use cached reps if provided (batch mode), otherwise compute fresh
+    seven_days_ago = date.today() - timedelta(days=7)
     if _cached_reps is not None:
         reps = _cached_reps(state)
     else:
         members = _get_representatives(db, state)
-        seven_days_ago = date.today() - timedelta(days=7)
         reps = [_build_rep_digest(db, m, seven_days_ago) for m in members]
 
     # Recent published stories (last 7 days)
@@ -224,17 +224,25 @@ FROM_EMAIL = os.getenv("WTP_DIGEST_FROM", "digest@wethepeopleforus.com")
 SITE_URL = "https://wethepeopleforus.com"
 
 
+def _html_escape(s: str) -> str:
+    """Escape HTML special characters."""
+    if not s:
+        return ""
+    return (s.replace("&", "&amp;").replace("<", "&lt;")
+             .replace(">", "&gt;").replace('"', "&quot;"))
+
+
 def _render_digest_html(digest: Dict[str, Any]) -> str:
     """Render a digest dict into an HTML email."""
-    state = digest.get("subscriber", {}).get("state", "??")
+    state = _html_escape(digest.get("subscriber", {}).get("state", "??"))
     reps = digest.get("representatives", [])
     stories = digest.get("top_stories", [])
 
     rep_rows = ""
     for r in reps:
-        name = r.get("name", "Unknown")
-        party = r.get("party", "")
-        chamber = r.get("chamber", "")
+        name = _html_escape(r.get("name", "Unknown"))
+        party = _html_escape(r.get("party", ""))
+        chamber = _html_escape(r.get("chamber", ""))
         trades = r.get("trades", [])
         votes = r.get("votes", [])
         anomalies = r.get("anomalies", [])
@@ -255,12 +263,15 @@ def _render_digest_html(digest: Dict[str, Any]) -> str:
 
     story_items = ""
     for s in stories:
+        safe_slug = _html_escape(s.get('slug', ''))
+        safe_title = _html_escape(s.get('title', 'Untitled'))
+        safe_summary = _html_escape((s.get('summary', '') or '')[:120])
         story_items += f"""
         <li style="margin-bottom:8px;">
-          <a href="{SITE_URL}/stories/{s.get('slug', '')}" style="color:#3b82f6;text-decoration:none;">
-            {s.get('title', 'Untitled')}
+          <a href="{SITE_URL}/stories/{safe_slug}" style="color:#3b82f6;text-decoration:none;">
+            {safe_title}
           </a>
-          <br><span style="color:#94a3b8;font-size:12px;">{s.get('summary', '')[:120]}</span>
+          <br><span style="color:#94a3b8;font-size:12px;">{safe_summary}</span>
         </li>"""
 
     return f"""
@@ -285,6 +296,8 @@ def _render_digest_html(digest: Dict[str, Any]) -> str:
         <a href="https://x.com/WTPForUs" style="color:#3b82f6;text-decoration:none;">@WTPForUs</a>
         <br><br>
         Data from Congress.gov, Senate LDA, USASpending, FEC, and other public sources.
+        <br><br>
+        <a href="{SITE_URL}/unsubscribe" style="color:#94a3b8;text-decoration:underline;font-size:11px;">Unsubscribe from this digest</a>
       </div>
     </div>
     """

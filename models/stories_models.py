@@ -6,7 +6,7 @@ Stories are drafted by Claude from structured evidence, reviewed, then published
 """
 
 from sqlalchemy import (
-    CheckConstraint, Column, String, Integer, Float, DateTime, Text,
+    CheckConstraint, Column, ForeignKey, String, Integer, Float, DateTime, Text,
     UniqueConstraint, JSON,
 )
 from sqlalchemy.sql import func
@@ -92,7 +92,7 @@ class StoryCorrection(Base):
     __tablename__ = "story_corrections"
 
     id = Column(Integer, primary_key=True, index=True)
-    story_id = Column(Integer, nullable=False, index=True)
+    story_id = Column(Integer, ForeignKey("stories.id"), nullable=False, index=True)
 
     correction_type = Column(String, nullable=False)
     # 'correction' = factual fix, 'update' = new info added,

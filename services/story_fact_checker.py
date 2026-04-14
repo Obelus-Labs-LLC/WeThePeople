@@ -95,6 +95,12 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
     body = story.body or ""
 
     sector_tables = SECTOR_MAP.get(sector)
+    if not sector_tables and sector and sector != "cross-sector":
+        log.warning("fact_check: sector '%s' not in SECTOR_MAP, skipping DB verification", sector)
+        issues.append(FactIssue(
+            "warn", "unknown_sector", sector, None,
+            f"sector '{sector}' has no table mapping; DB claims not verified",
+        ))
 
     # 1. Entity existence — every entity_id must resolve
     if sector_tables:
