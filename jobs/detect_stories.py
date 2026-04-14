@@ -2511,14 +2511,27 @@ def main():
     for s in all_stories:
         by_category[s.category].append(s)
 
-    # Rotate category priority daily using day-of-year offset
+    # Count existing published stories per category to prioritize underrepresented ones
+    published_counts = defaultdict(int)
+    for row in db.query(Story.category, func.count(Story.id)).filter(
+        Story.status == "published"
+    ).group_by(Story.category).all():
+        published_counts[row[0]] = row[1]
+
+    # Sort available categories: fewest published first, then daily rotation for tiebreaker
     all_categories = sorted(by_category.keys())
     day_offset = datetime.now(timezone.utc).timetuple().tm_yday
-    rotated = all_categories[day_offset % len(all_categories):] + all_categories[:day_offset % len(all_categories)]
+    prioritized = sorted(all_categories, key=lambda c: (
+        published_counts.get(c, 0),           # fewest published first
+        (all_categories.index(c) - day_offset) % len(all_categories),  # daily rotation tiebreaker
+    ))
+
+    log.info("Category priority (published count): %s",
+             {c: published_counts.get(c, 0) for c in prioritized})
 
     selected = []
     used_categories = set()
-    for cat in rotated:
+    for cat in prioritized:
         if len(selected) >= opus_remaining:
             break
         if cat in used_categories:
