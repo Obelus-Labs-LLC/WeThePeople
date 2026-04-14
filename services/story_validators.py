@@ -315,6 +315,39 @@ def validate_draft(
         issues.append(Issue(WARN, "entity_not_named",
                             "body does not mention any entity's display name"))
 
+    # 16. Date range fabrication — "between YEAR and YEAR" must be plausible
+    evidence = story.evidence if isinstance(story.evidence, dict) else {}
+    date_range_matches = _DATE_RANGE_RE.findall(body)
+    for start_yr, end_yr in date_range_matches:
+        s_yr, e_yr = int(start_yr), int(end_yr)
+        if e_yr < s_yr:
+            issues.append(Issue(CRITICAL, "date_range_inverted",
+                                f"date range {s_yr}-{e_yr} is inverted"))
+        elif e_yr - s_yr > 10:
+            issues.append(Issue(WARN, "date_range_wide",
+                                f"date range {s_yr}-{e_yr} spans > 10 years"))
+
+    # 17. Frequency claim sanity — "N per day/month" should be mathematically sound
+    for match in _FREQUENCY_RE.finditer(body):
+        freq_num = float(match.group(1))
+        freq_unit = match.group(2).lower()
+        # If evidence has a trade_count, check the math
+        trade_count = evidence.get("trade_count")
+        if trade_count and isinstance(trade_count, (int, float)):
+            if "day" in freq_unit and freq_num > trade_count:
+                issues.append(Issue(CRITICAL, "impossible_frequency",
+                                    f"claims {freq_num}/day but only {trade_count} total trades"))
+            elif "month" in freq_unit and freq_num * 2 > trade_count:
+                issues.append(Issue(WARN, "suspicious_frequency",
+                                    f"claims {freq_num}/month but only {trade_count} total trades"))
+
+    # 18. Enforcement agency attribution — flag specific agency names not in evidence
+    evidence_text = str(evidence)
+    for agency, pattern in _ENFORCEMENT_AGENCIES:
+        if pattern.search(body) and agency.lower() not in evidence_text.lower():
+            issues.append(Issue(WARN, "unverified_agency",
+                                f"body names '{agency}' but evidence does not mention it"))
+
     # ──────────────────────────────────────────────────────────────────
     # Verdict
     # ──────────────────────────────────────────────────────────────────
@@ -330,6 +363,27 @@ def validate_draft(
 
 _MONEY_RE = re.compile(r"\$[\d,]+(?:\.\d+)?[KMB]?")
 _TABLE_SEPARATOR_RE = re.compile(r"^[\s\|\-:]+$")
+
+# Date range pattern: "between 2021 and 2024" or "from 2020 to 2025"
+_DATE_RANGE_RE = re.compile(
+    r"(?:between|from)\s+(20\d{2})\s+(?:and|to)\s+(20\d{2})",
+    re.IGNORECASE,
+)
+
+# Frequency claims: "6 per day", "12 transactions per month", "approximately six per trading day"
+_FREQUENCY_RE = re.compile(
+    r"(\d+(?:\.\d+)?)\s+(?:transactions?\s+)?per\s+(trading\s+day|day|month|week|year)",
+    re.IGNORECASE,
+)
+
+# Enforcement agencies that should only appear if backed by evidence
+_ENFORCEMENT_AGENCIES = [
+    ("FTC", re.compile(r"\bFTC\b|Federal Trade Commission", re.IGNORECASE)),
+    ("SEC", re.compile(r"\bSEC\b|Securities and Exchange Commission", re.IGNORECASE)),
+    ("EPA", re.compile(r"\bEPA\b|Environmental Protection Agency", re.IGNORECASE)),
+    ("OSHA", re.compile(r"\bOSHA\b|Occupational Safety", re.IGNORECASE)),
+    ("CFPB", re.compile(r"\bCFPB\b|Consumer Financial Protection", re.IGNORECASE)),
+]
 
 
 def _is_table_separator_line(line: str) -> bool:

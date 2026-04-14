@@ -255,13 +255,19 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "- ENRICHED_SKELETON: A complete markdown document containing pre-built sections, data bullet lists, "
         "and source citations.\n\n"
         "ABSOLUTE RULES (a draft is rejected automatically if it violates ANY of these):\n\n"
-        "R1. DO NOT INVENT NUMBERS. Every dollar amount, count, ratio, percentage, and date "
-        "in your output must already appear verbatim in the ENRICHED_SKELETON. If a number is not "
-        "in the skeleton, you may not write it. This includes 'for context' numbers, 'historical "
-        "average' numbers, and 'industry comparison' numbers.\n"
-        "R2. DO NOT COMPUTE NEW RATIOS. Do not calculate contract-to-lobbying ratios, ROI figures, "
-        "'X dollars for every Y' comparisons, or any other derived metric. If the skeleton already "
-        "contains a ratio, you may reference it verbatim; otherwise, do not introduce one.\n"
+        "R1. DO NOT INVENT FACTS. Every dollar amount, count, ratio, percentage, date, "
+        "date range, agency name, and frequency metric in your output must already appear "
+        "verbatim in the ENRICHED_SKELETON. If a fact is not in the skeleton, you may not "
+        "write it. This includes:\n"
+        "  - 'For context' numbers, 'historical average' numbers, and 'industry comparison' numbers\n"
+        "  - Date ranges (e.g. 'between 2021 and 2024') — only use dates that appear in the skeleton\n"
+        "  - Frequency calculations (e.g. 'six trades per day', '12 per month') — only state frequencies the skeleton provides\n"
+        "  - Enforcement agency names (e.g. 'FTC', 'SEC', 'EPA') — only name an agency if the skeleton names it\n"
+        "  - Transaction direction — if the skeleton says 'traded', do not change it to 'bought' or 'purchased'\n"
+        "R2. DO NOT COMPUTE NEW METRICS. Do not calculate contract-to-lobbying ratios, ROI figures, "
+        "'X dollars for every Y' comparisons, trades-per-day, trades-per-month, or any other "
+        "derived metric. If the skeleton already contains a metric, you may reference it "
+        "verbatim; otherwise, do not introduce one.\n"
         "R3. NO EDITORIALISING. Forbidden phrases (any match rejects the draft): 'raises questions', "
         "'raises eyebrows', 'begs the question', 'it remains to be seen', 'shocking', 'staggering', "
         "'scandal', 'corrupt', 'kickback', 'pay-to-play', 'smoking gun', 'influence peddling', "
@@ -313,7 +319,18 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "R15. STORY SHAPE GUIDANCE. For this %s story: %s\n"
         "R16. NO HTML COMMENTS. Never emit any HTML comment (lines starting with '<!--'). "
         "Do not add a metadata block, generation timestamp, category marker, or tracking "
-        "comment of any kind. Return pure markdown only.\n\n"
+        "comment of any kind. Return pure markdown only.\n"
+        "R17. NO FABRICATED DATE RANGES. If the skeleton does not specify when trades, filings, "
+        "or contracts occurred, do not invent a date range. You may say 'according to available records' "
+        "but never fabricate 'between [year] and [year]' unless those exact years appear in the skeleton.\n"
+        "R18. PRESERVE TRANSACTION DIRECTION. If the skeleton says someone 'traded' stock, write 'traded'. "
+        "Do not change it to 'bought', 'purchased', 'invested in', or 'acquired'. Trading includes both "
+        "buying and selling. Only use 'bought'/'purchased' if the skeleton explicitly says 'purchase' "
+        "for that specific transaction.\n"
+        "R19. NO ENFORCEMENT AGENCY ATTRIBUTION. Do not name specific enforcement agencies (FTC, SEC, "
+        "EPA, OSHA, etc.) unless the skeleton explicitly names them. If the skeleton says 'enforcement "
+        "actions', write 'enforcement actions', not 'FTC enforcement actions'. Attributing enforcement "
+        "to the wrong agency is a critical factual error that causes retractions.\n\n"
         "OUTPUT REQUIREMENTS:\n"
         "- Return the COMPLETE article as valid markdown.\n"
         "- Start directly with the first markdown heading. No preamble, no HTML comments, no metadata.\n"
@@ -1329,10 +1346,28 @@ def detect_trade_cluster(db):
             don_total = 0
             don_count = 0
 
+        # Get actual date range of trades for accurate skeleton
+        try:
+            date_row = db.execute(text(
+                "SELECT MIN(transaction_date), MAX(transaction_date), "
+                "COUNT(DISTINCT transaction_date) "
+                "FROM congressional_trades WHERE person_id = :pid"
+            ), {"pid": pid}).fetchone()
+            first_trade = str(date_row[0])[:10] if date_row and date_row[0] else "unknown"
+            last_trade = str(date_row[1])[:10] if date_row and date_row[1] else "unknown"
+            trading_days = int(date_row[2]) if date_row and date_row[2] else 0
+        except Exception:
+            first_trade = "unknown"
+            last_trade = "unknown"
+            trading_days = 0
+
         body = "## The Trades\n\n"
-        body += "%s. %s (%s-%s, %s) executed **%d stock trades** across **%d different companies** per STOCK Act disclosures.\n\n" % (
+        body += "%s. %s (%s-%s, %s) executed **%d stock trades** across **%d different companies** " % (
             "Sen" if chamber == "senate" else "Rep", name, party or "?", state or "?", chamber or "?",
             trade_count, ticker_count
+        )
+        body += "between %s and %s (%d distinct trading days) per STOCK Act disclosures.\n\n" % (
+            first_trade, last_trade, trading_days
         )
         if ticker_rows:
             body += "## Most Traded Tickers\n\n"
@@ -1363,7 +1398,7 @@ def detect_trade_cluster(db):
             sector=None,
             entity_ids=[pid],
             data_sources=["congressional_trades", "House Financial Disclosures"],
-            evidence={"trade_count": trade_count, "ticker_count": ticker_count, "party": party, "state": state},
+            evidence={"trade_count": trade_count, "ticker_count": ticker_count, "party": party, "state": state, "first_trade": first_trade, "last_trade": last_trade, "trading_days": trading_days},
         ))
         if len(stories) >= 1:
             break
@@ -1931,8 +1966,22 @@ def detect_enforcement_disappearance(db, sector_idx=None):
         except Exception:
             old_rows = []
 
+        # Map enforcement table to its source agency for accurate attribution
+        enforcement_source = {
+            "ftc_enforcement_actions": "Federal Trade Commission (FTC)",
+            "finance_enforcement_actions": "financial regulators",
+            "health_enforcement_actions": "health regulators",
+            "energy_enforcement_actions": "energy regulators",
+            "transportation_enforcement_actions": "transportation regulators",
+            "defense_enforcement_actions": "Department of Justice (DOJ)",
+            "chemical_enforcement_actions": "chemical regulators",
+            "agriculture_enforcement_actions": "agriculture regulators",
+            "telecom_enforcement_actions": "telecommunications regulators",
+            "education_enforcement_actions": "education regulators",
+        }.get(e_table, "federal regulators")
+
         body = "## The Pattern\n\n"
-        body += "%s faced **%d enforcement actions** before 2023. Since then, **zero**.\n\n" % (name, old)
+        body += "%s faced **%d enforcement actions** from %s before 2023. Since then, **zero**.\n\n" % (name, old, enforcement_source)
         body += "During this same period, they filed **%d lobbying disclosures** totaling **%s**.\n\n" % (lobby_count, fmt_money(lobby_total))
 
         if old_rows:
@@ -1962,7 +2011,7 @@ def detect_enforcement_disappearance(db, sector_idx=None):
             sector=sector,
             entity_ids=[eid],
             data_sources=[e_table, l_table, "Federal Register", "Senate LDA (senate.gov)"],
-            evidence={"old_actions": old, "recent_actions": 0, "lobby_total": lobby_total, "lobby_count": lobby_count},
+            evidence={"old_actions": old, "recent_actions": 0, "lobby_total": lobby_total, "lobby_count": lobby_count, "enforcement_source": enforcement_source, "enforcement_table": e_table},
         ))
         if len(stories) >= 1:
             break
