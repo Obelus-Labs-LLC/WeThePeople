@@ -38,6 +38,8 @@ LOBBYING_TABLES = [
     ("defense_lobbying_records", "company_id"),
     ("chemical_lobbying_records", "company_id"),
     ("agriculture_lobbying_records", "company_id"),
+    ("telecom_lobbying_records", "company_id"),
+    ("education_lobbying_records", "company_id"),
 ]
 
 ENRICHMENT_MARKER = "## What Were They Lobbying For?"
@@ -67,18 +69,23 @@ def is_company_id(eid):
 
 
 def get_lobbying_data_for_entity(db, entity_id):
-    """Search all lobbying tables for filings matching this entity ID."""
+    """Search all lobbying tables for filings matching this entity ID.
+
+    Deduplicates by filing_uuid across sector tables so entities tracked
+    in multiple sectors (e.g. Anduril in tech + defense) are not double-counted.
+    """
     issue_spend = defaultdict(float)
     issue_filings = defaultdict(int)
     gov_entity_spend = defaultdict(float)
     gov_entity_filings = defaultdict(int)
     total_spend = 0
     total_filings = 0
+    seen_uuids = set()
 
     for table, id_col in LOBBYING_TABLES:
         try:
             rows = db.execute(text(
-                f"SELECT lobbying_issues, government_entities, income "
+                f"SELECT filing_uuid, lobbying_issues, government_entities, income "
                 f"FROM {table} "
                 f"WHERE {id_col} = :eid "
                 f"AND lobbying_issues IS NOT NULL AND lobbying_issues != ''"
@@ -86,7 +93,11 @@ def get_lobbying_data_for_entity(db, entity_id):
         except Exception:
             continue
 
-        for issues_str, entities_str, income in rows:
+        for filing_uuid, issues_str, entities_str, income in rows:
+            if filing_uuid and filing_uuid in seen_uuids:
+                continue
+            if filing_uuid:
+                seen_uuids.add(filing_uuid)
             inc = float(income) if income else 0
             total_spend += inc
             total_filings += 1
@@ -122,6 +133,8 @@ def get_entity_name(db, entity_id):
         ("tracked_defense_companies", "company_id"),
         ("tracked_chemical_companies", "company_id"),
         ("tracked_agriculture_companies", "company_id"),
+        ("tracked_telecom_companies", "company_id"),
+        ("tracked_education_companies", "company_id"),
     ]
     for table, id_col in tables:
         try:

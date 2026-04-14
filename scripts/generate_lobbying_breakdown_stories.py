@@ -420,9 +420,7 @@ def generate_cross_sector_story(db):
         "Here is the breakdown across every sector we track.\n\n"
     )
 
-    for sector_key in ["tech", "finance", "health", "energy", "defense", "transportation"]:
-        if sector_key not in sector_data:
-            continue
+    for sector_key in sector_data:
         sd = sector_data[sector_key]
         body += f"### {sd['label']} Sector ({fmt_money(sd['total'])})\n\n"
         body += f"*{sd['filing_count']:,} lobbying filings*\n\n"
@@ -436,8 +434,8 @@ def generate_cross_sector_story(db):
     body += "- **Spend estimates**: Income per filing divided across listed issues\n"
     body += "- **Sector definitions**: WeThePeople tracked entity database\n\n"
     body += (
-        "*This analysis covers all Senate LDA filings associated with tracked companies "
-        "across 6 sectors. Spend per issue is estimated, not reported directly by filers.*"
+        f"*This analysis covers all Senate LDA filings associated with tracked companies "
+        f"across {len(sector_data)} sectors. Spend per issue is estimated, not reported directly by filers.*"
     )
 
     return Story(
