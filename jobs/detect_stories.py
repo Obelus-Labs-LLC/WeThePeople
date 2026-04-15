@@ -837,6 +837,111 @@ def make_story(title, summary, body, category, sector, entity_ids, data_sources,
     return story
 
 
+# ── Cross-Sector Lobbying Aggregation ──
+
+def aggregate_lobbying_cross_sector(db, entity_id):
+    """Aggregate lobbying data for an entity across ALL sector tables.
+
+    Deduplicates by filing_uuid so entities tracked in multiple sectors
+    (e.g. Anduril in tech + defense, Boeing in defense + transportation)
+    are not double-counted.
+
+    Returns dict with total_spend, total_filings, top_issues, top_gov_entities,
+    sectors_found, and date_range — or None if no data found.
+    """
+    issue_spend = defaultdict(float)
+    issue_filings = defaultdict(int)
+    gov_entity_spend = defaultdict(float)
+    gov_entity_filings = defaultdict(int)
+    total_spend = 0
+    total_filings = 0
+    seen_uuids = set()
+    sectors_found = []
+    min_date = None
+    max_date = None
+
+    for table, sector, id_col, _entity_table in LOBBYING_TABLES:
+        try:
+            rows = db.execute(text(
+                "SELECT filing_uuid, lobbying_issues, government_entities, income, filing_year, filing_period "
+                "FROM %s WHERE %s = :eid AND lobbying_issues IS NOT NULL AND lobbying_issues != ''"
+                % (table, id_col)
+            ), {"eid": entity_id}).fetchall()
+        except Exception:
+            continue
+
+        sector_found = False
+        for row in rows:
+            filing_uuid = row[0]
+            issues_str = row[1]
+            entities_str = row[2]
+            income = row[3]
+            filing_year = row[4] if len(row) > 4 else None
+            filing_period = row[5] if len(row) > 5 else None
+
+            # Dedup by filing_uuid
+            if filing_uuid and filing_uuid in seen_uuids:
+                continue
+            if filing_uuid:
+                seen_uuids.add(filing_uuid)
+
+            inc = float(income) if income else 0
+            total_spend += inc
+            total_filings += 1
+            sector_found = True
+
+            # Track date range using filing_year
+            if filing_year:
+                yr = str(filing_year)
+                if min_date is None or yr < min_date:
+                    min_date = yr
+                if max_date is None or yr > max_date:
+                    max_date = yr
+
+            # Issue breakdown
+            issues = [i.strip() for i in issues_str.split(",") if i.strip()]
+            per_issue = inc / max(len(issues), 1)
+            for issue in issues:
+                issue_spend[issue] += per_issue
+                issue_filings[issue] += 1
+
+            # Gov entity breakdown
+            if entities_str:
+                entities = _parse_gov_entities(entities_str)
+                per_ent = inc / max(len(entities), 1)
+                for ent in entities:
+                    gov_entity_spend[ent] += per_ent
+                    gov_entity_filings[ent] += 1
+
+        if sector_found:
+            sectors_found.append(sector)
+
+    if total_filings == 0:
+        return None
+
+    return {
+        "total_spend": total_spend,
+        "total_filings": total_filings,
+        "top_issues": sorted(issue_spend.items(), key=lambda x: -x[1])[:8],
+        "top_gov_entities": sorted(gov_entity_spend.items(), key=lambda x: -x[1])[:6],
+        "issue_spend": dict(issue_spend),
+        "issue_filings": dict(issue_filings),
+        "gov_entity_spend": dict(gov_entity_spend),
+        "gov_entity_filings": dict(gov_entity_filings),
+        "sectors_found": sectors_found,
+        "min_date": min_date,
+        "max_date": max_date,
+    }
+
+
+LOBBYING_SECTOR_DISCLAIMER = (
+    "\n\n*Note: Lobbying totals are aggregated across all sector databases with "
+    "deduplication by filing ID. For comprehensive lobbying data, see the "
+    "[Senate LDA database](https://lda.senate.gov/filings/public/filing/search/) "
+    "and [OpenSecrets.org](https://www.opensecrets.org).*"
+)
+
+
 # ── Pattern 1: Top Lobbying Spender ──
 
 def detect_top_spender(db, sector_idx=None):
@@ -859,45 +964,40 @@ def detect_top_spender(db, sector_idx=None):
     # Sector-wide comparative context
     sector_total, sector_entity_count = get_sector_aggregate(db, table, id_col)
 
-    for eid, total_spend, filing_count in rows:
-        if not total_spend or total_spend < 100000:
+    for eid, sector_spend, sector_filing_count in rows:
+        if not sector_spend or sector_spend < 100000:
             continue
         if entity_story_recent(db, eid, "lobbying_spike", days=7):
             continue
         name = get_entity_name(db, eid, entity_table, id_col)
+
+        # ── Cross-sector aggregation with filing_uuid dedup ──
+        # Instead of using only this sector's table, aggregate across ALL
+        # sector tables. This prevents dramatic undercounting for companies
+        # that appear in multiple sectors (e.g. Boeing in defense + transportation).
+        cross_sector = aggregate_lobbying_cross_sector(db, eid)
+        if cross_sector and cross_sector["total_filings"] > 0:
+            total_spend = cross_sector["total_spend"]
+            filing_count = cross_sector["total_filings"]
+            issue_spend = cross_sector["issue_spend"]
+            issue_filings = cross_sector["issue_filings"]
+            gov_entity_spend = cross_sector["gov_entity_spend"]
+            gov_entity_filings = cross_sector["gov_entity_filings"]
+            top_issues = cross_sector["top_issues"]
+            top_gov = cross_sector["top_gov_entities"]
+        else:
+            total_spend = sector_spend
+            filing_count = sector_filing_count
+            issue_spend = defaultdict(float)
+            issue_filings = defaultdict(int)
+            gov_entity_spend = defaultdict(float)
+            gov_entity_filings = defaultdict(int)
+            top_issues = []
+            top_gov = []
+
         title = "%s Spent %s Lobbying Congress" % (name, fmt_money(total_spend))
         if story_exists(db, slug(title)):
             continue
-
-        # Get top issues with spend breakdown
-        try:
-            issue_rows = db.execute(text(
-                "SELECT lobbying_issues, income, government_entities FROM %s WHERE %s = :eid AND lobbying_issues IS NOT NULL"
-                % (table, id_col)
-            ), {"eid": eid}).fetchall()
-        except Exception:
-            issue_rows = []
-
-        issue_spend = defaultdict(float)
-        issue_filings = defaultdict(int)
-        gov_entity_spend = defaultdict(float)
-        gov_entity_filings = defaultdict(int)
-        for issues_str, income, entities_str in issue_rows:
-            inc = float(income) if income else 0
-            issues = [i.strip() for i in issues_str.split(",") if i.strip()]
-            per_issue = inc / max(len(issues), 1)
-            for iss in issues:
-                issue_spend[iss] += per_issue
-                issue_filings[iss] += 1
-            if entities_str:
-                entities = _parse_gov_entities(entities_str)
-                per_ent = inc / max(len(entities), 1)
-                for ent in entities:
-                    gov_entity_spend[ent] += per_ent
-                    gov_entity_filings[ent] += 1
-
-        top_issues = sorted(issue_spend.items(), key=lambda x: -x[1])[:8]
-        top_gov = sorted(gov_entity_spend.items(), key=lambda x: -x[1])[:6]
 
         # Get contract cross-reference
         contract_total = 0
@@ -923,12 +1023,24 @@ def detect_top_spender(db, sector_idx=None):
                 log.info("Entity validation warning: %s", warning)
             entity_valid = valid
 
-        # Temporal context
-        date_range_info = get_data_date_range(db, table, id_col, eid)
-        date_range_label = date_range_info[2] if date_range_info else None
+        # Temporal context — prefer cross-sector date range if available
+        if cross_sector and cross_sector.get("min_date") and cross_sector.get("max_date"):
+            _min_yr = str(cross_sector["min_date"])[:4]
+            _max_yr = str(cross_sector["max_date"])[:4]
+            if _min_yr == _max_yr:
+                date_range_label = _min_yr
+            else:
+                date_range_label = "%s - %s" % (_min_yr, _max_yr)
+        else:
+            date_range_info = get_data_date_range(db, table, id_col, eid)
+            date_range_label = date_range_info[2] if date_range_info else None
 
         # Comparative context
         sector_share_pct = (total_spend / sector_total * 100) if sector_total > 0 else 0
+
+        # Note if data came from multiple sectors
+        multi_sector = cross_sector and len(cross_sector.get("sectors_found", [])) > 1
+        sectors_label = ", ".join(cross_sector["sectors_found"]) if multi_sector else sector
 
         # ── Build story body with enriched template ──
         body = "## Overview\n\n"
@@ -937,6 +1049,8 @@ def detect_top_spender(db, sector_idx=None):
         if date_range_label:
             body += " between %s" % date_range_label
         body += "."
+        if multi_sector:
+            body += " These filings span the %s sectors, deduplicated by filing ID." % sectors_label
 
         # Comparative context paragraph
         if sector_total > 0 and sector_share_pct >= 1:
@@ -985,6 +1099,7 @@ def detect_top_spender(db, sector_idx=None):
         if date_range_label:
             body += "*Data covers %s. " % date_range_label
         body += "All data from public government records.*"
+        body += LOBBYING_SECTOR_DISCLAIMER
 
         stories.append(make_story(
             title=title,
@@ -1004,6 +1119,8 @@ def detect_top_spender(db, sector_idx=None):
                 "contract_total": contract_total, "contract_count": contract_count,
                 "top_issues": {k: v for k, v in top_issues[:5]},
                 "sector_total": sector_total, "sector_share_pct": round(sector_share_pct, 1),
+                "cross_sector_aggregated": True,
+                "sectors_found": cross_sector["sectors_found"] if cross_sector else [sector],
             },
             date_range=date_range_label,
             entity_validated=entity_valid,
