@@ -41,6 +41,12 @@ from models.finance_models import TrackedInstitution
 from models.health_models import TrackedCompany
 from models.tech_models import TrackedTechCompany
 from models.energy_models import TrackedEnergyCompany
+from models.defense_models import TrackedDefenseCompany
+from models.transportation_models import TrackedTransportationCompany
+from models.chemicals_models import TrackedChemicalCompany
+from models.agriculture_models import TrackedAgricultureCompany
+from models.education_models import TrackedEducationCompany
+from models.telecom_models import TrackedTelecomCompany
 from utils.db_compat import is_sqlite, set_pragmas_if_sqlite
 
 load_dotenv()
@@ -123,6 +129,12 @@ def load_tracked_entities(session, sector_filter: Optional[str] = None, entity_i
         ("health", TrackedCompany, "company_id"),
         ("tech", TrackedTechCompany, "company_id"),
         ("energy", TrackedEnergyCompany, "company_id"),
+        ("defense", TrackedDefenseCompany, "company_id"),
+        ("transportation", TrackedTransportationCompany, "company_id"),
+        ("chemicals", TrackedChemicalCompany, "company_id"),
+        ("agriculture", TrackedAgricultureCompany, "company_id"),
+        ("education", TrackedEducationCompany, "company_id"),
+        ("telecom", TrackedTelecomCompany, "company_id"),
     ]
 
     for sector, model, id_field in sector_configs:
@@ -296,7 +308,9 @@ def build_member_lookup(session) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Sync company donation data from FEC API")
-    parser.add_argument("--sector", choices=["finance", "health", "tech", "energy"],
+    parser.add_argument("--sector", choices=["finance", "health", "tech", "energy", "defense",
+                                              "transportation", "chemicals", "agriculture",
+                                              "education", "telecom"],
                         help="Only sync for this sector")
     parser.add_argument("--entity-id", type=str, help="Only sync for this entity_id")
     parser.add_argument("--cycle", type=str, default="2024", help="Election cycle (default: 2024)")

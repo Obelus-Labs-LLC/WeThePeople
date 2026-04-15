@@ -145,10 +145,8 @@ _zip_state_lock = threading.Lock()
 def _ensure_zip_map():
     """Lazy-load the zip->state map from the politics router, falling back to built-in map."""
     global _ZIP_STATE
-    if _ZIP_STATE:
-        return
     with _zip_state_lock:
-        if _ZIP_STATE:  # double-check after acquiring lock
+        if _ZIP_STATE:
             return
         try:
             from routers.politics import _ZIP_STATE as politics_zip

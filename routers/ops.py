@@ -275,10 +275,10 @@ def pipeline_dlq(status: Optional[str] = None):
 
 @router.post("/pipeline/dlq/{item_id}/retry")
 def retry_dlq_item(item_id: str):
-    """Retry a failed DLQ item by re-running its job via subprocess.
+    """Retry a failed DLQ item by re-running its job in a background thread.
 
-    Marks the item as 'retrying', runs the job script, then updates
-    status to 'resolved' on success or increments retry count on failure.
+    Marks the item as 'retrying' immediately and returns. The job runs
+    asynchronously; poll GET /pipeline/dlq to check status.
     """
     import subprocess
     import sys
@@ -319,30 +319,46 @@ def retry_dlq_item(item_id: str):
         _save_dlq(items)
         raise HTTPException(status_code=400, detail=f"Script not found: {script}")
 
-    # Run the job in a subprocess (non-blocking would be better, but keep it
-    # simple: short timeout, caller can poll DLQ status).
-    try:
-        proc = subprocess.run(
-            [sys.executable, str(script_path)],
-            capture_output=True, text=True,
-            timeout=300,  # 5 min max for retry
-            cwd=str(ROOT),
-        )
-        if proc.returncode == 0:
-            target["status"] = "resolved"
-            target["resolved_at"] = datetime.now(timezone.utc).isoformat()
-        else:
-            target["status"] = "pending"
-            target["error"] = proc.stderr[-1000:] if proc.stderr else f"exit code {proc.returncode}"
-    except subprocess.TimeoutExpired:
-        target["status"] = "pending"
-        target["error"] = "Retry timed out (5 min)"
-    except Exception as exc:
-        target["status"] = "pending"
-        target["error"] = str(exc)
+    def _run_retry():
+        """Background thread: run the job and update DLQ status."""
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(script_path)],
+                capture_output=True, text=True,
+                timeout=300,  # 5 min max for retry
+                cwd=str(ROOT),
+            )
+            dlq = _load_dlq()
+            t = next((i for i in dlq if i.get("id") == item_id), None)
+            if t is None:
+                return
+            if proc.returncode == 0:
+                t["status"] = "resolved"
+                t["resolved_at"] = datetime.now(timezone.utc).isoformat()
+            else:
+                t["status"] = "pending"
+                t["error"] = proc.stderr[-1000:] if proc.stderr else f"exit code {proc.returncode}"
+            _save_dlq(dlq)
+        except subprocess.TimeoutExpired:
+            dlq = _load_dlq()
+            t = next((i for i in dlq if i.get("id") == item_id), None)
+            if t:
+                t["status"] = "pending"
+                t["error"] = "Retry timed out (5 min)"
+                _save_dlq(dlq)
+        except Exception as exc:
+            logger.error("DLQ retry background error for %s: %s", item_id, exc)
+            dlq = _load_dlq()
+            t = next((i for i in dlq if i.get("id") == item_id), None)
+            if t:
+                t["status"] = "pending"
+                t["error"] = str(exc)[:500]
+                _save_dlq(dlq)
 
-    _save_dlq(items)
-    return {"item": target}
+    import threading as _threading
+    _threading.Thread(target=_run_retry, daemon=True).start()
+
+    return {"item": target, "message": "Retry started in background. Poll /pipeline/dlq for status."}
 
 
 def _build_script_map() -> Dict[str, str]:
