@@ -147,7 +147,7 @@ def _update_scores(db: Session, target_type: str, target_id: int):
     else:
         return
 
-    obj = db.query(model).filter(model.id == target_id).with_for_update().first()
+    obj = db.query(model).filter(model.id == target_id).first()
     if not obj:
         return
 
@@ -279,6 +279,8 @@ def update_promise_status(
     p = db.query(Promise).filter(Promise.id == promise_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Promise not found")
+    if p.created_by != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only the creator or an admin can update this promise")
     valid = {"pending", "in_progress", "partially_fulfilled", "fulfilled", "broken", "retired"}
     if new_status not in valid:
         raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid}")
@@ -490,6 +492,8 @@ def update_proposal_status(
     p = db.query(Proposal).filter(Proposal.id == proposal_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Proposal not found")
+    if p.author_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only the author or an admin can update this proposal")
     p.status = new_status
     if new_status == "retired" and retire_reason:
         p.retire_reason = retire_reason

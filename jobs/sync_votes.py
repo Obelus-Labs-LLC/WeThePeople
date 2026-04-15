@@ -65,9 +65,13 @@ def fetch_house_votes_list(congress: int, session: int, limit: int = 250) -> Lis
 
     while len(all_votes) < limit:
         params["offset"] = offset
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error("Congress.gov API error fetching vote list (offset=%d): %s", offset, e)
+            break
 
         votes = data.get("houseRollCallVotes", [])
         if not votes:
@@ -89,9 +93,13 @@ def fetch_vote_detail(congress: int, session: int, roll_number: int) -> Optional
     url = f"{BASE_URL}/house-vote/{congress}/{session}/{roll_number}"
     params = {"api_key": CONGRESS_API_KEY, "format": "json"}
 
-    response = requests.get(url, params=params)
-    response.raise_for_status()
-    return response.json().get("houseRollCallVote")
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        return response.json().get("houseRollCallVote")
+    except requests.exceptions.RequestException as e:
+        logger.error("Congress.gov API error fetching vote detail %d/%d/%d: %s", congress, session, roll_number, e)
+        return None
 
 
 def fetch_vote_members(congress: int, session: int, roll_number: int) -> List[Dict[str, Any]]:
@@ -105,9 +113,13 @@ def fetch_vote_members(congress: int, session: int, roll_number: int) -> List[Di
         "limit": 500,  # All House members fit in one request
     }
 
-    response = requests.get(url, params=params)
-    response.raise_for_status()
-    data = response.json()
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error("Congress.gov API error fetching vote members %d/%d/%d: %s", congress, session, roll_number, e)
+        return []
 
     member_data = data.get("houseRollCallVoteMemberVotes", {})
     return member_data.get("results", [])

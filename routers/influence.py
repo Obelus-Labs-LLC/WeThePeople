@@ -49,11 +49,11 @@ import time as _time
 
 router = APIRouter(prefix="/influence", tags=["influence"])
 
-_freshness_cache: dict = {"ts": 0, "data": None}
+_freshness_cache: dict = {"ts": 0, "data": None, "computing": False}
 _freshness_lock = threading.Lock()
 _FRESHNESS_TTL = 300  # seconds
 
-_stats_cache: dict = {"ts": 0, "data": None}
+_stats_cache: dict = {"ts": 0, "data": None, "computing": False}
 _stats_lock = threading.Lock()
 _STATS_TTL = 60  # seconds
 
@@ -65,6 +65,9 @@ def data_freshness(db: Session = Depends(get_db)):
     with _freshness_lock:
         if _freshness_cache["data"] is not None and (now - _freshness_cache["ts"]) < _FRESHNESS_TTL:
             return _freshness_cache["data"]
+        if _freshness_cache["computing"] and _freshness_cache["data"] is not None:
+            return _freshness_cache["data"]  # serve stale while another thread recomputes
+        _freshness_cache["computing"] = True
 
     def _max_date_and_count(model, date_col):
         """Return (max_date_str_or_None, count) for a model/date column."""
@@ -156,6 +159,7 @@ def data_freshness(db: Session = Depends(get_db)):
     with _freshness_lock:
         _freshness_cache["ts"] = _time.time()
         _freshness_cache["data"] = result
+        _freshness_cache["computing"] = False
     return result
 
 
@@ -166,6 +170,9 @@ def get_influence_stats(db: Session = Depends(get_db)):
     with _stats_lock:
         if _stats_cache["data"] is not None and (now - _stats_cache["ts"]) < _STATS_TTL:
             return _stats_cache["data"]
+        if _stats_cache["computing"] and _stats_cache["data"] is not None:
+            return _stats_cache["data"]  # serve stale while another thread recomputes
+        _stats_cache["computing"] = True
 
     # Lobbying totals
     finance_lobbying = db.query(func.sum(FinanceLobbyingRecord.income)).scalar() or 0
@@ -233,6 +240,7 @@ def get_influence_stats(db: Session = Depends(get_db)):
     with _stats_lock:
         _stats_cache["data"] = result
         _stats_cache["ts"] = _time.time()
+        _stats_cache["computing"] = False
     return result
 
 

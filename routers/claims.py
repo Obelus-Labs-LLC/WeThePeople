@@ -204,7 +204,7 @@ def get_verification(verification_id: int, db: Session = Depends(get_db)):
     else:
         result["evaluation"] = None
 
-    # Resolve entity name — check politicians first, then companies
+    # Resolve entity name — check politicians first, then companies across sectors
     entity_name = claim.person_id
     member = db.query(TrackedMember).filter(
         TrackedMember.person_id == claim.person_id
@@ -212,46 +212,27 @@ def get_verification(verification_id: int, db: Session = Depends(get_db)):
     if member:
         entity_name = member.display_name
     else:
-        # Try company lookups across all sectors
-        try:
-            from models.tech_models import TrackedTechCompany
-            company = db.query(TrackedTechCompany).filter(
-                TrackedTechCompany.company_id == claim.person_id
-            ).first()
-            if company:
-                entity_name = company.display_name
-        except Exception:
-            pass
-        if entity_name == claim.person_id:
+        from models.tech_models import TrackedTechCompany
+        from models.finance_models import TrackedInstitution
+        from models.health_models import TrackedCompany
+        from models.energy_models import TrackedEnergyCompany
+
+        sector_lookups = [
+            (TrackedTechCompany, "company_id"),
+            (TrackedInstitution, "institution_id"),
+            (TrackedCompany, "company_id"),
+            (TrackedEnergyCompany, "company_id"),
+        ]
+        for model, id_col in sector_lookups:
             try:
-                from models.finance_models import TrackedInstitution
-                inst = db.query(TrackedInstitution).filter(
-                    TrackedInstitution.institution_id == claim.person_id
+                row = db.query(model).filter(
+                    getattr(model, id_col) == claim.person_id
                 ).first()
-                if inst:
-                    entity_name = inst.display_name
-            except Exception:
-                pass
-        if entity_name == claim.person_id:
-            try:
-                from models.health_models import TrackedCompany
-                company = db.query(TrackedCompany).filter(
-                    TrackedCompany.company_id == claim.person_id
-                ).first()
-                if company:
-                    entity_name = company.display_name
-            except Exception:
-                pass
-        if entity_name == claim.person_id:
-            try:
-                from models.energy_models import TrackedEnergyCompany
-                company = db.query(TrackedEnergyCompany).filter(
-                    TrackedEnergyCompany.company_id == claim.person_id
-                ).first()
-                if company:
-                    entity_name = company.display_name
-            except Exception:
-                pass
+                if row:
+                    entity_name = row.display_name
+                    break
+            except Exception as e:
+                logger.debug("Entity lookup failed for %s in %s: %s", claim.person_id, model.__tablename__, e)
     result["entity_name"] = entity_name
 
     return result
