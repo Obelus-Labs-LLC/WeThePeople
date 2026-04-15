@@ -222,7 +222,7 @@ class StoryItem(BaseModel):
     verification_tier: Optional[str] = None
     verification_data: Optional[dict] = None
     status: Optional[str] = None
-    ai_generated: Optional[bool] = None
+    ai_generated: Optional[str] = None  # e.g. "opus", "algorithmic", "claude" — NOT a bool
     data_date_range: Optional[str] = None
     data_freshness_at: Optional[str] = None
     correction_history: Optional[list] = None
