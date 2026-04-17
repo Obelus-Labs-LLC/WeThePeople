@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, Animated,
+  KeyboardAvoidingView, Platform, Animated, Linking, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -122,6 +122,20 @@ export default function ChatAgentScreen() {
 
   const hasMessages = messages.length > 0;
 
+  const openAction = useCallback(async (url: string) => {
+    if (!url) return;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert('Cannot open link', 'This link type is not supported on your device.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (e: any) {
+      Alert.alert('Failed to open', e?.message || 'Could not open link.');
+    }
+  }, []);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -203,7 +217,13 @@ export default function ChatAgentScreen() {
             {msg.actions && msg.actions.length > 0 && (
               <View style={styles.actionsRow}>
                 {msg.actions.map((action, aIdx) => (
-                  <TouchableOpacity key={aIdx} style={styles.actionChip} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    key={aIdx}
+                    style={styles.actionChip}
+                    activeOpacity={0.7}
+                    onPress={() => openAction(action.url)}
+                    disabled={!action.url}
+                  >
                     <Ionicons name="open-outline" size={12} color={ACCENT} />
                     <Text style={styles.actionChipText}>{action.label}</Text>
                   </TouchableOpacity>

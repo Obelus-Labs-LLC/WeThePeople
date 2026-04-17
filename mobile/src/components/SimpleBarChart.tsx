@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { UI_COLORS } from '../constants/colors';
 
 export interface BarChartDataPoint {
@@ -11,7 +11,6 @@ export interface BarChartDataPoint {
 interface SimpleBarChartProps {
   data: BarChartDataPoint[];
   title: string;
-  height?: number;
 }
 
 /** Format large numbers as abbreviated strings: $1.2M, $45K, etc. */
@@ -23,11 +22,12 @@ function formatAbbrev(value: number): string {
   return '$0';
 }
 
-export default function SimpleBarChart({ data, title, height = 220 }: SimpleBarChartProps) {
+export default function SimpleBarChart({ data, title }: SimpleBarChartProps) {
   if (!data || data.length === 0) return null;
 
+  // Bars fill the chartCard width via flex: 1 — the container's layout
+  // handles sizing responsively, so we don't need Dimensions or a hook here.
   const maxValue = Math.max(...data.map((d) => d.value), 1);
-  const chartWidth = Dimensions.get('window').width - 48;
 
   return (
     <View style={styles.container}>

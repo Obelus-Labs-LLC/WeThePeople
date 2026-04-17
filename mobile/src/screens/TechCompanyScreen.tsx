@@ -13,7 +13,7 @@ import type {
   LobbyingFiling, LobbyingSummary,
   EnforcementAction, NewsArticle,
 } from '../api/types';
-import { LoadingSpinner, EmptyState } from '../components/ui';
+import { LoadingSpinner, EmptyState, InlineError } from '../components/ui';
 
 const SECTOR_COLORS: Record<string, string> = {
   platform: '#8B5CF6',
@@ -39,22 +39,26 @@ export default function TechCompanyScreen() {
   // Patents tab data
   const [patents, setPatents] = useState<TechPatentItem[]>([]);
   const [patentsLoading, setPatentsLoading] = useState(false);
+  const [patentsError, setPatentsError] = useState('');
 
   // Contracts tab data
   const [contracts, setContracts] = useState<ContractItem[]>([]);
   const [contractSummary, setContractSummary] = useState<ContractSummary | null>(null);
   const [contractTrends, setContractTrends] = useState<ContractTrendYear[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
+  const [contractsError, setContractsError] = useState('');
 
   // Lobbying tab data
   const [lobbyingFilings, setLobbyingFilings] = useState<LobbyingFiling[]>([]);
   const [lobbySummary, setLobbySummary] = useState<LobbyingSummary | null>(null);
   const [lobbyingLoading, setLobbyingLoading] = useState(false);
+  const [lobbyingError, setLobbyingError] = useState('');
 
   // Enforcement tab data
   const [enforcementActions, setEnforcementActions] = useState<EnforcementAction[]>([]);
   const [totalPenalties, setTotalPenalties] = useState(0);
   const [enforcementLoading, setEnforcementLoading] = useState(false);
+  const [enforcementError, setEnforcementError] = useState('');
 
   // Overview extras
   const [filings, setFilings] = useState<SECFiling[]>([]);
@@ -76,81 +80,102 @@ export default function TechCompanyScreen() {
 
   useEffect(() => { loadCompany(); }, [loadCompany]);
 
-  // Load filings + news on mount for overview
+  // Load filings + news on mount for overview — these are non-critical
+  // overview extras, so we just warn on failure and let the rest render.
   useEffect(() => {
     apiClient.getTechCompanyFilings(companyId, { limit: 5 })
       .then((res) => setFilings(res.filings || []))
-      .catch(() => {});
+      .catch((e: any) => console.warn('[TechCompany] filings load failed:', e?.message));
   }, [companyId]);
 
   useEffect(() => {
     if (company?.display_name) {
       apiClient.getNews(company.display_name, 5)
         .then((res) => setNews(res.articles || []))
-        .catch(() => {});
+        .catch((e: any) => console.warn('[TechCompany] news load failed:', e?.message));
     }
   }, [company?.display_name]);
 
   // Load patents when tab switches
+  const loadPatents = useCallback(() => {
+    setPatentsLoading(true);
+    setPatentsError('');
+    apiClient.getTechCompanyPatents(companyId, { limit: 50 })
+      .then((res) => setPatents(res.patents || []))
+      .catch((e: any) => setPatentsError(e?.message || 'Failed to load patents'))
+      .finally(() => setPatentsLoading(false));
+  }, [companyId]);
+
   useEffect(() => {
-    if (tab === 'patents' && patents.length === 0 && !patentsLoading) {
-      setPatentsLoading(true);
-      apiClient.getTechCompanyPatents(companyId, { limit: 50 })
-        .then((res) => setPatents(res.patents || []))
-        .catch(() => {})
-        .finally(() => setPatentsLoading(false));
+    if (tab === 'patents' && patents.length === 0 && !patentsLoading && !patentsError) {
+      loadPatents();
     }
-  }, [tab, companyId]);
+  }, [tab, companyId, patents.length, patentsLoading, patentsError, loadPatents]);
 
   // Load contracts + trends when tab switches
+  const loadContracts = useCallback(() => {
+    setContractsLoading(true);
+    setContractsError('');
+    Promise.all([
+      apiClient.getTechCompanyContracts(companyId, { limit: 50 }),
+      apiClient.getTechCompanyContractSummary(companyId),
+      apiClient.getTechCompanyContractTrends(companyId),
+    ])
+      .then(([ctRes, sumRes, trendRes]) => {
+        setContracts(ctRes.contracts || []);
+        setContractSummary(sumRes);
+        setContractTrends(trendRes.trends || []);
+      })
+      .catch((e: any) => setContractsError(e?.message || 'Failed to load contracts'))
+      .finally(() => setContractsLoading(false));
+  }, [companyId]);
+
   useEffect(() => {
-    if (tab === 'contracts' && contracts.length === 0 && !contractsLoading) {
-      setContractsLoading(true);
-      Promise.all([
-        apiClient.getTechCompanyContracts(companyId, { limit: 50 }),
-        apiClient.getTechCompanyContractSummary(companyId),
-        apiClient.getTechCompanyContractTrends(companyId),
-      ])
-        .then(([ctRes, sumRes, trendRes]) => {
-          setContracts(ctRes.contracts || []);
-          setContractSummary(sumRes);
-          setContractTrends(trendRes.trends || []);
-        })
-        .catch(() => {})
-        .finally(() => setContractsLoading(false));
+    if (tab === 'contracts' && contracts.length === 0 && !contractsLoading && !contractsError) {
+      loadContracts();
     }
-  }, [tab, companyId]);
+  }, [tab, companyId, contracts.length, contractsLoading, contractsError, loadContracts]);
 
   // Load lobbying when tab switches
+  const loadLobbying = useCallback(() => {
+    setLobbyingLoading(true);
+    setLobbyingError('');
+    Promise.all([
+      apiClient.getTechCompanyLobbying(companyId, { limit: 50 }),
+      apiClient.getTechCompanyLobbySummary(companyId),
+    ])
+      .then(([filRes, sumRes]) => {
+        setLobbyingFilings(filRes.filings || []);
+        setLobbySummary(sumRes);
+      })
+      .catch((e: any) => setLobbyingError(e?.message || 'Failed to load lobbying'))
+      .finally(() => setLobbyingLoading(false));
+  }, [companyId]);
+
   useEffect(() => {
-    if (tab === 'lobbying' && lobbyingFilings.length === 0 && !lobbyingLoading) {
-      setLobbyingLoading(true);
-      Promise.all([
-        apiClient.getTechCompanyLobbying(companyId, { limit: 50 }),
-        apiClient.getTechCompanyLobbySummary(companyId),
-      ])
-        .then(([filRes, sumRes]) => {
-          setLobbyingFilings(filRes.filings || []);
-          setLobbySummary(sumRes);
-        })
-        .catch(() => {})
-        .finally(() => setLobbyingLoading(false));
+    if (tab === 'lobbying' && lobbyingFilings.length === 0 && !lobbyingLoading && !lobbyingError) {
+      loadLobbying();
     }
-  }, [tab, companyId]);
+  }, [tab, companyId, lobbyingFilings.length, lobbyingLoading, lobbyingError, loadLobbying]);
 
   // Load enforcement when tab switches
+  const loadEnforcement = useCallback(() => {
+    setEnforcementLoading(true);
+    setEnforcementError('');
+    apiClient.getTechCompanyEnforcement(companyId, { limit: 50 })
+      .then((res) => {
+        setEnforcementActions(res.actions || []);
+        setTotalPenalties(res.total_penalties || 0);
+      })
+      .catch((e: any) => setEnforcementError(e?.message || 'Failed to load enforcement'))
+      .finally(() => setEnforcementLoading(false));
+  }, [companyId]);
+
   useEffect(() => {
-    if (tab === 'enforcement' && enforcementActions.length === 0 && !enforcementLoading) {
-      setEnforcementLoading(true);
-      apiClient.getTechCompanyEnforcement(companyId, { limit: 50 })
-        .then((res) => {
-          setEnforcementActions(res.actions || []);
-          setTotalPenalties(res.total_penalties || 0);
-        })
-        .catch(() => {})
-        .finally(() => setEnforcementLoading(false));
+    if (tab === 'enforcement' && enforcementActions.length === 0 && !enforcementLoading && !enforcementError) {
+      loadEnforcement();
     }
-  }, [tab, companyId]);
+  }, [tab, companyId, enforcementActions.length, enforcementLoading, enforcementError, loadEnforcement]);
 
   const onRefresh = () => { setRefreshing(true); loadCompany(); };
 
@@ -217,10 +242,10 @@ export default function TechCompanyScreen() {
 
         {/* Tab Content */}
         {tab === 'overview' && renderOverview(company, filings, news, sectorColor)}
-        {tab === 'patents' && renderPatents(patents, patentsLoading)}
-        {tab === 'contracts' && renderContracts(contracts, contractSummary, contractTrends, contractsLoading)}
-        {tab === 'lobbying' && renderLobbying(lobbyingFilings, lobbySummary, lobbyingLoading)}
-        {tab === 'enforcement' && renderEnforcement(enforcementActions, totalPenalties, enforcementLoading)}
+        {tab === 'patents' && renderPatents(patents, patentsLoading, patentsError, loadPatents)}
+        {tab === 'contracts' && renderContracts(contracts, contractSummary, contractTrends, contractsLoading, contractsError, loadContracts)}
+        {tab === 'lobbying' && renderLobbying(lobbyingFilings, lobbySummary, lobbyingLoading, lobbyingError, loadLobbying)}
+        {tab === 'enforcement' && renderEnforcement(enforcementActions, totalPenalties, enforcementLoading, enforcementError, loadEnforcement)}
       </ScrollView>
     </View>
   );
@@ -374,8 +399,14 @@ function renderOverview(
 }
 
 // ── Patents Tab ──
-function renderPatents(patents: TechPatentItem[], loading: boolean) {
+function renderPatents(
+  patents: TechPatentItem[],
+  loading: boolean,
+  error: string,
+  retry: () => void,
+) {
   if (loading) return <LoadingSpinner message="Loading patents..." />;
+  if (error) return <InlineError message={error} onRetry={retry} />;
 
   return (
     <View style={styles.tabContent}>
@@ -413,8 +444,11 @@ function renderContracts(
   summary: ContractSummary | null,
   trends: ContractTrendYear[],
   loading: boolean,
+  error: string,
+  retry: () => void,
 ) {
   if (loading) return <LoadingSpinner message="Loading contracts..." />;
+  if (error) return <InlineError message={error} onRetry={retry} />;
 
   const maxTrend = Math.max(...trends.map((t) => t.total_amount), 1);
 
@@ -511,8 +545,11 @@ function renderLobbying(
   filings: LobbyingFiling[],
   summary: LobbyingSummary | null,
   loading: boolean,
+  error: string,
+  retry: () => void,
 ) {
   if (loading) return <LoadingSpinner message="Loading lobbying data..." />;
+  if (error) return <InlineError message={error} onRetry={retry} />;
 
   return (
     <View style={styles.tabContent}>
@@ -607,8 +644,11 @@ function renderEnforcement(
   actions: EnforcementAction[],
   totalPenalties: number,
   loading: boolean,
+  error: string,
+  retry: () => void,
 ) {
   if (loading) return <LoadingSpinner message="Loading enforcement data..." />;
+  if (error) return <InlineError message={error} onRetry={retry} />;
 
   const SOURCE_COLORS: Record<string, string> = {
     FTC: '#DC2626',

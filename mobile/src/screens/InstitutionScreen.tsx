@@ -11,7 +11,7 @@ import type {
   InstitutionDetail, SECFiling, FDICFinancial,
   CFPBComplaint, ComplaintSummary, NewsArticle,
 } from '../api/types';
-import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
+import { LoadingSpinner, StatCard, EmptyState, InlineError } from '../components/ui';
 import { SectorTypeBadge } from '../components/ui';
 
 type TabKey = 'overview' | 'filings' | 'complaints' | 'news';
@@ -57,6 +57,7 @@ export default function InstitutionScreen() {
   const [complaintSummary, setComplaintSummary] = useState<ComplaintSummary | null>(null);
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
@@ -86,15 +87,21 @@ export default function InstitutionScreen() {
   useEffect(() => { loadData(); }, [institution_id]);
 
   // Load news when tab switches
+  const loadNews = React.useCallback(() => {
+    if (!detail) return;
+    setNewsLoading(true);
+    setNewsError('');
+    apiClient.getNews(detail.display_name, 15)
+      .then((res) => setNews(res.articles || []))
+      .catch((e: any) => setNewsError(e?.message || 'Failed to load news'))
+      .finally(() => setNewsLoading(false));
+  }, [detail]);
+
   useEffect(() => {
-    if (activeTab === 'news' && news.length === 0 && !newsLoading && detail) {
-      setNewsLoading(true);
-      apiClient.getNews(detail.display_name, 15)
-        .then((res) => setNews(res.articles || []))
-        .catch(() => {})
-        .finally(() => setNewsLoading(false));
+    if (activeTab === 'news' && news.length === 0 && !newsLoading && !newsError && detail) {
+      loadNews();
     }
-  }, [activeTab, detail]);
+  }, [activeTab, detail, news.length, newsLoading, newsError, loadNews]);
 
   if (loading) return <LoadingSpinner message="Loading institution..." />;
   if (!detail) return <EmptyState title="Not Found" message="Institution data unavailable." />;
@@ -295,6 +302,8 @@ export default function InstitutionScreen() {
         <View style={styles.tabContent}>
           {newsLoading ? (
             <LoadingSpinner message="Loading news..." />
+          ) : newsError ? (
+            <InlineError message={newsError} onRetry={loadNews} />
           ) : news.length === 0 ? (
             <EmptyState title="No recent news" message="No articles found for this institution." />
           ) : (

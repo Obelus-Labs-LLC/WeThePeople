@@ -22,22 +22,24 @@ import BillScreen from '../screens/BillScreen';
 import ComingSoonScreen from '../screens/ComingSoonScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
-// New sector screens
+// Sector screens (dashboard + directory). Detail screens unified via SectorCompanyScreen.
 import EnergyDashboardScreen from '../screens/EnergyDashboardScreen';
 import EnergyCompaniesScreen from '../screens/EnergyCompaniesScreen';
-import EnergyCompanyScreen from '../screens/EnergyCompanyScreen';
 import TransportationDashboardScreen from '../screens/TransportationDashboardScreen';
 import TransportationCompaniesScreen from '../screens/TransportationCompaniesScreen';
-import TransportationCompanyScreen from '../screens/TransportationCompanyScreen';
 import DefenseDashboardScreen from '../screens/DefenseDashboardScreen';
 import DefenseCompaniesScreen from '../screens/DefenseCompaniesScreen';
-import DefenseCompanyScreen from '../screens/DefenseCompanyScreen';
 import ChemicalsDashboardScreen from '../screens/ChemicalsDashboardScreen';
 import ChemicalsCompaniesScreen from '../screens/ChemicalsCompaniesScreen';
-import ChemicalsCompanyScreen from '../screens/ChemicalsCompanyScreen';
 import AgricultureDashboardScreen from '../screens/AgricultureDashboardScreen';
 import AgricultureCompaniesScreen from '../screens/AgricultureCompaniesScreen';
-import AgricultureCompanyScreen from '../screens/AgricultureCompanyScreen';
+
+// Generic sector company detail — one component, 7 sectors
+import SectorCompanyScreen from '../screens/SectorCompanyScreen';
+// Committees
+import CommitteesScreen from '../screens/CommitteesScreen';
+import CommitteeDetailScreen from '../screens/CommitteeDetailScreen';
+
 import CongressionalTradesScreen from '../screens/CongressionalTradesScreen';
 import ZipLookupScreen from '../screens/ZipLookupScreen';
 import StoriesScreen from '../screens/StoriesScreen';
@@ -47,7 +49,6 @@ import ChatAgentScreen from '../screens/ChatAgentScreen';
 import InfluenceNetworkScreen from '../screens/InfluenceNetworkScreen';
 import CompareScreen from '../screens/CompareScreen';
 import LegislationTrackerScreen from '../screens/LegislationTrackerScreen';
-import CommitteesScreen from '../screens/CommitteesScreen';
 import ActivityFeedScreen from '../screens/ActivityFeedScreen';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
@@ -86,7 +87,24 @@ function HomeStackScreen() {
         component={ComingSoonScreen}
         options={{ title: 'Coming Soon' }}
       />
-      {/* Energy sector screens */}
+      {/* Cross-stack routes registered locally so Home-tab screens can
+          navigate to Person/Bill/Committee detail without stack hopping. */}
+      <HomeStack.Screen
+        name="PersonDetail"
+        component={PersonScreen}
+        options={{ title: '' }}
+      />
+      <HomeStack.Screen
+        name="BillDetail"
+        component={BillScreen}
+        options={{ title: '' }}
+      />
+      <HomeStack.Screen
+        name="CommitteeDetail"
+        component={CommitteeDetailScreen}
+        options={{ title: '' }}
+      />
+      {/* Energy sector */}
       <HomeStack.Screen
         name="EnergyDashboard"
         component={EnergyDashboardScreen}
@@ -99,10 +117,11 @@ function HomeStackScreen() {
       />
       <HomeStack.Screen
         name="EnergyCompanyDetail"
-        component={EnergyCompanyScreen}
+        component={SectorCompanyScreen}
+        initialParams={{ sector: 'energy' }}
         options={{ title: '' }}
       />
-      {/* Transportation sector screens */}
+      {/* Transportation sector */}
       <HomeStack.Screen
         name="TransportationDashboard"
         component={TransportationDashboardScreen}
@@ -115,10 +134,11 @@ function HomeStackScreen() {
       />
       <HomeStack.Screen
         name="TransportationCompanyDetail"
-        component={TransportationCompanyScreen}
+        component={SectorCompanyScreen}
+        initialParams={{ sector: 'transportation' }}
         options={{ title: '' }}
       />
-      {/* Defense sector screens */}
+      {/* Defense sector */}
       <HomeStack.Screen
         name="DefenseDashboard"
         component={DefenseDashboardScreen}
@@ -131,10 +151,11 @@ function HomeStackScreen() {
       />
       <HomeStack.Screen
         name="DefenseCompanyDetail"
-        component={DefenseCompanyScreen}
+        component={SectorCompanyScreen}
+        initialParams={{ sector: 'defense' }}
         options={{ title: '' }}
       />
-      {/* Chemicals sector screens */}
+      {/* Chemicals sector */}
       <HomeStack.Screen
         name="ChemicalsDashboard"
         component={ChemicalsDashboardScreen}
@@ -147,10 +168,11 @@ function HomeStackScreen() {
       />
       <HomeStack.Screen
         name="ChemicalsCompanyDetail"
-        component={ChemicalsCompanyScreen}
+        component={SectorCompanyScreen}
+        initialParams={{ sector: 'chemicals' }}
         options={{ title: '' }}
       />
-      {/* Agriculture sector screens */}
+      {/* Agriculture sector */}
       <HomeStack.Screen
         name="AgricultureDashboard"
         component={AgricultureDashboardScreen}
@@ -163,10 +185,25 @@ function HomeStackScreen() {
       />
       <HomeStack.Screen
         name="AgricultureCompanyDetail"
-        component={AgricultureCompanyScreen}
+        component={SectorCompanyScreen}
+        initialParams={{ sector: 'agriculture' }}
         options={{ title: '' }}
       />
-      {/* Quick Tools screens */}
+      {/* Telecom & Education — backend exists via sector_factory; detail-only
+          registration until dedicated dashboard/directory screens exist. */}
+      <HomeStack.Screen
+        name="TelecomCompanyDetail"
+        component={SectorCompanyScreen}
+        initialParams={{ sector: 'telecom' }}
+        options={{ title: '' }}
+      />
+      <HomeStack.Screen
+        name="EducationCompanyDetail"
+        component={SectorCompanyScreen}
+        initialParams={{ sector: 'education' }}
+        options={{ title: '' }}
+      />
+      {/* Quick Tools */}
       <HomeStack.Screen
         name="CongressionalTrades"
         component={CongressionalTradesScreen}
@@ -249,6 +286,11 @@ function PoliticsStackScreen() {
         component={BillScreen}
         options={{ title: '' }}
       />
+      <PoliticsStack.Screen
+        name="CommitteeDetail"
+        component={CommitteeDetailScreen}
+        options={{ title: '' }}
+      />
     </PoliticsStack.Navigator>
   );
 }
@@ -271,6 +313,12 @@ function FinanceStackScreen() {
         component={InstitutionScreen}
         options={{ title: '' }}
       />
+      {/* Cross-stack */}
+      <FinanceStack.Screen
+        name="PersonDetail"
+        component={PersonScreen}
+        options={{ title: '' }}
+      />
     </FinanceStack.Navigator>
   );
 }
@@ -291,6 +339,12 @@ function HealthStackScreen() {
       <HealthStack.Screen
         name="CompanyDetail"
         component={CompanyScreen}
+        options={{ title: '' }}
+      />
+      {/* Cross-stack */}
+      <HealthStack.Screen
+        name="PersonDetail"
+        component={PersonScreen}
         options={{ title: '' }}
       />
     </HealthStack.Navigator>
@@ -319,6 +373,12 @@ function TechnologyStackScreen() {
         name="TechCompare"
         component={TechCompareScreen}
         options={{ title: 'Compare Companies' }}
+      />
+      {/* Cross-stack */}
+      <TechnologyStack.Screen
+        name="PersonDetail"
+        component={PersonScreen}
+        options={{ title: '' }}
       />
     </TechnologyStack.Navigator>
   );

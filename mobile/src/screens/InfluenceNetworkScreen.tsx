@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
   LayoutAnimation, Platform, UIManager,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
@@ -12,17 +13,16 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
 const ACCENT = '#7C3AED';
 
-interface LobbyingItem {
-  company: string;
-  sector?: string;
-  total_amount: number;
-}
-
-interface ContractItem {
-  company: string;
+// The `/influence/top-*` endpoints may return either a bare array or an
+// object wrapping one of { leaders, results, data, companies }. We normalize
+// everything to this internal shape so the UI doesn't care.
+interface InfluenceItem {
+  display_name: string;
+  entity_id?: string;
+  company_id?: string;
   sector?: string;
   total_amount: number;
 }
@@ -43,9 +43,26 @@ function sectorColor(sector?: string): string {
   return map[(sector || '').toLowerCase()] || '#9CA3AF';
 }
 
+function normalizeInfluenceList(raw: any): InfluenceItem[] {
+  // Accept either a bare array or a common envelope.
+  const list = Array.isArray(raw)
+    ? raw
+    : raw?.leaders || raw?.results || raw?.data || raw?.companies || [];
+  return (list as any[]).map((r: any) => ({
+    display_name: r.display_name || r.company || r.name || 'Unknown',
+    entity_id: r.entity_id,
+    company_id: r.company_id,
+    sector: r.sector,
+    // Lobbying rows carry `total_income`; contract rows carry `total_amount`.
+    // Fall back across both so a single type works for both endpoints.
+    total_amount: Number(r.total_amount ?? r.total_income ?? 0),
+  }));
+}
+
 export default function InfluenceNetworkScreen() {
-  const [lobbying, setLobbying] = useState<LobbyingItem[]>([]);
-  const [contracts, setContracts] = useState<ContractItem[]>([]);
+  const navigation = useNavigation<any>();
+  const [lobbying, setLobbying] = useState<InfluenceItem[]>([]);
+  const [contracts, setContracts] = useState<InfluenceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -54,19 +71,15 @@ export default function InfluenceNetworkScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [lobbyRes, contractRes] = await Promise.all([
-        fetch(`${API_BASE}/influence/top-lobbying?limit=10`),
-        fetch(`${API_BASE}/influence/top-contracts?limit=10`),
+      const [lobbyRaw, contractRaw] = await Promise.all([
+        apiClient.getTopLobbying({ limit: 10 }),
+        apiClient.getTopContracts({ limit: 10 }),
       ]);
-      if (!lobbyRes.ok) throw new Error(`Lobbying HTTP ${lobbyRes.status}`);
-      if (!contractRes.ok) throw new Error(`Contracts HTTP ${contractRes.status}`);
-      const lobbyData = await lobbyRes.json();
-      const contractData = await contractRes.json();
-      setLobbying(lobbyData.leaders || lobbyData.results || lobbyData.data || lobbyData || []);
-      setContracts(contractData.leaders || contractData.results || contractData.data || contractData || []);
+      setLobbying(normalizeInfluenceList(lobbyRaw));
+      setContracts(normalizeInfluenceList(contractRaw));
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to load influence data');
+      setError(e?.message || 'Failed to load influence data');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -92,8 +105,33 @@ export default function InfluenceNetworkScreen() {
   const lobbyMax = lobbying.length > 0 ? Math.max(...lobbying.map(i => i.total_amount || 0), 1) : 1;
   const contractMax = contracts.length > 0 ? Math.max(...contracts.map(i => i.total_amount || 0), 1) : 1;
 
+  // Not every sector has a detail screen registered yet. Only these navigate.
+  const SECTOR_DETAIL_ROUTE: Record<string, string> = {
+    energy: 'EnergyCompanyDetail',
+    transportation: 'TransportationCompanyDetail',
+    defense: 'DefenseCompanyDetail',
+    chemicals: 'ChemicalsCompanyDetail',
+    agriculture: 'AgricultureCompanyDetail',
+    telecom: 'TelecomCompanyDetail',
+    education: 'EducationCompanyDetail',
+    technology: 'TechCompanyDetail',
+    health: 'CompanyDetail',
+    finance: 'InstitutionDetail',
+  };
+
+  const navigateToCompany = (item: InfluenceItem) => {
+    const sectorKey = (item.sector || '').toLowerCase();
+    const route = SECTOR_DETAIL_ROUTE[sectorKey];
+    const id = item.company_id || item.entity_id;
+    if (!route || !id) return;
+    // All detail screens accept company_id as the route param. Health's
+    // CompanyDetail and Finance's InstitutionDetail use `id` in their existing
+    // code, so we pass both to stay compatible without touching those screens.
+    navigation.navigate(route, { company_id: id, id });
+  };
+
   const renderItem = (
-    item: LobbyingItem | ContractItem,
+    item: InfluenceItem,
     idx: number,
     max: number,
     type: 'lobby' | 'contract',
@@ -101,6 +139,10 @@ export default function InfluenceNetworkScreen() {
   ) => {
     const pct = max > 0 ? ((item.total_amount || 0) / max) * 100 : 0;
     const isExpanded = expanded === idx;
+    const sectorKey = (item.sector || '').toLowerCase();
+    const canNav = Boolean(
+      SECTOR_DETAIL_ROUTE[sectorKey] && (item.company_id || item.entity_id)
+    );
 
     return (
       <TouchableOpacity
@@ -113,7 +155,7 @@ export default function InfluenceNetworkScreen() {
           <View style={styles.itemInfo}>
             <Text style={styles.rankBadge}>#{idx + 1}</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.companyName} numberOfLines={1}>{item.company || 'Unknown'}</Text>
+              <Text style={styles.companyName} numberOfLines={1}>{item.display_name}</Text>
               {item.sector && (
                 <View style={[styles.sectorBadge, { backgroundColor: sectorColor(item.sector) + '18', borderColor: sectorColor(item.sector) + '30' }]}>
                   <Text style={[styles.sectorText, { color: sectorColor(item.sector) }]}>{item.sector}</Text>
@@ -139,7 +181,7 @@ export default function InfluenceNetworkScreen() {
           <View style={styles.expandedSection}>
             <View style={styles.expandedRow}>
               <Text style={styles.expandedLabel}>Company</Text>
-              <Text style={styles.expandedValue}>{item.company || 'Unknown'}</Text>
+              <Text style={styles.expandedValue}>{item.display_name}</Text>
             </View>
             <View style={styles.expandedRow}>
               <Text style={styles.expandedLabel}>Sector</Text>
@@ -153,6 +195,16 @@ export default function InfluenceNetworkScreen() {
               <Text style={styles.expandedLabel}>Relative Share</Text>
               <Text style={styles.expandedValue}>{pct.toFixed(1)}% of top spender</Text>
             </View>
+            {canNav && (
+              <TouchableOpacity
+                style={styles.viewProfileBtn}
+                onPress={() => navigateToCompany(item)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="open-outline" size={14} color="#FFFFFF" />
+                <Text style={styles.viewProfileText}>View company profile</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -289,6 +341,12 @@ const styles = StyleSheet.create({
   expandedRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   expandedLabel: { fontSize: 12, fontWeight: '600', color: UI_COLORS.TEXT_MUTED },
   expandedValue: { fontSize: 12, fontWeight: '600', color: UI_COLORS.TEXT_PRIMARY },
+  viewProfileBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: '#7C3AED', borderRadius: 8, paddingVertical: 8,
+    marginTop: 10,
+  },
+  viewProfileText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   footer: { alignItems: 'center', paddingVertical: 20 },
   footerText: { fontSize: 11, color: UI_COLORS.TEXT_MUTED },
 });

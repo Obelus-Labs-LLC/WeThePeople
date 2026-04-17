@@ -2,22 +2,31 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
 const ACCENT = '#D97706';
 
 interface Committee {
-  committee_id: string;
+  id?: number;
+  thomas_id: string;
   name: string;
   chamber: string;
+  committee_type?: string | null;
+  url?: string | null;
+  phone?: string | null;
+  jurisdiction?: string | null;
+  parent_thomas_id?: string | null;
   member_count?: number;
+  subcommittees?: Committee[];
 }
 
 export default function CommitteesScreen() {
+  const navigation = useNavigation<any>();
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -25,14 +34,12 @@ export default function CommitteesScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/committees`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const list: Committee[] = Array.isArray(data) ? data : (data.committees || []);
+      const data = await apiClient.getCommittees();
+      const list: Committee[] = (data?.committees as any) || [];
       setCommittees(list);
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to load committees');
+      setError(e?.message || 'Failed to load committees');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -44,7 +51,24 @@ export default function CommitteesScreen() {
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
   if (loading) return <LoadingSpinner message="Loading committees..." />;
-  if (error) return <EmptyState title="Error" message={error} />;
+  if (error) {
+    return (
+      <View style={styles.errorWrap}>
+        <EmptyState title="Error" message={error} />
+        <TouchableOpacity
+          style={styles.retryBtn}
+          onPress={() => {
+            setLoading(true);
+            setError('');
+            loadData();
+          }}
+        >
+          <Ionicons name="refresh" size={16} color="#fff" />
+          <Text style={styles.retryBtnText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const senateCommittees = committees.filter(c =>
     (c.chamber || '').toLowerCase().includes('senate')
@@ -63,12 +87,19 @@ export default function CommitteesScreen() {
 
     return (
       <TouchableOpacity
-        key={committee.committee_id}
+        key={committee.thomas_id || committee.name}
         style={styles.card}
         activeOpacity={0.8}
+        onPress={() =>
+          navigation.navigate('CommitteeDetail', {
+            committee_id: committee.thomas_id,
+            committee_name: committee.name,
+          })
+        }
       >
         <View style={styles.cardTopRow}>
           <Text style={styles.cardTitle} numberOfLines={2}>{committee.name}</Text>
+          <Ionicons name="chevron-forward" size={16} color={UI_COLORS.TEXT_MUTED} />
         </View>
 
         <View style={styles.badgesRow}>
@@ -202,8 +233,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: UI_COLORS.BORDER,
     shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
   },
-  cardTopRow: { marginBottom: 8 },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY, lineHeight: 21 },
+  cardTopRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: 8, marginBottom: 8,
+  },
+  cardTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: UI_COLORS.TEXT_PRIMARY, lineHeight: 21 },
   badgesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   badge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -212,4 +246,13 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 11, fontWeight: '600' },
   footer: { alignItems: 'center', paddingVertical: 20 },
   footerText: { fontSize: 11, color: UI_COLORS.TEXT_MUTED },
+  errorWrap: {
+    flex: 1, backgroundColor: UI_COLORS.PRIMARY_BG, justifyContent: 'center',
+    alignItems: 'center', gap: 16, padding: 32,
+  },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: ACCENT, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
+  },
+  retryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });

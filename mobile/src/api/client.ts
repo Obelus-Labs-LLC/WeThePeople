@@ -38,6 +38,16 @@ import type {
   TechComparisonResponse,
   NewsResponse,
   BillDetail,
+  CommitteesListResponse,
+  CommitteeDetail,
+  SectorCompaniesResponse,
+  SectorCompanyDetail,
+  SearchResponse,
+  StateDetail,
+  CongressionalTradesResponse,
+  InfluenceTopLobbyingItem,
+  InfluenceTopContractItem,
+  RecentActivityItem,
 } from './types';
 
 // Production API URL loaded from app.config.ts extra.apiUrl.
@@ -64,6 +74,34 @@ function getApiUrl(): string {
 export const API_BASE: string = getApiUrl();
 const BASE_URL: string = API_BASE;
 
+// Default network timeout for every request. Hetzner's ARM box is normally
+// snappy but stalls do happen; 20s gives slow connections breathing room
+// without hanging the UI forever.
+export const DEFAULT_FETCH_TIMEOUT_MS = 20000;
+
+export interface FetchOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  body?: any;
+  headers?: Record<string, string>;
+}
+
+/**
+ * Thrown by fetchJSON when the server returns a non-2xx. The original status
+ * code is preserved so screens can distinguish 404s from 500s etc.
+ */
+export class ApiError extends Error {
+  status: number;
+  body?: string;
+  constructor(status: number, message: string, body?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
 class WTPClient {
   private baseUrl: string;
 
@@ -71,12 +109,69 @@ class WTPClient {
     this.baseUrl = baseUrl.replace(/\/$/, '');
   }
 
-  private async fetchJSON<T>(url: string): Promise<T> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  get base(): string {
+    return this.baseUrl;
+  }
+
+  /**
+   * Fetch JSON with timeout, caller abort, and a structured error.
+   * - Never leaks raw HTML when the server returns a 500 with an error page
+   * - Always checks response.ok before parsing
+   * - Honors caller's AbortSignal so screens can cancel on unmount
+   */
+  async fetchJSON<T>(path: string, opts: FetchOptions = {}): Promise<T> {
+    const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+    const timeoutMs = opts.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+
+    // Combine caller's signal (if any) with our timeout signal
+    const timeoutCtrl = new AbortController();
+    const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
+
+    const onCallerAbort = () => timeoutCtrl.abort();
+    if (opts.signal) {
+      if (opts.signal.aborted) timeoutCtrl.abort();
+      else opts.signal.addEventListener('abort', onCallerAbort);
     }
-    return response.json();
+
+    try {
+      const response = await fetch(url, {
+        method: opts.method || 'GET',
+        headers: {
+          Accept: 'application/json',
+          ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(opts.headers || {}),
+        },
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+        signal: timeoutCtrl.signal,
+      });
+
+      if (!response.ok) {
+        let bodyText: string | undefined;
+        try {
+          bodyText = await response.text();
+        } catch {
+          /* swallow — we just need the status */
+        }
+        throw new ApiError(
+          response.status,
+          `HTTP ${response.status}${response.statusText ? ': ' + response.statusText : ''}`,
+          bodyText?.slice(0, 500)
+        );
+      }
+
+      return (await response.json()) as T;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        // Distinguish timeout vs caller cancel
+        if (opts.signal?.aborted) throw e; // caller cancelled; propagate
+        throw new ApiError(0, `Request timed out after ${timeoutMs}ms`);
+      }
+      if (e instanceof ApiError) throw e;
+      throw new ApiError(0, e?.message || 'Network error');
+    } finally {
+      clearTimeout(timeoutId);
+      if (opts.signal) opts.signal.removeEventListener('abort', onCallerAbort);
+    }
   }
 
   async getPeople(params?: {
@@ -378,26 +473,245 @@ class WTPClient {
     );
   }
 
-  async getTechComparison(ids: string[]): Promise<TechComparisonResponse> {
+  async getTechComparison(ids: string[], opts?: FetchOptions): Promise<TechComparisonResponse> {
+    const encoded = ids.map((id) => encodeURIComponent(id)).join(',');
     return this.fetchJSON<TechComparisonResponse>(
-      `${this.baseUrl}/tech/compare?ids=${ids.join(',')}`
+      `${this.baseUrl}/tech/compare?ids=${encoded}`,
+      opts
     );
   }
 
   // ── News (shared) ──
 
-  async getNews(query: string, limit: number = 10): Promise<NewsResponse> {
+  async getNews(query: string, limit: number = 10, opts?: FetchOptions): Promise<NewsResponse> {
     return this.fetchJSON<NewsResponse>(
-      `${this.baseUrl}/news/${encodeURIComponent(query)}?limit=${limit}`
+      `${this.baseUrl}/news/${encodeURIComponent(query)}?limit=${limit}`,
+      opts
     );
   }
 
   // ── Bills ──
 
-  async getBillDetail(billId: string): Promise<BillDetail> {
+  async getBillDetail(billId: string, opts?: FetchOptions): Promise<BillDetail> {
     return this.fetchJSON<BillDetail>(
-      `${this.baseUrl}/bills/${encodeURIComponent(billId)}`
+      `${this.baseUrl}/bills/${encodeURIComponent(billId)}`,
+      opts
     );
+  }
+
+  // ── Committees ──
+
+  async getCommittees(
+    params?: { chamber?: string; include_subcommittees?: boolean },
+    opts?: FetchOptions
+  ): Promise<CommitteesListResponse> {
+    const sp = new URLSearchParams();
+    if (params?.chamber) sp.set('chamber', params.chamber);
+    if (params?.include_subcommittees) sp.set('include_subcommittees', '1');
+    const qs = sp.toString();
+    return this.fetchJSON<CommitteesListResponse>(
+      `${this.baseUrl}/committees${qs ? `?${qs}` : ''}`,
+      opts
+    );
+  }
+
+  async getCommitteeDetail(thomasId: string, opts?: FetchOptions): Promise<CommitteeDetail> {
+    return this.fetchJSON<CommitteeDetail>(
+      `${this.baseUrl}/committees/${encodeURIComponent(thomasId)}`,
+      opts
+    );
+  }
+
+  // ── ZIP → representatives ──
+
+  async getRepresentativesByZip(
+    zip: string,
+    opts?: FetchOptions
+  ): Promise<{ zip: string; state: string; total?: number; representatives: any[] }> {
+    return this.fetchJSON(
+      `${this.baseUrl}/representatives?zip=${encodeURIComponent(zip)}`,
+      opts
+    );
+  }
+
+  // ── Search ──
+
+  async search(
+    query: string,
+    type?: 'bill' | 'person' | 'company',
+    opts?: FetchOptions
+  ): Promise<SearchResponse> {
+    const sp = new URLSearchParams();
+    sp.set('q', query);
+    if (type) sp.set('type', type);
+    return this.fetchJSON<SearchResponse>(`${this.baseUrl}/search?${sp}`, opts);
+  }
+
+  // ── State explorer ──
+
+  async getStateDetail(stateCode: string, opts?: FetchOptions): Promise<StateDetail> {
+    return this.fetchJSON<StateDetail>(
+      `${this.baseUrl}/states/${encodeURIComponent(stateCode)}`,
+      opts
+    );
+  }
+
+  // ── Congressional trades ──
+
+  async getCongressionalTrades(
+    params?: { person_id?: string; ticker?: string; limit?: number; offset?: number },
+    opts?: FetchOptions
+  ): Promise<CongressionalTradesResponse> {
+    const sp = new URLSearchParams();
+    if (params?.person_id) sp.set('person_id', params.person_id);
+    if (params?.ticker) sp.set('ticker', params.ticker);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<CongressionalTradesResponse>(
+      `${this.baseUrl}/congressional-trades?${sp}`,
+      opts
+    );
+  }
+
+  // ── Influence (top-lobbying / top-contracts) ──
+
+  async getTopLobbying(
+    params?: { limit?: number; sector?: string },
+    opts?: FetchOptions
+  ): Promise<InfluenceTopLobbyingItem[] | { companies: InfluenceTopLobbyingItem[] }> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.sector) sp.set('sector', params.sector);
+    return this.fetchJSON(`${this.baseUrl}/influence/top-lobbying?${sp}`, opts);
+  }
+
+  async getTopContracts(
+    params?: { limit?: number; sector?: string },
+    opts?: FetchOptions
+  ): Promise<InfluenceTopContractItem[] | { companies: InfluenceTopContractItem[] }> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.sector) sp.set('sector', params.sector);
+    return this.fetchJSON(`${this.baseUrl}/influence/top-contracts?${sp}`, opts);
+  }
+
+  // ── Activity feed ──
+
+  async getRecentActivity(
+    params?: { limit?: number },
+    opts?: FetchOptions
+  ): Promise<RecentActivityItem[] | { activity: RecentActivityItem[] }> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    return this.fetchJSON(`${this.baseUrl}/dashboard/recent-actions?${sp}`, opts);
+  }
+
+  // ── Sector-agnostic helpers (Energy / Transport / Defense / Chemicals / Agriculture / Telecom / Education) ──
+  // These talk to the sector_factory endpoints. Sector slug is the URL segment
+  // the backend registers each router under.
+
+  async getSectorCompanies(
+    sector: string,
+    params?: { limit?: number; offset?: number; q?: string; sector_type?: string },
+    opts?: FetchOptions
+  ): Promise<SectorCompaniesResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    if (params?.q) sp.set('q', params.q);
+    if (params?.sector_type) sp.set('sector_type', params.sector_type);
+    return this.fetchJSON<SectorCompaniesResponse>(
+      `${this.baseUrl}/${encodeURIComponent(sector)}/companies?${sp}`,
+      opts
+    );
+  }
+
+  async getSectorCompanyDetail(
+    sector: string,
+    companyId: string,
+    opts?: FetchOptions
+  ): Promise<SectorCompanyDetail> {
+    return this.fetchJSON<SectorCompanyDetail>(
+      `${this.baseUrl}/${encodeURIComponent(sector)}/companies/${encodeURIComponent(companyId)}`,
+      opts
+    );
+  }
+
+  async getSectorCompanyContracts(
+    sector: string,
+    companyId: string,
+    params?: { limit?: number; offset?: number },
+    opts?: FetchOptions
+  ): Promise<ContractsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<ContractsResponse>(
+      `${this.baseUrl}/${encodeURIComponent(sector)}/companies/${encodeURIComponent(companyId)}/contracts?${sp}`,
+      opts
+    );
+  }
+
+  async getSectorCompanyContractSummary(
+    sector: string,
+    companyId: string,
+    opts?: FetchOptions
+  ): Promise<ContractSummary> {
+    return this.fetchJSON<ContractSummary>(
+      `${this.baseUrl}/${encodeURIComponent(sector)}/companies/${encodeURIComponent(companyId)}/contracts/summary`,
+      opts
+    );
+  }
+
+  async getSectorCompanyLobbying(
+    sector: string,
+    companyId: string,
+    params?: { filing_year?: number; limit?: number; offset?: number },
+    opts?: FetchOptions
+  ): Promise<LobbyingResponse> {
+    const sp = new URLSearchParams();
+    if (params?.filing_year !== undefined) sp.set('filing_year', params.filing_year.toString());
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<LobbyingResponse>(
+      `${this.baseUrl}/${encodeURIComponent(sector)}/companies/${encodeURIComponent(companyId)}/lobbying?${sp}`,
+      opts
+    );
+  }
+
+  async getSectorCompanyEnforcement(
+    sector: string,
+    companyId: string,
+    params?: { limit?: number; offset?: number },
+    opts?: FetchOptions
+  ): Promise<EnforcementResponse> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<EnforcementResponse>(
+      `${this.baseUrl}/${encodeURIComponent(sector)}/companies/${encodeURIComponent(companyId)}/enforcement?${sp}`,
+      opts
+    );
+  }
+
+  async getSectorDashboardStats(sector: string, opts?: FetchOptions): Promise<any> {
+    return this.fetchJSON(
+      `${this.baseUrl}/${encodeURIComponent(sector)}/dashboard/stats`,
+      opts
+    );
+  }
+
+  // ── Chat agent ──
+
+  async askChat(
+    question: string,
+    opts?: FetchOptions
+  ): Promise<{ answer: string; actions?: Array<{ label: string; url: string }>; remaining?: number }> {
+    return this.fetchJSON(`${this.baseUrl}/chat/ask`, {
+      ...(opts || {}),
+      method: 'POST',
+      body: { question },
+    });
   }
 }
 

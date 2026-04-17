@@ -114,9 +114,9 @@ const DATA_SOURCES: { sector: SectorKey; title: string; color: string; icon: str
     color: '#10B981',
     icon: 'leaf',
     sources: [
-      { icon: 'globe', label: 'EPA Envirofacts', detail: 'Emissions, violations, Superfund sites', coming: true },
-      { icon: 'flame', label: 'EIA (Energy)', detail: 'Production, consumption, prices, forecasts', coming: true },
-      { icon: 'construct', label: 'OSHA', detail: 'Workplace safety violations, inspections', coming: true },
+      { icon: 'globe', label: 'EPA Envirofacts', detail: 'Emissions, violations, Superfund sites' },
+      { icon: 'flame', label: 'EIA (Energy)', detail: 'Production, consumption, prices, forecasts' },
+      { icon: 'construct', label: 'OSHA', detail: 'Workplace safety violations, inspections' },
     ],
   },
   {
@@ -125,10 +125,10 @@ const DATA_SOURCES: { sector: SectorKey; title: string; color: string; icon: str
     color: '#64748B',
     icon: 'layers',
     sources: [
-      { icon: 'nutrition', label: 'USDA NASS', detail: 'Crop reports, livestock data, farm economics', coming: true },
-      { icon: 'shield', label: 'DOD / DSCA', detail: 'Defense contracts, arms sales, base closures', coming: true },
-      { icon: 'people', label: 'BLS', detail: 'Employment, wages, CPI, productivity', coming: true },
-      { icon: 'map', label: 'Census Bureau', detail: 'Demographics, economic indicators, trade', coming: true },
+      { icon: 'nutrition', label: 'USDA NASS', detail: 'Crop reports, livestock data, farm economics' },
+      { icon: 'shield', label: 'DOD / DSCA', detail: 'Defense contracts, arms sales, base closures' },
+      { icon: 'people', label: 'BLS', detail: 'Employment, wages, CPI, productivity' },
+      { icon: 'map', label: 'Census Bureau', detail: 'Demographics, economic indicators, trade' },
     ],
   },
 ];
@@ -194,8 +194,9 @@ export default function SettingsScreen() {
             and technology oversight — all in one place.
           </Text>
           <Text style={[styles.aboutText, { marginTop: 8 }]}>
-            Built for transparency across politics, finance, health, and technology sectors.
-            Every claim is verified against real data sources.
+            Built for transparency across 11 sectors: politics, finance, health, technology,
+            energy, transportation, defense, chemicals, agriculture, telecommunications, and
+            education. Every claim is verified against real data sources.
           </Text>
         </View>
       </View>

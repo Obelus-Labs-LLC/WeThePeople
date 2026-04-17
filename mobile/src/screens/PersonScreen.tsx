@@ -19,7 +19,7 @@ import { apiClient } from '../api/client';
 import type { LedgerEntry, PersonProfile, PersonFinance, PersonPerformance } from '../api/types';
 import {
   LoadingSpinner, EmptyState, StatCard, TierBadge, PartyBadge,
-  ChamberBadge, TierProgressBar, ScoreBar,
+  ChamberBadge, TierProgressBar, ScoreBar, InlineError,
 } from '../components/ui';
 
 // Enable LayoutAnimation on Android
@@ -189,6 +189,7 @@ export default function PersonScreen() {
   const [perf, setPerf] = useState<PersonPerformance | null>(null);
   const [finance, setFinance] = useState<PersonFinance | null>(null);
   const [financeLoading, setFinanceLoading] = useState(false);
+  const [financeError, setFinanceError] = useState('');
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [categoriesOpen, setCategoriesOpen] = useState(false);
 
@@ -214,14 +215,20 @@ export default function PersonScreen() {
   }, [person_id]);
 
   // Lazy-load finance
-  useEffect(() => {
-    if (tab !== 'finance' || !person_id || finance) return;
+  const loadFinance = React.useCallback(() => {
+    if (!person_id) return;
     setFinanceLoading(true);
+    setFinanceError('');
     apiClient.getPersonFinance(person_id)
       .then(setFinance)
-      .catch(() => {})
+      .catch((e: any) => setFinanceError(e?.message || 'Failed to load finance data'))
       .finally(() => setFinanceLoading(false));
-  }, [tab, person_id, finance]);
+  }, [person_id]);
+
+  useEffect(() => {
+    if (tab !== 'finance' || !person_id || finance || financeError) return;
+    loadFinance();
+  }, [tab, person_id, finance, financeError, loadFinance]);
 
   const displayName = profile?.display_name || person_id?.replace(/_/g, ' ') || '';
 
@@ -436,6 +443,8 @@ export default function PersonScreen() {
         <View style={styles.tabContent}>
           {financeLoading ? (
             <LoadingSpinner message="Loading finance data..." />
+          ) : financeError ? (
+            <InlineError message={financeError} onRetry={loadFinance} />
           ) : !finance || !finance.totals ? (
             <EmptyState title="No finance data" message="FEC data is not available for this member." />
           ) : (

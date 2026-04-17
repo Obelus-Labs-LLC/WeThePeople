@@ -6,6 +6,7 @@ import { UI_COLORS } from './src/constants/colors';
 import TabNavigator from './src/navigation/TabNavigator';
 import SplashScreen from './src/screens/SplashScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 const ONBOARDING_KEY = '@wtp_onboarding_seen';
 
@@ -28,6 +29,10 @@ type AppPhase = 'splash' | 'onboarding' | 'app';
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>('splash');
   const [onboardingSeen, setOnboardingSeen] = useState<boolean | null>(null);
+  // Splash's animation can finish before AsyncStorage resolves on a cold
+  // start; this flag remembers that and defers the transition so we never
+  // accidentally skip the onboarding screen for a first-time user.
+  const [splashReady, setSplashReady] = useState(false);
 
   // Check if onboarding was already completed
   useEffect(() => {
@@ -36,12 +41,17 @@ export default function App() {
       .catch(() => setOnboardingSeen(false));
   }, []);
 
+  // If splash finished before AsyncStorage resolved, complete the transition
+  // as soon as onboardingSeen becomes known.
+  useEffect(() => {
+    if (phase !== 'splash' || !splashReady || onboardingSeen === null) return;
+    setPhase(onboardingSeen ? 'app' : 'onboarding');
+  }, [splashReady, onboardingSeen, phase]);
+
   const handleSplashFinish = () => {
-    if (onboardingSeen === false) {
-      setPhase('onboarding');
-    } else {
-      setPhase('app');
-    }
+    setSplashReady(true);
+    if (onboardingSeen === null) return; // wait for storage
+    setPhase(onboardingSeen ? 'app' : 'onboarding');
   };
 
   const handleOnboardingFinish = async () => {
@@ -74,9 +84,11 @@ export default function App() {
 
   // Main app
   return (
-    <NavigationContainer theme={navTheme}>
-      <StatusBar style="light" />
-      <TabNavigator />
-    </NavigationContainer>
+    <ErrorBoundary tag="App">
+      <NavigationContainer theme={navTheme}>
+        <StatusBar style="light" />
+        <TabNavigator />
+      </NavigationContainer>
+    </ErrorBoundary>
   );
 }

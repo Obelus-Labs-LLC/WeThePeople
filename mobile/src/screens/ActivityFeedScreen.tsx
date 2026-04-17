@@ -8,14 +8,15 @@ import { useNavigation } from '@react-navigation/native';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
 const ACCENT = '#475569';
 
 interface Activity {
-  id: string;
-  person_id?: string;
+  id: string | number;
+  person_id?: string | null;
+  person_name?: string | null;
   title: string;
-  summary?: string;
+  summary?: string | null;
   date: string;
   metadata_json?: string;
 }
@@ -65,11 +66,10 @@ export default function ActivityFeedScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/dashboard/recent-actions?limit=30`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const list: Activity[] = Array.isArray(data) ? data : (data.actions || data.results || []);
-      // Sort by most recent first
+      const raw = await apiClient.getRecentActivity({ limit: 30 });
+      const list: Activity[] = Array.isArray(raw)
+        ? (raw as any[])
+        : ((raw as any).activity || (raw as any).actions || (raw as any).results || []);
       list.sort((a, b) => {
         const da = new Date(a.date || 0).getTime();
         const db = new Date(b.date || 0).getTime();
@@ -78,7 +78,7 @@ export default function ActivityFeedScreen() {
       setActivities(list);
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to load activity');
+      setError(e?.message || 'Failed to load activity');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -163,7 +163,9 @@ export default function ActivityFeedScreen() {
                     }}
                   >
                     <Ionicons name="person-outline" size={12} color="#2563EB" />
-                    <Text style={styles.personLinkText}>{activity.person_id}</Text>
+                    <Text style={styles.personLinkText} numberOfLines={1}>
+                      {activity.person_name || activity.person_id}
+                    </Text>
                   </TouchableOpacity>
                 ) : null}
               </View>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, FlatList,
-  StyleSheet, RefreshControl, Dimensions,
+  View, Text, ScrollView, TouchableOpacity,
+  StyleSheet, RefreshControl,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,9 +11,7 @@ import type {
   CompanyDetail, FDAAdverseEvent, FDARecall,
   ClinicalTrialItem, CMSPaymentItem, PaymentSummary,
 } from '../api/types';
-import { LoadingSpinner, EmptyState } from '../components/ui';
-
-const { width } = Dimensions.get('window');
+import { LoadingSpinner, EmptyState, InlineError } from '../components/ui';
 
 const SECTOR_COLORS: Record<string, string> = {
   pharma: '#2563EB',
@@ -40,14 +38,17 @@ export default function CompanyScreen() {
   const [events, setEvents] = useState<FDAAdverseEvent[]>([]);
   const [recalls, setRecalls] = useState<FDARecall[]>([]);
   const [safetyLoading, setSafetyLoading] = useState(false);
+  const [safetyError, setSafetyError] = useState('');
 
   // Trials tab data
   const [trials, setTrials] = useState<ClinicalTrialItem[]>([]);
   const [trialsLoading, setTrialsLoading] = useState(false);
+  const [trialsError, setTrialsError] = useState('');
 
   // Overview extras
   const [payments, setPayments] = useState<CMSPaymentItem[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
+  const [paymentsError, setPaymentsError] = useState('');
 
   const loadCompany = useCallback(async () => {
     try {
@@ -66,35 +67,46 @@ export default function CompanyScreen() {
   useEffect(() => { loadCompany(); }, [loadCompany]);
 
   // Load safety data when tab switches
+  const loadSafety = useCallback(() => {
+    setSafetyLoading(true);
+    setSafetyError('');
+    Promise.all([
+      apiClient.getCompanyAdverseEvents(companyId, { limit: 50 }),
+      apiClient.getCompanyRecalls(companyId, { limit: 50 }),
+    ])
+      .then(([evRes, recRes]) => {
+        setEvents(evRes.adverse_events || []);
+        setRecalls(recRes.recalls || []);
+      })
+      .catch((e: any) => setSafetyError(e?.message || 'Failed to load safety data'))
+      .finally(() => setSafetyLoading(false));
+  }, [companyId]);
+
   useEffect(() => {
-    if (tab === 'safety' && events.length === 0 && recalls.length === 0 && !safetyLoading) {
-      setSafetyLoading(true);
-      Promise.all([
-        apiClient.getCompanyAdverseEvents(companyId, { limit: 50 }),
-        apiClient.getCompanyRecalls(companyId, { limit: 50 }),
-      ])
-        .then(([evRes, recRes]) => {
-          setEvents(evRes.adverse_events || []);
-          setRecalls(recRes.recalls || []);
-        })
-        .catch(() => {})
-        .finally(() => setSafetyLoading(false));
+    if (tab === 'safety' && events.length === 0 && recalls.length === 0 && !safetyLoading && !safetyError) {
+      loadSafety();
     }
-  }, [tab, companyId]);
+  }, [tab, companyId, events.length, recalls.length, safetyLoading, safetyError, loadSafety]);
 
   // Load trials when tab switches
+  const loadTrials = useCallback(() => {
+    setTrialsLoading(true);
+    setTrialsError('');
+    apiClient.getCompanyTrials(companyId, { limit: 50 })
+      .then((res) => setTrials(res.trials || []))
+      .catch((e: any) => setTrialsError(e?.message || 'Failed to load trials'))
+      .finally(() => setTrialsLoading(false));
+  }, [companyId]);
+
   useEffect(() => {
-    if (tab === 'trials' && trials.length === 0 && !trialsLoading) {
-      setTrialsLoading(true);
-      apiClient.getCompanyTrials(companyId, { limit: 50 })
-        .then((res) => setTrials(res.trials || []))
-        .catch(() => {})
-        .finally(() => setTrialsLoading(false));
+    if (tab === 'trials' && trials.length === 0 && !trialsLoading && !trialsError) {
+      loadTrials();
     }
-  }, [tab, companyId]);
+  }, [tab, companyId, trials.length, trialsLoading, trialsError, loadTrials]);
 
   // Load payment data on mount
   useEffect(() => {
+    setPaymentsError('');
     Promise.all([
       apiClient.getCompanyPayments(companyId, { limit: 10 }),
       apiClient.getCompanyPaymentSummary(companyId),
@@ -103,7 +115,7 @@ export default function CompanyScreen() {
         setPayments(payRes.payments || []);
         setPaymentSummary(sumRes);
       })
-      .catch(() => {});
+      .catch((e: any) => setPaymentsError(e?.message || 'Failed to load payments'));
   }, [companyId]);
 
   const onRefresh = () => { setRefreshing(true); loadCompany(); };
@@ -158,8 +170,8 @@ export default function CompanyScreen() {
 
         {/* Tab Content */}
         {tab === 'overview' && renderOverview(company, paymentSummary, sectorColor)}
-        {tab === 'safety' && renderSafety(events, recalls, safetyLoading)}
-        {tab === 'trials' && renderTrials(trials, trialsLoading)}
+        {tab === 'safety' && renderSafety(events, recalls, safetyLoading, safetyError, loadSafety)}
+        {tab === 'trials' && renderTrials(trials, trialsLoading, trialsError, loadTrials)}
       </ScrollView>
     </View>
   );
@@ -296,8 +308,11 @@ function renderSafety(
   events: FDAAdverseEvent[],
   recalls: FDARecall[],
   loading: boolean,
+  error: string,
+  retry: () => void,
 ) {
   if (loading) return <LoadingSpinner message="Loading safety data..." />;
+  if (error) return <InlineError message={error} onRetry={retry} />;
 
   return (
     <View style={styles.tabContent}>
@@ -364,8 +379,14 @@ function renderSafety(
 }
 
 // ── Trials Tab ──
-function renderTrials(trials: ClinicalTrialItem[], loading: boolean) {
+function renderTrials(
+  trials: ClinicalTrialItem[],
+  loading: boolean,
+  error: string,
+  retry: () => void,
+) {
   if (loading) return <LoadingSpinner message="Loading trials..." />;
+  if (error) return <InlineError message={error} onRetry={retry} />;
 
   return (
     <View style={styles.tabContent}>

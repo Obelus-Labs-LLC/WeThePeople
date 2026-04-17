@@ -38,16 +38,17 @@ export default function FinanceDashboardScreen() {
       const [statsRes, instRes, contractsRes] = await Promise.all([
         apiClient.getFinanceDashboardStats(),
         apiClient.getInstitutions({ limit: 6 }),
-        fetch('https://api.wethepeopleforus.com/influence/top-contracts?limit=5')
-          .then(r => r.ok ? r.json() : [])
-          .catch(() => []),
+        apiClient.getTopContracts({ limit: 5 }).catch(() => [] as any),
       ]);
       setStats(statsRes);
       setInstitutions(instRes.institutions || []);
+      const contractsList = Array.isArray(contractsRes)
+        ? (contractsRes as any[])
+        : ((contractsRes as any)?.leaders || (contractsRes as any)?.results || (contractsRes as any)?.data || []);
       setContractData(
-        (contractsRes as any[]).map((d: any) => ({
+        contractsList.map((d: any) => ({
           label: d.display_name?.length > 14 ? d.display_name.slice(0, 13) + '...' : d.display_name || '',
-          value: d.total_contracts || 0,
+          value: Number(d.total_contracts ?? d.total_amount ?? 0),
         }))
       );
       setError(null);
