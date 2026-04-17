@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Shield, ChevronRight } from 'lucide-react';
-import { apiFetch } from '../api/client';
+import { ArrowLeft, Shield, ChevronRight, RefreshCw } from 'lucide-react';
+import { apiFetch, humanizeError } from '../api/client';
 import { categoryLabel } from '../utils/categoryLabels';
 
 interface VaultItem {
@@ -15,8 +15,8 @@ interface VaultItem {
   created_at?: string;
   evaluation?: {
     tier: string;
-    score: number;
-    relevance?: number;
+    score: number;       // 0-1 in vault responses
+    relevance?: string;
     progress?: string;
     timing?: string;
   } | null;
@@ -38,6 +38,13 @@ const TIER_STYLE: Record<string, { bg: string; text: string; label: string }> = 
   none: { bg: 'bg-zinc-500/10', text: 'text-zinc-500', label: 'NONE' },
 };
 
+/** Render the stored 0-1 score as a 0-100 display value. */
+function displayScore(raw: number | undefined | null): string {
+  if (raw == null) return '—';
+  const value = raw <= 1 ? Math.round(raw * 100) : Math.round(raw);
+  return String(value);
+}
+
 export default function VaultPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState<VaultItem[]>([]);
@@ -47,18 +54,31 @@ export default function VaultPage() {
   const [offset, setOffset] = useState(0);
   const limit = 25;
 
-  useEffect(() => {
+  const load = useCallback((signal?: AbortSignal) => {
     setLoading(true);
+    setError('');
     apiFetch<VaultResponse>('/claims/verifications', {
       params: { limit, offset },
+      signal,
     })
       .then((data) => {
         setItems(data.items || data.results || []);
         setTotal(data.total || data.count || 0);
       })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (signal?.aborted) return;
+        setError(humanizeError(err));
+      })
+      .finally(() => {
+        if (!signal?.aborted) setLoading(false);
+      });
   }, [offset]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   return (
     <main id="main-content" className="flex-1 px-4 py-10 sm:py-14">
@@ -97,8 +117,15 @@ export default function VaultPage() {
 
         {/* Error */}
         {error && !loading && (
-          <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-            {error}
+          <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center justify-between gap-3">
+            <span>{error}</span>
+            <button
+              onClick={() => load()}
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors"
+            >
+              <RefreshCw size={12} />
+              Retry
+            </button>
           </div>
         )}
 
@@ -140,7 +167,7 @@ export default function VaultPage() {
                     </span>
                     {item.evaluation?.score != null && (
                       <div className="text-[10px] font-mono text-zinc-500 text-center mt-0.5">
-                        {item.evaluation.score}
+                        {displayScore(item.evaluation.score)}
                       </div>
                     )}
                   </div>
@@ -182,7 +209,7 @@ export default function VaultPage() {
               Previous
             </button>
             <span className="text-xs text-zinc-600 font-mono">
-              {offset + 1}--{Math.min(offset + limit, total)} of {total}
+              {offset + 1}&ndash;{Math.min(offset + limit, total)} of {total}
             </span>
             <button
               onClick={() => setOffset(offset + limit)}

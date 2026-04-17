@@ -1,38 +1,14 @@
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { ArrowLeft, ExternalLink, Shield, AlertTriangle, HelpCircle, CheckCircle } from 'lucide-react';
-import { apiFetch } from '../api/client';
+import { useEffect, useState, useCallback } from 'react';
+import { ArrowLeft, ExternalLink, Shield, AlertTriangle, HelpCircle, CheckCircle, RefreshCw } from 'lucide-react';
+import {
+  apiFetch,
+  humanizeError,
+  normalizeVerification,
+  type NormalizedEvidence,
+  type NormalizedVerification,
+} from '../api/client';
 import { categoryLabel } from '../utils/categoryLabels';
-
-// -- Types matching the API response --
-
-interface Evidence {
-  source: string;
-  source_url?: string;
-  title: string;
-  snippet: string;
-  evidence_type?: string;
-}
-
-interface ClaimResult {
-  claim_id: string;
-  claim_text: string;
-  category: string;
-  signals?: string;
-  score: number;
-  status: 'supported' | 'partial' | 'unknown';
-  confidence: number;
-  evidence_count: number;
-  evidence: Evidence[];
-}
-
-interface VerificationResult {
-  claims_extracted: number;
-  claims: ClaimResult[];
-  source_url?: string;
-  engine: string;
-  summary: string;
-}
 
 // -- Verdict config --
 
@@ -73,7 +49,7 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
-function EvidenceCard({ ev }: { ev: Evidence }) {
+function EvidenceCard({ ev }: { ev: NormalizedEvidence }) {
   return (
     <div className="bg-zinc-900/60 border border-white/10 rounded-xl p-4 card-hover">
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -82,12 +58,12 @@ function EvidenceCard({ ev }: { ev: Evidence }) {
         </span>
         {ev.evidence_type && (
           <span className="text-[10px] px-2 py-0.5 rounded-full border border-zinc-800 text-zinc-500 uppercase">
-            {ev.evidence_type.replace('_', ' ')}
+            {ev.evidence_type.replace(/_/g, ' ')}
           </span>
         )}
       </div>
       <h3 className="text-sm font-semibold text-white mb-1.5">{ev.title}</h3>
-      <p className="text-xs text-zinc-400 leading-relaxed mb-3">{ev.snippet}</p>
+      <p className="text-xs text-zinc-400 leading-relaxed mb-3 break-words">{ev.snippet}</p>
       {ev.source_url && (
         <a
           href={ev.source_url}
@@ -109,27 +85,43 @@ export default function ResultsPage() {
   const navigate = useNavigate();
 
   // Data can come from navigation state (quick verify) or API fetch (saved ID)
-  const stateResult = (location.state as { result?: VerificationResult })?.result;
-  const [result, setResult] = useState<VerificationResult | null>(stateResult ?? null);
+  const stateResult = (location.state as { result?: NormalizedVerification })?.result;
+  const [result, setResult] = useState<NormalizedVerification | null>(
+    stateResult ? normalizeVerification(stateResult) : null
+  );
   const [loading, setLoading] = useState(!stateResult);
   const [error, setError] = useState('');
 
+  const fetchById = useCallback((verificationId: string, signal?: AbortSignal) => {
+    setLoading(true);
+    setError('');
+    apiFetch<any>(`/claims/verifications/${verificationId}`, { signal })
+      .then((raw) => setResult(normalizeVerification(raw)))
+      .catch((err) => {
+        if (signal?.aborted) return;
+        setError(humanizeError(err));
+      })
+      .finally(() => {
+        if (!signal?.aborted) setLoading(false);
+      });
+  }, []);
+
   useEffect(() => {
-    // If we already have the result from state, no need to fetch
+    // Already have a state-supplied result (fresh /verify response)? Use it.
     if (stateResult) return;
 
-    // For numeric IDs, fetch from the API
+    // Numeric saved ID: fetch and normalize from the vault endpoint.
     if (id && id !== 'quick') {
-      setLoading(true);
-      apiFetch<VerificationResult>(`/claims/verifications/${id}`)
-        .then(setResult)
-        .catch((err) => setError(err.message))
-        .finally(() => setLoading(false));
-    } else if (!stateResult) {
-      // No state data and no valid ID -- redirect home
-      navigate('/');
+      const controller = new AbortController();
+      fetchById(id, controller.signal);
+      return () => controller.abort();
     }
-  }, [id, stateResult, navigate]);
+
+    // /results/quick with no state (deep link or refresh) — send user home.
+    if (id === 'quick' && !stateResult) {
+      navigate('/', { replace: true });
+    }
+  }, [id, stateResult, navigate, fetchById]);
 
   if (loading) {
     return (
@@ -152,8 +144,17 @@ export default function ResultsPage() {
             <ArrowLeft size={14} />
             New Check
           </button>
-          <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-            {error}
+          <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center justify-between gap-3">
+            <span>{error}</span>
+            {id && id !== 'quick' && (
+              <button
+                onClick={() => fetchById(id)}
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors"
+              >
+                <RefreshCw size={12} />
+                Retry
+              </button>
+            )}
           </div>
         </div>
       </main>

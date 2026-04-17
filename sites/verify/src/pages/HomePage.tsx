@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Link2, FileText, Youtube, Loader2, ArrowRight, Database } from 'lucide-react';
-import { apiPost, apiFetch } from '../api/client';
+import { apiPost, apiFetch, humanizeError, ApiError } from '../api/client';
 
 type InputType = 'TEXT' | 'URL' | 'YOUTUBE';
 
@@ -28,6 +28,7 @@ interface DashboardStats {
   total_claims: number;
   total_evaluated: number;
   unique_entities: number;
+  tier_distribution?: Record<string, number>;
 }
 
 export default function HomePage() {
@@ -40,12 +41,17 @@ export default function HomePage() {
   const inputType = detectInputType(input);
   const TypeIcon = TYPE_ICON[inputType];
 
-  // Fetch dashboard stats on mount
+  // Fetch dashboard stats on mount. Failures are non-fatal but are logged so
+  // we know when the stats endpoint is misbehaving instead of silently hiding.
   useEffect(() => {
     const controller = new AbortController();
     apiFetch<DashboardStats>('/claims/dashboard/stats', { signal: controller.signal })
       .then(setStats)
-      .catch(() => {}); // Silent fail -- stats are optional
+      .catch((err) => {
+        if (!controller.signal.aborted) {
+          console.warn('[Veritas] dashboard stats unavailable:', err);
+        }
+      });
     return () => controller.abort();
   }, []);
 
@@ -76,13 +82,10 @@ export default function HomePage() {
       // Navigate to results page with the data in state
       navigate('/results/quick', { state: { result, inputText: trimmed } });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('429')) {
-        setError('Rate limit reached. Free accounts can verify 5 claims per day. Try again tomorrow or upgrade to Enterprise for unlimited access.');
-      } else if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) {
-        setError('Could not reach the verification server. Check your internet connection and try again.');
+      if (err instanceof ApiError && err.status === 429) {
+        setError('Daily verification limit reached. Try again tomorrow, or contact us about enterprise access for unlimited checks.');
       } else {
-        setError(`Verification failed: ${msg}. Try shorter text or a different URL.`);
+        setError(humanizeError(err));
       }
     } finally {
       setLoading(false);
@@ -94,6 +97,12 @@ export default function HomePage() {
       handleVerify();
     }
   };
+
+  // Sum supported + partial tiers to surface a meaningful "verified" count
+  // (total_evaluated includes "none" tier, which is really "no match found").
+  const verifiedCount = stats?.tier_distribution
+    ? (stats.tier_distribution.strong || 0) + (stats.tier_distribution.moderate || 0) + (stats.tier_distribution.weak || 0)
+    : stats?.total_evaluated ?? 0;
 
   return (
     <main id="main-content" className="flex-1 flex flex-col items-center justify-center px-4 py-16 sm:py-24">
@@ -117,7 +126,7 @@ export default function HomePage() {
         </p>
         <p className="text-center text-zinc-600 text-sm mb-10 max-w-md mx-auto">
           Paste any political claim, article text, or URL. Claims are extracted
-          deterministically and verified against 29+ government data sources.
+          deterministically and verified against government data sources.
         </p>
 
         {/* Input area */}
@@ -182,7 +191,7 @@ export default function HomePage() {
 
         {/* Stats bar */}
         {stats && (stats.total_claims > 0 || stats.total_evaluated > 0) && (
-          <div className="mt-12 flex items-center justify-center gap-6 text-xs text-zinc-600">
+          <div className="mt-12 flex items-center justify-center gap-6 text-xs text-zinc-600 flex-wrap">
             <div className="flex items-center gap-1.5">
               <Database size={12} className="text-zinc-700" />
               <span className="font-mono text-zinc-500">{stats.total_claims.toLocaleString()}</span>
@@ -191,8 +200,8 @@ export default function HomePage() {
             <span className="text-zinc-800">|</span>
             <div className="flex items-center gap-1.5">
               <Shield size={12} className="text-zinc-700" />
-              <span className="font-mono text-zinc-500">{stats.total_evaluated.toLocaleString()}</span>
-              <span>verified</span>
+              <span className="font-mono text-zinc-500">{verifiedCount.toLocaleString()}</span>
+              <span>verified with evidence</span>
             </div>
             <span className="text-zinc-800">|</span>
             <div className="flex items-center gap-1.5">
