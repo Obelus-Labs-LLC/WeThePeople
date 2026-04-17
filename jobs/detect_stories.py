@@ -1312,7 +1312,7 @@ def detect_penalty_gap(db, sector_idx=None):
         if entity_story_recent(db, eid, "penalty_contract_ratio", days=14):
             continue
         name = get_entity_name(db, eid, entity_table, id_col)
-        title = "%s: %s in Contracts, Zero Penalties" % (name, fmt_money(total_contracts))
+        title = "%s: %s in Federal Contracts, No Federal Register Penalties" % (name, fmt_money(total_contracts))
         if story_exists(db, slug(title)):
             continue
 
@@ -2402,7 +2402,7 @@ def detect_fara_domestic_overlap(db):
     matches.sort(key=lambda x: -x["income"])
 
     for m in matches[:3]:
-        title = "%s Lobbies for %s While Registered as Foreign Agent" % (m["firm"], m["company"])
+        title = "%s Also Lobbies for US-based %s While Representing Foreign Clients Under FARA" % (m["firm"], m["company"])
         if story_exists(db, slug(title)):
             continue
 
@@ -2432,8 +2432,8 @@ def detect_fara_domestic_overlap(db):
 
         stories.append(make_story(
             title=title,
-            summary="%s is a FARA-registered foreign agent that also lobbied %s for %s in the %s sector." % (
-                m["firm"], fmt_money(m["income"]), m["company"], m["sector"]
+            summary="%s, a law firm registered under FARA for foreign clients, also filed regular LDA lobbying disclosures for US-based %s (%s sector), totaling %s. %s is not a foreign principal; these are separate engagements by the same firm." % (
+                m["firm"], m["company"], m["sector"], fmt_money(m["income"]), m["company"]
             ),
             body=body,
             category="foreign_lobbying",
