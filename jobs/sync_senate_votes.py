@@ -1,27 +1,34 @@
 """
-Senate Vote Sync Job
+Senate Vote Sync Job (GovTrack-backed)
 
-Fetches Senate roll call votes directly from senate.gov XML feeds.
-The Congress.gov API v3 does NOT have a /senate-vote/ endpoint, so we
-scrape the official Senate roll call XML instead (public government data).
+The senate.gov LIS XML feeds block datacenter IPs (Hetzner returns HTTP 403
+regardless of User-Agent). The Congress.gov API v3 does NOT expose a Senate
+roll call endpoint. GovTrack.us ingests the same upstream Senate LIS XML and
+republishes it through a public JSON API that works from any network.
 
 Sources:
-  - Vote index: https://www.senate.gov/legislative/LIS/roll_call_lists/vote_menu_{congress}_{session}.xml
-  - Individual: https://www.senate.gov/legislative/LIS/roll_call_votes/vote{congress}{session}/vote_{congress}_{session}_{number}.xml
+  - Vote list:  https://www.govtrack.us/api/v2/vote?congress=N&chamber=senate&session=YYYY
+  - Vote page:  https://www.govtrack.us/congress/votes/{congress}-{year}/s{number}
+                (scraped for GovTrack internal vote-id; not exposed in the JSON API)
+  - Voters:     https://www.govtrack.us/api/v2/vote_voter?vote={govtrack_id}&limit=120
 
-Approach inspired by https://github.com/unitedstates/congress (CC0 public domain).
+Schema written:
+  Vote rows use congress/chamber/roll_number (unique), vote_session=1|2 (odd/even year),
+  source_url points at the GovTrack page. metadata_json records {"source": "govtrack.us",
+  "govtrack_id": ..., "senate_source_url": ...} for provenance.
 
 Usage:
     python jobs/sync_senate_votes.py
     python jobs/sync_senate_votes.py --congress 119 --session 1
     python jobs/sync_senate_votes.py --congress 119 --session 1 --start 1 --end 50
+    python jobs/sync_senate_votes.py --incremental          # only new votes (default)
+    python jobs/sync_senate_votes.py --refresh-existing     # re-fetch voters for existing rows
 """
 
 import argparse
 import re
 import sys
 import time
-import xml.etree.ElementTree as ET
 from datetime import datetime, date
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
@@ -37,91 +44,124 @@ from utils.logging import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
-SENATE_BASE = "https://www.senate.gov/legislative/LIS"
-REQUEST_DELAY = 1.0  # polite 1-second delay between requests
+GOVTRACK_API = "https://www.govtrack.us/api/v2"
+GOVTRACK_WEB = "https://www.govtrack.us/congress/votes"
+REQUEST_DELAY = 0.5   # polite delay between GovTrack requests
 REQUEST_TIMEOUT = 30  # seconds
+MAX_RETRIES = 3
 
-# Headers to mimic a real browser (senate.gov sometimes blocks bare requests)
 HEADERS = {
-    "User-Agent": "WeThePeople/1.0 (civic transparency; https://wethepeopleforus.com)",
-    "Accept": "application/xml, text/xml, */*",
+    "User-Agent": "WeThePeople/1.0 (civic transparency; https://wethepeopleforus.com; ops@wethepeopleforus.com)",
+    "Accept": "application/json",
 }
+HTML_HEADERS = {
+    "User-Agent": HEADERS["User-Agent"],
+    "Accept": "text/html,application/xhtml+xml",
+}
+
+# Capture <... vote-id="12345" ...> on the vote detail page
+VOTE_ID_RE = re.compile(r'vote-id=["\'](\d+)["\']')
 
 
 # ---------------------------------------------------------------------------
-# Name-matching helpers
+# Congress ↔ session ↔ year helpers
+# ---------------------------------------------------------------------------
+
+def congress_start_year(congress: int) -> int:
+    """A congress starts in an odd-numbered year. 1st = 1789, so start = 1787 + 2C."""
+    return 1787 + 2 * congress
+
+
+def session_to_year(congress: int, session: int) -> int:
+    """Session 1 = first (odd) year of the congress; session 2 = second (even) year."""
+    return congress_start_year(congress) + (session - 1)
+
+
+def year_to_session(congress: int, year: int) -> int:
+    """Inverse of session_to_year. Returns 1 or 2 (rarely 3 for special sessions; treated as 2)."""
+    diff = year - congress_start_year(congress)
+    if diff <= 0:
+        return 1
+    if diff >= 2:
+        return 2
+    return 1 + diff  # 1 or 2
+
+
+# ---------------------------------------------------------------------------
+# Name-matching helpers (retained from previous implementation as fallback
+# when bioguide_id match fails)
 # ---------------------------------------------------------------------------
 
 def _normalize_name(name: str) -> str:
     """Lowercase, strip suffixes, collapse whitespace for fuzzy matching."""
     name = name.lower().strip()
-    # Remove common suffixes
     for suffix in [" jr.", " jr", " sr.", " sr", " iii", " ii", " iv"]:
         if name.endswith(suffix):
             name = name[: -len(suffix)].strip()
-    # Remove punctuation
     name = re.sub(r"[^a-z\s]", "", name)
     return " ".join(name.split())
 
 
 def _last_name(full_name: str) -> str:
-    """Extract last name from a full name string."""
     parts = full_name.strip().split()
     if not parts:
         return ""
     return parts[-1].lower()
 
 
-def build_senator_map(db) -> Dict[Tuple[str, str], str]:
+def build_senator_map(db) -> Tuple[dict, dict, dict]:
     """
-    Build a lookup map for matching senators from XML to TrackedMember.
+    Build lookup maps for matching senators to TrackedMember person_ids.
 
-    Returns dict of (normalized_last_name, state) -> person_id.
-    Also builds a secondary map of (full_normalized_name,) -> person_id for fallback.
+    Returns (by_last_state, by_full_name, by_bioguide).
     """
     members = db.query(TrackedMember).filter(
         TrackedMember.is_active == 1,
         TrackedMember.chamber == "senate",
     ).all()
 
-    by_last_state = {}
-    by_full_name = {}
-    by_bioguide = {}
+    by_last_state: Dict[Tuple[str, str], str] = {}
+    by_full_name: Dict[str, str] = {}
+    by_bioguide: Dict[str, str] = {}
 
     for m in members:
         last = _last_name(m.display_name)
         if m.state:
             by_last_state[(last, m.state.upper())] = m.person_id
-        norm = _normalize_name(m.display_name)
-        by_full_name[norm] = m.person_id
+        by_full_name[_normalize_name(m.display_name)] = m.person_id
         if m.bioguide_id:
             by_bioguide[m.bioguide_id] = m.person_id
 
-    logger.info(f"Built senator map: {len(by_last_state)} by last+state, "
-                f"{len(by_full_name)} by full name, {len(by_bioguide)} by bioguide")
-
+    logger.info(
+        f"Built senator map: {len(by_last_state)} by last+state, "
+        f"{len(by_full_name)} by full name, {len(by_bioguide)} by bioguide"
+    )
     return by_last_state, by_full_name, by_bioguide
 
 
-def match_senator(last_name: str, state: str, full_name: str, lis_member_id: str,
-                  by_last_state: dict, by_full_name: dict, by_bioguide: dict) -> Optional[str]:
-    """
-    Try to match a senator from XML data to a TrackedMember person_id.
-    Strategy: last_name+state first, then full name fuzzy match.
-    """
-    # Strategy 1: last name + state (most reliable)
+def match_senator(
+    bioguide_id: Optional[str],
+    last_name: str,
+    state: str,
+    full_name: str,
+    by_last_state: dict,
+    by_full_name: dict,
+    by_bioguide: dict,
+) -> Optional[str]:
+    """Resolve a voter row to a TrackedMember.person_id. Bioguide wins."""
+    if bioguide_id and bioguide_id in by_bioguide:
+        return by_bioguide[bioguide_id]
+
     key = (_normalize_name(last_name), state.upper() if state else "")
     if key in by_last_state:
         return by_last_state[key]
 
-    # Strategy 2: full normalized name
     norm = _normalize_name(full_name)
     if norm in by_full_name:
         return by_full_name[norm]
 
-    # Strategy 3: last name only — only if unambiguous (single match)
     norm_last = _normalize_name(last_name)
-    matches = [pid for (ln, st), pid in by_last_state.items() if ln == norm_last]
+    matches = [pid for (ln, _), pid in by_last_state.items() if ln == norm_last]
     if len(matches) == 1:
         return matches[0]
 
@@ -129,267 +169,132 @@ def match_senator(last_name: str, state: str, full_name: str, lis_member_id: str
 
 
 # ---------------------------------------------------------------------------
-# Senate.gov XML fetchers
+# GovTrack HTTP layer
 # ---------------------------------------------------------------------------
 
-def fetch_vote_menu(congress: int, session: int) -> Optional[ET.Element]:
-    """
-    Fetch the Senate vote menu XML listing all votes for a congress/session.
-    URL: .../roll_call_lists/vote_menu_{congress}_{session}.xml
-    """
-    url = f"{SENATE_BASE}/roll_call_lists/vote_menu_{congress}_{session}.xml"
-    logger.info(f"Fetching vote menu: {url}")
+_session = requests.Session()
 
+
+def _get_json(url: str, params: Optional[dict] = None) -> Optional[Any]:
+    """GET JSON with retries and honest error logging."""
+    last_err: Optional[Exception] = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            resp = _session.get(url, headers=HEADERS, params=params, timeout=REQUEST_TIMEOUT)
+            if resp.status_code == 502:
+                # GovTrack occasionally returns 502; backoff and retry
+                raise requests.HTTPError(f"502 Bad Gateway from {url}")
+            resp.raise_for_status()
+            return resp.json()
+        except (requests.RequestException, ValueError) as e:
+            last_err = e
+            if attempt < MAX_RETRIES:
+                sleep_for = 2 ** attempt
+                logger.warning(f"GET {url} failed (attempt {attempt}/{MAX_RETRIES}): {e}; sleeping {sleep_for}s")
+                time.sleep(sleep_for)
+    logger.error(f"GET {url} gave up after {MAX_RETRIES} attempts: {last_err}")
+    return None
+
+
+def _get_text(url: str) -> Optional[str]:
+    """GET HTML/text with retries."""
+    last_err: Optional[Exception] = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            resp = _session.get(url, headers=HTML_HEADERS, timeout=REQUEST_TIMEOUT)
+            resp.raise_for_status()
+            return resp.text
+        except requests.RequestException as e:
+            last_err = e
+            if attempt < MAX_RETRIES:
+                sleep_for = 2 ** attempt
+                logger.warning(f"GET {url} (text) failed (attempt {attempt}/{MAX_RETRIES}): {e}; sleeping {sleep_for}s")
+                time.sleep(sleep_for)
+    logger.error(f"GET {url} (text) gave up after {MAX_RETRIES} attempts: {last_err}")
+    return None
+
+
+def fetch_vote_list(congress: int, session: int) -> List[Dict[str, Any]]:
+    """
+    List every Senate vote for a congress+session. Paginated; returns all rows.
+
+    GovTrack's `session` field is the year, so we map our 1|2 to the year.
+    """
+    year = session_to_year(congress, session)
+    all_votes: List[Dict[str, Any]] = []
+    offset = 0
+    page_size = 200
+
+    while True:
+        params = {
+            "congress": congress,
+            "chamber": "senate",
+            "session": year,
+            "limit": page_size,
+            "offset": offset,
+            "sort": "created",
+        }
+        data = _get_json(f"{GOVTRACK_API}/vote", params=params)
+        if not data:
+            break
+        objects = data.get("objects", []) or []
+        all_votes.extend(objects)
+        total = (data.get("meta") or {}).get("total_count", 0)
+        offset += len(objects)
+        if not objects or offset >= total:
+            break
+        time.sleep(REQUEST_DELAY)
+
+    logger.info(
+        f"GovTrack: {len(all_votes)} Senate votes for Congress {congress} Session {session} (year {year})"
+    )
+    return all_votes
+
+
+def extract_govtrack_vote_id(congress: int, year: int, roll: int) -> Optional[int]:
+    """
+    GovTrack exposes its internal vote ID only on the HTML page, as
+    `<... vote-id="12345" ...>`. Scrape it. ~600ms per call, so we only call
+    this for votes we actually need to ingest voters for.
+    """
+    url = f"{GOVTRACK_WEB}/{congress}-{year}/s{roll}"
+    html = _get_text(url)
+    if not html:
+        return None
+    m = VOTE_ID_RE.search(html)
+    if not m:
+        logger.warning(f"No vote-id found on {url}")
+        return None
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        resp.raise_for_status()
-        return ET.fromstring(resp.content)
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch vote menu: {e}")
-        return None
-    except ET.ParseError as e:
-        logger.error(f"Failed to parse vote menu XML: {e}")
+        return int(m.group(1))
+    except ValueError:
         return None
 
 
-def get_vote_numbers_from_menu(root: ET.Element) -> List[int]:
-    """
-    Extract vote numbers from the vote menu XML.
-    The menu XML has <vote> elements containing <vote_number>.
-    """
-    vote_numbers = []
-    # The menu structure has <vote> elements with child <vote_number>
-    for vote_elem in root.iter("vote"):
-        num_elem = vote_elem.find("vote_number")
-        if num_elem is not None and num_elem.text:
-            try:
-                vote_numbers.append(int(num_elem.text.strip()))
-            except ValueError:
-                continue
+def fetch_voters(govtrack_vote_id: int) -> List[Dict[str, Any]]:
+    """Fetch every voter for a GovTrack vote (Senate = up to ~100)."""
+    all_voters: List[Dict[str, Any]] = []
+    offset = 0
+    page_size = 200
 
-    vote_numbers.sort()
-    return vote_numbers
+    while True:
+        params = {"vote": govtrack_vote_id, "limit": page_size, "offset": offset}
+        data = _get_json(f"{GOVTRACK_API}/vote_voter", params=params)
+        if not data:
+            break
+        objects = data.get("objects", []) or []
+        all_voters.extend(objects)
+        total = (data.get("meta") or {}).get("total_count", 0)
+        offset += len(objects)
+        if not objects or offset >= total:
+            break
+        time.sleep(REQUEST_DELAY)
 
-
-def fetch_vote_xml(congress: int, session: int, vote_number: int) -> Optional[ET.Element]:
-    """
-    Fetch a single Senate roll call vote XML.
-    URL: .../roll_call_votes/vote{congress}{session}/vote_{congress}_{session}_{number:05d}.xml
-    """
-    url = (
-        f"{SENATE_BASE}/roll_call_votes/vote{congress}{session}/"
-        f"vote_{congress}_{session}_{vote_number:05d}.xml"
-    )
-
-    try:
-        resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        resp.raise_for_status()
-        return ET.fromstring(resp.content)
-    except requests.RequestException as e:
-        logger.warning(f"Failed to fetch vote {vote_number}: {e}")
-        return None
-    except ET.ParseError as e:
-        logger.warning(f"Failed to parse vote {vote_number} XML: {e}")
-        return None
+    return all_voters
 
 
 # ---------------------------------------------------------------------------
-# XML parsing helpers
-# ---------------------------------------------------------------------------
-
-def _text(elem: Optional[ET.Element]) -> Optional[str]:
-    """Safely extract text from an XML element."""
-    if elem is not None and elem.text:
-        return elem.text.strip()
-    return None
-
-
-def _int(elem: Optional[ET.Element]) -> Optional[int]:
-    """Safely extract integer from an XML element."""
-    t = _text(elem)
-    if t:
-        try:
-            return int(t)
-        except ValueError:
-            return None
-    return None
-
-
-def parse_vote_date(date_str: Optional[str]) -> Optional[date]:
-    """
-    Parse Senate vote date. Common formats:
-      - "January 3, 2025"
-      - "March 19, 2026"
-    """
-    if not date_str:
-        return None
-
-    # Try common Senate date format
-    for fmt in ["%B %d, %Y", "%b %d, %Y", "%Y-%m-%d"]:
-        try:
-            return datetime.strptime(date_str.strip(), fmt).date()
-        except ValueError:
-            continue
-
-    # Try to extract date with regex
-    match = re.search(r"(\w+ \d{1,2}, \d{4})", date_str)
-    if match:
-        try:
-            return datetime.strptime(match.group(1), "%B %d, %Y").date()
-        except ValueError:
-            pass
-
-    logger.warning(f"Could not parse vote date: {date_str}")
-    return None
-
-
-def parse_vote_xml(root: ET.Element, congress: int, session: int) -> Optional[Dict[str, Any]]:
-    """
-    Parse a Senate roll call vote XML into a structured dict.
-
-    Senate XML structure:
-      <roll_call_vote>
-        <congress>119</congress>
-        <session>1</session>
-        <congress_year>2025</congress_year>
-        <vote_number>1</vote_number>
-        <vote_date>January 6, 2025</vote_date>
-        <modify_date>...</modify_date>
-        <vote_question_text>On the Motion</vote_question_text>
-        <vote_document_text>...</vote_document_text>
-        <vote_result_text>Motion Agreed to</vote_result_text>
-        <question>...</question>
-        <vote_title>...</vote_title>
-        <majority_requirement>1/2</majority_requirement>
-        <vote_result>...</vote_result>
-        <document>
-          <document_type>PN</document_type>
-          <document_number>1</document_number>
-          <document_title>...</document_title>
-        </document>
-        <amendment>...</amendment>
-        <count>
-          <yeas>52</yeas>
-          <nays>45</nays>
-          <present>0</present>
-          <absent>3</absent>
-        </count>
-        <tie_breaker>...</tie_breaker>
-        <members>
-          <member>
-            <member_full>Sen. Name (R-ST)</member_full>
-            <last_name>Name</last_name>
-            <first_name>First</first_name>
-            <party>R</party>
-            <state>ST</state>
-            <vote_cast>Yea</vote_cast>
-            <lis_member_id>S001</lis_member_id>
-          </member>
-          ...
-        </members>
-      </roll_call_vote>
-    """
-    vote_number = _int(root.find("vote_number"))
-    if vote_number is None:
-        return None
-
-    # Parse question — try multiple fields
-    question = (
-        _text(root.find("vote_question_text"))
-        or _text(root.find("question"))
-        or "Roll call vote"
-    )
-
-    # Get vote title for context (often contains bill info)
-    vote_title = _text(root.find("vote_title"))
-    if vote_title and question:
-        question = f"{question}: {vote_title}"
-
-    # Parse date
-    vote_date = parse_vote_date(_text(root.find("vote_date")))
-
-    # Parse result
-    result = _text(root.find("vote_result_text")) or _text(root.find("vote_result"))
-
-    # Parse majority requirement
-    majority = _text(root.find("majority_requirement"))
-
-    # Parse counts
-    count_elem = root.find("count")
-    yea_count = _int(count_elem.find("yeas")) if count_elem is not None else None
-    nay_count = _int(count_elem.find("nays")) if count_elem is not None else None
-    present_count = _int(count_elem.find("present")) if count_elem is not None else None
-    absent_count = _int(count_elem.find("absent")) if count_elem is not None else None
-
-    # Parse related bill/document info
-    related_bill_type = None
-    related_bill_number = None
-
-    # Check <document> element
-    doc_elem = root.find("document")
-    if doc_elem is not None:
-        doc_type = _text(doc_elem.find("document_type"))
-        doc_num = _text(doc_elem.find("document_number"))
-        if doc_type:
-            related_bill_type = doc_type.upper()
-        if doc_num:
-            try:
-                related_bill_number = int(doc_num)
-            except ValueError:
-                pass
-
-    # Check <amendment> element
-    amend_elem = root.find("amendment")
-    if amend_elem is not None and related_bill_type is None:
-        amend_num = _text(amend_elem.find("amendment_number"))
-        if amend_num:
-            related_bill_type = "AMDT"
-            try:
-                related_bill_number = int(re.sub(r"[^\d]", "", amend_num))
-            except ValueError:
-                pass
-
-    # Source URL
-    source_url = (
-        f"https://www.senate.gov/legislative/LIS/roll_call_votes/"
-        f"vote{congress}{session}/vote_{congress}_{session}_{vote_number:05d}.htm"
-    )
-
-    # Parse members
-    members = []
-    members_elem = root.find("members")
-    if members_elem is not None:
-        for member_elem in members_elem.findall("member"):
-            member_data = {
-                "member_full": _text(member_elem.find("member_full")),
-                "last_name": _text(member_elem.find("last_name")) or "",
-                "first_name": _text(member_elem.find("first_name")) or "",
-                "party": _text(member_elem.find("party")),
-                "state": _text(member_elem.find("state")),
-                "vote_cast": _text(member_elem.find("vote_cast")),
-                "lis_member_id": _text(member_elem.find("lis_member_id")),
-            }
-            members.append(member_data)
-
-    return {
-        "vote_number": vote_number,
-        "question": question,
-        "vote_date": vote_date,
-        "result": result,
-        "majority_requirement": majority,
-        "yea_count": yea_count,
-        "nay_count": nay_count,
-        "present_count": present_count,
-        "not_voting_count": absent_count,
-        "related_bill_type": related_bill_type,
-        "related_bill_number": related_bill_number,
-        "source_url": source_url,
-        "members": members,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Normalize vote position strings
+# Parsing
 # ---------------------------------------------------------------------------
 
 POSITION_MAP = {
@@ -407,145 +312,260 @@ POSITION_MAP = {
 
 
 def normalize_position(raw: Optional[str]) -> str:
-    """Map Senate XML vote_cast values to our standard position strings."""
     if not raw:
         return "Not Voting"
     return POSITION_MAP.get(raw.strip().lower(), raw.strip())
 
 
+def parse_vote_date(raw: Optional[str]) -> Optional[date]:
+    """GovTrack `created` comes ISO-formatted, e.g. '2026-04-16T13:36:00'."""
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).date()
+    except ValueError:
+        pass
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(raw, fmt).date()
+        except ValueError:
+            continue
+    logger.warning(f"Could not parse vote date: {raw!r}")
+    return None
+
+
+def map_gt_vote_to_schema(gt_vote: Dict[str, Any], congress: int) -> Dict[str, Any]:
+    """
+    Convert a GovTrack vote dict to the dict shape our ingestion expects.
+    Does NOT resolve voters — that requires a separate API call.
+    """
+    roll = int(gt_vote.get("number") or 0)
+    year = int(gt_vote.get("session") or session_to_year(congress, 1))
+    sess = year_to_session(congress, year)
+
+    # Question: GovTrack `question` tends to be descriptive; `vote_type` is the parliamentary label
+    question_parts = []
+    if gt_vote.get("vote_type"):
+        question_parts.append(gt_vote["vote_type"])
+    if gt_vote.get("question"):
+        question_parts.append(gt_vote["question"])
+    question = ": ".join(question_parts) if question_parts else "Roll call vote"
+
+    # Related bill
+    related_bill_type = None
+    related_bill_number = None
+    related_bill_congress: Optional[int] = None
+    rb = gt_vote.get("related_bill")
+    if isinstance(rb, dict):
+        # GovTrack returns nested bill dict when requested, or just the id
+        if rb.get("bill_type"):
+            related_bill_type = str(rb["bill_type"]).upper()
+        if rb.get("number"):
+            try:
+                related_bill_number = int(rb["number"])
+            except (TypeError, ValueError):
+                related_bill_number = None
+        if rb.get("congress"):
+            try:
+                related_bill_congress = int(rb["congress"])
+            except (TypeError, ValueError):
+                related_bill_congress = None
+    elif isinstance(rb, int):
+        # Just the GovTrack bill id — we cannot derive bill_type/number without another call
+        pass
+
+    if related_bill_congress is None:
+        related_bill_congress = congress
+
+    # Result counts
+    return {
+        "vote_number": roll,
+        "session": sess,
+        "year": year,
+        "question": question,
+        "vote_date": parse_vote_date(gt_vote.get("created")),
+        "result": gt_vote.get("result"),
+        "majority_requirement": gt_vote.get("required"),
+        "yea_count": gt_vote.get("total_plus"),
+        "nay_count": gt_vote.get("total_minus"),
+        "present_count": None,  # GovTrack lumps Present into total_other
+        "not_voting_count": gt_vote.get("total_other"),
+        "related_bill_congress": related_bill_congress,
+        "related_bill_type": related_bill_type,
+        "related_bill_number": related_bill_number,
+        "govtrack_link": gt_vote.get("link"),
+        "source_url": (
+            f"https://www.senate.gov/legislative/LIS/roll_call_votes/"
+            f"vote{congress}{sess}/vote_{congress}_{sess}_{roll:05d}.htm"
+        ),
+    }
+
+
+def parse_voter(voter: Dict[str, Any]) -> Dict[str, Any]:
+    person = voter.get("person") or {}
+    role = voter.get("person_role") or {}
+    option = voter.get("option") or {}
+
+    party_full = role.get("party") or ""
+    party_short = {"Democrat": "D", "Republican": "R", "Independent": "I"}.get(party_full, party_full[:1] if party_full else "")
+
+    first = (person.get("firstname") or "").strip()
+    last = (person.get("lastname") or "").strip()
+    full = (person.get("name") or f"{first} {last}").strip()
+
+    return {
+        "bioguide_id": person.get("bioguideid"),
+        "last_name": last,
+        "first_name": first,
+        "member_full": full,
+        "party": party_short or None,
+        "state": role.get("state"),
+        "vote_cast": option.get("value"),
+    }
+
+
 # ---------------------------------------------------------------------------
-# Ingest logic
+# DB ingestion
 # ---------------------------------------------------------------------------
 
 def ingest_senate_vote(
     congress: int,
-    session: int,
-    vote_data: Dict[str, Any],
+    vote_schema: Dict[str, Any],
+    voters: Optional[List[Dict[str, Any]]],
+    govtrack_vote_id: Optional[int],
     by_last_state: dict,
     by_full_name: dict,
     by_bioguide: dict,
-) -> Optional[int]:
+    refresh_existing: bool = False,
+) -> Tuple[str, Optional[int]]:
     """
-    Upsert a single Senate vote with member positions.
-    Returns the Vote.id on success, None on failure.
+    Upsert a Vote and its MemberVote rows. Returns (action, vote.id) where action
+    is one of {"inserted", "updated", "skipped", "failed"}.
+
+    If `voters` is None, we only sync the Vote row (no member positions). That path
+    exists so we can reuse the function for metadata-only refresh.
     """
     db = SessionLocal()
     try:
-        roll_number = vote_data["vote_number"]
+        roll = vote_schema["vote_number"]
+        session = vote_schema["session"]
 
-        # Check if vote already exists (skip if so — idempotent)
         existing = db.query(Vote).filter(
             Vote.congress == congress,
             Vote.chamber == "senate",
-            Vote.roll_number == roll_number,
+            Vote.roll_number == roll,
         ).first()
 
-        if existing:
-            # Update counts if they changed (vote may have been partial before)
+        if existing and not refresh_existing:
+            # Already in DB. Update counts if we now have better data, but don't
+            # re-ingest voters.
             changed = False
-            for field in ["yea_count", "nay_count", "present_count", "not_voting_count", "result"]:
-                new_val = vote_data.get(field)
+            for field in ("yea_count", "nay_count", "present_count", "not_voting_count", "result", "question"):
+                new_val = vote_schema.get(field)
                 if new_val is not None and getattr(existing, field) != new_val:
                     setattr(existing, field, new_val)
                     changed = True
-
             if changed:
                 db.commit()
-                logger.info(f"Updated existing vote {congress}/senate/{roll_number}")
+                return ("updated", existing.id)
+            return ("skipped", existing.id)
 
-            return existing.id
-
-        # Create new Vote record
-        vote = Vote(
-            congress=congress,
-            chamber="senate",
-            roll_number=roll_number,
-            vote_session=session,
-            question=vote_data.get("question"),
-            vote_date=vote_data.get("vote_date"),
-            related_bill_congress=congress,
-            related_bill_type=vote_data.get("related_bill_type"),
-            related_bill_number=vote_data.get("related_bill_number"),
-            result=vote_data.get("result"),
-            yea_count=vote_data.get("yea_count"),
-            nay_count=vote_data.get("nay_count"),
-            present_count=vote_data.get("present_count"),
-            not_voting_count=vote_data.get("not_voting_count"),
-            source_url=vote_data.get("source_url"),
-            metadata_json={
-                "majority_requirement": vote_data.get("majority_requirement"),
-                "source": "senate.gov",
-            },
-        )
-        db.add(vote)
-        db.flush()  # Get vote.id
-
-        # Ingest member votes
-        member_count = 0
-        matched_count = 0
-        for m in vote_data.get("members", []):
-            vote_cast = m.get("vote_cast")
-            if not vote_cast:
-                continue
-
-            position = normalize_position(vote_cast)
-            last_name = m.get("last_name", "")
-            first_name = m.get("first_name", "")
-            full_name = m.get("member_full") or f"{first_name} {last_name}"
-            state = m.get("state", "")
-            party = m.get("party", "")
-            lis_id = m.get("lis_member_id", "")
-
-            # Match to TrackedMember
-            person_id = match_senator(
-                last_name, state, full_name, lis_id,
-                by_last_state, by_full_name, by_bioguide,
+        if existing and refresh_existing:
+            # Wipe old member votes, re-ingest from GovTrack
+            db.query(MemberVote).filter(MemberVote.vote_id == existing.id).delete()
+            vote = existing
+            # Refresh scalar fields too
+            for field in ("yea_count", "nay_count", "present_count", "not_voting_count", "result", "question"):
+                new_val = vote_schema.get(field)
+                if new_val is not None:
+                    setattr(vote, field, new_val)
+            action = "updated"
+        else:
+            vote = Vote(
+                congress=congress,
+                chamber="senate",
+                roll_number=roll,
+                vote_session=session,
+                question=vote_schema.get("question"),
+                vote_date=vote_schema.get("vote_date"),
+                related_bill_congress=vote_schema.get("related_bill_congress"),
+                related_bill_type=vote_schema.get("related_bill_type"),
+                related_bill_number=vote_schema.get("related_bill_number"),
+                result=vote_schema.get("result"),
+                yea_count=vote_schema.get("yea_count"),
+                nay_count=vote_schema.get("nay_count"),
+                present_count=vote_schema.get("present_count"),
+                not_voting_count=vote_schema.get("not_voting_count"),
+                source_url=vote_schema.get("source_url"),
+                metadata_json={
+                    "source": "govtrack.us",
+                    "govtrack_id": govtrack_vote_id,
+                    "govtrack_link": vote_schema.get("govtrack_link"),
+                    "majority_requirement": vote_schema.get("majority_requirement"),
+                    "senate_source_url": vote_schema.get("source_url"),
+                },
             )
+            db.add(vote)
+            action = "inserted"
 
-            member_name = f"{first_name} {last_name}".strip() or None
+        db.flush()  # need vote.id for member rows
 
-            # Look up bioguide_id from tracked_members if we matched a person_id
-            bio_id = None
-            if person_id:
-                member_obj = db.query(TrackedMember).filter(TrackedMember.person_id == person_id).first()
-                if member_obj:
-                    bio_id = member_obj.bioguide_id
+        if voters is not None:
+            member_count = 0
+            matched_count = 0
+            for voter_raw in voters:
+                v = parse_voter(voter_raw)
+                position = normalize_position(v.get("vote_cast"))
+                person_id = match_senator(
+                    v.get("bioguide_id"),
+                    v.get("last_name", ""),
+                    v.get("state") or "",
+                    v.get("member_full", ""),
+                    by_last_state, by_full_name, by_bioguide,
+                )
+                member_name = f"{v.get('first_name','')} {v.get('last_name','')}".strip() or v.get("member_full")
 
-            mv = MemberVote(
-                vote_id=vote.id,
-                person_id=person_id,
-                bioguide_id=bio_id,
-                position=position,
-                member_name=member_name,
-                party=party or None,
-                state=state or None,
+                mv = MemberVote(
+                    vote_id=vote.id,
+                    person_id=person_id,
+                    bioguide_id=v.get("bioguide_id"),
+                    position=position,
+                    member_name=member_name,
+                    party=v.get("party") or None,
+                    state=v.get("state") or None,
+                )
+                db.add(mv)
+                member_count += 1
+                if person_id:
+                    matched_count += 1
+
+            logger.info(
+                f"Senate {congress}/{session}/roll {roll}: "
+                f"{action}, {member_count} voters ({matched_count} matched)",
+                extra={"job": "sync_senate_votes"},
             )
-            db.add(mv)
-            member_count += 1
-            if person_id:
-                matched_count += 1
+        else:
+            logger.info(
+                f"Senate {congress}/{session}/roll {roll}: {action} (no voter payload)",
+                extra={"job": "sync_senate_votes"},
+            )
 
         db.commit()
-        logger.info(
-            f"Ingested vote {congress}/senate/{roll_number}: "
-            f"{member_count} members ({matched_count} matched to tracked)",
-            extra={"job": "sync_senate_votes"},
-        )
-        return vote.id
+        return (action, vote.id)
 
     except Exception as e:
         db.rollback()
         logger.error(
-            f"Failed vote {congress}/senate/{vote_data.get('vote_number')}: {e}",
+            f"Failed senate vote {congress}/roll {vote_schema.get('vote_number')}: {e}",
             extra={"job": "sync_senate_votes", "error_type": type(e).__name__},
         )
-        return None
+        return ("failed", None)
     finally:
         db.close()
 
 
 # ---------------------------------------------------------------------------
-# Main sync orchestration
+# Orchestration
 # ---------------------------------------------------------------------------
 
 def sync_senate_votes(
@@ -553,121 +573,129 @@ def sync_senate_votes(
     session: int,
     start: Optional[int] = None,
     end: Optional[int] = None,
+    refresh_existing: bool = False,
 ) -> Dict[str, int]:
-    """
-    Sync all Senate votes for a given congress/session.
-
-    1. Fetch the vote menu to discover all vote numbers
-    2. Optionally filter by --start / --end range
-    3. Fetch each vote XML and ingest
-
-    Returns stats dict.
-    """
-    # Build senator matching maps
+    """Sync all Senate votes for a given congress/session via GovTrack."""
     db = SessionLocal()
     try:
         by_last_state, by_full_name, by_bioguide = build_senator_map(db)
     finally:
         db.close()
 
-    # Step 1: discover vote numbers from menu
-    menu_root = fetch_vote_menu(congress, session)
-    if menu_root is None:
-        # Fallback: if menu fetch fails, try sequential numbers
-        logger.warning("Vote menu fetch failed; falling back to sequential probe")
-        vote_numbers = list(range(start or 1, (end or 500) + 1))
-    else:
-        vote_numbers = get_vote_numbers_from_menu(menu_root)
-        logger.info(f"Found {len(vote_numbers)} votes in menu for Congress {congress} Session {session}")
+    gt_votes = fetch_vote_list(congress, session)
+    if not gt_votes:
+        logger.info(f"No Senate votes returned from GovTrack for {congress}/{session}")
+        return {"total": 0, "inserted": 0, "updated": 0, "skipped": 0, "failed": 0}
 
-    if not vote_numbers:
-        logger.info("No votes found.")
-        return {"total": 0, "ingested": 0, "updated": 0, "skipped": 0, "failed": 0}
-
-    # Apply range filter
+    # Pre-filter by roll range
     if start is not None:
-        vote_numbers = [v for v in vote_numbers if v >= start]
+        gt_votes = [v for v in gt_votes if (v.get("number") or 0) >= start]
     if end is not None:
-        vote_numbers = [v for v in vote_numbers if v <= end]
+        gt_votes = [v for v in gt_votes if (v.get("number") or 0) <= end]
 
-    if not vote_numbers:
-        logger.info("No votes to process after filtering")
-        return {"total": 0, "ingested": 0, "updated": 0, "skipped": 0, "failed": 0}
+    if not gt_votes:
+        logger.info("No Senate votes to process after range filter")
+        return {"total": 0, "inserted": 0, "updated": 0, "skipped": 0, "failed": 0}
 
-    logger.info(f"Processing {len(vote_numbers)} votes (range {vote_numbers[0]}-{vote_numbers[-1]})")
+    # Pre-compute which rolls we already have so we can skip the HTML scrape
+    # and voter fetch on those (unless --refresh-existing).
+    rolls = [int(v.get("number")) for v in gt_votes if v.get("number") is not None]
+    existing_rolls: set = set()
+    if not refresh_existing and rolls:
+        db = SessionLocal()
+        try:
+            existing = db.query(Vote.roll_number).filter(
+                Vote.congress == congress,
+                Vote.chamber == "senate",
+                Vote.roll_number.in_(rolls),
+            ).all()
+            existing_rolls = {r for (r,) in existing}
+        finally:
+            db.close()
 
-    stats = {"total": len(vote_numbers), "ingested": 0, "updated": 0, "skipped": 0, "failed": 0}
+    stats = {"total": len(gt_votes), "inserted": 0, "updated": 0, "skipped": 0, "failed": 0}
 
-    for i, vote_num in enumerate(vote_numbers):
-        # Progress logging every 10 votes
+    for i, gt_vote in enumerate(gt_votes):
+        schema = map_gt_vote_to_schema(gt_vote, congress)
+        roll = schema["vote_number"]
+        year = schema["year"]
+
         if i > 0 and i % 10 == 0:
-            logger.info(f"Progress: {i}/{len(vote_numbers)} votes processed "
-                        f"(ingested={stats['ingested']}, failed={stats['failed']})")
+            logger.info(
+                f"Progress: {i}/{len(gt_votes)} "
+                f"(inserted={stats['inserted']}, updated={stats['updated']}, "
+                f"skipped={stats['skipped']}, failed={stats['failed']})"
+            )
 
-        # Fetch vote XML
-        vote_root = fetch_vote_xml(congress, session, vote_num)
-        time.sleep(REQUEST_DELAY)
+        is_new = roll not in existing_rolls
 
-        if vote_root is None:
-            # Could be a gap in vote numbering or 404 — not necessarily an error
-            stats["skipped"] += 1
-            continue
+        # Only scrape vote-id + fetch voters if we're going to write voter rows
+        govtrack_id: Optional[int] = None
+        voters: Optional[List[Dict[str, Any]]] = None
+        if is_new or refresh_existing:
+            govtrack_id = extract_govtrack_vote_id(congress, year, roll)
+            time.sleep(REQUEST_DELAY)
+            if govtrack_id is None:
+                logger.warning(f"Cannot resolve GovTrack vote-id for {congress}/{year}/s{roll}; "
+                               f"inserting vote row without voters")
+                voters = []
+            else:
+                voters = fetch_voters(govtrack_id)
+                time.sleep(REQUEST_DELAY)
 
-        # Parse the XML
-        vote_data = parse_vote_xml(vote_root, congress, session)
-        if vote_data is None:
-            stats["failed"] += 1
-            continue
-
-        # Ingest
-        result = ingest_senate_vote(
-            congress, session, vote_data,
-            by_last_state, by_full_name, by_bioguide,
+        action, _vote_id = ingest_senate_vote(
+            congress=congress,
+            vote_schema=schema,
+            voters=voters,
+            govtrack_vote_id=govtrack_id,
+            by_last_state=by_last_state,
+            by_full_name=by_full_name,
+            by_bioguide=by_bioguide,
+            refresh_existing=refresh_existing,
         )
-
-        if result is not None:
-            stats["ingested"] += 1
-        else:
-            stats["failed"] += 1
+        stats[action] = stats.get(action, 0) + 1
 
     return stats
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Sync Senate roll call votes from senate.gov XML"
+        description="Sync Senate roll call votes via GovTrack.us API"
     )
     parser.add_argument("--congress", type=int, default=119,
                         help="Congress number (default: 119)")
     parser.add_argument("--session", type=int, default=None,
-                        help="Session number (default: both 1 and 2)")
+                        help="Session number 1 or 2 (default: both)")
     parser.add_argument("--start", type=int, default=None,
-                        help="Start vote number (inclusive)")
+                        help="Start roll number (inclusive)")
     parser.add_argument("--end", type=int, default=None,
-                        help="End vote number (inclusive)")
+                        help="End roll number (inclusive)")
+    parser.add_argument("--refresh-existing", action="store_true",
+                        help="Re-fetch voters for rolls already in DB (slow)")
     args = parser.parse_args()
 
     logger.info("=" * 60)
-    logger.info("Senate Vote Sync — senate.gov XML scraper")
-    logger.info(f"Congress: {args.congress}, Session: {args.session or 'both'}")
+    logger.info("Senate Vote Sync — GovTrack API backend")
+    logger.info(f"Congress: {args.congress}, Session: {args.session or 'both'}, "
+                f"refresh_existing={args.refresh_existing}")
     logger.info("=" * 60)
 
     sessions = [args.session] if args.session else [1, 2]
 
-    total_stats = {"total": 0, "ingested": 0, "updated": 0, "skipped": 0, "failed": 0}
+    total_stats = {"total": 0, "inserted": 0, "updated": 0, "skipped": 0, "failed": 0}
 
     for session in sessions:
-        logger.info(f"\n--- Session {session} ---")
+        logger.info(f"\n--- Session {session} (year {session_to_year(args.congress, session)}) ---")
         stats = sync_senate_votes(
             congress=args.congress,
             session=session,
             start=args.start,
             end=args.end,
+            refresh_existing=args.refresh_existing,
         )
         logger.info(f"Session {session} results: {stats}")
-
         for k in total_stats:
-            total_stats[k] += stats[k]
+            total_stats[k] += stats.get(k, 0)
 
     logger.info("=" * 60)
     logger.info(f"FINAL SUMMARY: {total_stats}")
