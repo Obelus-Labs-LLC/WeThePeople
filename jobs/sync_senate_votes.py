@@ -450,10 +450,15 @@ def ingest_senate_vote(
         roll = vote_schema["vote_number"]
         session = vote_schema["session"]
 
+        # IMPORTANT: Senate roll numbers restart each session (1 and 2). The
+        # existing unique constraint (congress, chamber, roll_number) does NOT
+        # include session, so we must disambiguate by session in Python to
+        # avoid clobbering session-1 rows with session-2 data (or vice versa).
         existing = db.query(Vote).filter(
             Vote.congress == congress,
             Vote.chamber == "senate",
             Vote.roll_number == roll,
+            Vote.vote_session == session,
         ).first()
 
         if existing and not refresh_existing:
@@ -607,6 +612,7 @@ def sync_senate_votes(
             existing = db.query(Vote.roll_number).filter(
                 Vote.congress == congress,
                 Vote.chamber == "senate",
+                Vote.vote_session == session,
                 Vote.roll_number.in_(rolls),
             ).all()
             existing_rolls = {r for (r,) in existing}
