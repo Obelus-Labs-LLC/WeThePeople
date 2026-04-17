@@ -170,22 +170,55 @@ def list_foreign_principals(
 # ── GET /fara/countries ───────────────────────────────────────────────
 
 @router.get("/countries")
-def list_countries(db: Session = Depends(get_db)):
-    """List all countries with registrant and principal counts."""
-    # Get countries from foreign principals (more meaningful — these are the foreign entities)
-    rows = (
-        db.query(
-            FARAForeignPrincipal.country,
-            func.count(FARAForeignPrincipal.id).label("principal_count"),
+def list_countries(
+    active_only: bool = Query(
+        False,
+        description="If true, count ONLY currently-active foreign principals (status~='active' AND no termination_date). "
+                    "Default (False) returns cumulative historical counts for backwards compatibility.",
+    ),
+    db: Session = Depends(get_db),
+):
+    """List all countries with registrant and principal counts.
+
+    NOTE on counting semantics:
+      - `active_only=False` (default): returns the total number of principals
+        EVER registered for a country. This is the cumulative historical
+        footprint — useful for long-range comparisons, but a misleading
+        proxy for "current influence" because it sums terminated records.
+      - `active_only=True`: returns the number of principals CURRENTLY
+        active. This is the correct metric for "how many FARA-registered
+        foreign principals does X country have today".
+
+    Story #102 was retracted in April 2026 because a cumulative count
+    ("Mexico's 565 foreign agents") was presented as if it were a current
+    count. Story detectors should always use active_only=True.
+    """
+    q = db.query(
+        FARAForeignPrincipal.country,
+        func.count(FARAForeignPrincipal.id).label("principal_count"),
+    ).filter(
+        FARAForeignPrincipal.country != "",
+        FARAForeignPrincipal.country.isnot(None),
+    )
+    if active_only:
+        # A principal is "active" if its status contains 'active' case-insensitively
+        # AND it has no termination_date set. Both conditions guard against
+        # mislabelled rows.
+        q = q.filter(
+            FARAForeignPrincipal.status.ilike("%active%"),
+            or_(
+                FARAForeignPrincipal.principal_termination_date.is_(None),
+                FARAForeignPrincipal.principal_termination_date == "",
+            ),
         )
-        .filter(FARAForeignPrincipal.country != "")
-        .filter(FARAForeignPrincipal.country.isnot(None))
-        .group_by(FARAForeignPrincipal.country)
+    rows = (
+        q.group_by(FARAForeignPrincipal.country)
         .order_by(desc(func.count(FARAForeignPrincipal.id)))
         .all()
     )
 
     return {
+        "active_only": active_only,
         "countries": [
             {"country": row.country, "principal_count": row.principal_count}
             for row in rows
@@ -207,9 +240,20 @@ def fara_stats(db: Session = Depends(get_db)):
     terminated_registrants = total_registrants - active_registrants
 
     total_principals = db.query(func.count(FARAForeignPrincipal.id)).scalar() or 0
+    active_principals = (
+        db.query(func.count(FARAForeignPrincipal.id))
+        .filter(
+            FARAForeignPrincipal.status.ilike("%active%"),
+            or_(
+                FARAForeignPrincipal.principal_termination_date.is_(None),
+                FARAForeignPrincipal.principal_termination_date == "",
+            ),
+        )
+        .scalar() or 0
+    )
     total_agents = db.query(func.count(FARAShortForm.id)).scalar() or 0
 
-    # Top 10 countries by principal count
+    # Top 10 countries by cumulative principal count (historical footprint)
     top_countries = (
         db.query(
             FARAForeignPrincipal.country,
@@ -223,15 +267,43 @@ def fara_stats(db: Session = Depends(get_db)):
         .all()
     )
 
+    # Top 10 countries by ACTIVE principal count (current influence).
+    # This is the number that stories should cite. Cumulative counts include
+    # long-since-terminated registrations and do not represent current activity.
+    top_countries_active = (
+        db.query(
+            FARAForeignPrincipal.country,
+            func.count(FARAForeignPrincipal.id).label("count"),
+        )
+        .filter(
+            FARAForeignPrincipal.country != "",
+            FARAForeignPrincipal.country.isnot(None),
+            FARAForeignPrincipal.status.ilike("%active%"),
+            or_(
+                FARAForeignPrincipal.principal_termination_date.is_(None),
+                FARAForeignPrincipal.principal_termination_date == "",
+            ),
+        )
+        .group_by(FARAForeignPrincipal.country)
+        .order_by(desc(func.count(FARAForeignPrincipal.id)))
+        .limit(10)
+        .all()
+    )
+
     return {
         "total_registrants": total_registrants,
         "active_registrants": active_registrants,
         "terminated_registrants": terminated_registrants,
         "total_foreign_principals": total_principals,
+        "active_foreign_principals": active_principals,
         "total_agents": total_agents,
         "top_countries": [
             {"country": row.country, "count": row.count}
             for row in top_countries
+        ],
+        "top_countries_active": [
+            {"country": row.country, "count": row.count}
+            for row in top_countries_active
         ],
     }
 

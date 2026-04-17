@@ -16,7 +16,7 @@ Usage:
 
 import os
 from connectors.senate_lda import LDA_BASE
-from connectors.usaspending import USASPENDING_BASE
+from connectors.usaspending import USASPENDING_BASE, filter_contracts_by_recipient
 import sys
 import hashlib
 import argparse
@@ -197,7 +197,7 @@ def fetch_contracts(session, inst: TrackedInstitution):
                 "award_type_codes": ["A", "B", "C", "D"],
                 "time_period": [{"start_date": "2015-01-01", "end_date": datetime.now(timezone.utc).strftime("%Y-%m-%d")}],
             },
-            "fields": ["Award ID", "Award Amount", "Awarding Agency", "Description", "Start Date", "End Date", "Award Type"],
+            "fields": ["Award ID", "Award Amount", "Awarding Agency", "Description", "Start Date", "End Date", "Award Type", "Recipient Name"],
             "limit": page_size,
             "page": page,
             "sort": "Award Amount",
@@ -215,6 +215,10 @@ def fetch_contracts(session, inst: TrackedInstitution):
         results = data.get("results", [])
         if not results:
             break
+
+        # Drop unrelated vendors — USASpending's recipient_search_text is a
+        # substring match. See connectors/usaspending.py.
+        results = filter_contracts_by_recipient(results, search_name)
 
         for r in results:
             award_id = r.get("Award ID") or r.get("generated_internal_id", "")
