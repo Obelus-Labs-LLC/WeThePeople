@@ -103,11 +103,13 @@ FINANCE_CHILD_TABLES = [
     "cfpb_complaints",
     "fred_observations",
     "fed_press_releases",
-    "stock_fundamentals",
     "finance_enforcement_actions",
     "finance_lobbying_records",
-    "finance_contracts",
+    "finance_government_contracts",
 ]
+
+# stock_fundamentals uses entity_id + entity_type rather than institution_id.
+STOCK_TABLE = "stock_fundamentals"
 
 
 def existing_tables(db):
@@ -190,6 +192,24 @@ def merge_finance_dupes(db, apply: bool):
             ).rowcount or 0
             if moved or deleted:
                 log.info("    %s: moved=%d dropped_as_dup=%d", child, moved, deleted)
+                per_pair_moved += moved
+
+        # stock_fundamentals uses (entity_type='finance', entity_id=slug) —
+        # move the orphan's stock snapshots over if any.
+        if STOCK_TABLE in tables:
+            moved = db.execute(
+                text(
+                    f"UPDATE OR IGNORE {STOCK_TABLE} SET entity_id = :new_id "
+                    f"WHERE entity_id = :old_id AND entity_type = 'finance'"
+                ),
+                {"new_id": canonical, "old_id": orphan},
+            ).rowcount or 0
+            deleted = db.execute(
+                text(f"DELETE FROM {STOCK_TABLE} WHERE entity_id = :old_id AND entity_type = 'finance'"),
+                {"old_id": orphan},
+            ).rowcount or 0
+            if moved or deleted:
+                log.info("    %s: moved=%d dropped_as_dup=%d", STOCK_TABLE, moved, deleted)
                 per_pair_moved += moved
 
         # Finally, drop the orphan institution row
@@ -319,11 +339,16 @@ def backfill_ciks(db, apply: bool):
         ).first()
         if apply and not target:
             # Update child tables to new slug, then the institution itself
+            tbls = existing_tables(db)
             for child in FINANCE_CHILD_TABLES:
-                if child in existing_tables(db):
+                if child in tbls:
                     db.execute(
                         text(f"UPDATE {child} SET institution_id='home-bancshares' WHERE institution_id='home-bancfin'"),
                     )
+            if STOCK_TABLE in tbls:
+                db.execute(
+                    text(f"UPDATE {STOCK_TABLE} SET entity_id='home-bancshares' WHERE entity_id='home-bancfin' AND entity_type='finance'"),
+                )
             db.execute(
                 text(
                     "UPDATE tracked_institutions SET "
