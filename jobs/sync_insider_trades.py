@@ -268,14 +268,16 @@ def sync_institution(db, inst: TrackedInstitution, since: Optional[date]) -> int
         if not xml_str:
             continue
         txs = parse_form4(xml_str)
-        for t in txs:
+        for idx, t in enumerate(txs):
             dhash = _md5(
                 inst.institution_id,
                 accession,
+                idx,  # per-transaction index — guarantees intra-filing uniqueness
                 t["filer_name"],
                 t["transaction_date"],
                 t["transaction_type"],
                 t["shares"],
+                t["price_per_share"],
             )
             # dedup: do a per-row check rather than rely on UNIQUE, since we
             # may have existing rows from prior runs.
@@ -301,8 +303,11 @@ def sync_institution(db, inst: TrackedInstitution, since: Optional[date]) -> int
             ))
             inserted += 1
         # Commit per filing to keep the transaction small.
-        if inserted and inserted % 50 == 0:
+        try:
             db.commit()
+        except Exception as e:
+            log.warning("    commit failed on %s: %s — rolling back", accession, e)
+            db.rollback()
     db.commit()
     log.info("  [%s] form4_filings_scanned=%d inserted=%d", inst.institution_id, seen, inserted)
     return inserted
