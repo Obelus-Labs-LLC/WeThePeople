@@ -112,11 +112,17 @@ def _normalize_name(name: str) -> str:
         'The Boeing Company'    -> 'BOEING'
         'AT&T Inc.'             -> 'AT T'
         'Lockheed Martin Corp.' -> 'LOCKHEED MARTIN'
+        "Moody's Analytics"     -> 'MOODYS ANALYTICS'
     """
     if not name:
         return ""
     s = str(name).upper()
-    # Normalize punctuation to spaces, collapse whitespace.
+    # Strip apostrophes FIRST (and any typographic variants) so "MOODY'S"
+    # collapses to "MOODYS" rather than splitting into "MOODY S" when the
+    # general punctuation pass converts apostrophes to spaces. Without this
+    # step we create orphan single-letter tokens that confuse matching.
+    s = s.replace("'", "").replace("\u2019", "").replace("\u2018", "")
+    # Normalize remaining punctuation to spaces, collapse whitespace.
     s = _PUNCT_RE.sub(" ", s)
     s = _WS_RE.sub(" ", s).strip()
     # Strip leading "THE " so "THE BOEING COMPANY" compares equal to
