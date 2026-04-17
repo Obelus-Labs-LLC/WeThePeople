@@ -77,7 +77,10 @@ export default function DigestSignupPage() {
       const res = await fetch(`${API_BASE}/digest/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, zip_code: zipCode, sectors: selectedSectors }),
+        // Lowercase email defensively — emails are case-insensitive per RFC 5321,
+        // and uppercase submissions from autofill/mobile keyboards were creating
+        // duplicate rows that couldn't match the server-side dedup check.
+        body: JSON.stringify({ email: email.trim().toLowerCase(), zip_code: zipCode, sectors: selectedSectors }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Subscription failed');

@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Target, Users, FileText, Shield, Trophy, ChevronRight,
-  ThumbsUp, ThumbsDown, ArrowUpRight, Megaphone, BookOpen,
+  Target, Shield, Trophy, ChevronRight,
+  ThumbsUp, ThumbsDown, Megaphone, BookOpen, Plus, X,
 } from 'lucide-react';
 import {
-  fetchPromises, fetchProposals, fetchLeaderboard,
+  fetchPromises, fetchProposals,
+  createPromise, createProposal,
   PromiseItem, ProposalItem,
 } from '../api/civic';
+import { CivicSectorHeader } from '../components/SectorHeader';
+import { useAuth } from '../contexts/AuthContext';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'text-zinc-400 bg-zinc-800',
@@ -73,12 +76,140 @@ function ProposalCard({ item }: { item: ProposalItem }) {
   );
 }
 
+function ProposalSubmitForm({ onSubmitted, onCancel }: { onSubmitted: () => void; onCancel: () => void }) {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [category, setCategory] = useState('');
+  const [sector, setSector] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    if (!title.trim() || !body.trim() || submitting) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await createProposal({ title: title.trim(), body: body.trim(), category: category || undefined, sector: sector || undefined });
+      onSubmitted();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Submission failed');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-zinc-900/80 border border-blue-500/30 rounded-xl p-4 mb-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-bold text-white">New Proposal</h4>
+        <button onClick={onCancel} className="text-zinc-500 hover:text-white"><X size={16} /></button>
+      </div>
+      <input
+        type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+        placeholder="Short, specific title (e.g., 'Cap prescription drug markups at 200%')"
+        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+        maxLength={140}
+      />
+      <textarea
+        value={body} onChange={(e) => setBody(e.target.value)}
+        placeholder="Explain the proposal: what problem it solves, what it changes, who benefits."
+        rows={5}
+        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-500 focus:outline-none resize-none"
+        maxLength={2000}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <select value={sector} onChange={(e) => setSector(e.target.value)} className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white focus:border-blue-500 focus:outline-none">
+          <option value="">Sector (optional)</option>
+          <option value="politics">Politics</option><option value="finance">Finance</option><option value="health">Health</option>
+          <option value="technology">Technology</option><option value="energy">Energy</option><option value="transportation">Transportation</option>
+          <option value="defense">Defense</option><option value="chemicals">Chemicals</option><option value="agriculture">Agriculture</option>
+          <option value="telecom">Telecom</option><option value="education">Education</option>
+        </select>
+        <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category (e.g., healthcare)"
+          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-500 focus:outline-none" maxLength={40} />
+      </div>
+      {error && <p className="text-red-400 text-xs">{error}</p>}
+      <div className="flex items-center justify-end gap-2">
+        <button onClick={onCancel} className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white">Cancel</button>
+        <button onClick={submit} disabled={!title.trim() || !body.trim() || submitting}
+          className="px-4 py-1.5 bg-blue-500 text-white text-xs font-bold rounded hover:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider">
+          {submitting ? 'Submitting...' : 'Submit'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PromiseSubmitForm({ onSubmitted, onCancel }: { onSubmitted: () => void; onCancel: () => void }) {
+  const [personId, setPersonId] = useState('');
+  const [personName, setPersonName] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [category, setCategory] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    if (!personId.trim() || !title.trim() || submitting) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await createPromise({
+        person_id: personId.trim(), person_name: personName.trim() || undefined,
+        title: title.trim(), description: description.trim() || undefined,
+        source_url: sourceUrl.trim() || undefined, category: category || undefined,
+      });
+      onSubmitted();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Submission failed');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-zinc-900/80 border border-amber-500/30 rounded-xl p-4 mb-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-bold text-white">Track a Promise</h4>
+        <button onClick={onCancel} className="text-zinc-500 hover:text-white"><X size={16} /></button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <input type="text" value={personId} onChange={(e) => setPersonId(e.target.value)} placeholder="person_id (e.g., mitch_mcconnell)"
+          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none" maxLength={80} />
+        <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="Display name (optional)"
+          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none" maxLength={120} />
+      </div>
+      <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Promise headline (e.g., 'Repeal the ACA')"
+        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none" maxLength={140} />
+      <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What did they say? What does fulfillment look like?" rows={3}
+        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none resize-none" maxLength={1000} />
+      <div className="grid grid-cols-2 gap-2">
+        <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="Source URL (speech, tweet, interview)"
+          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none" />
+        <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category (optional)"
+          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none" maxLength={40} />
+      </div>
+      {error && <p className="text-red-400 text-xs">{error}</p>}
+      <div className="flex items-center justify-end gap-2">
+        <button onClick={onCancel} className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white">Cancel</button>
+        <button onClick={submit} disabled={!personId.trim() || !title.trim() || submitting}
+          className="px-4 py-1.5 bg-amber-500 text-black text-xs font-bold rounded hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider">
+          {submitting ? 'Submitting...' : 'Submit'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function CivicHubPage() {
+  const { isAuthenticated } = useAuth();
   const [promises, setPromises] = useState<PromiseItem[]>([]);
   const [proposals, setProposals] = useState<ProposalItem[]>([]);
   const [promiseTotal, setPromiseTotal] = useState(0);
   const [proposalTotal, setProposalTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showPromiseForm, setShowPromiseForm] = useState(false);
+  const [showProposalForm, setShowProposalForm] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,12 +223,19 @@ export default function CivicHubPage() {
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [refreshTick]);
+
+  const onProposalSubmitted = () => { setShowProposalForm(false); setRefreshTick(x => x + 1); };
+  const onPromiseSubmitted = () => { setShowPromiseForm(false); setRefreshTick(x => x + 1); };
 
   return (
     <main id="main-content" className="min-h-screen bg-slate-950 text-white">
+      <div className="max-w-6xl mx-auto px-4 pt-6">
+        <CivicSectorHeader />
+      </div>
+
       {/* Hero */}
-      <div className="px-4 pt-14 pb-10 text-center max-w-3xl mx-auto">
+      <div className="px-4 pt-6 pb-10 text-center max-w-3xl mx-auto">
         <h1 className="text-3xl sm:text-4xl font-bold mb-3" style={{ fontFamily: 'Oswald, sans-serif' }}>
           <span className="text-amber-400">Civic</span> Hub
         </h1>
@@ -147,10 +285,24 @@ export default function CivicHubPage() {
                   Promise Tracker
                   <span className="text-xs text-zinc-600 font-mono ml-1">{promiseTotal}</span>
                 </h2>
-                <Link to="/civic/promises" className="text-xs text-zinc-500 hover:text-amber-400 transition-colors flex items-center gap-1">
-                  View all <ChevronRight size={12} />
-                </Link>
+                <div className="flex items-center gap-3">
+                  {isAuthenticated && !showPromiseForm && (
+                    <button onClick={() => setShowPromiseForm(true)}
+                      className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold">
+                      <Plus size={12} /> New
+                    </button>
+                  )}
+                  <Link to="/civic/promises" className="text-xs text-zinc-500 hover:text-amber-400 transition-colors flex items-center gap-1">
+                    View all <ChevronRight size={12} />
+                  </Link>
+                </div>
               </div>
+              {showPromiseForm && <PromiseSubmitForm onSubmitted={onPromiseSubmitted} onCancel={() => setShowPromiseForm(false)} />}
+              {!isAuthenticated && (
+                <div className="text-xs text-zinc-500 mb-3">
+                  <Link to="/login" className="text-amber-400 hover:underline">Log in</Link> to submit a promise.
+                </div>
+              )}
               {promises.length === 0 ? (
                 <div className="text-center py-12 bg-zinc-900/40 rounded-xl border border-white/5">
                   <Target size={32} className="mx-auto text-zinc-700 mb-3" />
@@ -172,10 +324,24 @@ export default function CivicHubPage() {
                   Citizen Proposals
                   <span className="text-xs text-zinc-600 font-mono ml-1">{proposalTotal}</span>
                 </h2>
-                <Link to="/civic/proposals" className="text-xs text-zinc-500 hover:text-amber-400 transition-colors flex items-center gap-1">
-                  View all <ChevronRight size={12} />
-                </Link>
+                <div className="flex items-center gap-3">
+                  {isAuthenticated && !showProposalForm && (
+                    <button onClick={() => setShowProposalForm(true)}
+                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-semibold">
+                      <Plus size={12} /> New
+                    </button>
+                  )}
+                  <Link to="/civic/proposals" className="text-xs text-zinc-500 hover:text-amber-400 transition-colors flex items-center gap-1">
+                    View all <ChevronRight size={12} />
+                  </Link>
+                </div>
               </div>
+              {showProposalForm && <ProposalSubmitForm onSubmitted={onProposalSubmitted} onCancel={() => setShowProposalForm(false)} />}
+              {!isAuthenticated && (
+                <div className="text-xs text-zinc-500 mb-3">
+                  <Link to="/login" className="text-blue-400 hover:underline">Log in</Link> to submit a proposal.
+                </div>
+              )}
               {proposals.length === 0 ? (
                 <div className="text-center py-12 bg-zinc-900/40 rounded-xl border border-white/5">
                   <Megaphone size={32} className="mx-auto text-zinc-700 mb-3" />

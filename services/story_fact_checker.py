@@ -94,6 +94,24 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
     category = story.category or ""
     body = story.body or ""
 
+    # Categories whose entity_ids are congress members (person_ids), not
+    # companies. These stories should NOT be looked up against tracked_*_companies
+    # tables even if a sector tag was applied upstream.
+    PERSON_CATEGORIES = {
+        "trade_cluster", "trade_timing", "committee_stock_trade",
+        "stock_act_violation", "prolific_trader", "trade_before_legislation",
+        "pac_committee_pipeline",
+    }
+    is_person_story = category in PERSON_CATEGORIES
+
+    # Categories where evidence numbers are sector-level aggregates, not
+    # entity_ids[0] single-entity sums. Re-querying a single entity would
+    # always fail the money-tolerance check for these stories.
+    SECTOR_AGG_CATEGORIES = {
+        "lobbying_breakdown", "tax_lobbying", "budget_lobbying",
+    }
+    is_sector_agg = category in SECTOR_AGG_CATEGORIES
+
     sector_tables = SECTOR_MAP.get(sector)
     if not sector_tables and sector and sector != "cross-sector":
         log.warning("fact_check: sector '%s' not in SECTOR_MAP, skipping DB verification", sector)
@@ -103,7 +121,9 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
         ))
 
     # 1. Entity existence — every entity_id must resolve
-    if sector_tables:
+    # Skip for person-centric stories (trade_cluster, etc.) — their entity_ids
+    # are bioguide_ids that belong in tracked_members, not tracked_*_companies.
+    if sector_tables and not is_person_story:
         _, _, _, id_col, tracked_table = sector_tables
         for eid in entity_ids:
             if not eid:
@@ -122,24 +142,36 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
                 log.debug("entity lookup failed for %s: %s", eid, exc)
 
     # 2. Lobbying spend claims
+    # For sector-aggregate stories, the "total" is the SUM over the whole
+    # sector table (see jobs/detect_stories.py get_sector_aggregate). Compare
+    # against the sector SUM, not a single entity's rows.
     for key in ("total_spend", "lobby_total", "total_lobbying_spend", "lobbying_total"):
         if key not in evidence:
             continue
         claimed = _as_float(evidence[key])
-        if claimed is None or claimed <= 0 or not sector_tables or not entity_ids:
+        if claimed is None or claimed <= 0 or not sector_tables:
             continue
         lobby_table, _, _, id_col, _ = sector_tables
-        actual = _sum_col(db, lobby_table, "income", id_col, entity_ids[0])
+        if is_sector_agg:
+            actual = _sum_table(db, lobby_table, "income")
+            label = f"{lobby_table}.income (sector total)"
+            miss_detail = f"no rows in {lobby_table}"
+        else:
+            if not entity_ids:
+                continue
+            actual = _sum_col(db, lobby_table, "income", id_col, entity_ids[0])
+            label = f"{lobby_table}.income"
+            miss_detail = f"no rows in {lobby_table} for {entity_ids[0]}"
         if actual is None:
             issues.append(FactIssue(
                 "critical", "lobby_spend_missing", f"${claimed:,.0f}", None,
-                f"no rows in {lobby_table} for {entity_ids[0]}",
+                miss_detail,
             ))
         elif not _within(claimed, actual, MONEY_TOLERANCE):
             issues.append(FactIssue(
                 "critical", "lobby_spend_mismatch",
                 f"${claimed:,.0f}", actual,
-                f"{lobby_table}.income sum differs by > {MONEY_TOLERANCE:.0%}",
+                f"{label} sum differs by > {MONEY_TOLERANCE:.0%}",
             ))
 
     # 3. Contract total claims
@@ -187,30 +219,47 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
             ))
 
     # 5. Trade count claims (congressional trades)
+    # Only applies to person-centric stories. entity_ids can contain company
+    # slugs when a story was mis-tagged; those return 0 trades and would
+    # falsely fail. Restrict to entity_ids that actually appear in
+    # tracked_members (i.e. are bioguide_ids / person_ids).
     if category in {"trade_cluster", "trade_timing", "committee_stock_trade",
                     "stock_act_violation", "prolific_trader"}:
+        # Aggregate across all person entity_ids — a trade_cluster story's
+        # "N trades" claim is the SUM of trades across every member named.
+        person_ids = []
         for eid in entity_ids:
             if not eid:
                 continue
             try:
                 row = db.execute(
-                    text("SELECT COUNT(*) FROM congressional_trades WHERE person_id = :eid"),
+                    text("SELECT 1 FROM tracked_members WHERE person_id = :eid LIMIT 1"),
                     {"eid": eid},
+                ).fetchone()
+                if row:
+                    person_ids.append(eid)
+            except Exception:
+                continue
+        if person_ids:
+            try:
+                placeholders = ",".join([f":p{i}" for i in range(len(person_ids))])
+                params = {f"p{i}": pid for i, pid in enumerate(person_ids)}
+                row = db.execute(
+                    text(f"SELECT COUNT(*) FROM congressional_trades WHERE person_id IN ({placeholders})"),
+                    params,
                 ).fetchone()
                 actual = int(row[0]) if row else 0
             except Exception:
                 actual = None
-            if actual is None:
-                continue
-            # Scan body for "N trades" / "N stock trades" / "executed N"
-            body_claims = _extract_trade_claims(body)
-            for claimed in body_claims:
-                if claimed > actual * (1 + COUNT_TOLERANCE) or claimed > actual + 5:
-                    issues.append(FactIssue(
-                        "critical", "trade_count_mismatch",
-                        f"{claimed}", float(actual),
-                        f"body claims {claimed} trades for {eid} but DB has {actual}",
-                    ))
+            if actual is not None:
+                body_claims = _extract_trade_claims(body)
+                for claimed in body_claims:
+                    if claimed > actual * (1 + COUNT_TOLERANCE) or claimed > actual + 5:
+                        issues.append(FactIssue(
+                            "critical", "trade_count_mismatch",
+                            f"{claimed}", float(actual),
+                            f"body claims {claimed} trades across {len(person_ids)} member(s) but DB has {actual}",
+                        ))
 
     # 6. Penalty claim — "zero penalties" must actually be zero
     if "zero penalties" in body.lower() or "zero recorded penalties" in body.lower():
@@ -276,6 +325,24 @@ def _sum_col(db: Session, table: str, col: str, id_col: str, eid: str) -> Option
         return None
 
 
+def _sum_table(db: Session, table: str, col: str) -> Optional[float]:
+    """Sum a column across the entire table (no WHERE filter).
+
+    Used for sector-aggregate stories where the evidence value is the
+    whole-sector total (lobbying_breakdown, tax_lobbying, etc.).
+    """
+    try:
+        row = db.execute(
+            text(f"SELECT COALESCE(SUM({col}), 0) FROM {table}"),
+        ).fetchone()
+        if not row:
+            return None
+        return float(row[0] or 0.0)
+    except Exception as exc:
+        log.debug("sum-table query failed on %s.%s: %s", table, col, exc)
+        return None
+
+
 def _count_rows(db: Session, table: str, id_col: str, eid: str) -> Optional[int]:
     try:
         row = db.execute(
@@ -315,15 +382,27 @@ _TRADE_CLAIM_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Prose phrases like "2025 trades", "2024 stock trades" refer to the YEAR,
+# not a count. Exclude 4-digit values that look like calendar years from the
+# trade-count extraction so the fact-checker stops firing false mismatches.
+_YEAR_MIN, _YEAR_MAX = 1990, 2100
+
 
 def _extract_trade_claims(body: str) -> List[int]:
-    """Pull every 'N trades' / 'N stock trades' claim out of the body."""
+    """Pull every 'N trades' / 'N stock trades' claim out of the body.
+
+    Filters out year-like numbers (1990-2100) since "2025 trades" in prose
+    means "trades from 2025", not "a count of 2025 trades".
+    """
     claims = []
     for m in _TRADE_CLAIM_RE.finditer(body):
         try:
-            claims.append(int(m.group(1)))
+            n = int(m.group(1))
         except ValueError:
             continue
+        if _YEAR_MIN <= n <= _YEAR_MAX:
+            continue
+        claims.append(n)
     return claims
 
 

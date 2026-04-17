@@ -107,14 +107,36 @@ def gate_sector(db: Session, sector: str) -> Tuple[bool, List[DataIssue]]:
         issues.append(DataIssue("lobby_future_dates", "critical",
                                 f"{lobby_table} has {bad_future} rows dated after now"))
 
-    # 4. Future-date check on contracts (start_date is the date column)
-    bad_future_c = _count_future_dates(db, contract_table, "start_date", now)
-    if bad_future_c is None:
-        issues.append(DataIssue("contract_table_missing", "critical",
-                                f"{contract_table} is missing or unreadable"))
-    elif bad_future_c:
-        issues.append(DataIssue("contract_future_dates", "critical",
-                                f"{contract_table} has {bad_future_c} rows dated after now"))
+    # 4. Future-date check on contracts.
+    #
+    # A contract's `start_date` is the Period-of-Performance START — it is
+    # LEGITIMATELY in the future for multi-year awards signed today with work
+    # scheduled for next quarter / next year. Raw now+1s comparisons produce
+    # constant false "future_dates" alarms.
+    #
+    # Strategy:
+    #   a) Sanity-check award_date / date_signed (when it was signed) — those
+    #      must NOT be in the future. If that column doesn't exist, skip.
+    #   b) Only flag start_date > 5 years ahead, which really is corruption.
+    signed_col = _first_existing_column(db, contract_table, ("award_date", "date_signed", "action_date"))
+    if signed_col:
+        bad_signed = _count_future_dates(db, contract_table, signed_col, now)
+        if bad_signed is None:
+            issues.append(DataIssue("contract_table_missing", "critical",
+                                    f"{contract_table} is missing or unreadable"))
+        elif bad_signed:
+            issues.append(DataIssue("contract_future_dates", "critical",
+                                    f"{contract_table}.{signed_col} has {bad_signed} rows dated after now"))
+    else:
+        # No award/signed column available — confirm the table at least exists
+        if _count(db, contract_table) is None:
+            issues.append(DataIssue("contract_table_missing", "critical",
+                                    f"{contract_table} is missing or unreadable"))
+
+    far_future = _count_future_dates(db, contract_table, "start_date", now + timedelta(days=365 * 5))
+    if far_future:
+        issues.append(DataIssue("contract_far_future_start", "critical",
+                                f"{contract_table}.start_date has {far_future} rows > 5 years ahead (corruption)"))
 
     # 5. Orphan check — a rough guard: we don't hard-fail but log
     orphan_count = _count_orphans(db, lobby_table, id_col, tracked_table, id_col)
@@ -228,6 +250,25 @@ def _rows_since(db: Session, table: str, col: str, cutoff: datetime) -> int | No
     except Exception as exc:
         log.debug("freshness check failed on %s.%s: %s", table, col, exc)
         return None
+
+
+def _first_existing_column(db: Session, table: str, candidates: tuple[str, ...]) -> str | None:
+    """Return the first column name from `candidates` that exists in `table`.
+
+    Used so the data gate can probe schema-varying contract tables for an
+    award / signed-date column without hard-coding one name per sector.
+    """
+    _validate_ident(table)
+    try:
+        rows = db.execute(text(f"PRAGMA table_info({table})")).fetchall()
+        cols = {r[1] for r in rows}
+    except Exception as exc:
+        log.debug("pragma table_info failed on %s: %s", table, exc)
+        return None
+    for c in candidates:
+        if c in cols:
+            return c
+    return None
 
 
 def _count_orphans(db: Session, table: str, col: str, parent_table: str, parent_col: str) -> int | None:

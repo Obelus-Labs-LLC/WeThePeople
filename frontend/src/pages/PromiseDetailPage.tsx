@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Target, CheckCircle2, XCircle, Clock, ThumbsUp, ThumbsDown, ExternalLink } from 'lucide-react';
 import { fetchPromise, castVote, PromiseItem } from '../api/civic';
+import { CivicSectorHeader } from '../components/SectorHeader';
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   pending: { bg: 'bg-zinc-800', text: 'text-zinc-400' },
@@ -73,6 +74,9 @@ export default function PromiseDetailPage() {
 
   return (
     <main id="main-content" className="min-h-screen bg-slate-950 text-white">
+      <div className="max-w-6xl mx-auto px-4 pt-6">
+        <CivicSectorHeader />
+      </div>
       <div className="max-w-3xl mx-auto px-4 py-10 sm:py-14">
         {/* Back nav */}
         <Link to="/civic" className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-amber-400 transition-colors mb-6">
