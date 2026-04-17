@@ -42,6 +42,14 @@ log = logging.getLogger("story_fact_checker")
 MONEY_TOLERANCE = 0.02   # 2% — covers SUM rounding and recent syncs
 COUNT_TOLERANCE = 0.05   # 5% — looser, counts can drift with dedup
 
+# Sector-aggregate stories (lobbying_breakdown, tax_lobbying, budget_lobbying)
+# report a snapshot of sector-wide SUMs taken at write time. Raw lobbying
+# tables gain and lose rows after publication as late filings arrive and
+# dedupe passes run — the published number won't match live SUM to 2%.
+# We still want to catch 30-50% drift (data corruption, wrong sector) but
+# not flag normal 5-15% month-over-month churn.
+SECTOR_AGG_MONEY_TOLERANCE = 0.20
+
 
 @dataclass
 class FactIssue:
@@ -162,16 +170,17 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
             actual = _sum_col(db, lobby_table, "income", id_col, entity_ids[0])
             label = f"{lobby_table}.income"
             miss_detail = f"no rows in {lobby_table} for {entity_ids[0]}"
+        money_tol = SECTOR_AGG_MONEY_TOLERANCE if is_sector_agg else MONEY_TOLERANCE
         if actual is None:
             issues.append(FactIssue(
                 "critical", "lobby_spend_missing", f"${claimed:,.0f}", None,
                 miss_detail,
             ))
-        elif not _within(claimed, actual, MONEY_TOLERANCE):
+        elif not _within(claimed, actual, money_tol):
             issues.append(FactIssue(
                 "critical", "lobby_spend_mismatch",
                 f"${claimed:,.0f}", actual,
-                f"{label} sum differs by > {MONEY_TOLERANCE:.0%}",
+                f"{label} sum differs by > {money_tol:.0%}",
             ))
 
     # 3. Contract total claims
@@ -196,13 +205,29 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
             ))
 
     # 4. Filing count claims
+    # For sector-aggregate stories (lobbying_breakdown et al) `total_filings`
+    # counts every (filing × policy_issue) tuple produced by the detector's
+    # aggregate walker — NOT distinct rows. A single filing listing 10 issues
+    # contributes 10. Don't compare against row count.
     for key in ("filing_count", "filings", "total_filings"):
         if key not in evidence:
             continue
         claimed = _as_float(evidence[key])
-        if claimed is None or claimed <= 0 or not sector_tables or not entity_ids:
+        if claimed is None or claimed <= 0 or not sector_tables:
             continue
-        # Sanity: filings should NEVER exceed 10,000 for a single entity
+        if is_sector_agg:
+            # Only sanity-check the ceiling (a whole sector can have
+            # hundreds of thousands of (filing, issue) tuples, but not
+            # millions). No tight row-count comparison.
+            if claimed > 1_000_000:
+                issues.append(FactIssue(
+                    "critical", "impossible_filing_count", f"{int(claimed)}", None,
+                    "sector-aggregate filing×issue tuples cannot exceed 1,000,000",
+                ))
+            continue
+        if not entity_ids:
+            continue
+        # Per-entity sanity: filings should NEVER exceed 10,000 for a single entity
         if claimed > 10_000:
             issues.append(FactIssue(
                 "critical", "impossible_filing_count", f"{int(claimed)}", None,
