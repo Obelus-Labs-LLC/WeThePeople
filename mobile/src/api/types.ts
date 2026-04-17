@@ -570,17 +570,197 @@ export interface TechComparisonResponse {
 }
 
 // ── Bill Detail ──────────────────────────────────────────────
+export interface BillSponsor {
+  bioguide_id: string;
+  role: string | null;
+  person_id: string | null;
+  display_name: string;
+  party: string | null;
+  state: string | null;
+  photo_url: string | null;
+}
+
+export interface BillTimelineAction {
+  action_date: string | null;
+  action_text: string | null;
+  action_type: string | null;
+}
+
 export interface BillDetail {
   bill_id: string;
+  congress?: number | null;
+  bill_type?: string | null;
+  bill_number?: string | null;
   title: string | null;
   status_bucket: string | null;
+  latest_action_text?: string | null;
   latest_action_date: string | null;
   introduced_date: string | null;
-  sponsor_person_id: string | null;
   policy_area: string | null;
+  subjects_json?: string | null;
   summary_text: string | null;
-  summary_date: string | null;
-  full_text_url: string | null;
-  is_enriched: boolean;
-  source_urls: string[];
+  summary_date?: string | null;
+  full_text_url?: string | null;
+  congress_url?: string | null;
+  is_enriched?: boolean;
+  source_urls?: string[];
+  sponsors?: BillSponsor[];
+  timeline?: BillTimelineAction[];
+  // Legacy field — may still appear on older endpoints
+  sponsor_person_id?: string | null;
+}
+
+// ── Committees ─────────────────────────────────────────────────
+
+export interface CommitteeSummary {
+  id?: number;
+  thomas_id: string;
+  name: string;
+  chamber: string;
+  committee_type?: string | null;
+  url?: string | null;
+  phone?: string | null;
+  jurisdiction?: string | null;
+  parent_thomas_id?: string | null;
+  member_count?: number;
+  subcommittees?: CommitteeSummary[];
+}
+
+export interface CommitteeMember {
+  bioguide_id: string | null;
+  person_id: string | null;
+  member_name: string | null;
+  role: string | null;
+  rank: number | null;
+  party: string | null;
+  display_name?: string;
+  chamber?: string;
+  state?: string;
+  member_party?: string;
+  photo_url?: string | null;
+}
+
+export interface CommitteeDetail extends CommitteeSummary {
+  members?: CommitteeMember[];
+}
+
+export interface CommitteesListResponse {
+  total: number;
+  committees: CommitteeSummary[];
+}
+
+// ── Sector-agnostic company/contracts (Energy / Transport / Defense / Chemicals / Agriculture) ──
+
+export interface SectorCompany {
+  company_id: string;
+  display_name: string;
+  ticker?: string | null;
+  sector_type?: string | null;
+  headquarters?: string | null;
+  logo_url?: string | null;
+  contract_count?: number;
+  enforcement_count?: number;
+  [key: string]: any;
+}
+
+export interface SectorCompaniesResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  companies: SectorCompany[];
+}
+
+export interface SectorCompanyDetail extends SectorCompany {
+  [key: string]: any;
+}
+
+// ── Search / Legislation / State / Trades / Influence / Activity ──
+
+export interface SearchBillItem {
+  bill_id: string;
+  congress?: number | null;
+  bill_type?: string | null;
+  bill_number?: string | null;
+  title?: string | null;
+  status_bucket?: string | null;
+  policy_area?: string | null;
+  introduced_date?: string | null;
+  latest_action_date?: string | null;
+}
+
+export interface SearchResponse {
+  query: string;
+  type: string;
+  total?: number;
+  bills?: SearchBillItem[];
+  results?: any[];
+}
+
+export interface StateLegislator {
+  person_id: string;
+  display_name: string;
+  party: string;
+  chamber: string;
+  state?: string;
+  photo_url?: string | null;
+}
+
+export interface StateDetail {
+  state: string;
+  state_name?: string;
+  legislators: StateLegislator[];
+  [key: string]: any;
+}
+
+export interface CongressionalTradeItem {
+  id: number | string;
+  person_id: string;
+  display_name?: string | null;
+  ticker?: string | null;
+  company_name?: string | null;
+  transaction_type?: string | null;
+  transaction_date?: string | null;
+  report_date?: string | null;
+  amount_min?: number | null;
+  amount_max?: number | null;
+  asset_type?: string | null;
+}
+
+export interface CongressionalTradesResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  trades: CongressionalTradeItem[];
+}
+
+export interface InfluenceTopLobbyingItem {
+  entity_id?: string;
+  company_id?: string;
+  display_name: string;
+  total_income: number;
+  filing_count: number;
+  sector?: string | null;
+}
+
+export interface InfluenceTopContractItem {
+  entity_id?: string;
+  company_id?: string;
+  display_name: string;
+  total_amount: number;
+  contract_count: number;
+  sector?: string | null;
+}
+
+export interface RecentActivityItem {
+  id?: number | string;
+  event_type?: string;
+  title?: string;
+  summary?: string | null;
+  date?: string | null;
+  person_id?: string | null;
+  person_name?: string | null;
+  entity_id?: string | null;
+  entity_name?: string | null;
+  sector?: string | null;
+  source_url?: string | null;
 }

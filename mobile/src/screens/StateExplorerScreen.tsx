@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS, PARTY_COLORS } from '../constants/colors';
 import { EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
 const ACCENT = '#1E40AF';
 
 const STATES = [
@@ -57,9 +57,7 @@ export default function StateExplorerScreen() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API_BASE}/states/${code}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: StateDetail = await res.json();
+      const data = (await apiClient.getStateDetail(code)) as StateDetail;
       setDetail(data);
     } catch (e: any) {
       setError(e.message || 'Failed to load state data');
@@ -184,7 +182,7 @@ export default function StateExplorerScreen() {
                       <View style={styles.listContent}>
                         <Text style={styles.listName}>{leg.name}</Text>
                         <Text style={styles.listSub}>
-                          {leg.party} &middot; {leg.chamber}{leg.role ? ` &middot; ${leg.role}` : ''}
+                          {leg.party} · {leg.chamber}{leg.role ? ` · ${leg.role}` : ''}
                         </Text>
                       </View>
                     </View>
@@ -223,7 +221,7 @@ export default function StateExplorerScreen() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Data: Congress.gov &middot; OpenStates</Text>
+        <Text style={styles.footerText}>Data: Congress.gov · OpenStates</Text>
       </View>
     </ScrollView>
   );

@@ -69,6 +69,9 @@ export const SECTOR_GRADIENTS: Record<string, [string, string]> = {
   transportation: ['#1E3A5F', '#2563EB'],
   defense: ['#7F1D1D', '#DC2626'],
   agriculture: ['#166534', '#15803D'],
+  telecom: ['#BE185D', '#DB2777'],
+  telecommunications: ['#BE185D', '#DB2777'],
+  education: ['#A16207', '#CA8A04'],
 };
 
 export const ACCENT_COLORS: Record<string, string> = {

@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { TechCompany, TechComparisonItem } from '../api/types';
-import { LoadingSpinner, EmptyState } from '../components/ui';
+import { LoadingSpinner, EmptyState, InlineError } from '../components/ui';
 
 type Metric = {
   key: keyof TechComparisonItem;
@@ -37,31 +37,43 @@ export default function TechCompareScreen() {
   const [loading, setLoading] = useState(true);
   const [comparing, setComparing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [listError, setListError] = useState('');
+  const [compareError, setCompareError] = useState('');
 
-  useEffect(() => {
+  const loadList = React.useCallback(() => {
+    setLoading(true);
+    setListError('');
     apiClient.getTechCompanies({ limit: 50 })
       .then((res) => {
         setAllCompanies(res.companies || []);
-        // Default: select top 5
-        const top5 = (res.companies || []).slice(0, 5).map((c) => c.company_id);
-        setSelectedIds(top5);
+        // Default: select top 5 (only on first load)
+        setSelectedIds((prev) =>
+          prev.length === 0
+            ? (res.companies || []).slice(0, 5).map((c) => c.company_id)
+            : prev
+        );
       })
-      .catch(() => {})
+      .catch((e: any) => setListError(e?.message || 'Failed to load companies'))
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => { loadList(); }, [loadList]);
+
   // Load comparison when selection changes
-  useEffect(() => {
-    if (selectedIds.length >= 2) {
-      setComparing(true);
-      apiClient.getTechComparison(selectedIds)
-        .then((res) => setComparison(res.companies || []))
-        .catch(() => {})
-        .finally(() => setComparing(false));
-    } else {
+  const loadComparison = React.useCallback(() => {
+    if (selectedIds.length < 2) {
       setComparison([]);
+      return;
     }
+    setComparing(true);
+    setCompareError('');
+    apiClient.getTechComparison(selectedIds)
+      .then((res) => setComparison(res.companies || []))
+      .catch((e: any) => setCompareError(e?.message || 'Failed to load comparison'))
+      .finally(() => setComparing(false));
   }, [selectedIds]);
+
+  useEffect(() => { loadComparison(); }, [loadComparison]);
 
   const toggleCompany = (id: string) => {
     setSelectedIds((prev) =>
@@ -75,13 +87,15 @@ export default function TechCompareScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
+    setListError('');
     apiClient.getTechCompanies({ limit: 50 })
       .then((res) => setAllCompanies(res.companies || []))
-      .catch(() => {})
+      .catch((e: any) => setListError(e?.message || 'Failed to refresh'))
       .finally(() => setRefreshing(false));
   };
 
   if (loading) return <LoadingSpinner message="Loading companies..." />;
+  if (listError) return <InlineError message={listError} onRetry={loadList} />;
 
   return (
     <ScrollView
@@ -120,7 +134,11 @@ export default function TechCompareScreen() {
       {/* Comparison results */}
       {comparing && <LoadingSpinner message="Comparing..." />}
 
-      {!comparing && comparison.length >= 2 && (
+      {!comparing && compareError ? (
+        <InlineError message={compareError} onRetry={loadComparison} />
+      ) : null}
+
+      {!comparing && !compareError && comparison.length >= 2 && (
         <View style={styles.resultsSection}>
           {METRICS.map((metric) => (
             <ComparisonRow

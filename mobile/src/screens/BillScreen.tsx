@@ -41,7 +41,7 @@ export default function BillScreen() {
       })
       .catch((err) => setError(err.message || 'Failed to load bill'))
       .finally(() => setLoading(false));
-  }, [billId]);
+  }, [billId, navigation]);
 
   if (loading) return <LoadingSpinner message="Loading bill..." />;
   if (error || !bill) {
@@ -87,17 +87,38 @@ export default function BillScreen() {
           )}
         </View>
 
-        {bill.sponsor_person_id && (
-          <TouchableOpacity
-            style={styles.sponsorLink}
-            onPress={() => navigation.navigate('PersonDetail', { person_id: bill.sponsor_person_id })}
-          >
-            <Ionicons name="person-outline" size={13} color={UI_COLORS.ACCENT} />
-            <Text style={styles.sponsorText}>
-              Sponsor: {bill.sponsor_person_id.replace(/_/g, ' ')}
-            </Text>
-            <Ionicons name="chevron-forward" size={12} color={UI_COLORS.ACCENT} />
-          </TouchableOpacity>
+        {bill.sponsors && bill.sponsors.length > 0 && (
+          <View style={styles.sponsorList}>
+            {bill.sponsors.slice(0, 6).map((s, i) => {
+              const label = s.role === 'sponsor' ? 'Sponsor' : 'Cosponsor';
+              const trailing = [s.party, s.state].filter(Boolean).join('-');
+              const content = (
+                <View style={styles.sponsorLink}>
+                  <Ionicons name="person-outline" size={13} color={UI_COLORS.ACCENT} />
+                  <Text style={styles.sponsorText} numberOfLines={1}>
+                    {label}: {s.display_name}
+                    {trailing ? ` (${trailing})` : ''}
+                  </Text>
+                  {s.person_id && (
+                    <Ionicons name="chevron-forward" size={12} color={UI_COLORS.ACCENT} />
+                  )}
+                </View>
+              );
+              return s.person_id ? (
+                <TouchableOpacity
+                  key={`${s.bioguide_id}-${i}`}
+                  onPress={() => navigation.navigate('PersonDetail', { person_id: s.person_id })}
+                >
+                  {content}
+                </TouchableOpacity>
+              ) : (
+                <View key={`${s.bioguide_id}-${i}`}>{content}</View>
+              );
+            })}
+            {bill.sponsors.length > 6 && (
+              <Text style={styles.moreSponsorsText}>+{bill.sponsors.length - 6} more cosponsors</Text>
+            )}
+          </View>
         )}
       </View>
 
@@ -134,23 +155,28 @@ export default function BillScreen() {
       </View>
 
       {/* Latest action */}
-      {bill.latest_action_date && (
+      {(bill.latest_action_text || bill.latest_action_date) && (
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Ionicons name="time-outline" size={16} color={UI_COLORS.ACCENT} />
             <Text style={styles.sectionTitle}>Latest Action</Text>
           </View>
-          <Text style={styles.latestDate}>
-            {new Date(bill.latest_action_date).toLocaleDateString()}
-          </Text>
+          {bill.latest_action_date && (
+            <Text style={styles.latestDate}>
+              {new Date(bill.latest_action_date).toLocaleDateString()}
+            </Text>
+          )}
+          {bill.latest_action_text && (
+            <Text style={styles.latestText}>{bill.latest_action_text}</Text>
+          )}
         </View>
       )}
 
-      {/* Full text link */}
-      {bill.full_text_url && (
+      {/* Full text link (or fall back to congress.gov) */}
+      {(bill.full_text_url || bill.congress_url) && (
         <TouchableOpacity
           style={styles.fullTextBtn}
-          onPress={() => Linking.openURL(bill.full_text_url!)}
+          onPress={() => Linking.openURL((bill.full_text_url || bill.congress_url)!)}
         >
           <Ionicons name="reader-outline" size={18} color="#fff" />
           <Text style={styles.fullTextBtnText}>Read Full Text</Text>
@@ -158,8 +184,30 @@ export default function BillScreen() {
         </TouchableOpacity>
       )}
 
+      {/* Timeline (first 5 actions) */}
+      {bill.timeline && bill.timeline.length > 0 && (
+        <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="list-outline" size={16} color={UI_COLORS.ACCENT} />
+            <Text style={styles.sectionTitle}>Timeline</Text>
+          </View>
+          {bill.timeline.slice(0, 5).map((a, i) => (
+            <View key={i} style={styles.timelineRow}>
+              {a.action_date && (
+                <Text style={styles.timelineDate}>
+                  {new Date(a.action_date).toLocaleDateString()}
+                </Text>
+              )}
+              {a.action_text && (
+                <Text style={styles.timelineText} numberOfLines={3}>{a.action_text}</Text>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+
       {/* Source links */}
-      {bill.source_urls.length > 0 && (
+      {bill.source_urls && bill.source_urls.length > 0 && (
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Ionicons name="link-outline" size={16} color={UI_COLORS.ACCENT} />
@@ -216,6 +264,7 @@ const styles = StyleSheet.create({
   },
   metaTagText: { fontSize: 11, color: UI_COLORS.TEXT_SECONDARY, fontWeight: '600' },
 
+  sponsorList: { gap: 6 },
   sponsorLink: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: UI_COLORS.ACCENT_LIGHT, paddingHorizontal: 12,
@@ -223,7 +272,9 @@ const styles = StyleSheet.create({
   },
   sponsorText: {
     color: UI_COLORS.ACCENT, fontSize: 12, fontWeight: '600',
-    textTransform: 'capitalize',
+  },
+  moreSponsorsText: {
+    fontSize: 11, color: UI_COLORS.TEXT_MUTED, marginTop: 2,
   },
 
   sectionHeader: {
@@ -253,7 +304,19 @@ const styles = StyleSheet.create({
   },
 
   latestDate: {
-    fontSize: 13, color: UI_COLORS.TEXT_SECONDARY,
+    fontSize: 13, color: UI_COLORS.TEXT_SECONDARY, fontWeight: '600',
+  },
+  latestText: {
+    fontSize: 13, color: UI_COLORS.TEXT_SECONDARY, marginTop: 4, lineHeight: 19,
+  },
+  timelineRow: {
+    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: UI_COLORS.BORDER,
+  },
+  timelineDate: {
+    fontSize: 11, color: UI_COLORS.TEXT_MUTED, fontWeight: '700', marginBottom: 3,
+  },
+  timelineText: {
+    fontSize: 12, color: UI_COLORS.TEXT_SECONDARY, lineHeight: 17,
   },
 
   fullTextBtn: {

@@ -4,6 +4,7 @@ import {
   Text,
   ActivityIndicator,
   StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
 import { UI_COLORS, TIER_COLORS, PARTY_COLORS, ACCENT_COLORS } from '../constants/colors';
 
@@ -23,6 +24,33 @@ export function EmptyState({ title, message }: { title: string; message?: string
     <View style={uiStyles.emptyContainer}>
       <Text style={uiStyles.emptyTitle}>{title}</Text>
       {message && <Text style={uiStyles.emptyMessage}>{message}</Text>}
+    </View>
+  );
+}
+
+// ── Inline Error with Retry ──
+// Section-level error state (small, in-flow) used when a sub-query on a
+// detail screen fails but the surrounding screen is still usable. Shows the
+// failure reason and a retry button so the user can re-attempt the one
+// failing call instead of reloading the whole screen.
+export function InlineError({
+  message,
+  onRetry,
+  title = 'Could not load',
+}: {
+  message: string;
+  onRetry?: () => void;
+  title?: string;
+}) {
+  return (
+    <View style={uiStyles.inlineErrorContainer}>
+      <Text style={uiStyles.inlineErrorTitle}>{title}</Text>
+      <Text style={uiStyles.inlineErrorMessage} numberOfLines={3}>{message}</Text>
+      {onRetry && (
+        <TouchableOpacity onPress={onRetry} style={uiStyles.inlineErrorBtn} activeOpacity={0.8}>
+          <Text style={uiStyles.inlineErrorBtnText}>Try again</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -315,5 +343,38 @@ const uiStyles = StyleSheet.create({
     fontSize: 11,
     fontVariant: ['tabular-nums'],
     minWidth: 30,
+  },
+  inlineErrorContainer: {
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: UI_COLORS.CARD_BG,
+    borderWidth: 1,
+    borderColor: '#DC262630',
+    alignItems: 'center',
+  },
+  inlineErrorTitle: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  inlineErrorMessage: {
+    color: UI_COLORS.TEXT_SECONDARY,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  inlineErrorBtn: {
+    backgroundColor: UI_COLORS.ACCENT,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  inlineErrorBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

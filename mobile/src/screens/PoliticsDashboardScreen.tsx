@@ -145,17 +145,18 @@ export default function PoliticsDashboardScreen() {
         apiClient.getDashboardStats(),
         apiClient.getPeople({ has_ledger: true, limit: 6 }),
         apiClient.getRecentActions(8),
-        fetch('https://api.wethepeopleforus.com/influence/top-lobbying?limit=5')
-          .then(r => r.ok ? r.json() : [])
-          .catch(() => []),
+        apiClient.getTopLobbying({ limit: 5 }).catch(() => [] as any),
       ]);
       setStats(statsRes);
       setPeople(peopleRes.people || []);
       setActions(actionsRes || []);
+      const lobbyList = Array.isArray(lobbyingRes)
+        ? (lobbyingRes as any[])
+        : ((lobbyingRes as any)?.leaders || (lobbyingRes as any)?.results || (lobbyingRes as any)?.data || []);
       setLobbyingData(
-        (lobbyingRes as any[]).map((d: any) => ({
+        lobbyList.map((d: any) => ({
           label: d.display_name?.length > 14 ? d.display_name.slice(0, 13) + '...' : d.display_name || '',
-          value: d.total_lobbying || 0,
+          value: Number(d.total_lobbying ?? d.total_income ?? d.total_amount ?? 0),
         }))
       );
       setError(null);

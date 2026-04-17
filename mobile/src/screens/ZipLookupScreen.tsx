@@ -8,24 +8,25 @@ import { useNavigation } from '@react-navigation/native';
 import { UI_COLORS, PARTY_COLORS } from '../constants/colors';
 import { EmptyState, PartyBadge, ChamberBadge } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
 const ACCENT = '#10B981';
 
 interface Representative {
-  id: string;
-  name: string;
-  role: string;
+  person_id: string;
+  display_name: string;
   party: string;
   chamber: string;
+  state?: string;
+  district?: string | null;
   photo_url?: string;
-  recent_trades?: number;
-  top_donors?: string;
+  is_active?: boolean;
   [key: string]: any;
 }
 
 interface RepResponse {
   zip: string;
   state: string;
+  total?: number;
   representatives: Representative[];
 }
 
@@ -48,12 +49,10 @@ export default function ZipLookupScreen() {
     setResult(null);
     setSearched(true);
     try {
-      const res = await fetch(`${API_BASE}/representatives?zip=${cleaned}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: RepResponse = await res.json();
+      const data = (await apiClient.getRepresentativesByZip(cleaned)) as RepResponse;
       setResult(data);
     } catch (e: any) {
-      setError(e.message || 'Failed to look up representatives');
+      setError(e?.message || 'Failed to look up representatives');
     } finally {
       setLoading(false);
     }
@@ -136,58 +135,46 @@ export default function ZipLookupScreen() {
           {result.representatives.length === 0 ? (
             <EmptyState title="No Representatives" message="No representatives found for this ZIP code." />
           ) : (
-            result.representatives.map((rep, idx) => (
-              <TouchableOpacity
-                key={rep.id || `rep-${idx}`}
-                style={styles.repCard}
-                activeOpacity={0.8}
-                onPress={() => {
-                  if (rep.id) {
-                    navigation.navigate('PersonDetail', { person_id: rep.id });
-                  }
-                }}
-              >
-                {/* Color stripe on left */}
-                <View style={[styles.repStripe, { backgroundColor: partyColor(rep.party) }]} />
+            result.representatives.map((rep, idx) => {
+              const roleLabel =
+                rep.chamber === 'senate'
+                  ? `U.S. Senator${rep.state ? ` — ${rep.state}` : ''}`
+                  : rep.chamber === 'house'
+                    ? `U.S. Representative${rep.state ? ` — ${rep.state}` : ''}${rep.district ? ` · District ${rep.district}` : ''}`
+                    : null;
+              return (
+                <TouchableOpacity
+                  key={rep.person_id || `rep-${idx}`}
+                  style={styles.repCard}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    if (rep.person_id) {
+                      navigation.navigate('PersonDetail', { person_id: rep.person_id });
+                    }
+                  }}
+                >
+                  {/* Color stripe on left */}
+                  <View style={[styles.repStripe, { backgroundColor: partyColor(rep.party) }]} />
 
-                <View style={styles.repContent}>
-                  {/* Name + badges */}
-                  <View style={styles.repHeader}>
-                    <Text style={styles.repName} numberOfLines={1}>{rep.name}</Text>
-                    <Ionicons name="chevron-forward" size={16} color={UI_COLORS.TEXT_MUTED} />
-                  </View>
+                  <View style={styles.repContent}>
+                    {/* Name + badges */}
+                    <View style={styles.repHeader}>
+                      <Text style={styles.repName} numberOfLines={1}>{rep.display_name}</Text>
+                      <Ionicons name="chevron-forward" size={16} color={UI_COLORS.TEXT_MUTED} />
+                    </View>
 
-                  <View style={styles.badgeRow}>
-                    <PartyBadge party={rep.party} />
-                    {rep.chamber && <ChamberBadge chamber={rep.chamber} />}
-                  </View>
+                    <View style={styles.badgeRow}>
+                      <PartyBadge party={rep.party} />
+                      {rep.chamber && <ChamberBadge chamber={rep.chamber} />}
+                    </View>
 
-                  {rep.role && (
-                    <Text style={styles.roleText}>{rep.role}</Text>
-                  )}
-
-                  {/* Stats row */}
-                  <View style={styles.repStats}>
-                    {rep.recent_trades != null && (
-                      <View style={styles.repStatItem}>
-                        <Ionicons name="trending-up" size={13} color={UI_COLORS.TEXT_MUTED} />
-                        <Text style={styles.repStatText}>
-                          {rep.recent_trades} recent trade{rep.recent_trades !== 1 ? 's' : ''}
-                        </Text>
-                      </View>
-                    )}
-                    {rep.top_donors && (
-                      <View style={styles.repStatItem}>
-                        <Ionicons name="cash-outline" size={13} color={UI_COLORS.TEXT_MUTED} />
-                        <Text style={styles.repStatText} numberOfLines={1}>
-                          Top: {rep.top_donors}
-                        </Text>
-                      </View>
+                    {roleLabel && (
+                      <Text style={styles.roleText}>{roleLabel}</Text>
                     )}
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
       )}
@@ -203,7 +190,7 @@ export default function ZipLookupScreen() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Data: Google Civic Information API &middot; Congress.gov</Text>
+        <Text style={styles.footerText}>Data: Google Civic Information API · Congress.gov</Text>
       </View>
     </ScrollView>
   );

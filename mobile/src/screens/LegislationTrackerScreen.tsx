@@ -3,17 +3,19 @@ import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
   TextInput,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
 const ACCENT = '#4338CA';
 
 interface Bill {
   id?: string;
-  title: string;
+  bill_id?: string;
+  title?: string;
   bill_type?: string;
   bill_number?: number | string;
   policy_area?: string;
@@ -21,11 +23,6 @@ interface Bill {
   latest_action_date?: string;
   status_bucket?: string;
   sponsor_name?: string;
-}
-
-interface SearchResponse {
-  results?: Bill[];
-  bills?: Bill[];
 }
 
 const STATUS_COLORS: Record<string, { color: string; bg: string; border: string }> = {
@@ -55,6 +52,7 @@ function formatStatus(status: string): string {
 }
 
 export default function LegislationTrackerScreen() {
+  const navigation = useNavigation<any>();
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,13 +66,12 @@ export default function LegislationTrackerScreen() {
     setLoading(true);
     setHasSearched(true);
     try {
-      const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(q)}&type=bill`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: SearchResponse = await res.json();
-      setBills(data.results || data.bills || []);
+      const data = await apiClient.search(q, 'bill');
+      const list: Bill[] = (data.bills as any) || (data.results as any) || [];
+      setBills(list);
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to search bills');
+      setError(e?.message || 'Failed to search bills');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -169,9 +166,22 @@ export default function LegislationTrackerScreen() {
               const billLabel = bill.bill_type && bill.bill_number
                 ? `${bill.bill_type.toUpperCase()}. ${bill.bill_number}`
                 : null;
+              // Backend returns bill_id as the canonical navigation key; older
+              // responses may use id. Prefer bill_id so nav always targets the
+              // /bills/{bill_id} endpoint.
+              const billId = bill.bill_id || bill.id;
 
               return (
-                <View key={bill.id || `${bill.bill_type}-${bill.bill_number}-${idx}`} style={styles.card}>
+                <TouchableOpacity
+                  key={billId || `${bill.bill_type}-${bill.bill_number}-${idx}`}
+                  style={styles.card}
+                  activeOpacity={0.85}
+                  disabled={!billId}
+                  onPress={() => {
+                    if (!billId) return;
+                    navigation.navigate('BillDetail', { bill_id: billId });
+                  }}
+                >
                   {/* Bill number + status */}
                   <View style={styles.cardTopRow}>
                     {billLabel && (
@@ -215,7 +225,7 @@ export default function LegislationTrackerScreen() {
                       </Text>
                     </View>
                   ) : null}
-                </View>
+                </TouchableOpacity>
               );
             })
           )}
