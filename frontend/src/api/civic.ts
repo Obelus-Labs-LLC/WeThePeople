@@ -3,7 +3,14 @@ import { getApiBaseUrl } from './client';
 const BASE = getApiBaseUrl();
 
 async function apiFetch<T>(path: string, options?: { method?: string; body?: unknown; params?: Record<string, string | number> }): Promise<T> {
-  const url = new URL(`${BASE}${path}`);
+  // BASE can be a relative path like "/api" (prod, same-origin) or an absolute
+  // URL like "https://api.wethepeopleforus.com" (local dev with VITE_API_BASE_URL).
+  // `new URL("/api/...")` without a base throws "Invalid URL" — that's the
+  // "failed to construct URL" error users were hitting on /civic/verify.
+  // Fix: pass window.location.origin as the base so relative paths resolve.
+  const raw = `${BASE}${path}`;
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+  const url = new URL(raw, origin);
   if (options?.params) {
     Object.entries(options.params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));

@@ -24,6 +24,7 @@ const SECTOR_COLORS: Record<string, { bg: string; activeBg: string; activeText: 
   agriculture: { bg: 'bg-green-600', activeBg: 'bg-green-600/20', activeText: 'text-green-400' },
   telecom: { bg: 'bg-cyan-500', activeBg: 'bg-cyan-500/20', activeText: 'text-cyan-400' },
   education: { bg: 'bg-purple-500', activeBg: 'bg-purple-500/20', activeText: 'text-purple-400' },
+  civic: { bg: 'bg-amber-500', activeBg: 'bg-amber-500/20', activeText: 'text-amber-400' },
 };
 
 export default function SectorHeader({ sector, links }: SectorHeaderProps) {
@@ -238,4 +239,17 @@ const EDUCATION_LINKS: NavLink[] = [
 
 export function EducationSectorHeader() {
   return <SectorHeader sector="education" links={EDUCATION_LINKS} />;
+}
+
+const CIVIC_LINKS: NavLink[] = [
+  { label: 'Sectors', to: '/' },
+  { label: 'Civic Hub', to: '/civic' },
+  { label: 'Promises', to: '/civic/promises' },
+  { label: 'Proposals', to: '/civic/proposals' },
+  { label: 'Badges', to: '/civic/badges' },
+  { label: 'Verify', to: '/civic/verify' },
+];
+
+export function CivicSectorHeader() {
+  return <SectorHeader sector="civic" links={CIVIC_LINKS} />;
 }

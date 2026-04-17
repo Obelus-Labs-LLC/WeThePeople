@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Shield, ShieldCheck, MapPin, CheckCircle2 } from 'lucide-react';
 import { fetchVerificationStatus, verifyResidence } from '../api/civic';
 import { useAuth } from '../contexts/AuthContext';
+import { CivicSectorHeader } from '../components/SectorHeader';
 
 const LEVEL_INFO = [
   { label: 'Unverified', desc: 'Email confirmed. Basic access.', color: 'text-zinc-500', bg: 'bg-zinc-800' },
@@ -53,6 +54,9 @@ export default function CivicVerifyPage() {
 
   return (
     <main id="main-content" className="min-h-screen bg-slate-950 text-white">
+      <div className="max-w-6xl mx-auto px-4 pt-6">
+        <CivicSectorHeader />
+      </div>
       <div className="max-w-2xl mx-auto px-4 py-10 sm:py-14">
         <Link to="/civic" className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-amber-400 transition-colors mb-6">
           <ArrowLeft size={14} /> Civic Hub

@@ -182,10 +182,21 @@ def subscribe_to_digest(req: SubscribeRequest, request: Request, db: Session = D
     if len(cleaned) < 5:
         raise HTTPException(status_code=400, detail="Invalid zip code — must be 5 digits")
 
+    # Normalize email — lowercase + strip so dedup is case-insensitive.
+    # Emails are not case-sensitive per RFC 5321 §2.3.11 (local-part),
+    # and uppercase submissions from mobile keyboards were creating duplicate rows.
+    email_norm = (req.email or "").strip().lower()
+    if not email_norm or "@" not in email_norm:
+        raise HTTPException(status_code=400, detail="Invalid email address")
+
     state = _zip_to_state(cleaned)
 
-    # Check for existing subscriber
-    existing = db.query(DigestSubscriber).filter_by(email=req.email).first()
+    # Check for existing subscriber (case-insensitive)
+    existing = (
+        db.query(DigestSubscriber)
+        .filter(func.lower(DigestSubscriber.email) == email_norm)
+        .first()
+    )
     if existing:
         if existing.verified:
             return {"status": "already_subscribed", "message": "This email is already subscribed."}
@@ -197,7 +208,7 @@ def subscribe_to_digest(req: SubscribeRequest, request: Request, db: Session = D
     unsubscribe_token = uuid.uuid4().hex
 
     subscriber = DigestSubscriber(
-        email=req.email,
+        email=email_norm,
         zip_code=cleaned,
         state=state,
         frequency="weekly",
@@ -222,7 +233,7 @@ def subscribe_to_digest(req: SubscribeRequest, request: Request, db: Session = D
     api_base = os.getenv("WTP_API_BASE_URL", "https://api.wethepeopleforus.com")
     verify_url = f"{api_base}/digest/verify/{verification_token}"
     sent = send_email(
-        to=[req.email],
+        to=[email_norm],
         subject="Verify your WeThePeople digest subscription",
         html=(
             f"<p>Thanks for subscribing to the WeThePeople weekly digest for ZIP {cleaned}.</p>"
@@ -231,7 +242,7 @@ def subscribe_to_digest(req: SubscribeRequest, request: Request, db: Session = D
         ),
     )
     if not sent:
-        log.warning("Verification email not sent to %s", req.email)
+        log.warning("Verification email not sent to %s", email_norm)
 
     return {
         "status": "subscribed",
