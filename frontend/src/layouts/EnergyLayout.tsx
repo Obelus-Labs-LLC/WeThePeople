@@ -8,7 +8,7 @@ import SectorBackground from '../components/SectorBackground';
  */
 export default function EnergyLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-screen" style={{ background: '#181c21' }}>
+    <div className="relative min-h-screen" style={{ background: '#272a2e' }}>
       <SectorBackground />
       <div className="relative z-10">
         {children}
