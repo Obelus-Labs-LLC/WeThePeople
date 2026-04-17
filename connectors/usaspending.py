@@ -321,18 +321,37 @@ def fetch_contracts(
         if time_period:
             payload["filters"]["time_period"] = time_period
 
-        try:
-            time.sleep(POLITE_DELAY)
-            resp = requests.post(
-                url,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=30,
+        # Retry on transient network errors (RemoteDisconnected, 5xx).
+        # USASpending periodically drops connections mid-pagination; without
+        # retries a single hiccup silently truncates a 4000-row fetch to
+        # ~700 rows and corrupts downstream totals.
+        data = None
+        last_exc = None
+        for attempt in range(3):
+            try:
+                time.sleep(POLITE_DELAY)
+                resp = requests.post(
+                    url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                last_exc = None
+                break
+            except Exception as e:
+                last_exc = e
+                logger.warning(
+                    "USASpending transient error for '%s' (page %d, attempt %d/3): %s",
+                    recipient_name, page, attempt + 1, e,
+                )
+                time.sleep(2 ** attempt)  # 1s, 2s, 4s backoff
+        if data is None:
+            logger.error(
+                "USASpending fetch gave up for '%s' (page %d) after 3 attempts: %s",
+                recipient_name, page, last_exc,
             )
-            resp.raise_for_status()
-            data = resp.json()
-        except Exception as e:
-            logger.error("USASpending fetch failed for '%s' (page %d): %s", recipient_name, page, e)
             break
 
         results_raw = data.get("results", [])
