@@ -1,0 +1,144 @@
+affirm|Affirm Holdings, Inc.|AFRM|fintech|0001820953||AFFIRM, INC.|1
+aflac|Aflac Incorporated|AFL|insurance|0000004977|||1
+ally-financial|Ally Financial Inc.|ALLY|bank|0000040729|57803|ALLY BANK|1
+american-express|American Express Company|AXP|fintech|0000004962|27471|AMERICAN EXPRESS COMPANY|1
+aig|American International Group|AIG|insurance|0000005272|||1
+ameriprise|Ameriprise Financial, Inc.|AMP|investment|0000820081||AMERIPRISE FINANCIAL|1
+apollo-global|Apollo Global Management|APO|investment|0001411494|||1
+apollo|Apollo Global Management Inc.|APO|investment|0001411494|||1
+arch-capital|Arch Capital Group Ltd.|ACGL|insurance|0000947484|||1
+ares-management|Ares Management Corporation|ARES|investment|0001555280|||1
+assurant|Assurant, Inc.|AIZ|insurance|0001267238||ASSURANT|1
+bill-holdings|BILL Holdings Inc.|BILL|fintech|0001786352|||1
+bok-financial|BOK Financial Corporation|BOKF|bank|0000875357|||1
+bank-of-america|Bank of America Corporation|BAC|bank|0000070858|3510|BANK OF AMERICA, NATIONAL ASSOCIATION|1
+bny-mellon|Bank of New York Mellon Corporation|BK|bank|0001390777|542|THE BANK OF NEW YORK MELLON|1
+berkshire-hathaway|Berkshire Hathaway Inc.|BRK.B|insurance|0001067983|||1
+blackrock|BlackRock, Inc.|BLK|investment|0001364742|||1
+blackstone|Blackstone Inc.|BX|investment|0001393818|||1
+block-inc|Block Inc. (Square)|SQ|fintech|0001512673|||1
+block|Block, Inc.|XYZ|fintech|0001512673||SQUARE, INC.|1
+blue-owl|Blue Owl Capital Inc.|OWL|investment|0001823945|||1
+brookfield-asset|Brookfield Asset Management|BAM|investment|0001001085|||1
+cme-group|CME Group Inc.|CME|investment|0001156375|||1
+capital-one|Capital One Financial Corporation|COF|bank|0000927628|33954|CAPITAL ONE FINANCIAL CORPORATION|1
+cboe|Cboe Global Markets, Inc.|CBOE|investment|0001374310|||1
+chubb|Chubb Limited|CB|insurance|0000896159|||1
+citigroup|Citigroup Inc.|C|bank|0000831001|7213|CITIBANK, N.A.|1
+citizens-financial|Citizens Financial Group|CFG|bank|0000831001|27389|CITIZENS BANK, N.A.|1
+coinbase|Coinbase Global, Inc.|COIN|fintech|0001679788||COINBASE, INC.|1
+columbia-banking|Columbia Banking System Inc.|COLB|bank|0001166928|||1
+comerica|Comerica Incorporated|CMA|bank|0000028412|25222|COMERICA BANK|1
+cullen-frost|Cullen/Frost Bankers Inc.|CFR|bank|0000039263|||1
+discover|Discover Financial Services|DFS|fintech|0001393612|35254|DISCOVER BANK|1
+east-west-bancorp|East West Bancorp, Inc.|EWBC|bank|0000806279|32469|EAST WEST BANK|1
+erie-indemnity|Erie Indemnity Company|ERIE|insurance|0000049697|||1
+everest-group|Everest Group, Ltd.|EG|insurance|0000033137|||1
+fleetcor|FLEETCOR Technologies Inc.|FLT|payments|0001175454|||1
+factset|FactSet Research Systems|FDS|investment|0001013237|||1
+fannie-mae|Fannie Mae (Federal National Mortgage Association)|FNMA|gse|0000310522|||1
+federal-reserve|Federal Reserve System||central_bank||||1
+fidelity|Fidelity Investments (FMR LLC)||investment|0000315066|||1
+fidelity-national-financial|Fidelity National Financial|FNF|insurance|0001331875|||1
+fidelity-national|Fidelity National Financial|FNF|insurance|0001331875|||1
+fis|Fidelity National Information Services|FIS|payments|0001136893|||1
+fifth-third|Fifth Third Bancorp|FITB|bank|0000035527|6672|FIFTH THIRD BANK, NATIONAL ASSOCIATION|1
+first-republic|First Citizens BancShares|FCNCA|bank|0000798941|11063||1
+first-horizon|First Horizon Corporation|FHN|bank|0000036966|14332|FIRST HORIZON BANK|1
+fiserv|Fiserv, Inc.|FI|fintech|0000798354||FISERV|1
+franklin-templeton|Franklin Resources, Inc.|BEN|investment|0000038777|||1
+freddie-mac|Freddie Mac (Federal Home Loan Mortgage)|FMCC|gse|0001026214|||1
+glacier-bancorp|Glacier Bancorp Inc.|GBCI|bank|0000042682|||1
+global-payments|Global Payments Inc.|GPN|fintech|0001123360|||1
+globe-life|Globe Life Inc.|GL|insurance|0000320017|||1
+goldman-sachs|Goldman Sachs Group, Inc.|GS|investment|0000886982|33124|GOLDMAN SACHS BANK USA|1
+green-dot|Green Dot Corporation|GDOT|fintech|0001386278||GREEN DOT CORPORATION|1
+hsbc-us|HSBC Holdings plc (US)|HSBC|bank|0000083246|413|HSBC BANK USA, N.A.|1
+hamilton-lane|Hamilton Lane Incorporated|HLNE|investment|0001433195|||1
+hancock-whitney|Hancock Whitney Corporation|HWC|bank|0000750577|||1
+home-bancfin|Home BancFins Inc.|HBAN|bank||||1
+huntington-bancshares|Huntington Bancshares|HBAN|bank|0000049196|6560|HUNTINGTON NATIONAL BANK|1
+independent-bank|Independent Bank Group Inc.|IBTX|bank|0001564618|||1
+ice|Intercontinental Exchange|ICE|investment|0001571949|||1
+intercontinental-exchange|Intercontinental Exchange Inc.|ICE|exchange|0001571949|||1
+invesco|Invesco Ltd.|IVZ|investment|0000914208|||1
+jpmorgan|JPMorgan Chase & Co.|JPM|bank|0000019617|628|JPMORGAN CHASE & CO.|1
+jack-henry|Jack Henry & Associates|JKHY|fintech|0000896429|||1
+jefferies|Jefferies Financial Group|JEF|investment|0000096223|||1
+kkr|KKR & Co. Inc.|KKR|investment|0001404912|||1
+keycorp|KeyCorp|KEY|bank|0000091576|17039|KEYBANK NATIONAL ASSOCIATION|1
+lpl-financial|LPL Financial Holdings|LPLA|investment|0001397187||LPL FINANCIAL LLC|1
+lazard|Lazard Inc.|LAZ|investment|0001311370|||1
+lemonade|Lemonade Inc.|LMND|fintech|0001691421|||1
+lendingclub|LendingClub Corporation|LC|fintech|0001409970||LENDINGCLUB CORPORATION|1
+lincoln-national|Lincoln National Corporation|LNC|insurance|0000059558|||1
+loews|Loews Corporation (CNA)|L|insurance|0000060714|||1
+mt-bank|M&T Bank Corporation|MTB|bank|0000036270|530|M&T BANK|1
+mandt|M&T Bank Corporation|MTB|bank|0000036270|501|M&T BANK|1
+msci|MSCI Inc.|MSCI|investment|0001408198|||1
+markel|Markel Group Inc.|MKL|insurance|0000070858|||1
+marketaxess|MarketAxess Holdings Inc.|MKTX|investment|0001278021|||1
+marqeta|Marqeta, Inc.|MQ|fintech|0001522540|||1
+mastercard|Mastercard Incorporated|MA|fintech|0001141391||MASTERCARD|1
+metlife|MetLife, Inc.|MET|insurance|0001099219||METLIFE|1
+moodys|Moody's Corporation|MCO|investment|0001059556|||1
+morgan-stanley|Morgan Stanley|MS|investment|0000895421|32992|MORGAN STANLEY & CO. LLC|1
+mr-cooper|Mr. Cooper Group Inc.|COOP|mortgage|0001286613|||1
+nasdaq-inc|Nasdaq, Inc.|NDAQ|investment|0001120193|||1
+nycb|New York Community Bancorp|NYCB|bank|0000910073|26590|FLAGSTAR BANK|1
+new-york-community|New York Community Bancorp|NYCB|bank|0000910073|||1
+northern-trust|Northern Trust Corporation|NTRS|investment|0000073124|4588||1
+nuvei|Nuvei Corporation|NVEI|fintech||||1
+pnc-financial|PNC Financial Services Group|PNC|bank|0000713676|6384|PNC BANK, N.A.|1
+pacific-premier|Pacific Premier Bancorp|PPBI|bank|0000792966|||1
+paypal|PayPal Holdings, Inc.|PYPL|fintech|0001633917||PAYPAL, INC.|1
+pennymac|PennyMac Financial Services|PFSI|mortgage|0001464423|||1
+popular-inc|Popular, Inc.|BPOP|bank|0000763901|32067|POPULAR BANK|1
+principal-financial|Principal Financial Group|PFG|insurance|0001126328|||1
+principal|Principal Financial Group Inc.|PFG|insurance|0001126328|||1
+prudential|Prudential Financial, Inc.|PRU|insurance|0001137774||PRUDENTIAL FINANCIAL|1
+raymond-james|Raymond James Financial|RJF|investment|0000720005|||1
+regions-financial|Regions Financial Corporation|RF|bank|0001281761|12368|REGIONS BANK|1
+renaissancere|RenaissanceRe Holdings Ltd.|RNR|insurance|0000913144|||1
+robinhood|Robinhood Markets, Inc.|HOOD|fintech|0001783879||ROBINHOOD|1
+rocket-companies|Rocket Companies, Inc.|RKT|fintech|0001805284||ROCKET MORTGAGE, LLC|1
+sp-global|S&P Global Inc.|SPGI|investment|0000064040|||1
+svb-financial|SVB Financial Group||bank|0000719739|||1
+shift4|Shift4 Payments, Inc.|FOUR|fintech|0001794669|||1
+sofi|SoFi Technologies, Inc.|SOFI|fintech|0001818874||SOFI LENDING CORP|1
+state-street|State Street Corporation|STT|investment|0000093751|14||1
+stifel-financial|Stifel Financial Corp.|SF|investment|0000720005|||1
+synchrony-financial|Synchrony Financial|SYF|bank|0001601712|27314|SYNCHRONY BANK|1
+synchrony|Synchrony Financial|SYF|bank|0001601712|27314|SYNCHRONY FINANCIAL|1
+synovus|Synovus Financial Corp.|SNV|bank|0000018349|||1
+t-rowe-price|T. Rowe Price Group|TROW|investment|0001018963|||1
+td-bank|TD Bank Group|TD|bank|0000895528||TD BANK, N.A.|1
+tpg-inc|TPG Inc.|TPG|investment|0001880661|||1
+allstate|The Allstate Corporation|ALL|insurance|0000899629||ALLSTATE INSURANCE COMPANY|1
+carlyle-group|The Carlyle Group Inc.|CG|investment|0001527166|||1
+carlyle|The Carlyle Group Inc.|CG|investment|0001527166|||1
+charles-schwab|The Charles Schwab Corporation|SCHW|investment|0000316709|57450|CHARLES SCHWAB CORPORATION, THE|1
+hartford-financial|The Hartford Financial Services|HIG|insurance|0000874766|||1
+hartford|The Hartford Financial Services|HIG|insurance|0000874766|||1
+progressive|The Progressive Corporation|PGR|insurance|0000080661|||1
+travelers|The Travelers Companies, Inc.|TRV|insurance|0000086312|||1
+vanguard|The Vanguard Group||investment||||1
+toast|Toast, Inc.|TOST|fintech|0001650164|||1
+tradeweb|Tradeweb Markets Inc.|TW|investment|0001758730|||1
+truist|Truist Financial Corporation|TFC|bank|0000092230|9846|TRUIST BANK|1
+us-bancorp|U.S. Bancorp|USB|bank|0000036104|6548|U.S. BANCORP|1
+uwm-holdings|UWM Holdings Corporation|UWMC|mortgage|0001783398|||1
+unum-group|Unum Group|UNM|insurance|0000005513|||1
+unum|Unum Group|UNM|insurance|0000005513|||1
+upstart|Upstart Holdings, Inc.|UPST|fintech|0001647639||UPSTART NETWORK, INC.|1
+valley-national|Valley National Bancorp|VLY|bank|0000074260|||1
+virtu-financial|Virtu Financial, Inc.|VIRT|investment|0001592386|||1
+visa|Visa Inc.|V|fintech|0001403161||VISA|1
+w-r-berkley|W. R. Berkley Corporation|WRB|insurance|0000011544|||1
+wex-inc|WEX Inc.|WEX|fintech|0001309108|||1
+webster-financial|Webster Financial Corporation|WBS|bank|0000801337|18214|WEBSTER BANK, N.A.|1
+wells-fargo|Wells Fargo & Company|WFC|bank|0000072971|3511|WELLS FARGO & COMPANY|1
+western-alliance|Western Alliance Bancorporation|WAL|bank|0001124804|57917|WESTERN ALLIANCE BANK|1
+wintrust|Wintrust Financial Corporation|WTFC|bank|0001015328|||1
+zions-bancorporation|Zions Bancorporation|ZION|bank|0000109380|29532|ZIONS BANK|1
+zions-bancorp|Zions Bancorporation|ZION|bank|0000109380|2270|ZIONS BANCORPORATION, N.A.|1

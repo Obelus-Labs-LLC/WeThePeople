@@ -63,6 +63,10 @@ def parse_date(val):
 
 def extract_penalty(title: str, abstract: str = "") -> float:
     """Try to extract a dollar penalty amount from title or abstract."""
+    MAX_REAL_PENALTY = 5e10  # $50B cap — rejects rulemaking thresholds like "$700B"
+    # sanity: reject > 5e10 — any penalty >$50B is essentially never a real penalty
+    # (the largest ever was ~$20B BofA 2014); values that high are almost always
+    # capital thresholds or market-size figures from rulemaking text.
     text = f"{title} {abstract}"
     patterns = [
         r'\$(\d+(?:\.\d+)?)\s*billion',
@@ -78,7 +82,7 @@ def extract_penalty(title: str, abstract: str = "") -> float:
             elif i == 1:
                 return amount * 1_000_000
             else:
-                return amount
+                return amount if amount <= MAX_REAL_PENALTY else None
     return None
 
 
@@ -102,7 +106,7 @@ def classify_enforcement_type(title: str, abstract: str = "") -> str:
     elif "enforcement" in text:
         return "Enforcement Action"
     else:
-        return "Regulatory Action"
+        return None  # Federal Register rulemaking — not a real enforcement action
 
 
 def fetch_enforcement_from_fr(company_name: str, agency_slug: str, source_label: str, limit: int = 100):
@@ -143,15 +147,27 @@ def fetch_enforcement_from_fr(company_name: str, agency_slug: str, source_label:
             if doc_num in seen_doc_numbers:
                 continue
             seen_doc_numbers.add(doc_num)
+            # Federal Register 'Rule' and 'Proposed Rule' types are rulemakings,
+            # not enforcement actions — reject them outright so dollar
+            # thresholds inside the rule text aren't mis-stored as penalties.
+            doc_type = (doc.get("type") or "").strip()
+            if doc_type in ("Rule", "Proposed Rule"):
+                continue
 
             title = doc.get("title", "")
             abstract = doc.get("abstract", "") or ""
+
+            _etype = classify_enforcement_type(title, abstract)
+
+            if _etype is None:
+
+                continue
 
             all_results.append({
                 "case_title": title[:500],
                 "case_date": parse_date(doc.get("publication_date")),
                 "case_url": doc.get("html_url", ""),
-                "enforcement_type": classify_enforcement_type(title, abstract),
+                "enforcement_type": _etype,
                 "penalty_amount": extract_penalty(title, abstract),
                 "description": abstract[:1000] if abstract else title[:500],
                 "source": source_label,
