@@ -288,10 +288,12 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "or trades occurring in the future. If a date in the skeleton is after %d, say 'the most recent "
         "year on record' and do not state the year.\n"
         "R8. REQUIRED DISCLAIMER — CRITICAL. This rule rejects automatically. You MUST include "
-        "the following disclaimer verbatim somewhere in your narrative output (place it at the end of "
-        "NARRATIVE_CONNECTION if that placeholder exists, otherwise at the end of your last narrative "
-        "paragraph): '" + r8_disclaimer + "' Do not paraphrase it. "
-        "Do not omit it. It must appear in every story.\n"
+        "the following disclaimer verbatim exactly ONCE, as its own standalone final paragraph, "
+        "without any `**Disclosure:**`, `Disclaimer:`, italics, or other prefix: '"
+        + r8_disclaimer + "' Do not paraphrase it. Do not repeat it. Do not embed it mid-paragraph. "
+        "Do not write any OTHER disclosure, disclaimer, caveat, or 'Note:' paragraphs — exactly one "
+        "verbatim disclaimer sentence, appended after your last narrative paragraph. A disclaimer "
+        "different from the one quoted above is a rejection.\n"
         "R9. PRESERVE STRUCTURE. Replace ONLY the {NARRATIVE_*} placeholders. Do not add, remove, "
         "reorder, or edit any markdown headings, bullet points, or source lines outside "
         "the placeholders. Do not create markdown tables with pipe characters.\n"
@@ -767,6 +769,30 @@ _DISCLAIMER_PAC = (
     "All data comes from publicly filed FEC campaign finance records."
 )
 
+# Catalogue of every disclaimer variant the pipeline has ever emitted, so
+# `make_story()` can strip legacy copies before (re-)injecting the correct one.
+# Do NOT add new forms here — add them as constants above and register them.
+_ALL_DISCLAIMERS = (_DISCLAIMER_LOBBYING, _DISCLAIMER_TRADE, _DISCLAIMER_FARA, _DISCLAIMER_PAC)
+
+# Regex patterns matching legacy free-text "Disclosure:" paragraphs that
+# pre-R8 Opus prompts produced (often preceded by `*All data from public
+# government records.*`). They must be stripped before a fresh disclaimer is
+# appended, otherwise readers see two disclosure blocks.
+_LEGACY_DISCLOSURE_PATTERNS = [
+    # **Disclosure:** ... wrongdoing.
+    re.compile(
+        r"\n\s*\*?\*?Disclosure:?\*?\*?\s*"
+        r"[\s\S]*?(?:wrongdoing[^\n]*|insider knowledge[^\n]*|implies wrongdoing[^\n]*)\.",
+        re.IGNORECASE,
+    ),
+    # Stand-alone italicised "All data from public government records." lines
+    re.compile(
+        r"\n\s*\*All data from public government records(?:\.\s*No allegations of wrongdoing are made)?\.\*\s*",
+        re.IGNORECASE,
+    ),
+]
+
+
 def _get_disclaimer(category):
     """Return the appropriate disclaimer for a story category."""
     trade_cats = {"prolific_trader", "trade_timing", "trade_cluster",
@@ -779,7 +805,9 @@ def _get_disclaimer(category):
         "lobby_then_win", "enforcement_disappearance", "contract_timing",
         "regulatory_loop", "regulatory_capture", "enforcement_immunity",
         "penalty_contract_ratio", "lobbying_spike", "revolving_door",
-        "cross_sector", "budget_influence",
+        "cross_sector", "budget_influence", "lobbying_breakdown",
+        "education_pipeline", "fara_domestic_overlap",
+        "pac_committee_pipeline",
     }
     if category in trade_cats:
         return _DISCLAIMER_TRADE
@@ -792,6 +820,61 @@ def _get_disclaimer(category):
     return _DISCLAIMER_LOBBYING  # safe default
 
 
+def _normalize_disclaimer_block(body: str, category: str) -> str:
+    """Return `body` with:
+
+      * every known legacy `**Disclosure:**` paragraph removed
+      * every wrong-category canonical disclaimer removed (e.g. the lobbying
+        disclaimer showing up in a STOCK Act story)
+      * every duplicate copy of the correct disclaimer collapsed to a single
+        trailing occurrence
+
+    This runs at story creation and re-runs from remediation scripts so old
+    published stories can be normalised without regenerating.
+    """
+    if not body:
+        return body
+
+    correct = _get_disclaimer(category)
+
+    # 1. Strip every legacy free-text Disclosure paragraph that pre-R8 Opus
+    #    prompts used to produce. Run each pattern to fixed-point so we catch
+    #    stacked copies.
+    for pattern in _LEGACY_DISCLOSURE_PATTERNS:
+        prev = None
+        while prev != body:
+            prev = body
+            body = pattern.sub("", body)
+
+    # 2. Remove every *wrong-category* canonical disclaimer anywhere in the
+    #    body — including copies embedded mid-narrative, which is the most
+    #    common failure mode we saw on published stock_act_violation stories.
+    for variant in _ALL_DISCLAIMERS:
+        if variant == correct:
+            continue
+        while variant in body:
+            body = body.replace(variant, "", 1)
+
+    # 3. Collapse duplicate copies of the correct disclaimer into one
+    #    trailing copy.
+    count = body.count(correct)
+    if count > 1:
+        # Remove every occurrence then re-append a single canonical one.
+        body = body.replace(correct, "")
+    elif count == 1:
+        # Already has exactly one — remove it so we can reattach at the end
+        # (guards against it being stranded mid-paragraph).
+        body = body.replace(correct, "", 1)
+
+    # 4. Collapse >2 blank lines created by the strips.
+    body = re.sub(r"\n{3,}", "\n\n", body).rstrip()
+
+    # 5. Re-append exactly one correct disclaimer as the final paragraph.
+    body = body + "\n\n" + correct
+
+    return body
+
+
 def make_story(title, summary, body, category, sector, entity_ids, data_sources,
                evidence, date_range=None, entity_validated=False):
     """Build a Story row.
@@ -800,21 +883,10 @@ def make_story(title, summary, body, category, sector, entity_ids, data_sources,
     They enter the human review queue and only become published via
     /ops/story-queue approve. Nothing is posted automatically.
     """
-    # Inject disclaimer ONCE for lobbying/contract stories.
-    # Count existing occurrences and only add if zero.
-    disclaimer = _get_disclaimer(category)
-    disclaimer_count = body.count(disclaimer)
-    if disclaimer_count == 0:
-        body = body.rstrip() + "\n\n" + disclaimer
-    elif disclaimer_count > 1:
-        # Remove all but the last occurrence
-        parts = body.split(disclaimer)
-        body = parts[0]
-        for i, part in enumerate(parts[1:], 1):
-            if i == len(parts) - 1:
-                body += disclaimer + part
-            else:
-                body += part
+    # Normalise disclaimer block: strip legacy Disclosure: paragraphs, remove
+    # wrong-category canonical disclaimers that Opus embedded mid-body, and
+    # ensure exactly one correct category disclaimer trails the article.
+    body = _normalize_disclaimer_block(body, category)
 
     story = Story(
         title=title,
@@ -1507,6 +1579,13 @@ def detect_trade_cluster(db):
             body += "- **PAC donations**: FEC Campaign Finance Data\n"
         body += "\n*All data from public government records.*"
 
+        # Derive a date_range label from the observed trade window so every
+        # published story surfaces a data-coverage period instead of null.
+        trade_date_range = None
+        if first_trade and first_trade != "unknown" and last_trade and last_trade != "unknown":
+            a, b = first_trade[:7], last_trade[:7]
+            trade_date_range = a if a == b else "%s - %s" % (a, b)
+
         stories.append(make_story(
             title=title,
             summary="%s executed %d stock trades across %d companies per STOCK Act disclosures." % (name, trade_count, ticker_count),
@@ -1516,6 +1595,7 @@ def detect_trade_cluster(db):
             entity_ids=[pid],
             data_sources=["congressional_trades", "House Financial Disclosures"],
             evidence={"trade_count": trade_count, "ticker_count": ticker_count, "party": party, "state": state, "first_trade": first_trade, "last_trade": last_trade, "trading_days": trading_days},
+            date_range=trade_date_range,
         ))
         if len(stories) >= 1:
             break
@@ -1601,6 +1681,21 @@ def detect_lobby_contract_loop(db, sector_idx=None):
         body += "- **Contracts**: USASpending.gov\n"
         body += "\n*All data from public government records.*"
 
+        # Derive coverage range from both lobbying + contract tables for this entity.
+        ll_range = get_data_date_range(db, l_table, id_col, eid)
+        cc_range = get_data_date_range(db, c_table, id_col, eid)
+        loop_range = None
+        if ll_range and cc_range:
+            mn = min(ll_range[0], cc_range[0]) if ll_range[0] and cc_range[0] else (ll_range[0] or cc_range[0])
+            mx = max(ll_range[1], cc_range[1]) if ll_range[1] and cc_range[1] else (ll_range[1] or cc_range[1])
+            if mn and mx:
+                a, b = str(mn)[:7], str(mx)[:7]
+                loop_range = a if a == b else "%s - %s" % (a, b)
+        elif ll_range:
+            loop_range = ll_range[2]
+        elif cc_range:
+            loop_range = cc_range[2]
+
         stories.append(make_story(
             title=title,
             summary="%s spent %s lobbying and received %s in %d contracts." % (name, fmt_money(lobby_total), fmt_money(contract_total), contract_count),
@@ -1610,6 +1705,7 @@ def detect_lobby_contract_loop(db, sector_idx=None):
             entity_ids=[eid],
             data_sources=[l_table, c_table, "Senate LDA (senate.gov)", "USASpending.gov"],
             evidence={"lobby_total": lobby_total, "contract_total": contract_total, "contract_count": contract_count},
+            date_range=loop_range,
         ))
         if len(stories) >= 1:
             break
@@ -1669,6 +1765,19 @@ def detect_tax_lobbying(db, sector_idx=None):
     body += "- **Lobbying disclosures**: Senate LDA filings (senate.gov)\n"
     body += "\n*All data from public government records.*"
 
+    # Coverage window across all Taxation-tagged filings for this sector.
+    tax_range = None
+    try:
+        dr = db.execute(text(
+            "SELECT MIN(filing_year), MAX(filing_year) FROM %s "
+            "WHERE lobbying_issues LIKE '%%Taxation%%' AND income > 0" % table
+        )).fetchone()
+        if dr and dr[0] and dr[1]:
+            a, b = str(dr[0]), str(dr[1])
+            tax_range = a if a == b else "%s - %s" % (a, b)
+    except Exception:
+        tax_range = None
+
     stories.append(make_story(
         title=title,
         summary="%s companies spent %s lobbying on tax policy across %d filings." % (sector_label, fmt_money(total_tax_spend), sum(company_filings.values())),
@@ -1678,6 +1787,7 @@ def detect_tax_lobbying(db, sector_idx=None):
         entity_ids=[eid for eid, _ in top_companies[:5]],
         data_sources=[table, "Senate LDA (senate.gov)"],
         evidence={"total_tax_spend": total_tax_spend, "filing_count": sum(company_filings.values()), "company_count": len(company_tax_spend)},
+        date_range=tax_range,
     ))
     return stories
 
@@ -1744,6 +1854,20 @@ def detect_budget_lobbying(db, sector_idx=None):
     body += "- **Contracts**: USASpending.gov\n"
     body += "\n*All data from public government records.*"
 
+    # Coverage window across all Budget/Appropriations-tagged filings for sector.
+    budget_range = None
+    try:
+        dr = db.execute(text(
+            "SELECT MIN(filing_year), MAX(filing_year) FROM %s "
+            "WHERE (lobbying_issues LIKE '%%Budget%%' OR lobbying_issues LIKE '%%Appropriation%%') "
+            "AND income > 0" % table
+        )).fetchone()
+        if dr and dr[0] and dr[1]:
+            a, b = str(dr[0]), str(dr[1])
+            budget_range = a if a == b else "%s - %s" % (a, b)
+    except Exception:
+        budget_range = None
+
     stories.append(make_story(
         title=title,
         summary="%s companies spent %s lobbying on federal budget and appropriations." % (sector_label, fmt_money(total_budget_spend)),
@@ -1753,6 +1877,7 @@ def detect_budget_lobbying(db, sector_idx=None):
         entity_ids=[eid for eid, _ in top_companies[:5]],
         data_sources=[table, c_table, "Senate LDA (senate.gov)", "USASpending.gov"],
         evidence={"total_budget_spend": total_budget_spend, "filing_count": sum(company_filings.values())},
+        date_range=budget_range,
     ))
     return stories
 
@@ -1866,6 +1991,16 @@ def detect_trade_before_legislation(db):
         body += "\n*All data from public government records. No allegations of wrongdoing are made.*"
 
         tickers = list(set(h["ticker"] for h in hits if h["ticker"]))
+
+        # Span of observed trade/action dates across every hit in this cluster.
+        trade_dates = [x["trade_date"] for x in hits if x["trade_date"] and x["trade_date"] != "unknown"]
+        action_dates = [x["action_date"] for x in hits if x["action_date"] and x["action_date"] != "unknown"]
+        all_dates = [d[:10] for d in trade_dates + action_dates if d]
+        tbl_range = None
+        if all_dates:
+            mn, mx = min(all_dates)[:7], max(all_dates)[:7]
+            tbl_range = mn if mn == mx else "%s - %s" % (mn, mx)
+
         stories.append(make_story(
             title=title,
             summary="%s traded %s stock within %d days of legislative action on a bill they %s." % (
@@ -1881,6 +2016,7 @@ def detect_trade_before_legislation(db):
                 "overlap_count": len(hits), "min_gap_days": min(x["day_gap"] for x in hits),
                 "tickers": tickers[:5],
             },
+            date_range=tbl_range,
         ))
         if len(stories) >= 2:
             break
@@ -2005,6 +2141,20 @@ def detect_lobby_then_win(db, sector_idx=None):
             body += "- **Contracts**: USASpending.gov\n"
             body += "\n*All data from public government records.*"
 
+            # Coverage range = union of this entity's lobby + contract dates.
+            ll_range = get_data_date_range(db, l_table, id_col, eid)
+            cc_range = get_data_date_range(db, c_table, id_col, eid)
+            ltw_range = None
+            if ll_range and cc_range and ll_range[0] and cc_range[0]:
+                mn = min(ll_range[0], cc_range[0])
+                mx = max(ll_range[1] or ll_range[0], cc_range[1] or cc_range[0])
+                a, b = str(mn)[:7], str(mx)[:7]
+                ltw_range = a if a == b else "%s - %s" % (a, b)
+            elif ll_range:
+                ltw_range = ll_range[2]
+            elif cc_range:
+                ltw_range = cc_range[2]
+
             stories.append(make_story(
                 title=title,
                 summary="%s spent %s lobbying %s, which awarded them %s across %d contracts." % (
@@ -2020,6 +2170,7 @@ def detect_lobby_then_win(db, sector_idx=None):
                     "contract_count": contract_count, "agency": agency,
                     "return_ratio": ratio, "top_issues": dict(top_issues),
                 },
+                date_range=ltw_range,
             ))
             if len(stories) >= 1:
                 return stories
@@ -2120,6 +2271,20 @@ def detect_enforcement_disappearance(db, sector_idx=None):
         body += "- **Lobbying**: Senate LDA filings (senate.gov)\n"
         body += "\n*All data from public government records.*"
 
+        # Coverage = union of enforcement history + lobbying activity for entity.
+        ee_range = get_data_date_range(db, e_table, id_col, eid)
+        ll_range = get_data_date_range(db, l_table, id_col, eid)
+        disp_range = None
+        if ee_range and ll_range and ee_range[0] and ll_range[0]:
+            mn = min(ee_range[0], ll_range[0])
+            mx = max(ee_range[1] or ee_range[0], ll_range[1] or ll_range[0])
+            a, b = str(mn)[:7], str(mx)[:7]
+            disp_range = a if a == b else "%s - %s" % (a, b)
+        elif ee_range:
+            disp_range = ee_range[2]
+        elif ll_range:
+            disp_range = ll_range[2]
+
         stories.append(make_story(
             title=title,
             summary="%s had %d enforcement actions before 2023, then spent %s lobbying, and now faces zero penalties." % (name, old, fmt_money(lobby_total)),
@@ -2129,6 +2294,7 @@ def detect_enforcement_disappearance(db, sector_idx=None):
             entity_ids=[eid],
             data_sources=[e_table, l_table, "Federal Register", "Senate LDA (senate.gov)"],
             evidence={"old_actions": old, "recent_actions": 0, "lobby_total": lobby_total, "lobby_count": lobby_count, "enforcement_source": enforcement_source, "enforcement_table": e_table},
+            date_range=disp_range,
         ))
         if len(stories) >= 1:
             break
@@ -2232,6 +2398,19 @@ def detect_pac_committee_pipeline(db):
         body += "- **Committee memberships**: congress-legislators (CC0)\n"
         body += "\n*All data from public government records.*"
 
+        # Coverage range = full span of this entity's PAC donation history.
+        pac_range = None
+        try:
+            dr = db.execute(text(
+                "SELECT MIN(donation_date), MAX(donation_date) FROM company_donations "
+                "WHERE entity_id = :eid AND donation_date IS NOT NULL"
+            ), {"eid": eid}).fetchone()
+            if dr and dr[0] and dr[1]:
+                a, b = str(dr[0])[:7], str(dr[1])[:7]
+                pac_range = a if a == b else "%s - %s" % (a, b)
+        except Exception:
+            pac_range = None
+
         stories.append(make_story(
             title=title,
             summary="%s sent %.0f%% of %s in PAC money to members of its oversight committees." % (name, pct, fmt_money(data["total"])),
@@ -2241,6 +2420,7 @@ def detect_pac_committee_pipeline(db):
             entity_ids=[eid],
             data_sources=["company_donations", "committee_memberships", "FEC", "congress-legislators"],
             evidence={"total_donations": data["total"], "committee_donations": data["committee_total"], "pct": pct, "committees": list(data["committee_names"])},
+            date_range=pac_range,
         ))
         if len(stories) >= 2:
             break
@@ -2321,6 +2501,14 @@ def detect_contract_timing(db, sector_idx=None):
         body += "- **Committee memberships**: congress-legislators (CC0)\n"
         body += "\n*All data from public government records. Timing correlation does not prove causation.*"
 
+        # Coverage = span covering both the contract start and the donation window.
+        ctr_dates = [str(start_date)[:10]] if start_date else []
+        ctr_dates.extend(str(r[1])[:10] for r in donation_rows if r[1])
+        ct_range = None
+        if ctr_dates:
+            mn, mx = min(ctr_dates)[:7], max(ctr_dates)[:7]
+            ct_range = mn if mn == mx else "%s - %s" % (mn, mx)
+
         stories.append(make_story(
             title=title,
             summary="%s donated %s to Appropriations committee members within 90 days of receiving a %s federal contract." % (
@@ -2335,6 +2523,7 @@ def detect_contract_timing(db, sector_idx=None):
                 "contract_amount": float(amount), "donation_total": total_donations,
                 "agency": agency, "days_window": 90, "recipient_count": len(recipients),
             },
+            date_range=ct_range,
         ))
         if len(stories) >= 1:
             break
@@ -2430,6 +2619,19 @@ def detect_fara_domestic_overlap(db):
         body += "- **Domestic lobbying**: Senate LDA filings (senate.gov)\n"
         body += "\n*All data from public government records.*"
 
+        # Coverage = union of FARA registrations and LDA filings for this firm.
+        fara_range = None
+        try:
+            dr = db.execute(text(
+                "SELECT MIN(registration_date), MAX(registration_date) FROM fara_registrants "
+                "WHERE LOWER(registrant_name) = :rn"
+            ), {"rn": m["firm"].strip().lower()}).fetchone()
+            if dr and dr[0] and dr[1]:
+                a, b = str(dr[0])[:7], str(dr[1])[:7]
+                fara_range = a if a == b else "%s - %s" % (a, b)
+        except Exception:
+            fara_range = None
+
         stories.append(make_story(
             title=title,
             summary="%s, a law firm registered under FARA for foreign clients, also filed regular LDA lobbying disclosures for US-based %s (%s sector), totaling %s. %s is not a foreign principal; these are separate engagements by the same firm." % (
@@ -2444,6 +2646,7 @@ def detect_fara_domestic_overlap(db):
                 "firm": m["firm"], "company": m["company"], "income": m["income"],
                 "foreign_principals": [fp[0] for fp in m["foreign_principals"]],
             },
+            date_range=fara_range,
         ))
         if len(stories) >= 1:
             break
@@ -2540,6 +2743,19 @@ def detect_revolving_door(db):
             body += "- **Lobbying disclosures**: Senate LDA filings (senate.gov)\n"
             body += "\n*All data from public government records.*"
 
+            # Coverage = MIN/MAX filing_year across all filings by this firm.
+            rd_range = None
+            try:
+                dr = db.execute(text(
+                    "SELECT MIN(filing_year), MAX(filing_year) FROM %s "
+                    "WHERE registrant_name = :firm" % l_table
+                ), {"firm": firm}).fetchone()
+                if dr and dr[0] and dr[1]:
+                    a, b = str(dr[0]), str(dr[1])
+                    rd_range = a if a == b else "%s - %s" % (a, b)
+            except Exception:
+                rd_range = None
+
             stories.append(make_story(
                 title=title,
                 summary="Lobbying firm %s targets %s in %.0f%% of its filings, earning %s from %d clients." % (
@@ -2551,6 +2767,7 @@ def detect_revolving_door(db):
                 entity_ids=firm_entity_ids,
                 data_sources=[l_table, "Senate LDA (senate.gov)"],
                 evidence={"firm": firm, "top_agency": top_agency[0], "concentration": concentration, "total_income": total_income},
+                date_range=rd_range,
             ))
             if len(stories) >= 1:
                 return stories
