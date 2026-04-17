@@ -26,8 +26,18 @@ from models.database import SessionLocal, Base, engine
 from models.stories_models import Story
 from sqlalchemy import text
 
+# Route every published body through the hardened disclaimer normaliser so
+# this legacy one-off generator cannot reintroduce the duplicate/mismatched
+# disclaimers we saw on pre-remediation stories.
+from jobs.detect_stories import _normalize_disclaimer_block
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
+
+
+def _finalize_body(body: str, category: str) -> str:
+    """Strip legacy disclaimers and append the correct category disclaimer."""
+    return _normalize_disclaimer_block(body, category)
 
 # ── Sector config ──
 
@@ -359,7 +369,7 @@ def generate_sector_breakdown(db, sector_key, cfg):
         title=title,
         slug=slug(title),
         summary=summary,
-        body=body,
+        body=_finalize_body(body, "lobbying_breakdown"),
         category="lobbying_breakdown",
         sector=sector_key,
         entity_ids=entity_ids,
@@ -442,7 +452,7 @@ def generate_cross_sector_story(db):
         title=title,
         slug=slug(title),
         summary=summary,
-        body=body,
+        body=_finalize_body(body, "lobbying_breakdown"),
         category="lobbying_breakdown",
         sector=None,
         entity_ids=[],
@@ -600,7 +610,7 @@ def generate_tax_budget_stories(db):
             title=title,
             slug=slug(title),
             summary=summary,
-            body=body,
+            body=_finalize_body(body, "tax_lobbying"),
             category="tax_lobbying",
             sector=None,
             entity_ids=[cid for cid, _, _ in top_tax[:10]],
@@ -738,7 +748,7 @@ def generate_tax_budget_stories(db):
             title=title,
             slug=slug(title),
             summary=summary,
-            body=body,
+            body=_finalize_body(body, "budget_influence"),
             category="budget_influence",
             sector=None,
             entity_ids=[],
@@ -857,7 +867,7 @@ def generate_tax_budget_stories(db):
                 title=title,
                 slug=slug(title),
                 summary=summary,
-                body=body,
+                body=_finalize_body(body, "regulatory_loop"),
                 category="regulatory_loop",
                 sector="telecom",
                 entity_ids=[cid for cid, _ in top_telecom[:10]],
@@ -977,7 +987,7 @@ def generate_tax_budget_stories(db):
                 title=title,
                 slug=slug(title),
                 summary=summary,
-                body=body,
+                body=_finalize_body(body, "education_pipeline"),
                 category="education_pipeline",
                 sector="education",
                 entity_ids=[cid for cid, _ in top_ed[:10]],

@@ -25,26 +25,30 @@ from models.database import SessionLocal, Base, engine
 from models.stories_models import Story
 from sqlalchemy import text
 
-
-def slug(title):
-    """Generate URL slug from title."""
-    s = title.lower()
-    for ch in ["'", '"', ":", ",", ".", "?", "!", "(", ")", "$", "%", "+", "&"]:
-        s = s.replace(ch, "")
-    s = s.replace(" ", "-").replace("--", "-").strip("-")
-    return s[:120]
-
-
-def story_exists(db, story_slug):
-    """Check if a story with this slug already exists."""
-    return db.query(Story).filter(Story.slug == story_slug).first() is not None
+# Use the hardened helpers from the main detector so one-off generator scripts
+# go through the same disclaimer normalisation, dedup, and verification logic
+# as the pipeline. Importing here keeps one source of truth.
+from jobs.detect_stories import (
+    slug,
+    story_exists,
+    make_story as _pipeline_make_story,
+    compute_verification_score,
+    get_data_date_range as _pipeline_get_data_date_range,
+)
 
 
-def make_story(title, summary, body, category, sector, entity_ids, data_sources, evidence):
-    """Create a Story object."""
-    return Story(
+def make_story(title, summary, body, category, sector, entity_ids, data_sources, evidence,
+               date_range=None, entity_validated=False, auto_publish=True):
+    """Create a Story object via the hardened pipeline helper.
+
+    The historical behaviour of this script was to publish stories directly,
+    bypassing the Gate-5 human review queue. We preserve that for legacy
+    callers by default (auto_publish=True) but everything else — disclaimer
+    normalisation, data_date_range attachment, verification scoring — now
+    matches the main pipeline.
+    """
+    story = _pipeline_make_story(
         title=title,
-        slug=slug(title),
         summary=summary,
         body=body,
         category=category,
@@ -52,9 +56,13 @@ def make_story(title, summary, body, category, sector, entity_ids, data_sources,
         entity_ids=entity_ids,
         data_sources=data_sources,
         evidence=evidence,
-        status="published",
-        published_at=datetime.now(timezone.utc),
+        date_range=date_range,
+        entity_validated=entity_validated,
     )
+    if auto_publish:
+        story.status = "published"
+        story.published_at = datetime.now(timezone.utc)
+    return story
 
 
 def generate_stories(db):

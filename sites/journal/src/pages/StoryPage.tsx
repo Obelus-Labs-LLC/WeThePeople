@@ -654,22 +654,23 @@ export default function StoryPage() {
           </section>
         )}
 
-        {/* Disclaimer */}
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5 mb-12">
-          <p className="text-xs text-zinc-500 leading-relaxed">
-            <span className="font-semibold text-zinc-400">Disclaimer:</span>{' '}
-            This investigation is based entirely on public government records.
-            No editorial opinions are expressed. Data is sourced from
-            Senate LDA filings, USASpending.gov, SEC EDGAR, Federal Register,
-            and other publicly available government databases. For methodology
-            details, visit{' '}
-            <a
-              href="https://wethepeopleforus.com/methodology"
-              className="text-amber-400/70 hover:text-amber-400 transition-colors"
-            >
-              our methodology page
-            </a>.
-          </p>
+        {/*
+          NOTE: every published body already ends with its own category-specific
+          disclaimer (see jobs.detect_stories._normalize_disclaimer_block). We
+          used to render a second static "Disclaimer:" panel here which
+          duplicated the body text and confused readers on stories whose body
+          disclaimer did not match. The panel was removed 2026-04-17; keep the
+          lightweight Methodology CTA instead so readers can still jump to the
+          methodology page from the story footer.
+        */}
+        <div className="mb-12 text-xs text-zinc-500">
+          For data sources and verification methodology, see{' '}
+          <a
+            href="https://wethepeopleforus.com/methodology"
+            className="text-amber-400/70 hover:text-amber-400 transition-colors"
+          >
+            our methodology page
+          </a>.
         </div>
 
         {/* Related stories */}
