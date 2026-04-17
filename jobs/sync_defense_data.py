@@ -13,7 +13,7 @@ Usage:
 import os
 from connectors.sec_edgar import SEC_BROWSE_BASE
 from connectors.senate_lda import LDA_BASE
-from connectors.usaspending import USASPENDING_BASE
+from connectors.usaspending import USASPENDING_BASE, filter_contracts_by_recipient
 import sys
 import time
 import hashlib
@@ -241,7 +241,7 @@ def fetch_contracts(session, company: TrackedDefenseCompany):
                 "time_period": [{"start_date": "2015-01-01", "end_date": datetime.now().strftime("%Y-%m-%d")}],
                 "agencies": [{"type": "awarding", "tier": "toptier", "name": name} for name in DOD_AGENCIES],
             },
-            "fields": ["Award ID", "Award Amount", "Awarding Agency", "Description", "Start Date", "End Date", "Award Type"],
+            "fields": ["Award ID", "Award Amount", "Awarding Agency", "Description", "Start Date", "End Date", "Award Type", "Recipient Name"],
             "limit": page_size,
             "page": page,
             "sort": "Award Amount",
@@ -259,6 +259,13 @@ def fetch_contracts(session, company: TrackedDefenseCompany):
         results = data.get("results", [])
         if not results:
             break
+
+        # Drop rows whose Recipient Name doesn't belong to this company.
+        # USASpending `recipient_search_text` is a substring match, so the
+        # raw page can include unrelated vendors (e.g. querying
+        # "LOCKHEED MARTIN" returns Sikorsky, Aerojet Rocketdyne, and any
+        # small business with "lockheed" in the name). See connectors/usaspending.py.
+        results = filter_contracts_by_recipient(results, search_name)
 
         for r in results:
             award_id = r.get("Award ID") or r.get("generated_internal_id", "")
