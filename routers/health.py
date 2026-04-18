@@ -19,7 +19,7 @@ from models.health_models import (
 )
 from models.database import CompanyDonation
 from models.market_models import StockFundamentals
-from utils.db_compat import extract_year
+from utils.db_compat import extract_year, lobby_spend
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -34,7 +34,7 @@ def get_health_dashboard_stats(db: Session = Depends(get_db)):
     total_payments = db.query(func.count(CMSPayment.id)).scalar() or 0
     total_sec_filings = db.query(func.count(SECHealthFiling.id)).scalar() or 0
     total_lobbying = db.query(func.count(HealthLobbyingRecord.id)).scalar() or 0
-    total_lobbying_spend = db.query(func.sum(HealthLobbyingRecord.income)).scalar() or 0
+    total_lobbying_spend = db.query(func.sum(lobby_spend(HealthLobbyingRecord))).scalar() or 0
     total_contracts = db.query(func.count(HealthGovernmentContract.id)).scalar() or 0
     total_contract_value = db.query(func.sum(HealthGovernmentContract.award_amount)).scalar() or 0
     total_enforcement = db.query(func.count(HealthEnforcement.id)).scalar() or 0
@@ -78,7 +78,7 @@ def get_health_company(company_id: str, db: Session = Depends(get_db)):
     trials_by_status = dict(db.query(ClinicalTrial.overall_status, func.count(ClinicalTrial.id)).filter_by(company_id=company_id).group_by(ClinicalTrial.overall_status).all())
     serious_count = db.query(func.count(FDAAdverseEvent.id)).filter_by(company_id=company_id, serious=1).scalar() or 0
     lobbying_count = db.query(func.count(HealthLobbyingRecord.id)).filter_by(company_id=company_id).scalar() or 0
-    lobbying_spend = db.query(func.sum(HealthLobbyingRecord.income)).filter_by(company_id=company_id).scalar() or 0.0
+    lobbying_spend = db.query(func.sum(lobby_spend(HealthLobbyingRecord))).filter_by(company_id=company_id).scalar() or 0.0
     contract_count = db.query(func.count(HealthGovernmentContract.id)).filter_by(company_id=company_id).scalar() or 0
     contract_value = db.query(func.sum(HealthGovernmentContract.award_amount)).filter_by(company_id=company_id).scalar() or 0.0
     enforcement_count = db.query(func.count(HealthEnforcement.id)).filter_by(company_id=company_id).scalar() or 0
@@ -170,12 +170,12 @@ def get_health_company_lobbying_summary(company_id: str, db: Session = Depends(g
     co = db.query(TrackedCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Health company not found")
     total_filings = db.query(HealthLobbyingRecord).filter_by(company_id=company_id).count()
-    total_income = db.query(func.sum(HealthLobbyingRecord.income)).filter_by(company_id=company_id).scalar() or 0
+    total_income = db.query(func.sum(lobby_spend(HealthLobbyingRecord))).filter_by(company_id=company_id).scalar() or 0
     by_year = {}
-    rows = db.query(HealthLobbyingRecord.filing_year, func.sum(HealthLobbyingRecord.income), func.count()).filter_by(company_id=company_id).group_by(HealthLobbyingRecord.filing_year).order_by(HealthLobbyingRecord.filing_year).all()
+    rows = db.query(HealthLobbyingRecord.filing_year, func.sum(lobby_spend(HealthLobbyingRecord)), func.count()).filter_by(company_id=company_id).group_by(HealthLobbyingRecord.filing_year).order_by(HealthLobbyingRecord.filing_year).all()
     for year, income, count in rows: by_year[str(year)] = {"income": income or 0, "filings": count}
     top_firms = {}
-    rows = db.query(HealthLobbyingRecord.registrant_name, func.sum(HealthLobbyingRecord.income), func.count()).filter_by(company_id=company_id).group_by(HealthLobbyingRecord.registrant_name).order_by(func.sum(HealthLobbyingRecord.income).desc()).limit(10).all()
+    rows = db.query(HealthLobbyingRecord.registrant_name, func.sum(lobby_spend(HealthLobbyingRecord)), func.count()).filter_by(company_id=company_id).group_by(HealthLobbyingRecord.registrant_name).order_by(func.sum(lobby_spend(HealthLobbyingRecord)).desc()).limit(10).all()
     for name, income, count in rows:
         if name: top_firms[name] = {"income": income or 0, "filings": count}
     return {"total_filings": total_filings, "total_income": total_income, "by_year": by_year, "top_firms": top_firms}
@@ -229,7 +229,7 @@ def get_health_comparison(ids: str = Query(..., description="Comma-separated com
     trial_counts = dict(db.query(ClinicalTrial.company_id, func.count(ClinicalTrial.id)).filter(ClinicalTrial.company_id.in_(company_ids)).group_by(ClinicalTrial.company_id).all())
     contract_counts = dict(db.query(HealthGovernmentContract.company_id, func.count(HealthGovernmentContract.id)).filter(HealthGovernmentContract.company_id.in_(company_ids)).group_by(HealthGovernmentContract.company_id).all())
     contract_values = dict(db.query(HealthGovernmentContract.company_id, func.sum(HealthGovernmentContract.award_amount)).filter(HealthGovernmentContract.company_id.in_(company_ids)).group_by(HealthGovernmentContract.company_id).all())
-    lobbying_totals = dict(db.query(HealthLobbyingRecord.company_id, func.sum(HealthLobbyingRecord.income)).filter(HealthLobbyingRecord.company_id.in_(company_ids)).group_by(HealthLobbyingRecord.company_id).all())
+    lobbying_totals = dict(db.query(HealthLobbyingRecord.company_id, func.sum(lobby_spend(HealthLobbyingRecord))).filter(HealthLobbyingRecord.company_id.in_(company_ids)).group_by(HealthLobbyingRecord.company_id).all())
     enforcement_counts = dict(db.query(HealthEnforcement.company_id, func.count(HealthEnforcement.id)).filter(HealthEnforcement.company_id.in_(company_ids)).group_by(HealthEnforcement.company_id).all())
     penalty_totals = dict(db.query(HealthEnforcement.company_id, func.sum(HealthEnforcement.penalty_amount)).filter(HealthEnforcement.company_id.in_(company_ids)).group_by(HealthEnforcement.company_id).all())
     stock_map = {}

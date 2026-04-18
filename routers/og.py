@@ -30,6 +30,7 @@ from models.tech_models import (
 from models.energy_models import (
     TrackedEnergyCompany, EnergyLobbyingRecord, EnergyGovernmentContract, EnergyEnforcement,
 )
+from utils.db_compat import lobby_spend as _lobby_spend_expr
 
 router = APIRouter(prefix="/og", tags=["og"])
 
@@ -177,7 +178,7 @@ def _generate_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
             inst = db.query(TrackedInstitution).filter_by(institution_id=entity_id).first()
             if not inst:
                 raise HTTPException(status_code=404, detail="Institution not found")
-            lobby_spend = db.query(func.sum(FinanceLobbyingRecord.income)).filter_by(institution_id=entity_id).scalar() or 0
+            lobby_spend = db.query(func.sum(_lobby_spend_expr(FinanceLobbyingRecord))).filter_by(institution_id=entity_id).scalar() or 0
             contracts = db.query(func.count(FinanceGovernmentContract.id)).filter_by(institution_id=entity_id).scalar() or 0
             enforcement = db.query(func.count(FinanceEnforcement.id)).filter_by(institution_id=entity_id).scalar() or 0
             stats = [
@@ -192,7 +193,7 @@ def _generate_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
             co = db.query(HealthCompany).filter_by(company_id=entity_id).first()
             if not co:
                 raise HTTPException(status_code=404, detail="Health company not found")
-            lobby_spend = db.query(func.sum(HealthLobbyingRecord.income)).filter_by(company_id=entity_id).scalar() or 0
+            lobby_spend = db.query(func.sum(_lobby_spend_expr(HealthLobbyingRecord))).filter_by(company_id=entity_id).scalar() or 0
             contracts = db.query(func.count(HealthGovernmentContract.id)).filter_by(company_id=entity_id).scalar() or 0
             enforcement = db.query(func.count(HealthEnforcement.id)).filter_by(company_id=entity_id).scalar() or 0
             stats = [
@@ -207,7 +208,7 @@ def _generate_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
             co = db.query(TrackedTechCompany).filter_by(company_id=entity_id).first()
             if not co:
                 raise HTTPException(status_code=404, detail="Tech company not found")
-            lobby_spend = db.query(func.sum(TechLobbyingRecord.income)).filter_by(company_id=entity_id).scalar() or 0
+            lobby_spend = db.query(func.sum(_lobby_spend_expr(TechLobbyingRecord))).filter_by(company_id=entity_id).scalar() or 0
             contracts = db.query(func.count(TechGovernmentContract.id)).filter_by(company_id=entity_id).scalar() or 0
             patents = db.query(func.count(TechPatent.id)).filter_by(company_id=entity_id).scalar() or 0
             stats = [
@@ -222,7 +223,7 @@ def _generate_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
             co = db.query(TrackedEnergyCompany).filter_by(company_id=entity_id).first()
             if not co:
                 raise HTTPException(status_code=404, detail="Energy company not found")
-            lobby_spend = db.query(func.sum(EnergyLobbyingRecord.income)).filter_by(company_id=entity_id).scalar() or 0
+            lobby_spend = db.query(func.sum(_lobby_spend_expr(EnergyLobbyingRecord))).filter_by(company_id=entity_id).scalar() or 0
             contracts = db.query(func.count(EnergyGovernmentContract.id)).filter_by(company_id=entity_id).scalar() or 0
             enforcement = db.query(func.count(EnergyEnforcement.id)).filter_by(company_id=entity_id).scalar() or 0
             stats = [

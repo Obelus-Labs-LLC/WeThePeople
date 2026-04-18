@@ -123,7 +123,7 @@ QUERY_PATTERNS: list[dict] = [
         "name": "7. Influence stats aggregation",
         "description": "GET /influence/stats — SUM across 4 lobbying tables",
         "sql": """
-            SELECT COALESCE(SUM(finance_lobbying_records.income), 0)
+            SELECT COALESCE(SUM(COALESCE(finance_lobbying_records.income, 0) + COALESCE(finance_lobbying_records.expenses, 0)), 0)
             FROM finance_lobbying_records
         """,
         "tables": ["finance_lobbying_records"],

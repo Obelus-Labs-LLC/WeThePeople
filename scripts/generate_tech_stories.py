@@ -157,7 +157,7 @@ def generate_stories(db):
     nvidia_lobbying = db.execute(text("""
         SELECT
             filing_year as yr,
-            COALESCE(SUM(income), 0) as total,
+            COALESCE(SUM(COALESCE(income, 0) + COALESCE(expenses, 0)), 0) as total,
             COUNT(*) as filings
         FROM lobbying_records
         WHERE company_id = 'nvidia'
@@ -245,7 +245,7 @@ def generate_stories(db):
     tech_lobbying = {}
     for company in ["alphabet", "meta", "microsoft", "apple"]:
         row = db.execute(text(
-            "SELECT COALESCE(SUM(income), 0) FROM lobbying_records WHERE company_id = :cid"
+            "SELECT COALESCE(SUM(COALESCE(income, 0) + COALESCE(expenses, 0)), 0) FROM lobbying_records WHERE company_id = :cid"
         ), {"cid": company}).fetchone()
         if row:
             tech_lobbying[company] = row[0]
@@ -428,7 +428,7 @@ def generate_stories(db):
     """)).fetchall()
 
     msft_lobbying_total = db.execute(text("""
-        SELECT COALESCE(SUM(income), 0) FROM lobbying_records WHERE company_id = 'microsoft'
+        SELECT COALESCE(SUM(COALESCE(income, 0) + COALESCE(expenses, 0)), 0) FROM lobbying_records WHERE company_id = 'microsoft'
     """)).fetchone()
 
     msft_donations = db.execute(text("""

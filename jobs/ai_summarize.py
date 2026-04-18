@@ -485,7 +485,7 @@ def summarize_lobbying(conn, limit: int = 0, dry_run: bool = False) -> int:
         ("health_lobbying_records", "id"),
         ("energy_lobbying_records", "id"),
     ]
-    fields = ["filing_year", "filing_period", "income", "registrant_name",
+    fields = ["filing_year", "filing_period", "income", "expenses", "registrant_name",
               "lobbying_issues", "government_entities", "specific_issues"]
 
     total = 0
@@ -507,6 +507,7 @@ def summarize_lobbying(conn, limit: int = 0, dry_run: bool = False) -> int:
                 "year": r["filing_year"],
                 "period": r["filing_period"],
                 "income": r["income"],
+                "expenses": r["expenses"],
                 "firm": r["registrant_name"],
                 "issues": r["lobbying_issues"],
                 "entities": r["government_entities"],
@@ -679,7 +680,7 @@ def summarize_company_profiles(conn, limit: int = 0, dry_run: bool = False) -> i
 
             # Aggregate stats — use the correct FK column per sector
             lob = conn.execute(
-                f"SELECT COUNT(*) as cnt, COALESCE(SUM(income), 0) as total "
+                f"SELECT COUNT(*) as cnt, COALESCE(SUM(COALESCE(income, 0) + COALESCE(expenses, 0)), 0) as total "
                 f"FROM {tables['lobbying']} WHERE {fk_col} = ?", (eid,)
             ).fetchone()
             con = conn.execute(

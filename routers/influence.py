@@ -43,6 +43,7 @@ from models.telecom_models import (
 )
 from models.government_data_models import RegulatoryComment
 from models.response_schemas import InfluenceStatsResponse
+from utils.db_compat import lobby_spend
 
 import threading
 import time as _time
@@ -175,16 +176,16 @@ def get_influence_stats(db: Session = Depends(get_db)):
         _stats_cache["computing"] = True
 
     # Lobbying totals
-    finance_lobbying = db.query(func.sum(FinanceLobbyingRecord.income)).scalar() or 0
-    health_lobbying = db.query(func.sum(HealthLobbyingRecord.income)).scalar() or 0
-    tech_lobbying = db.query(func.sum(LobbyingRecord.income)).scalar() or 0
-    energy_lobbying = db.query(func.sum(EnergyLobbyingRecord.income)).scalar() or 0
-    transport_lobbying = db.query(func.sum(TransportationLobbyingRecord.income)).scalar() or 0
-    defense_lobbying = db.query(func.sum(DefenseLobbyingRecord.income)).scalar() or 0
-    chemicals_lobbying = db.query(func.sum(ChemicalLobbyingRecord.income)).scalar() or 0
-    agriculture_lobbying = db.query(func.sum(AgricultureLobbyingRecord.income)).scalar() or 0
-    education_lobbying = db.query(func.sum(EducationLobbyingRecord.income)).scalar() or 0
-    telecom_lobbying = db.query(func.sum(TelecomLobbyingRecord.income)).scalar() or 0
+    finance_lobbying = db.query(func.sum(lobby_spend(FinanceLobbyingRecord))).scalar() or 0
+    health_lobbying = db.query(func.sum(lobby_spend(HealthLobbyingRecord))).scalar() or 0
+    tech_lobbying = db.query(func.sum(lobby_spend(LobbyingRecord))).scalar() or 0
+    energy_lobbying = db.query(func.sum(lobby_spend(EnergyLobbyingRecord))).scalar() or 0
+    transport_lobbying = db.query(func.sum(lobby_spend(TransportationLobbyingRecord))).scalar() or 0
+    defense_lobbying = db.query(func.sum(lobby_spend(DefenseLobbyingRecord))).scalar() or 0
+    chemicals_lobbying = db.query(func.sum(lobby_spend(ChemicalLobbyingRecord))).scalar() or 0
+    agriculture_lobbying = db.query(func.sum(lobby_spend(AgricultureLobbyingRecord))).scalar() or 0
+    education_lobbying = db.query(func.sum(lobby_spend(EducationLobbyingRecord))).scalar() or 0
+    telecom_lobbying = db.query(func.sum(lobby_spend(TelecomLobbyingRecord))).scalar() or 0
     total_lobbying = finance_lobbying + health_lobbying + tech_lobbying + energy_lobbying + transport_lobbying + defense_lobbying + chemicals_lobbying + agriculture_lobbying + education_lobbying + telecom_lobbying
 
     # Contract totals
@@ -252,7 +253,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     # Finance
     rows = db.query(
         TrackedInstitution.institution_id, TrackedInstitution.display_name,
-        func.sum(FinanceLobbyingRecord.income),
+        func.sum(lobby_spend(FinanceLobbyingRecord)),
     ).join(FinanceLobbyingRecord, FinanceLobbyingRecord.institution_id == TrackedInstitution.institution_id
     ).group_by(TrackedInstitution.institution_id, TrackedInstitution.display_name).all()
     for eid, name, total in rows:
@@ -261,7 +262,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     # Health
     rows = db.query(
         TrackedCompany.company_id, TrackedCompany.display_name,
-        func.sum(HealthLobbyingRecord.income),
+        func.sum(lobby_spend(HealthLobbyingRecord)),
     ).join(HealthLobbyingRecord, HealthLobbyingRecord.company_id == TrackedCompany.company_id
     ).group_by(TrackedCompany.company_id, TrackedCompany.display_name).all()
     for eid, name, total in rows:
@@ -270,7 +271,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     # Tech
     rows = db.query(
         TrackedTechCompany.company_id, TrackedTechCompany.display_name,
-        func.sum(LobbyingRecord.income),
+        func.sum(lobby_spend(LobbyingRecord)),
     ).join(LobbyingRecord, LobbyingRecord.company_id == TrackedTechCompany.company_id
     ).group_by(TrackedTechCompany.company_id, TrackedTechCompany.display_name).all()
     for eid, name, total in rows:
@@ -279,7 +280,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     # Energy
     rows = db.query(
         TrackedEnergyCompany.company_id, TrackedEnergyCompany.display_name,
-        func.sum(EnergyLobbyingRecord.income),
+        func.sum(lobby_spend(EnergyLobbyingRecord)),
     ).join(EnergyLobbyingRecord, EnergyLobbyingRecord.company_id == TrackedEnergyCompany.company_id
     ).group_by(TrackedEnergyCompany.company_id, TrackedEnergyCompany.display_name).all()
     for eid, name, total in rows:
@@ -288,7 +289,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     # Transportation
     rows = db.query(
         TrackedTransportationCompany.company_id, TrackedTransportationCompany.display_name,
-        func.sum(TransportationLobbyingRecord.income),
+        func.sum(lobby_spend(TransportationLobbyingRecord)),
     ).join(TransportationLobbyingRecord, TransportationLobbyingRecord.company_id == TrackedTransportationCompany.company_id
     ).group_by(TrackedTransportationCompany.company_id, TrackedTransportationCompany.display_name).all()
     for eid, name, total in rows:
@@ -297,7 +298,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     # Defense
     rows = db.query(
         TrackedDefenseCompany.company_id, TrackedDefenseCompany.display_name,
-        func.sum(DefenseLobbyingRecord.income),
+        func.sum(lobby_spend(DefenseLobbyingRecord)),
     ).join(DefenseLobbyingRecord, DefenseLobbyingRecord.company_id == TrackedDefenseCompany.company_id
     ).group_by(TrackedDefenseCompany.company_id, TrackedDefenseCompany.display_name).all()
     for eid, name, total in rows:
@@ -306,7 +307,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     # Chemicals
     rows = db.query(
         TrackedChemicalCompany.company_id, TrackedChemicalCompany.display_name,
-        func.sum(ChemicalLobbyingRecord.income),
+        func.sum(lobby_spend(ChemicalLobbyingRecord)),
     ).join(ChemicalLobbyingRecord, ChemicalLobbyingRecord.company_id == TrackedChemicalCompany.company_id
     ).group_by(TrackedChemicalCompany.company_id, TrackedChemicalCompany.display_name).all()
     for eid, name, total in rows:
@@ -315,7 +316,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     # Agriculture
     rows = db.query(
         TrackedAgricultureCompany.company_id, TrackedAgricultureCompany.display_name,
-        func.sum(AgricultureLobbyingRecord.income),
+        func.sum(lobby_spend(AgricultureLobbyingRecord)),
     ).join(AgricultureLobbyingRecord, AgricultureLobbyingRecord.company_id == TrackedAgricultureCompany.company_id
     ).group_by(TrackedAgricultureCompany.company_id, TrackedAgricultureCompany.display_name).all()
     for eid, name, total in rows:
@@ -324,7 +325,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     # Education
     rows = db.query(
         TrackedEducationCompany.company_id, TrackedEducationCompany.display_name,
-        func.sum(EducationLobbyingRecord.income),
+        func.sum(lobby_spend(EducationLobbyingRecord)),
     ).join(EducationLobbyingRecord, EducationLobbyingRecord.company_id == TrackedEducationCompany.company_id
     ).group_by(TrackedEducationCompany.company_id, TrackedEducationCompany.display_name).all()
     for eid, name, total in rows:
@@ -333,7 +334,7 @@ def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(
     # Telecom
     rows = db.query(
         TrackedTelecomCompany.company_id, TrackedTelecomCompany.display_name,
-        func.sum(TelecomLobbyingRecord.income),
+        func.sum(lobby_spend(TelecomLobbyingRecord)),
     ).join(TelecomLobbyingRecord, TelecomLobbyingRecord.company_id == TrackedTelecomCompany.company_id
     ).group_by(TrackedTelecomCompany.company_id, TrackedTelecomCompany.display_name).all()
     for eid, name, total in rows:
@@ -423,7 +424,7 @@ def get_spending_by_state(
             lobby_agg = (
                 db.query(
                     entity_col.label("entity_id"),
-                    func.sum(lobby_model.income).label("total_income"),
+                    func.sum(lobby_spend(lobby_model)).label("total_income"),
                 )
                 .group_by(entity_col)
                 .subquery()
@@ -725,11 +726,11 @@ def get_money_flow(
 
         rows = db.query(
             entity_model.display_name,
-            func.sum(lobby_model.income),
+            func.sum(lobby_spend(lobby_model)),
         ).join(
             lobby_model, getattr(lobby_model, fk) == getattr(entity_model, cfg["id_field"])
         ).group_by(entity_model.display_name).order_by(
-            desc(func.sum(lobby_model.income))
+            desc(func.sum(lobby_spend(lobby_model)))
         ).limit(limit).all()
 
         sector_node = get_node_id(f"{cfg['label']} Lobbying", "sector")

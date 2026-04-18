@@ -19,7 +19,7 @@ from models.finance_models import (
 )
 from models.database import CompanyDonation
 from models.market_models import StockFundamentals
-from utils.db_compat import extract_year
+from utils.db_compat import extract_year, lobby_spend
 from models.response_schemas import FinanceDashboardStats
 
 router = APIRouter(prefix="/finance", tags=["finance"])
@@ -35,7 +35,7 @@ def get_finance_dashboard_stats(db: Session = Depends(get_db)):
     total_fred = db.query(func.count(FREDObservation.id)).scalar() or 0
     total_press = db.query(func.count(FedPressRelease.id)).scalar() or 0
     total_lobbying = db.query(func.count(FinanceLobbyingRecord.id)).scalar() or 0
-    total_lobbying_spend = db.query(func.sum(FinanceLobbyingRecord.income)).scalar() or 0
+    total_lobbying_spend = db.query(func.sum(lobby_spend(FinanceLobbyingRecord))).scalar() or 0
     total_contracts = db.query(func.count(FinanceGovernmentContract.id)).scalar() or 0
     total_contract_value = db.query(func.sum(FinanceGovernmentContract.award_amount)).scalar() or 0
     total_enforcement = db.query(func.count(FinanceEnforcement.id)).scalar() or 0
@@ -249,12 +249,12 @@ def get_institution_lobbying_summary(institution_id: str, db: Session = Depends(
     inst = db.query(TrackedInstitution).filter_by(institution_id=institution_id).first()
     if not inst: raise HTTPException(status_code=404, detail="Institution not found")
     total_filings = db.query(FinanceLobbyingRecord).filter_by(institution_id=institution_id).count()
-    total_income = db.query(func.sum(FinanceLobbyingRecord.income)).filter_by(institution_id=institution_id).scalar() or 0
+    total_income = db.query(func.sum(lobby_spend(FinanceLobbyingRecord))).filter_by(institution_id=institution_id).scalar() or 0
     by_year = {}
-    rows = db.query(FinanceLobbyingRecord.filing_year, func.sum(FinanceLobbyingRecord.income), func.count()).filter_by(institution_id=institution_id).group_by(FinanceLobbyingRecord.filing_year).order_by(FinanceLobbyingRecord.filing_year).all()
+    rows = db.query(FinanceLobbyingRecord.filing_year, func.sum(lobby_spend(FinanceLobbyingRecord)), func.count()).filter_by(institution_id=institution_id).group_by(FinanceLobbyingRecord.filing_year).order_by(FinanceLobbyingRecord.filing_year).all()
     for year, income, count in rows: by_year[str(year)] = {"income": income or 0, "filings": count}
     top_firms = {}
-    rows = db.query(FinanceLobbyingRecord.registrant_name, func.sum(FinanceLobbyingRecord.income), func.count()).filter_by(institution_id=institution_id).group_by(FinanceLobbyingRecord.registrant_name).order_by(func.sum(FinanceLobbyingRecord.income).desc()).limit(10).all()
+    rows = db.query(FinanceLobbyingRecord.registrant_name, func.sum(lobby_spend(FinanceLobbyingRecord)), func.count()).filter_by(institution_id=institution_id).group_by(FinanceLobbyingRecord.registrant_name).order_by(func.sum(lobby_spend(FinanceLobbyingRecord)).desc()).limit(10).all()
     for name, income, count in rows:
         if name: top_firms[name] = {"income": income or 0, "filings": count}
     return {"total_filings": total_filings, "total_income": total_income, "by_year": by_year, "top_firms": top_firms}
