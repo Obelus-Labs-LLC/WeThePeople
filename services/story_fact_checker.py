@@ -160,15 +160,19 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
         if claimed is None or claimed <= 0 or not sector_tables:
             continue
         lobby_table, _, _, id_col, _ = sector_tables
+        # LDA filings split spend across `income` (outside-firm) and `expenses`
+        # (in-house). Aggregators elsewhere sum both via utils.db_compat.lobby_spend;
+        # the fact-checker must match or it rejects correctly-numbered stories.
+        spend_expr = "COALESCE(income, 0) + COALESCE(expenses, 0)"
         if is_sector_agg:
-            actual = _sum_table(db, lobby_table, "income")
-            label = f"{lobby_table}.income (sector total)"
+            actual = _sum_table(db, lobby_table, spend_expr)
+            label = f"{lobby_table}.income+expenses (sector total)"
             miss_detail = f"no rows in {lobby_table}"
         else:
             if not entity_ids:
                 continue
-            actual = _sum_col(db, lobby_table, "income", id_col, entity_ids[0])
-            label = f"{lobby_table}.income"
+            actual = _sum_col(db, lobby_table, spend_expr, id_col, entity_ids[0])
+            label = f"{lobby_table}.income+expenses"
             miss_detail = f"no rows in {lobby_table} for {entity_ids[0]}"
         money_tol = SECTOR_AGG_MONEY_TOLERANCE if is_sector_agg else MONEY_TOLERANCE
         if actual is None:
