@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from models.database import CompanyDonation
 from models.market_models import StockFundamentals
-from utils.db_compat import extract_year
+from utils.db_compat import extract_year, lobby_spend
 from utils.sanitize import escape_like
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ def get_dashboard_stats(db: Session, config: SectorConfig) -> Dict[str, Any]:
 
     lm = config.lobbying_model
     result["total_lobbying"] = db.query(func.count(lm.id)).scalar() or 0
-    result["total_lobbying_spend"] = db.query(func.sum(lm.income)).scalar() or 0
+    result["total_lobbying_spend"] = db.query(func.sum(lobby_spend(lm))).scalar() or 0
 
     cm = config.contract_model
     result["total_contracts"] = db.query(func.count(cm.id)).scalar() or 0
@@ -199,6 +199,8 @@ def get_recent_activity(
             ),
             "meta": {
                 "income": r.income,
+                "expenses": r.expenses,
+                "total_spend": (r.income or 0) + (r.expenses or 0),
                 "filing_period": period_str,
                 "registrant_name": r.registrant_name,
             },
@@ -544,12 +546,12 @@ def get_entity_lobbying_summary(
 
     total_filings = db.query(lm).filter(lm_eid == entity_id).count()
     total_income = (
-        db.query(func.sum(lm.income)).filter(lm_eid == entity_id).scalar() or 0
+        db.query(func.sum(lobby_spend(lm))).filter(lm_eid == entity_id).scalar() or 0
     )
 
     by_year: Dict[str, Dict] = {}
     rows = (
-        db.query(lm.filing_year, func.sum(lm.income), func.count())
+        db.query(lm.filing_year, func.sum(lobby_spend(lm)), func.count())
         .filter(lm_eid == entity_id)
         .group_by(lm.filing_year)
         .order_by(lm.filing_year)
@@ -560,10 +562,10 @@ def get_entity_lobbying_summary(
 
     top_firms: Dict[str, Dict] = {}
     rows = (
-        db.query(lm.registrant_name, func.sum(lm.income), func.count())
+        db.query(lm.registrant_name, func.sum(lobby_spend(lm)), func.count())
         .filter(lm_eid == entity_id)
         .group_by(lm.registrant_name)
-        .order_by(func.sum(lm.income).desc())
+        .order_by(func.sum(lobby_spend(lm)).desc())
         .limit(10)
         .all()
     )
@@ -725,7 +727,7 @@ def compare_entities(
     lm = config.lobbying_model
     lm_eid = getattr(lm, eid_field)
     lobbying_totals = dict(
-        db.query(lm_eid, func.sum(lm.income))
+        db.query(lm_eid, func.sum(lobby_spend(lm)))
         .filter(lm_eid.in_(entity_ids))
         .group_by(lm_eid)
         .all()

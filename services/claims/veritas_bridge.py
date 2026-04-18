@@ -215,7 +215,7 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> List[Dict[str, Any]]:
             if lt:
                 try:
                     r = db.execute(text(
-                        "SELECT SUM(income), COUNT(*) FROM %s WHERE %s = :eid" % (lt[0], lt[1])
+                        "SELECT SUM(COALESCE(income, 0) + COALESCE(expenses, 0)), COUNT(*) FROM %s WHERE %s = :eid" % (lt[0], lt[1])
                     ), {"eid": eid}).fetchone()
                     if r and r[0]:
                         evidence.append({

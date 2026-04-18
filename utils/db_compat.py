@@ -258,6 +258,66 @@ def get_engine_kwargs() -> dict:
         }
 
 
+# --- Lobbying-spend sum (income + expenses) ---
+#
+# Senate LDA filings report dollars in two mutually-exclusive columns:
+#   - income:   populated when a firm hires an outside lobbyist (the outside
+#               firm registers as the registrant and reports income received).
+#   - expenses: populated when a firm self-lobbies in-house (the firm is its
+#               own registrant and reports expenses paid).
+#
+# Our earlier aggregator code used SUM(income) only, which silently omitted
+# the entire in-house-lobbying share of sector totals. For firms like Boeing,
+# Lockheed Martin, and Northrop Grumman — canonical in-house lobbyists —
+# this understated totals by 80-90% and caused multiple published stories
+# to be retracted in April 2026. See .planning/batch2_rehab_verdict.json.
+#
+# Empirical check confirmed no row in our sector lobbying tables has both
+# income AND expenses populated at once, so summing them is safe (no
+# double-count). COALESCE wraps each column so NULL doesn't zero out the
+# whole sum.
+#
+# Use one of these helpers anywhere you previously wrote
+#   func.sum(Model.income)             # SQLAlchemy
+#   SUM(income)                        # raw SQL
+# to stay dialect-portable and include in-house spend.
+
+
+def lobby_spend(model):
+    """SQLAlchemy expression: per-row total lobbying spend for a filing.
+
+    Returns COALESCE(income, 0) + COALESCE(expenses, 0) as a SQLAlchemy
+    column expression. Wrap with func.sum(...) to get an aggregate:
+
+        func.sum(lobby_spend(LobbyingRecord))
+
+    Callers should always use this instead of reading `Model.income`
+    directly when what they want is "total dollars associated with this
+    filing/lobbying relationship".
+    """
+    return func.coalesce(model.income, 0) + func.coalesce(model.expenses, 0)
+
+
+def lobby_spend_sql(alias: str = "") -> str:
+    """Raw-SQL fragment for per-row total lobbying spend.
+
+    Returns the string `COALESCE(income, 0) + COALESCE(expenses, 0)`,
+    optionally qualified with a table alias:
+
+        lobby_spend_sql()        -> 'COALESCE(income, 0) + COALESCE(expenses, 0)'
+        lobby_spend_sql('l')     -> 'COALESCE(l.income, 0) + COALESCE(l.expenses, 0)'
+
+    Wrap in SUM(...) to aggregate:
+
+        f"SELECT SUM({lobby_spend_sql()}) FROM {table} WHERE ..."
+    """
+    if alias:
+        p = f"{alias}."
+    else:
+        p = ""
+    return f"COALESCE({p}income, 0) + COALESCE({p}expenses, 0)"
+
+
 def get_oracle_connection_url() -> str:
     """Build Oracle connection URL from environment variables.
 

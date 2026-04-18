@@ -207,7 +207,7 @@ def search_wtp(query: str, **kwargs: Any) -> list[dict[str, Any]]:
                 if ls == sector:
                     try:
                         r = conn.execute(
-                            "SELECT SUM(income), COUNT(*) FROM %s WHERE %s = ?" % (lt, lc), (eid,)
+                            "SELECT SUM(COALESCE(income, 0) + COALESCE(expenses, 0)), COUNT(*) FROM %s WHERE %s = ?" % (lt, lc), (eid,)
                         ).fetchone()
                         if r and r[0] and float(r[0]) > 0:
                             total = float(r[0])

@@ -40,6 +40,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 from models.database import SessionLocal, Base, engine, CongressionalTrade
 from models.stories_models import Story
 from sqlalchemy import text, func, desc
+from utils.db_compat import lobby_spend_sql
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("detect_stories")
@@ -644,8 +645,14 @@ def get_data_date_range(db, table, id_col, entity_id):
     return None
 
 
-def get_sector_aggregate(db, table, id_col, metric="SUM(income)"):
-    """Get sector-level aggregate for comparative context."""
+def get_sector_aggregate(db, table, id_col, metric=None):
+    """Get sector-level aggregate for comparative context.
+
+    `metric` defaults to SUM(COALESCE(income,0) + COALESCE(expenses,0)) so
+    in-house lobbying spend (recorded under `expenses`) is included.
+    """
+    if metric is None:
+        metric = f"SUM({lobby_spend_sql()})"
     try:
         row = db.execute(text(
             "SELECT %s, COUNT(DISTINCT %s) FROM %s" % (metric, id_col, table)
@@ -1024,8 +1031,9 @@ def detect_top_spender(db, sector_idx=None):
 
     try:
         rows = db.execute(text(
-            "SELECT %s, SUM(income) as total, COUNT(*) as cnt "
-            "FROM %s GROUP BY %s ORDER BY total DESC LIMIT 5" % (id_col, table, id_col)
+            "SELECT %s, SUM(%s) as total, COUNT(*) as cnt "
+            "FROM %s GROUP BY %s ORDER BY total DESC LIMIT 5"
+            % (id_col, lobby_spend_sql(), table, id_col)
         )).fetchall()
     except Exception as e:
         log.warning("Top spender query failed for %s: %s", sector, e)
@@ -1259,7 +1267,8 @@ def detect_contract_windfall(db, sector_idx=None):
         lobby_count = 0
         try:
             lr = db.execute(text(
-                "SELECT SUM(income), COUNT(*) FROM %s WHERE %s = :eid" % (l_table, id_col)
+                "SELECT SUM(%s), COUNT(*) FROM %s WHERE %s = :eid"
+                % (lobby_spend_sql(), l_table, id_col)
             ), {"eid": eid}).fetchone()
             if lr:
                 lobby_total = float(lr[0] or 0)
@@ -1404,7 +1413,7 @@ def detect_penalty_gap(db, sector_idx=None):
         lobby_total = 0
         try:
             lr = db.execute(text(
-                "SELECT SUM(income) FROM %s WHERE %s = :eid" % (l_table, id_col)
+                "SELECT SUM(%s) FROM %s WHERE %s = :eid" % (lobby_spend_sql(), l_table, id_col)
             ), {"eid": eid}).fetchone()
             if lr and lr[0]:
                 lobby_total = float(lr[0])
@@ -1614,14 +1623,14 @@ def detect_lobby_contract_loop(db, sector_idx=None):
     try:
         # Find companies that both lobby and get contracts
         rows = db.execute(text(
-            "SELECT l.%s, SUM(l.income) as lobby_total, "
+            "SELECT l.%s, SUM(%s) as lobby_total, "
             "(SELECT SUM(c.award_amount) FROM %s c WHERE c.%s = l.%s) as contract_total, "
             "(SELECT COUNT(*) FROM %s c2 WHERE c2.%s = l.%s) as contract_count "
             "FROM %s l "
             "GROUP BY l.%s "
             "HAVING lobby_total > 50000 AND contract_total > 1000000 "
             "ORDER BY contract_total DESC LIMIT 5"
-            % (id_col, c_table, id_col, id_col, c_table, id_col, id_col, l_table, id_col)
+            % (id_col, lobby_spend_sql("l"), c_table, id_col, id_col, c_table, id_col, id_col, l_table, id_col)
         )).fetchall()
     except Exception as e:
         log.warning("Lobby-contract loop query failed for %s: %s", sector, e)
@@ -2209,7 +2218,7 @@ def detect_enforcement_disappearance(db, sector_idx=None):
         # Check if they also lobby
         try:
             lr = db.execute(text(
-                "SELECT SUM(income), COUNT(*) FROM %s WHERE %s = :eid" % (l_table, id_col)
+                "SELECT SUM(%s), COUNT(*) FROM %s WHERE %s = :eid" % (lobby_spend_sql(), l_table, id_col)
             ), {"eid": eid}).fetchone()
             lobby_total = float(lr[0] or 0) if lr else 0
             lobby_count = int(lr[1] or 0) if lr else 0
@@ -2557,11 +2566,11 @@ def detect_fara_domestic_overlap(db):
     for l_table, sector, id_col, entity_table in LOBBYING_TABLES:
         try:
             rows = db.execute(text(
-                "SELECT DISTINCT registrant_name, %s, SUM(income), COUNT(*) FROM %s "
+                "SELECT DISTINCT registrant_name, %s, SUM(%s), COUNT(*) FROM %s "
                 "WHERE registrant_name IS NOT NULL "
                 "GROUP BY registrant_name, %s "
-                "HAVING SUM(income) > 10000"
-                % (id_col, l_table, id_col)
+                "HAVING SUM(%s) > 10000"
+                % (id_col, lobby_spend_sql(), l_table, id_col, lobby_spend_sql())
             )).fetchall()
         except Exception:
             continue
@@ -2696,8 +2705,8 @@ def detect_revolving_door(db):
             # Get total income for this firm
             try:
                 inc_row = db.execute(text(
-                    "SELECT SUM(income), COUNT(DISTINCT %s) FROM %s WHERE registrant_name = :firm"
-                    % (id_col, l_table)
+                    "SELECT SUM(%s), COUNT(DISTINCT %s) FROM %s WHERE registrant_name = :firm"
+                    % (lobby_spend_sql(), id_col, l_table)
                 ), {"firm": firm}).fetchone()
                 total_income = float(inc_row[0] or 0)
                 client_count = int(inc_row[1] or 0)

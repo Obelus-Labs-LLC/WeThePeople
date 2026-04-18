@@ -22,6 +22,7 @@ from models.energy_models import (
 )
 from routers.sector_factory import create_sector_router
 from services.sector_queries import SectorConfig
+from utils.db_compat import lobby_spend
 
 config = SectorConfig(
     prefix="/energy",
@@ -158,7 +159,7 @@ def get_energy_company_emissions_summary(entity_id: str, db: Session = Depends(g
         .scalar() or 0
     )
     climate_lobbying_spend = (
-        db.query(func.sum(EnergyLobbyingRecord.income))
+        db.query(func.sum(lobby_spend(EnergyLobbyingRecord)))
         .filter(EnergyLobbyingRecord.company_id == entity_id, or_(*climate_lobby_filters))
         .scalar() or 0
     )

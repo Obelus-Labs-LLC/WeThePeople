@@ -251,7 +251,7 @@ def lookup_entity_data(session, entity: Dict[str, Any]) -> Dict[str, Any]:
         if lobby_entity_table == table:
             try:
                 row = session.execute(text(
-                    f"SELECT COALESCE(SUM(income), 0), COUNT(*) "
+                    f"SELECT COALESCE(SUM(COALESCE(income, 0) + COALESCE(expenses, 0)), 0), COUNT(*) "
                     f"FROM {lobby_table} WHERE {lobby_id_col} = :eid"
                 ), {"eid": entity_id}).fetchone()
                 if row:

@@ -18,7 +18,7 @@ from models.tech_models import (
 )
 from models.market_models import StockFundamentals
 from models.database import CompanyDonation
-from utils.db_compat import extract_year
+from utils.db_compat import extract_year, lobby_spend
 
 router = APIRouter(prefix="/tech", tags=["technology"])
 
@@ -30,7 +30,7 @@ def get_tech_dashboard_stats(db: Session = Depends(get_db)):
     total_patents = db.query(TechPatent).count()
     total_contracts = db.query(GovernmentContract).count()
     total_lobbying = db.query(func.count(LobbyingRecord.id)).scalar() or 0
-    total_lobbying_spend = db.query(func.sum(LobbyingRecord.income)).scalar() or 0
+    total_lobbying_spend = db.query(func.sum(lobby_spend(LobbyingRecord))).scalar() or 0
     total_enforcement = db.query(func.count(FTCEnforcement.id)).scalar() or 0
     total_penalties = db.query(func.sum(FTCEnforcement.penalty_amount)).scalar() or 0
     total_contract_value = db.query(func.sum(GovernmentContract.award_amount)).scalar() or 0
@@ -65,7 +65,7 @@ def get_tech_recent_activity(limit: int = Query(10, ge=1, le=30), db: Session = 
         items.append({"type": "contract", "title": ct.description or f"Contract Award — {ct.awarding_agency or 'Unknown Agency'}", "description": ct.description, "date": str(ct.start_date) if ct.start_date else None, "company_id": ct.company_id, "company_name": company_names.get(ct.company_id, ct.company_id), "url": None, "meta": {"award_amount": ct.award_amount, "awarding_agency": ct.awarding_agency}})
     for r in lobbying:
         period_str = f"{r.filing_year}" + (f" {r.filing_period}" if r.filing_period else "")
-        items.append({"type": "lobbying", "title": f"Lobbying Filing — {r.client_name or r.registrant_name or 'Unknown'}", "description": r.lobbying_issues, "date": f"{r.filing_year}-01-01" if r.filing_year else None, "company_id": r.company_id, "company_name": company_names.get(r.company_id, r.company_id), "url": f"https://lda.senate.gov/filings/public/filing/{r.filing_uuid}/" if r.filing_uuid else None, "meta": {"income": r.income, "filing_period": period_str, "registrant_name": r.registrant_name}})
+        items.append({"type": "lobbying", "title": f"Lobbying Filing — {r.client_name or r.registrant_name or 'Unknown'}", "description": r.lobbying_issues, "date": f"{r.filing_year}-01-01" if r.filing_year else None, "company_id": r.company_id, "company_name": company_names.get(r.company_id, r.company_id), "url": f"https://lda.senate.gov/filings/public/filing/{r.filing_uuid}/" if r.filing_uuid else None, "meta": {"income": r.income, "expenses": r.expenses, "total_spend": (r.income or 0) + (r.expenses or 0), "filing_period": period_str, "registrant_name": r.registrant_name}})
     items.sort(key=lambda x: x["date"] or "0000-00-00", reverse=True)
     return {"items": items[:limit]}
 
@@ -196,12 +196,12 @@ def get_tech_company_lobbying_summary(company_id: str, db: Session = Depends(get
     co = db.query(TrackedTechCompany).filter_by(company_id=company_id).first()
     if not co: raise HTTPException(status_code=404, detail="Tech company not found")
     total_filings = db.query(LobbyingRecord).filter_by(company_id=company_id).count()
-    total_income = db.query(func.sum(LobbyingRecord.income)).filter_by(company_id=company_id).scalar() or 0
+    total_income = db.query(func.sum(lobby_spend(LobbyingRecord))).filter_by(company_id=company_id).scalar() or 0
     by_year = {}
-    rows = db.query(LobbyingRecord.filing_year, func.sum(LobbyingRecord.income), func.count()).filter_by(company_id=company_id).group_by(LobbyingRecord.filing_year).order_by(LobbyingRecord.filing_year).all()
+    rows = db.query(LobbyingRecord.filing_year, func.sum(lobby_spend(LobbyingRecord)), func.count()).filter_by(company_id=company_id).group_by(LobbyingRecord.filing_year).order_by(LobbyingRecord.filing_year).all()
     for year, income, count in rows: by_year[str(year)] = {"income": income or 0, "filings": count}
     top_firms = {}
-    rows = db.query(LobbyingRecord.registrant_name, func.sum(LobbyingRecord.income), func.count()).filter_by(company_id=company_id).group_by(LobbyingRecord.registrant_name).order_by(func.sum(LobbyingRecord.income).desc()).limit(10).all()
+    rows = db.query(LobbyingRecord.registrant_name, func.sum(lobby_spend(LobbyingRecord)), func.count()).filter_by(company_id=company_id).group_by(LobbyingRecord.registrant_name).order_by(func.sum(lobby_spend(LobbyingRecord)).desc()).limit(10).all()
     for name, income, count in rows:
         if name: top_firms[name] = {"income": income or 0, "filings": count}
     return {"total_filings": total_filings, "total_income": total_income, "by_year": by_year, "top_firms": top_firms}
@@ -239,7 +239,7 @@ def get_tech_comparison(ids: str = Query(..., description="Comma-separated compa
     contract_counts = dict(db.query(GovernmentContract.company_id, func.count(GovernmentContract.id)).filter(GovernmentContract.company_id.in_(company_ids)).group_by(GovernmentContract.company_id).all())
     filing_counts = dict(db.query(SECTechFiling.company_id, func.count(SECTechFiling.id)).filter(SECTechFiling.company_id.in_(company_ids)).group_by(SECTechFiling.company_id).all())
     contract_values = dict(db.query(GovernmentContract.company_id, func.sum(GovernmentContract.award_amount)).filter(GovernmentContract.company_id.in_(company_ids)).group_by(GovernmentContract.company_id).all())
-    lobbying_totals = dict(db.query(LobbyingRecord.company_id, func.sum(LobbyingRecord.income)).filter(LobbyingRecord.company_id.in_(company_ids)).group_by(LobbyingRecord.company_id).all())
+    lobbying_totals = dict(db.query(LobbyingRecord.company_id, func.sum(lobby_spend(LobbyingRecord))).filter(LobbyingRecord.company_id.in_(company_ids)).group_by(LobbyingRecord.company_id).all())
     enforcement_counts = dict(db.query(FTCEnforcement.company_id, func.count(FTCEnforcement.id)).filter(FTCEnforcement.company_id.in_(company_ids)).group_by(FTCEnforcement.company_id).all())
     penalty_totals = dict(db.query(FTCEnforcement.company_id, func.sum(FTCEnforcement.penalty_amount)).filter(FTCEnforcement.company_id.in_(company_ids)).group_by(FTCEnforcement.company_id).all())
     from sqlalchemy import func as sa_func
@@ -287,8 +287,8 @@ def get_tech_company_patent_policy(company_id: str, db: Session = Depends(get_db
         ip_lobby_filters.append(LobbyingRecord.specific_issues.ilike(pattern))
     ip_lobbying = db.query(LobbyingRecord).filter(LobbyingRecord.company_id == company_id, or_(*ip_lobby_filters)).order_by(desc(LobbyingRecord.filing_year)).all()
     total_lobbying_on_ip = len(ip_lobbying)
-    total_ip_lobbying_spend = sum(r.income or 0 for r in ip_lobbying)
-    ip_lobbying_items = [{"id": r.id, "filing_uuid": r.filing_uuid, "filing_year": r.filing_year, "filing_period": r.filing_period, "income": r.income, "registrant_name": r.registrant_name, "lobbying_issues": r.lobbying_issues} for r in ip_lobbying[:20]]
+    total_ip_lobbying_spend = sum((r.income or 0) + (r.expenses or 0) for r in ip_lobbying)
+    ip_lobbying_items = [{"id": r.id, "filing_uuid": r.filing_uuid, "filing_year": r.filing_year, "filing_period": r.filing_period, "income": r.income, "expenses": r.expenses, "registrant_name": r.registrant_name, "lobbying_issues": r.lobbying_issues} for r in ip_lobbying[:20]]
     bill_keywords = ["patent", "intellectual property", "copyright", "innovation", "technology transfer"]
     bill_filters = []
     for kw in bill_keywords:
