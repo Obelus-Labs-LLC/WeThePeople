@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient, getApiBaseUrl } from '../api/client';
 import Breadcrumbs from '../components/Breadcrumbs';
-import { ExternalLink, Heart, Share2, FileText } from 'lucide-react';
+import { ExternalLink, Heart, Share2 } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import TradeTimeline from '../components/TradeTimeline';
 import SanctionsBadge from '../components/SanctionsBadge';
@@ -25,14 +25,46 @@ import type {
   PersonGraphResponse,
 } from '../api/types';
 
-// ── Constants ──
+// ─────────────────────────────────────────────────────────────────────
+// Tokens & helpers
+// ─────────────────────────────────────────────────────────────────────
 
-const PARTY_COLORS: Record<string, string> = { D: '#3B82F6', R: '#EF4444', I: '#A855F7' };
+const PARTY_TOKEN: Record<string, string> = {
+  D: 'var(--color-dem)',
+  R: 'var(--color-rep)',
+  I: 'var(--color-ind)',
+};
 
-/**
- * Generate a campaign contribution link based on party affiliation.
- * Democrats → ActBlue search, Republicans → WinRed search, Others → FEC candidate page.
- */
+// Hex-ish fallbacks used only for `${color}18` / `${color}30` opacity suffixes
+// (CSS custom properties can't have alpha suffixes appended). Kept to the
+// exact shades used by the design tokens above so visuals stay consistent.
+const PARTY_HEX: Record<string, string> = {
+  D: '#4A7FDE',
+  R: '#E05555',
+  I: '#B06FD8',
+};
+
+const TIER_TOKEN: Record<string, { token: string; hex: string }> = {
+  strong: { token: 'var(--color-verify)', hex: '#10B981' },
+  moderate: { token: 'var(--color-dem)', hex: '#4A7FDE' },
+  weak: { token: 'var(--color-accent)', hex: '#C5A028' },
+  none: { token: 'var(--color-red)', hex: '#E63946' },
+};
+
+const STATUS_TOKEN: Record<string, { token: string; hex: string }> = {
+  signed_into_law: { token: 'var(--color-green)', hex: '#3DB87A' },
+  became_law: { token: 'var(--color-green)', hex: '#3DB87A' },
+  signed: { token: 'var(--color-green)', hex: '#3DB87A' },
+  passed_one_chamber: { token: 'var(--color-green)', hex: '#3DB87A' },
+  passed_one: { token: 'var(--color-green)', hex: '#3DB87A' },
+  passed_committee: { token: 'var(--color-green)', hex: '#3DB87A' },
+  passed_both: { token: 'var(--color-green)', hex: '#3DB87A' },
+  introduced: { token: 'var(--color-text-3)', hex: '#B4ADA0' },
+  in_committee: { token: 'var(--color-dem)', hex: '#4A7FDE' },
+  vetoed: { token: 'var(--color-red)', hex: '#E63946' },
+};
+
+/** Generate a campaign contribution link based on party affiliation. */
 function getCampaignUrl(name: string, party: string): string {
   const q = encodeURIComponent(name);
   const p = party?.charAt(0);
@@ -41,27 +73,22 @@ function getCampaignUrl(name: string, party: string): string {
   return `https://www.fec.gov/data/candidates/?search=${q}`;
 }
 
-const TIER_COLORS: Record<string, string> = {
-  strong: '#10B981',
-  moderate: '#3B82F6',
-  weak: '#F59E0B',
-  none: '#EF4444',
-};
-
 type TabKey = 'legislation' | 'votes' | 'finance' | 'donors' | 'trades';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'legislation', label: 'Legislation' },
-  { key: 'votes', label: 'Voting Record' },
+  { key: 'votes', label: 'Votes' },
   { key: 'finance', label: 'Finance' },
-  { key: 'donors', label: 'Industry Donors' },
-  { key: 'trades', label: 'Stock Trades' },
+  { key: 'donors', label: 'Donors' },
+  { key: 'trades', label: 'Trades' },
 ];
 
-// ── Helpers ──
+function partyToken(party: string): string {
+  return PARTY_TOKEN[party?.charAt(0)] || 'var(--color-text-3)';
+}
 
-function partyColor(party: string): string {
-  return PARTY_COLORS[party?.charAt(0)] || '#6B7280';
+function partyHex(party: string): string {
+  return PARTY_HEX[party?.charAt(0)] || '#B4ADA0';
 }
 
 function formatCurrency(value: number): string {
@@ -103,39 +130,65 @@ function tierLabel(tier: string): string {
   return tier.charAt(0).toUpperCase() + tier.slice(1);
 }
 
-// ── Loading Spinner ──
+function statusTokenFor(status: string | null | undefined) {
+  if (!status) return STATUS_TOKEN.introduced;
+  const key = status.toLowerCase().replace(/\s+/g, '_');
+  return STATUS_TOKEN[key] || STATUS_TOKEN.introduced;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Shared small components
+// ─────────────────────────────────────────────────────────────────────
 
 function Spinner({ className = '' }: { className?: string }) {
   return (
     <div className={`flex items-center justify-center py-12 ${className}`}>
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      <div
+        className="h-6 w-6 animate-spin rounded-full border-2 border-t-transparent"
+        style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }}
+      />
     </div>
   );
 }
 
-// ── Section Error ──
-
-function SectionError({ message }: { message: string }) {
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-center text-sm text-red-400">
-      {message}
+    <div
+      style={{
+        fontFamily: "'Inter', sans-serif",
+        fontSize: 10,
+        fontWeight: 700,
+        color: 'var(--color-text-3)',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        marginBottom: 8,
+      }}
+    >
+      {children}
     </div>
   );
 }
-
-// ── Card wrapper ──
 
 function Card({
   children,
   className = '',
+  style = {},
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <div
-      className={`rounded-xl border border-[rgba(255,255,255,0.05)] p-6 transition-all duration-300 hover:border-[rgba(255,255,255,0.1)] ${className}`}
-      style={{ backgroundColor: '#0F172A' }}
+      className={className}
+      style={{
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        padding: 20,
+        transition: 'border-color 0.2s',
+        ...style,
+      }}
     >
       {children}
     </div>
@@ -144,7 +197,17 @@ function Card({
 
 function CardTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="font-heading text-xl font-bold uppercase tracking-wide text-white mb-4">
+    <h2
+      style={{
+        fontFamily: "'Inter', sans-serif",
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        color: 'var(--color-text-3)',
+        marginBottom: 14,
+      }}
+    >
       {children}
     </h2>
   );
@@ -300,12 +363,12 @@ export default function PersonProfilePage() {
   const [ps, dispatch] = useReducer(profileReducer, initialState);
 
   const {
-    person, profile, profileError, performance, performanceError,
-    stats, graph, committees, overviewLoading,
+    person, profile, performance,
+    stats, committees, overviewLoading,
     activity, activityEntries, activityLoading, activityFilter,
     votesData, voteEntries, votesLoading, voteFilter,
     finance, financeLoading, donors, donorsLoading,
-    trades, tradesLoading, trends, tab, loadedTabs,
+    trades, tradesLoading, trends, tab,
   } = ps;
 
   const setTab = useCallback((t: TabKey) => dispatch({ type: 'SET_TAB', tab: t }), []);
@@ -366,12 +429,8 @@ export default function PersonProfilePage() {
   const chamber = person?.chamber || '';
   const state = person?.state || '';
   const isActive = person?.is_active ?? true;
-  const pColor = partyColor(party);
-
-  const matchRate =
-    performance && performance.total_claims > 0
-      ? Math.round((performance.total_scored / performance.total_claims) * 100)
-      : null;
+  const pToken = partyToken(party);
+  const pHex = partyHex(party);
 
   // Accountability tier
   const accountabilityTier = useMemo(() => {
@@ -396,7 +455,6 @@ export default function PersonProfilePage() {
   // Filtered legislation
   const filteredActivity = useMemo(() => {
     if (activityFilter === 'all') return activityEntries;
-    // Backend returns 'sponsored'/'cosponsored' OR 'sponsor'/'cosponsor' — match both
     return activityEntries.filter((e) => {
       const role = e.role?.toLowerCase();
       if (activityFilter === 'sponsored') return role === 'sponsored' || role === 'sponsor';
@@ -411,11 +469,19 @@ export default function PersonProfilePage() {
     return voteEntries.filter((v) => v.position === voteFilter);
   }, [voteEntries, voteFilter]);
 
+  const totalVotes = votesData
+    ? Object.values(votesData.position_summary).reduce((a, b) => a + (Number(b) || 0), 0)
+    : null;
+
+  const tierInfo = accountabilityTier ? TIER_TOKEN[accountabilityTier] : null;
+
   // ── Early returns ──
   if (!person_id) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="font-body text-sm text-white/40">Missing person_id in URL.</p>
+      <div className="flex h-screen items-center justify-center" style={{ background: 'var(--color-bg)' }}>
+        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)' }}>
+          Missing person_id in URL.
+        </p>
       </div>
     );
   }
@@ -425,294 +491,472 @@ export default function PersonProfilePage() {
   // ══════════════════════════════════════════════
 
   return (
-    <div className="flex flex-col w-full h-screen relative">
+    <div
+      className="flex flex-col w-full h-screen relative"
+      style={{ background: 'var(--color-bg)', color: 'var(--color-text-1)' }}
+    >
       {/* Header area */}
-      <div className="relative z-10 px-6 pt-4 shrink-0">
+      <div className="relative z-10 shrink-0" style={{ padding: '16px 24px 8px' }}>
         <PoliticsSectorHeader />
-        <div className="mb-2">
-          <Breadcrumbs items={[
-            { label: 'Politics', to: '/politics' },
-            { label: 'People', to: '/politics/people' },
-            { label: displayName || 'Profile' },
-          ]} />
-        </div>
-      </div>
-
-      {/* Colored accent top bar - uses PARTY COLOR */}
-      <div
-        className="w-full px-6 py-3 flex items-center justify-between shrink-0 z-10 shadow-md"
-        style={{ background: pColor }}
-      >
-        <div className="flex items-center gap-6">
-          {[
-            ['MEMBER', displayName],
-            ['PARTY', partyLabel(party) || '\u2014'],
-            ...(chamber ? [['CHAMBER', chamberLabel(chamber)]] : []),
-            ...(state ? [['STATE', state]] : []),
-          ].map(([label, value]) => (
-            <span key={label} className="text-sm tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              <span className="text-white/70">{label}: </span>
-              <span className="text-white font-bold">{value}</span>
-            </span>
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            marginTop: 4,
+          }}
+        >
+          <Breadcrumbs
+            items={[
+              { label: 'Politics', to: '/politics' },
+              { label: 'People', to: '/politics/people' },
+              { label: displayName || 'Profile' },
+            ]}
+          />
           <ShareButton url={window.location.href} title={`${displayName} — WeThePeople`} />
         </div>
       </div>
 
       {/* Main Content: Sidebar + Data */}
       <div className="flex flex-1 min-h-0">
-        {/* Left Sidebar */}
-        <div
-          className="hidden md:flex flex-col w-[30%] lg:w-[25%] border-r p-8 overflow-y-auto shrink-0"
-          style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}
+        {/* ─── Left Sidebar ─── */}
+        <aside
+          className="hidden md:flex flex-col overflow-y-auto shrink-0"
+          style={{
+            width: 256,
+            borderRight: '1px solid var(--color-border)',
+            padding: '24px 18px',
+            gap: 18,
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(255,255,255,0.08) transparent',
+          }}
         >
-          {/* Avatar */}
-          <div className="mb-6 flex justify-center">
-            <div className="relative">
+          {/* Avatar + name */}
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                position: 'relative',
+                width: 76,
+                height: 76,
+                borderRadius: '50%',
+                background: photoUrl ? 'transparent' : `${pHex}18`,
+                border: `2px solid ${pHex}30`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 10px',
+                overflow: 'hidden',
+              }}
+            >
               {photoUrl ? (
                 <img
                   src={photoUrl}
                   alt={displayName}
-                  className="h-32 w-32 rounded-full border-2 border-white/10 object-cover"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : (
-                <div
-                  className="flex h-32 w-32 items-center justify-center rounded-full font-heading text-3xl font-bold text-white"
-                  style={{ backgroundColor: pColor }}
+                <span
+                  style={{
+                    fontFamily: "'Playfair Display', serif",
+                    fontStyle: 'italic',
+                    fontWeight: 900,
+                    fontSize: 26,
+                    color: pToken,
+                  }}
                 >
                   {initials(displayName)}
-                </div>
+                </span>
               )}
               <span
-                className={`absolute bottom-1 right-1 h-5 w-5 rounded-full border-2 ${isActive ? 'bg-emerald-500' : 'bg-gray-500'}`}
-                style={{ borderColor: '#020617' }}
+                style={{
+                  position: 'absolute',
+                  bottom: 2,
+                  right: 2,
+                  width: 12,
+                  height: 12,
+                  borderRadius: '50%',
+                  border: '2px solid var(--color-bg)',
+                  background: isActive ? 'var(--color-verify)' : 'var(--color-text-3)',
+                }}
                 title={isActive ? 'Active member' : 'Inactive member'}
               />
             </div>
-          </div>
 
-          {/* Name */}
-          <div className="flex items-center justify-center gap-3 mb-1">
-            <h1
-              className="text-3xl font-bold leading-tight text-center"
-              style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}
-            >
-              {displayName}
-            </h1>
-            <WatchlistButton entityType="politician" entityId={person_id || ''} entityName={displayName} />
-          </div>
-
-          {/* Party + Chamber + State */}
-          <div className="flex justify-center flex-wrap gap-2 mb-4">
-            {party && (
-              <span
-                className="rounded-full px-3 py-1 font-body text-xs font-bold uppercase"
-                style={{ backgroundColor: `${pColor}20`, color: pColor }}
+            {/* Name + watchlist */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }}>
+              <h1
+                style={{
+                  fontFamily: "'Playfair Display', serif",
+                  fontStyle: 'italic',
+                  fontWeight: 700,
+                  fontSize: 18,
+                  lineHeight: 1.15,
+                  color: 'var(--color-text-1)',
+                  textAlign: 'center',
+                  margin: 0,
+                }}
               >
-                {partyLabel(party)}
-              </span>
-            )}
-            {chamber && (
-              <span className="rounded-full bg-white/5 px-3 py-1 font-body text-xs font-bold uppercase text-white/70">
-                {chamberLabel(chamber)}
-              </span>
-            )}
-            {state && (
-              <span className="rounded-full bg-white/5 px-3 py-1 font-body text-xs font-bold uppercase text-white/70">
-                {state}
-              </span>
-            )}
+                {displayName}
+              </h1>
+              <WatchlistButton entityType="politician" entityId={person_id || ''} entityName={displayName} />
+            </div>
+
+            {/* Party / Chamber / State tags */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 5, flexWrap: 'wrap' }}>
+              {party && (
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    borderRadius: 20,
+                    padding: '3px 8px',
+                    background: `${pHex}18`,
+                    color: pToken,
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {partyLabel(party)}
+                </span>
+              )}
+              {chamber && (
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    borderRadius: 20,
+                    padding: '3px 8px',
+                    background: 'var(--color-surface-2)',
+                    color: 'var(--color-text-2)',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {chamberLabel(chamber)}
+                </span>
+              )}
+              {state && (
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    borderRadius: 20,
+                    padding: '3px 8px',
+                    background: 'var(--color-surface-2)',
+                    color: 'var(--color-text-2)',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {state}
+                </span>
+              )}
+            </div>
+
+            {/* Badges row */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+              <SanctionsBadge status={person?.sanctions_status} />
+              <AnomalyBadge entityType="person" entityId={person_id || ''} />
+            </div>
           </div>
 
-          {/* Badges */}
-          <div className="flex justify-center gap-2 mb-6">
-            <SanctionsBadge status={person?.sanctions_status} />
-            <AnomalyBadge entityType="person" entityId={person_id || ''} />
-          </div>
-
-          {/* AI Profile Summary */}
-          {profile?.ai_profile_summary && (
-            <div className="mb-6">
-              <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
-              <p className="text-zinc-400 text-sm mt-1">{profile.ai_profile_summary}</p>
+          {/* Accountability tier */}
+          {tierInfo && accountabilityTier && (
+            <div
+              style={{
+                background: `${tierInfo.hex}14`,
+                border: `1px solid ${tierInfo.hex}2E`,
+                borderRadius: 8,
+                padding: '10px 12px',
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: `${tierInfo.hex}99`,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  marginBottom: 3,
+                }}
+              >
+                Accountability Tier
+              </div>
+              <div
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: tierInfo.token,
+                }}
+              >
+                {tierLabel(accountabilityTier)}
+              </div>
             </div>
           )}
 
-          {/* About / Summary */}
+          {/* AI summary */}
+          {profile?.ai_profile_summary && (
+            <div>
+              <SectionLabel>AI Analysis</SectionLabel>
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  color: 'var(--color-text-2)',
+                  lineHeight: 1.55,
+                  margin: 0,
+                }}
+              >
+                {profile.ai_profile_summary}
+              </p>
+            </div>
+          )}
+
+          {/* About */}
           {profile?.summary && (
-            <div className="mb-6">
-              <span className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>About</span>
-              <p className="text-sm text-white/60 mt-1 leading-relaxed">{profile.summary}</p>
+            <div>
+              <SectionLabel>About</SectionLabel>
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  color: 'var(--color-text-2)',
+                  lineHeight: 1.55,
+                  margin: 0,
+                }}
+              >
+                {profile.summary}
+              </p>
               {profile.url && (
                 <a
                   href={profile.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-block font-body text-xs text-blue-400 transition-colors hover:text-blue-300 no-underline"
+                  style={{
+                    display: 'inline-block',
+                    marginTop: 6,
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 11,
+                    color: 'var(--color-accent-text)',
+                    textDecoration: 'none',
+                  }}
                 >
-                  Read more on Wikipedia &rarr;
+                  Read more on Wikipedia →
                 </a>
               )}
             </div>
           )}
 
-          {/* Metadata */}
-          <div className="space-y-4">
+          {/* Overview quick stats */}
+          <div>
+            <SectionLabel>Overview</SectionLabel>
             {[
-              ['PARTY', partyLabel(party)],
-              ['CHAMBER', chamber ? chamberLabel(chamber) : null],
-              ['STATE', state],
-              ['DISTRICT', (person as any)?.district || null],
-              ['NEXT ELECTION', (person as any)?.next_election || null],
-              ['BIOGUIDE ID', person?.bioguide_id || null],
-            ].map(([label, value]) => value ? (
-              <div key={label as string}>
-                <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{label}</p>
-                <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E2E8F0' }}>{value}</p>
+              ['Bills Sponsored', activity ? activity.sponsored_count.toLocaleString() : '—'],
+              ['Votes Cast', totalVotes != null ? totalVotes.toLocaleString() : '—'],
+              ['Actions Scored', performance ? `${performance.total_scored}/${performance.total_claims}` : '—'],
+              ['Committees', committees.length > 0 ? String(committees.filter((c) => !c.parent_thomas_id).length) : '—'],
+              ['Last Active', formatDate(stats?.last_action_date)],
+            ].map(([label, value]) => (
+              <div
+                key={label as string}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '6px 0',
+                  borderBottom: '1px solid var(--color-border)',
+                }}
+              >
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: 'var(--color-text-2)' }}>
+                  {label}
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 700, color: 'var(--color-text-1)' }}>
+                  {value}
+                </span>
               </div>
-            ) : null)}
+            ))}
           </div>
 
-          {/* Quick Facts */}
-          {profile?.infobox && Object.keys(profile.infobox).length > 0 && (
-            <div className="mt-6">
-              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>Quick Facts</p>
-              <div className="space-y-2">
-                {Object.entries(profile.infobox).slice(0, 8).map(([key, val]) => (
-                  <div key={key}>
-                    <p className="font-mono text-[10px] uppercase text-white/30">{key.replace(/_/g, ' ')}</p>
-                    <p className="text-sm text-white/80">{val}</p>
+          {/* Identity metadata */}
+          {(state || (person as { district?: string } | null)?.district || person?.bioguide_id) && (
+            <div>
+              <SectionLabel>Identity</SectionLabel>
+              {[
+                ['District', (person as { district?: string } | null)?.district || null],
+                ['Next Election', (person as { next_election?: string } | null)?.next_election || null],
+                ['Bioguide ID', person?.bioguide_id || null],
+              ].map(([label, value]) =>
+                value ? (
+                  <div
+                    key={label as string}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '6px 0',
+                      borderBottom: '1px solid var(--color-border)',
+                    }}
+                  >
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: 'var(--color-text-2)' }}>
+                      {label}
+                    </span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--color-text-1)' }}>
+                      {value}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Stats overview */}
-          <div className="mt-6 rounded-xl border p-4" style={{ background: `${pColor}10`, borderColor: `${pColor}30` }}>
-            <div className="flex items-center gap-2 mb-3">
-              <FileText size={16} style={{ color: pColor }} />
-              <span className="text-xs font-bold uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: pColor }}>
-                OVERVIEW
-              </span>
-            </div>
-            <div className="space-y-2 text-sm" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              <div className="flex justify-between"><span className="text-white/50">Bills Sponsored</span><span className="text-white font-bold">{activity ? activity.sponsored_count : '\u2014'}</span></div>
-              <div className="flex justify-between"><span className="text-white/50">Votes Cast</span><span className="text-white font-bold">{votesData ? Object.values(votesData.position_summary).reduce((a, b) => a + (Number(b) || 0), 0) : '\u2014'}</span></div>
-              <div className="flex justify-between"><span className="text-white/50">Legislative Actions</span><span className="text-white font-bold">{performance ? performance.total_claims : '\u2014'}</span></div>
-              <div className="flex justify-between"><span className="text-white/50">Actions Scored</span><span className="text-white font-bold">{performance ? performance.total_scored : '\u2014'}</span></div>
-              <div className="flex justify-between"><span className="text-white/50">Last Active</span><span className="text-white font-bold">{formatDate(stats?.last_action_date)}</span></div>
-              {committees.length > 0 && (
-                <div className="flex justify-between"><span className="text-white/50">Committees</span><span className="text-white font-bold">{committees.filter((c) => !c.parent_thomas_id).length}</span></div>
+                ) : null
               )}
             </div>
-          </div>
-
-          {/* Accountability tier */}
-          {accountabilityTier && (
-            <div className="mt-4 rounded-lg border border-white/5 p-3" style={{ backgroundColor: '#0F172A' }}>
-              <p className="font-mono text-[10px] uppercase text-white/40 mb-1">Accountability</p>
-              <span
-                className="rounded-full px-2.5 py-0.5 font-mono text-xs font-bold uppercase"
-                style={{ backgroundColor: `${TIER_COLORS[accountabilityTier]}20`, color: TIER_COLORS[accountabilityTier] }}
-              >
-                {tierLabel(accountabilityTier)}
-              </span>
-            </div>
           )}
 
-          {/* Campaign Contribute link */}
-          {displayName && (
-            <a
-              href={getCampaignUrl(displayName, party)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-body text-sm font-bold uppercase transition-colors no-underline"
-              style={{
-                backgroundColor: `${pColor}15`,
-                color: pColor,
-                borderWidth: 1,
-                borderColor: `${pColor}30`,
-              }}
-            >
-              <Heart className="w-4 h-4" />
-              Contribute to Campaign
-            </a>
-          )}
-
-          {/* View Network link */}
-          <Link
-            to={`/influence/network/person/${person_id}`}
-            className="mt-3 flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-body text-sm font-bold uppercase transition-colors no-underline bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25"
-          >
-            <Share2 className="w-4 h-4" />
-            View Network
-          </Link>
-
-          {/* Top Policy Areas */}
+          {/* Policy areas */}
           {sortedPolicyAreas.length > 0 && (
-            <div className="mt-6">
-              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
-                Top Policy Areas
-              </p>
-              <div className="space-y-2">
-                {sortedPolicyAreas.map(([area, count]) => {
-                  const max = sortedPolicyAreas[0][1];
-                  const pct = max > 0 ? (count / max) * 100 : 0;
-                  return (
-                    <div key={area}>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs text-white/60 truncate max-w-[70%]">{area}</span>
-                        <span className="font-mono text-[10px] text-white/40">{count}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full" style={{ backgroundColor: '#020617' }}>
-                        <div
-                          className="h-1.5 rounded-full transition-all duration-1000"
-                          style={{ width: `${pct}%`, backgroundColor: pColor }}
-                        />
-                      </div>
+            <div>
+              <SectionLabel>Policy Areas</SectionLabel>
+              {sortedPolicyAreas.map(([area, count]) => {
+                const max = sortedPolicyAreas[0][1];
+                const pct = max > 0 ? (count / max) * 100 : 0;
+                return (
+                  <div key={area} style={{ marginBottom: 9 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <span
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 11,
+                          color: 'var(--color-text-2)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          maxWidth: '70%',
+                        }}
+                      >
+                        {area}
+                      </span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-3)' }}>
+                        {count}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+                    <div style={{ height: 3, borderRadius: 2, background: 'var(--color-surface-2)' }}>
+                      <div
+                        style={{
+                          height: 3,
+                          borderRadius: 2,
+                          background: pToken,
+                          width: `${pct}%`,
+                          transition: 'width 0.6s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {/* Activity Over Time */}
+          {/* Trend chart */}
           {trends && (
-            <div className="mt-6">
-              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
-                Activity Over Time
-              </p>
+            <div>
+              <SectionLabel>Activity Over Time</SectionLabel>
               <TrendChart data={trends} height={120} />
             </div>
           )}
-        </div>
 
-        {/* Right Panel */}
-        <div className="flex-1 flex flex-col min-h-0" style={{ background: 'transparent' }}>
+          {/* Actions */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+            {displayName && (
+              <a
+                href={getCampaignUrl(displayName, party)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '9px',
+                  borderRadius: 8,
+                  border: `1px solid ${pHex}30`,
+                  background: `${pHex}10`,
+                  color: pToken,
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <Heart size={13} />
+                Contribute to Campaign
+              </a>
+            )}
+            <Link
+              to={`/influence/network/person/${person_id}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                padding: '9px',
+                borderRadius: 8,
+                border: '1px solid rgba(74,127,222,0.3)',
+                background: 'rgba(74,127,222,0.1)',
+                color: 'var(--color-dem)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <Share2 size={13} />
+              View Influence Network
+            </Link>
+          </div>
+        </aside>
+
+        {/* ─── Right Panel ─── */}
+        <div className="flex-1 flex flex-col min-h-0">
           {/* Tab Navigation */}
-          <div className="relative flex gap-8 border-b px-8 pt-4 shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+          <div
+            className="flex shrink-0"
+            style={{
+              borderBottom: '1px solid var(--color-border)',
+              padding: '0 24px',
+              gap: 20,
+            }}
+          >
             {TABS.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className="relative pb-4 cursor-pointer bg-transparent border-0"
                 style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: '14px',
-                  color: tab === t.key ? pColor : 'rgba(255,255,255,0.4)',
-                  fontWeight: tab === t.key ? 700 : 400,
+                  position: 'relative',
+                  padding: '12px 0',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  fontWeight: tab === t.key ? 600 : 400,
+                  color: tab === t.key ? 'var(--color-text-1)' : 'var(--color-text-3)',
+                  transition: 'color 0.15s',
                 }}
               >
                 {t.label}
                 {tab === t.key && (
                   <motion.div
                     layoutId="activeTab"
-                    className="absolute bottom-0 left-0 right-0 h-1 rounded-full"
-                    style={{ background: pColor }}
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 1.5,
+                      background: 'var(--color-accent)',
+                    }}
                   />
                 )}
               </button>
@@ -720,60 +964,124 @@ export default function PersonProfilePage() {
           </div>
 
           {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto p-8" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={tab}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2 }}
-              >
-
-          {tab === 'legislation' && (
-            <LegislationTab
-              loading={activityLoading}
-              activity={activity}
-              entries={filteredActivity}
-              totalEntries={activityEntries.length}
-              filter={activityFilter}
-              setFilter={setActivityFilter}
-              onLoadMore={loadMoreActivity}
-            />
-          )}
-          {tab === 'votes' && (
-            <VotingRecordTab
-              loading={votesLoading}
-              votesData={votesData}
-              entries={filteredVotes}
-              totalEntries={voteEntries.length}
-              filter={voteFilter}
-              setFilter={setVoteFilter}
-              onLoadMore={loadMoreVotes}
-            />
-          )}
-          {tab === 'finance' && (
-            <FinanceTab loading={financeLoading} finance={finance} />
-          )}
-          {tab === 'donors' && (
-            <IndustryDonorsTab loading={donorsLoading} donors={donors} />
-          )}
-          {tab === 'trades' && (
-            <StockTradesTab
-              loading={tradesLoading}
-              trades={trades}
-              bioguideId={person?.bioguide_id}
-              personName={person?.display_name || ''}
-              personId={person_id}
-              party={person?.party ?? undefined}
-            />
-          )}
-
-              </motion.div>
-            </AnimatePresence>
+          <div
+            className="flex-1 overflow-y-auto"
+            style={{
+              padding: '20px 24px',
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(255,255,255,0.08) transparent',
+            }}
+          >
+            {overviewLoading ? (
+              <Spinner />
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={tab}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {tab === 'legislation' && (
+                    <LegislationTab
+                      loading={activityLoading}
+                      activity={activity}
+                      entries={filteredActivity}
+                      totalEntries={activityEntries.length}
+                      filter={activityFilter}
+                      setFilter={setActivityFilter}
+                      onLoadMore={loadMoreActivity}
+                    />
+                  )}
+                  {tab === 'votes' && (
+                    <VotingRecordTab
+                      loading={votesLoading}
+                      votesData={votesData}
+                      entries={filteredVotes}
+                      totalEntries={voteEntries.length}
+                      filter={voteFilter}
+                      setFilter={setVoteFilter}
+                      onLoadMore={loadMoreVotes}
+                    />
+                  )}
+                  {tab === 'finance' && <FinanceTab loading={financeLoading} finance={finance} />}
+                  {tab === 'donors' && <IndustryDonorsTab loading={donorsLoading} donors={donors} />}
+                  {tab === 'trades' && (
+                    <StockTradesTab
+                      loading={tradesLoading}
+                      trades={trades}
+                      bioguideId={person?.bioguide_id}
+                      personName={person?.display_name || ''}
+                      personId={person_id}
+                      party={person?.party ?? undefined}
+                    />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Filter pill (shared)
+// ─────────────────────────────────────────────────────────────────────
+
+function FilterPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '5px 12px',
+        borderRadius: 20,
+        border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
+        background: active ? 'var(--color-accent-dim)' : 'transparent',
+        color: active ? 'var(--color-accent-text)' : 'var(--color-text-2)',
+        fontFamily: "'Inter', sans-serif",
+        fontSize: 12,
+        fontWeight: active ? 600 : 400,
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function LoadMoreButton({ loading, onClick }: { loading: boolean; onClick: () => void }) {
+  return (
+    <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
+      <button
+        onClick={onClick}
+        disabled={loading}
+        style={{
+          padding: '8px 20px',
+          borderRadius: 8,
+          border: '1px solid var(--color-border)',
+          background: 'var(--color-surface)',
+          color: 'var(--color-text-2)',
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 13,
+          cursor: loading ? 'default' : 'pointer',
+          opacity: loading ? 0.5 : 1,
+          transition: 'all 0.15s',
+        }}
+      >
+        {loading ? 'Loading...' : 'Show more'}
+      </button>
     </div>
   );
 }
@@ -810,125 +1118,165 @@ function LegislationTab({
   return (
     <div>
       {/* Filter pills */}
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
         {filters.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`rounded-full px-4 py-2 font-body text-sm transition-all ${
-              filter === f.key
-                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'bg-white/5 text-white/40 border border-white/5 hover:text-white/60'
-            }`}
-          >
+          <FilterPill key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)}>
             {f.label}
-          </button>
+          </FilterPill>
         ))}
       </div>
 
       {entries.length === 0 ? (
-        <p className="py-12 text-center font-body text-sm text-white/40">
+        <p
+          style={{
+            padding: '48px 0',
+            textAlign: 'center',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            color: 'var(--color-text-3)',
+          }}
+        >
           No legislation data available.
         </p>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {entries.map((entry) => (
             <BillCard key={entry.bill_id} entry={entry} />
           ))}
         </div>
       )}
 
-      {/* Show More */}
       {activity && totalEntries < activity.total && (
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={onLoadMore}
-            disabled={loading}
-            className="rounded-lg border border-white/10 bg-white/5 px-6 py-2.5 font-body text-sm text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
-          >
-            {loading ? 'Loading...' : 'Show More'}
-          </button>
-        </div>
+        <LoadMoreButton loading={loading} onClick={onLoadMore} />
       )}
     </div>
   );
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  introduced: { bg: 'rgba(107,114,128,0.2)', text: '#9CA3AF' },
-  in_committee: { bg: 'rgba(245,158,11,0.2)', text: '#F59E0B' },
-  passed_one: { bg: 'rgba(59,130,246,0.2)', text: '#3B82F6' },
-  passed_both: { bg: 'rgba(16,185,129,0.2)', text: '#10B981' },
-  signed: { bg: 'rgba(16,185,129,0.2)', text: '#10B981' },
-  vetoed: { bg: 'rgba(239,68,68,0.2)', text: '#EF4444' },
-  became_law: { bg: 'rgba(16,185,129,0.2)', text: '#10B981' },
-};
-
-function statusStyle(status: string | null) {
-  if (!status) return { bg: 'rgba(107,114,128,0.2)', text: '#9CA3AF' };
-  return STATUS_COLORS[status.toLowerCase().replace(/\s+/g, '_')] || STATUS_COLORS.introduced;
-}
-
 function BillCard({ entry }: { entry: PersonActivityEntry }) {
-  const st = statusStyle(entry.status);
-
-  const content = (
-    <div
-      className="group rounded-xl border border-white/5 p-6 transition-all duration-300 hover:border-white/10"
-      style={{ backgroundColor: '#0F172A' }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {/* Top row: bill ID + role */}
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span className="rounded-full border border-blue-500/30 bg-blue-500/20 px-2 py-0.5 font-mono text-xs font-bold text-blue-400">
-              {entry.bill_id}
-            </span>
-            <span className="rounded-full bg-white/5 px-2 py-0.5 font-body text-[10px] font-bold uppercase text-white/40">
-              {entry.role}
-            </span>
-            {entry.status && (
-              <span
-                className="rounded-full px-2 py-0.5 font-body text-[10px] font-bold uppercase"
-                style={{ backgroundColor: st.bg, color: st.text }}
-              >
-                {entry.status}
-              </span>
-            )}
-          </div>
-
-          {/* Title */}
-          <h4 className="font-body text-lg font-medium text-white line-clamp-2 group-hover:text-blue-400 transition-colors">
-            {entry.title}
-          </h4>
-
-          {/* Meta */}
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-white/30">
-            {entry.policy_area && (
-              <span className="rounded bg-white/5 px-1.5 py-0.5">{entry.policy_area}</span>
-            )}
-            {entry.latest_action_date && <span>{formatDate(entry.latest_action_date)}</span>}
-            {entry.latest_action && (
-              <span className="truncate max-w-xs">{entry.latest_action}</span>
-            )}
-          </div>
-        </div>
-
-        {entry.congress_url && (
-          <span className="flex-shrink-0 text-white/20 group-hover:text-blue-400 transition-colors text-lg">
-            &rarr;
-          </span>
-        )}
-      </div>
-    </div>
-  );
+  const st = statusTokenFor(entry.status);
 
   return (
-    <Link
-      to={`/politics/bill/${entry.bill_id}`}
-      className="no-underline block"
-    >
-      {content}
+    <Link to={`/politics/bill/${entry.bill_id}`} style={{ textDecoration: 'none' }}>
+      <div
+        className="group"
+        style={{
+          padding: '14px 18px',
+          borderRadius: 10,
+          border: '1px solid var(--color-border)',
+          background: 'var(--color-surface)',
+          cursor: 'pointer',
+          transition: 'border-color 0.2s, background 0.2s',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = 'var(--color-border-hover)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'var(--color-border)';
+        }}
+      >
+        {/* Badges row */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 7, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 10,
+              fontWeight: 700,
+              color: 'var(--color-dem)',
+              background: 'rgba(74,127,222,0.12)',
+              borderRadius: 5,
+              padding: '2px 7px',
+            }}
+          >
+            {entry.bill_id}
+          </span>
+          <span
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 10,
+              fontWeight: 600,
+              color: 'var(--color-text-3)',
+              background: 'var(--color-surface-2)',
+              borderRadius: 5,
+              padding: '2px 7px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}
+          >
+            {entry.role}
+          </span>
+          {entry.status && (
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 10,
+                fontWeight: 600,
+                color: st.token,
+                background: `${st.hex}1F`,
+                borderRadius: 5,
+                padding: '2px 7px',
+              }}
+            >
+              {entry.status}
+            </span>
+          )}
+        </div>
+
+        {/* Title */}
+        <div
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            fontWeight: 600,
+            color: 'var(--color-text-1)',
+            marginBottom: 6,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {entry.title}
+        </div>
+
+        {/* Meta */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {entry.policy_area && (
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 11,
+                color: 'var(--color-text-3)',
+                background: 'var(--color-surface-2)',
+                borderRadius: 4,
+                padding: '2px 7px',
+              }}
+            >
+              {entry.policy_area}
+            </span>
+          )}
+          {entry.latest_action_date && (
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--color-text-3)' }}>
+              {formatDate(entry.latest_action_date)}
+            </span>
+          )}
+          {entry.latest_action && (
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 11,
+                color: 'var(--color-text-3)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: 320,
+              }}
+            >
+              {entry.latest_action}
+            </span>
+          )}
+        </div>
+      </div>
     </Link>
   );
 }
@@ -968,184 +1316,258 @@ function VotingRecordTab({
     { key: 'Yea', label: 'Yea' },
     { key: 'Nay', label: 'Nay' },
     { key: 'Not Voting', label: 'Not Voting' },
-    { key: 'Present', label: 'Present' },
   ];
+
+  const summary: Array<[string, number]> = [
+    ['Total Votes', total],
+    ['Yea', yeaCount],
+    ['Nay', nayCount],
+    ['Not Voting', nvCount],
+  ];
+  if (presentCount > 0) summary.push(['Present', presentCount]);
 
   return (
     <div>
-      {/* Summary row */}
-      <div className="flex flex-wrap gap-4 mb-6">
-        <VoteSummaryPill label="Total" value={total} />
-        <VoteSummaryPill label="Yea" value={yeaCount} />
-        <VoteSummaryPill label="Nay" value={nayCount} />
-        <VoteSummaryPill label="Not Voting" value={nvCount} />
-        {presentCount > 0 && <VoteSummaryPill label="Present" value={presentCount} />}
+      {/* Summary grid */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${summary.length}, 1fr)`,
+          gap: 10,
+          marginBottom: 16,
+        }}
+      >
+        {summary.map(([label, value]) => (
+          <div
+            key={label}
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 10,
+              padding: '14px 16px',
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 22,
+                fontWeight: 700,
+                color: 'var(--color-text-1)',
+                marginBottom: 4,
+                lineHeight: 1,
+              }}
+            >
+              {value.toLocaleString()}
+            </div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: 'var(--color-text-3)' }}>
+              {label}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Filter pills */}
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {filterOptions.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`rounded-full px-4 py-2 font-body text-sm transition-all ${
-              filter === f.key
-                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'bg-white/5 text-white/40 border border-white/5 hover:text-white/60'
-            }`}
-          >
+          <FilterPill key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)}>
             {f.label}
-          </button>
+          </FilterPill>
         ))}
       </div>
 
       {entries.length === 0 ? (
-        <p className="py-12 text-center font-body text-sm text-white/40">
+        <p
+          style={{
+            padding: '48px 0',
+            textAlign: 'center',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            color: 'var(--color-text-3)',
+          }}
+        >
           No voting record data available.
         </p>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {entries.map((vote) => (
             <VoteCard key={vote.vote_id} vote={vote} />
           ))}
         </div>
       )}
 
-      {/* Show More */}
       {votesData && totalEntries < votesData.total && (
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={onLoadMore}
-            disabled={loading}
-            className="rounded-lg border border-white/10 bg-white/5 px-6 py-2.5 font-body text-sm text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
-          >
-            {loading ? 'Loading...' : 'Show More'}
-          </button>
-        </div>
+        <LoadMoreButton loading={loading} onClick={onLoadMore} />
       )}
     </div>
   );
 }
 
-function VoteSummaryPill({ label, value }: { label: string; value: number }) {
-  return (
-    <div
-      className="rounded-xl border border-white/5 px-4 py-3"
-      style={{ backgroundColor: '#0F172A' }}
-    >
-      <div className="font-mono text-lg font-bold text-white">{value.toLocaleString()}</div>
-      <div className="font-body text-xs text-white/40">{label}</div>
-    </div>
-  );
+function positionTokenFor(pos: string): { token: string; hex: string } {
+  if (pos === 'Yea') return { token: 'var(--color-green)', hex: '#3DB87A' };
+  if (pos === 'Nay') return { token: 'var(--color-red)', hex: '#E63946' };
+  if (pos === 'Present') return { token: 'var(--color-accent)', hex: '#C5A028' };
+  return { token: 'var(--color-text-3)', hex: '#B4ADA0' };
 }
 
-const POSITION_COLORS: Record<string, { bg: string; text: string }> = {
-  Yea: { bg: 'rgba(16,185,129,0.2)', text: '#10B981' },
-  Nay: { bg: 'rgba(239,68,68,0.2)', text: '#EF4444' },
-  'Not Voting': { bg: 'rgba(107,114,128,0.2)', text: '#9CA3AF' },
-  Present: { bg: 'rgba(234,179,8,0.2)', text: '#EAB308' },
-};
-
-function positionStyle(position: string) {
-  return POSITION_COLORS[position] || POSITION_COLORS['Not Voting'];
-}
-
-function resultStyle(result: string) {
-  const lower = result.toLowerCase();
-  if (lower.includes('passed') || lower.includes('agreed'))
-    return { bg: 'rgba(16,185,129,0.2)', text: '#10B981' };
-  if (lower.includes('failed') || lower.includes('rejected'))
-    return { bg: 'rgba(239,68,68,0.2)', text: '#EF4444' };
-  return { bg: 'rgba(107,114,128,0.2)', text: '#9CA3AF' };
+function resultTokenFor(result: string): { token: string; hex: string } {
+  const lower = (result || '').toLowerCase();
+  if (lower.includes('passed') || lower.includes('agreed')) return { token: 'var(--color-green)', hex: '#3DB87A' };
+  if (lower.includes('failed') || lower.includes('rejected')) return { token: 'var(--color-red)', hex: '#E63946' };
+  return { token: 'var(--color-text-3)', hex: '#B4ADA0' };
 }
 
 function VoteCard({ vote }: { vote: PersonVoteEntry }) {
-  const ps = positionStyle(vote.position);
-  const rs = resultStyle(vote.result);
+  const ps = positionTokenFor(vote.position);
+  const rs = resultTokenFor(vote.result);
 
   const billId =
     vote.related_bill_congress && vote.related_bill_type && vote.related_bill_number
       ? `${vote.related_bill_congress}-${vote.related_bill_type}-${vote.related_bill_number}`
       : null;
 
-  // Mini bar proportions (approximate: use position as indicator)
-  const yeaFrac = vote.position === 'Yea' ? 60 : 40;
-  const nayFrac = 100 - yeaFrac;
-
   return (
-    <Link
-      to={`/politics/vote/${vote.vote_id}`}
-      className="no-underline block"
-    >
+    <Link to={`/politics/vote/${vote.vote_id}`} style={{ textDecoration: 'none' }}>
       <div
-        className="group rounded-xl border border-white/5 p-6 transition-all duration-300 hover:border-white/10"
-        style={{ backgroundColor: '#0F172A' }}
+        style={{
+          padding: '14px 18px',
+          borderRadius: 10,
+          border: '1px solid var(--color-border)',
+          background: 'var(--color-surface)',
+          cursor: 'pointer',
+          transition: 'border-color 0.2s',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = 'var(--color-border-hover)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'var(--color-border)';
+        }}
       >
         {/* Question */}
-        <h4 className="font-body text-base text-white line-clamp-2 group-hover:text-blue-400 transition-colors">
+        <div
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--color-text-1)',
+            marginBottom: 8,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
           {vote.question}
-        </h4>
-        {(vote as any).ai_summary && (
-          <p className="text-zinc-400 text-sm mt-1">{(vote as any).ai_summary}</p>
+        </div>
+
+        {(vote as { ai_summary?: string }).ai_summary && (
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              color: 'var(--color-text-2)',
+              margin: '0 0 8px 0',
+              lineHeight: 1.5,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {(vote as { ai_summary?: string }).ai_summary}
+          </p>
         )}
 
         {/* Badges */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span
-            className="rounded-full px-2 py-0.5 font-body text-xs font-bold uppercase"
-            style={{ backgroundColor: ps.bg, color: ps.text }}
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 10,
+              fontWeight: 700,
+              color: ps.token,
+              background: `${ps.hex}1F`,
+              borderRadius: 5,
+              padding: '2px 8px',
+            }}
           >
             {vote.position}
           </span>
           <span
-            className="rounded-full px-2 py-0.5 font-body text-xs font-bold uppercase"
-            style={{ backgroundColor: rs.bg, color: rs.text }}
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 10,
+              fontWeight: 600,
+              color: rs.token,
+              background: `${rs.hex}1F`,
+              borderRadius: 5,
+              padding: '2px 8px',
+            }}
           >
             {vote.result}
           </span>
-
-          {/* Mini bar */}
-          <div className="flex h-1.5 w-48 rounded-full overflow-hidden bg-white/5">
-            <div className="h-full bg-emerald-500" style={{ width: `${yeaFrac}%` }} />
-            <div className="h-full bg-red-500" style={{ width: `${nayFrac}%` }} />
-          </div>
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+              marginLeft: 'auto',
+            }}
+          >
+            Roll #{vote.roll_number}
+            {vote.vote_date && ` · ${formatDate(vote.vote_date)}`}
+          </span>
         </div>
 
-        {/* Bill title & summary */}
+        {/* Bill context */}
         {vote.bill_title && (
-          <p className="mt-2 text-sm font-semibold text-white/80 line-clamp-2">{vote.bill_title}</p>
-        )}
-        {vote.bill_summary && (
-          <p className="mt-1 text-xs text-white/40 line-clamp-3 leading-relaxed">{vote.bill_summary}</p>
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--color-text-2)',
+              margin: '8px 0 0 0',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {vote.bill_title}
+          </p>
         )}
 
-        {/* Meta */}
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-white/30">
-          <span className="font-mono">Roll #{vote.roll_number}</span>
-          {vote.vote_date && <span>{formatDate(vote.vote_date)}</span>}
-          {billId && (() => {
-            const bParts = billId.split('-');
-            const bCongress = bParts[0];
-            const bType = bParts[1];
-            const bNum = bParts[2];
-            const bTypeMap: Record<string, string> = {
-              hr: 'house-bill', s: 'senate-bill', hjres: 'house-joint-resolution',
-              sjres: 'senate-joint-resolution', hres: 'house-resolution', sres: 'senate-resolution',
-            };
-            const bUrl = `https://www.congress.gov/bill/${bCongress}th-congress/${bTypeMap[bType] || bType}/${bNum}`;
-            return (
-              <a
-                href={bUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="rounded bg-blue-500/10 px-1.5 py-0.5 text-blue-400 font-mono hover:bg-blue-500/20 transition-colors no-underline"
-              >
-                {billId} &rarr;
-              </a>
-            );
-          })()}
-        </div>
+        {billId && (
+          <div style={{ marginTop: 8 }}>
+            {(() => {
+              const [bCongress, bType, bNum] = billId.split('-');
+              const bTypeMap: Record<string, string> = {
+                hr: 'house-bill', s: 'senate-bill', hjres: 'house-joint-resolution',
+                sjres: 'senate-joint-resolution', hres: 'house-resolution', sres: 'senate-resolution',
+              };
+              const bUrl = `https://www.congress.gov/bill/${bCongress}th-congress/${bTypeMap[bType] || bType}/${bNum}`;
+              return (
+                <a
+                  href={bUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 11,
+                    color: 'var(--color-dem)',
+                    background: 'rgba(74,127,222,0.10)',
+                    borderRadius: 4,
+                    padding: '2px 7px',
+                    textDecoration: 'none',
+                  }}
+                >
+                  {billId} →
+                </a>
+              );
+            })()}
+          </div>
+        )}
       </div>
     </Link>
   );
@@ -1170,6 +1592,19 @@ interface DonorData {
   }>;
 }
 
+const SECTOR_TINTS: Record<string, { token: string; hex: string }> = {
+  finance: { token: 'var(--color-green)', hex: '#3DB87A' },
+  health: { token: 'var(--color-red)', hex: '#E63946' },
+  tech: { token: 'var(--color-ind)', hex: '#B06FD8' },
+  energy: { token: 'var(--color-accent)', hex: '#C5A028' },
+  defense: { token: 'var(--color-rep)', hex: '#E05555' },
+};
+
+function sectorTintFor(s: string | undefined): { token: string; hex: string } {
+  if (!s) return { token: 'var(--color-text-3)', hex: '#B4ADA0' };
+  return SECTOR_TINTS[s.toLowerCase()] || { token: 'var(--color-text-3)', hex: '#B4ADA0' };
+}
+
 function IndustryDonorsTab({
   loading,
   donors,
@@ -1180,9 +1615,17 @@ function IndustryDonorsTab({
   if (loading) return <Spinner />;
   if (!donors || !donors.donations || donors.donations.length === 0) {
     return (
-      <div className="py-12 text-center">
-        <p className="text-white/40 text-sm">No industry donor data available for this member.</p>
-      </div>
+      <p
+        style={{
+          padding: '48px 0',
+          textAlign: 'center',
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 13,
+          color: 'var(--color-text-3)',
+        }}
+      >
+        No industry donor data available for this member.
+      </p>
     );
   }
 
@@ -1191,79 +1634,175 @@ function IndustryDonorsTab({
   const donations = donors.donations || [];
 
   return (
-    <div className="space-y-6">
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
-          <div className="text-center">
-            <p className="font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase mb-1">Total Received</p>
-            <p className="font-mono text-2xl font-bold text-white">{formatCurrency(totalAmount)}</p>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <p className="font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase mb-1">Donors</p>
-            <p className="font-mono text-2xl font-bold text-white">{donors.total || 0}</p>
-          </div>
-        </Card>
-        {Object.entries(bySector).map(([sector, data]: [string, { total_amount?: number; donor_count?: number }]) => (
-          <Card key={sector}>
-            <div className="text-center">
-              <p className="font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase mb-1">
-                {sector.charAt(0).toUpperCase() + sector.slice(1)} Sector
-              </p>
-              <p className="font-mono text-lg font-bold text-white">{formatCurrency(data.total_amount || 0)}</p>
-              <p className="font-mono text-xs text-white/30">{data.donor_count || 0} donors</p>
-            </div>
-          </Card>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Summary */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gap: 10,
+        }}
+      >
+        <SummaryStat label="Total Received" value={formatCurrency(totalAmount)} />
+        <SummaryStat label="Donors" value={String(donors.total || 0)} />
+        {Object.entries(bySector).map(([sector, data]) => (
+          <SummaryStat
+            key={sector}
+            label={`${sector.charAt(0).toUpperCase() + sector.slice(1)} Sector`}
+            value={formatCurrency(data.total_amount || 0)}
+            sub={`${data.donor_count || 0} donors`}
+            valueColor={sectorTintFor(sector).token}
+          />
         ))}
       </div>
 
-      {/* Donations table */}
+      {/* Table */}
       <Card>
         <CardTitle>Industry Donations</CardTitle>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr className="border-b border-white/10">
-                <th className="py-2 text-left font-body text-xs uppercase text-white/30">Sector</th>
-                <th className="py-2 text-left font-body text-xs uppercase text-white/30">Committee / PAC</th>
-                <th className="py-2 text-left font-body text-xs uppercase text-white/30">Cycle</th>
-                <th className="py-2 text-right font-body text-xs uppercase text-white/30">Amount</th>
-                <th className="py-2 text-left font-body text-xs uppercase text-white/30">Date</th>
+              <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                {['Sector', 'Committee / PAC', 'Cycle', 'Amount', 'Date'].map((h, i) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: '8px 10px',
+                      textAlign: i === 3 ? 'right' : 'left',
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-text-3)',
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {donations.map((d, i: number) => (
-                <tr key={d.id || i} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
-                  <td className="py-2.5">
-                    <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
-                      d.entity_type === 'finance' ? 'bg-emerald-500/10 text-emerald-400' :
-                      d.entity_type === 'health' ? 'bg-rose-500/10 text-rose-400' :
-                      d.entity_type === 'tech' ? 'bg-violet-500/10 text-violet-400' :
-                      d.entity_type === 'energy' ? 'bg-orange-500/10 text-orange-400' :
-                      'bg-white/10 text-white/50'
-                    }`}>
-                      {d.entity_type || '—'}
-                    </span>
-                  </td>
-                  <td className="py-2.5 font-body text-sm text-white">{d.committee_name || '—'}</td>
-                  <td className="py-2.5 font-mono text-xs text-white/50">{d.cycle || '—'}</td>
-                  <td className="py-2.5 font-mono text-sm font-semibold text-emerald-400 text-right">
-                    {d.amount != null ? formatCurrency(d.amount) : '—'}
-                  </td>
-                  <td className="py-2.5 font-mono text-xs text-white/40">
-                    {d.donation_date ? formatDate(d.donation_date) : '—'}
-                  </td>
-                </tr>
-              ))}
+              {donations.map((d, i) => {
+                const tint = sectorTintFor(d.entity_type);
+                return (
+                  <tr key={d.id || i} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    <td style={{ padding: '10px' }}>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: tint.token,
+                          background: `${tint.hex}1F`,
+                          borderRadius: 5,
+                          padding: '2px 7px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                        }}
+                      >
+                        {d.entity_type || '—'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px', fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-1)' }}>
+                      {d.committee_name || '—'}
+                    </td>
+                    <td style={{ padding: '10px', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--color-text-2)' }}>
+                      {d.cycle || '—'}
+                    </td>
+                    <td
+                      style={{
+                        padding: '10px',
+                        textAlign: 'right',
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: 'var(--color-green)',
+                      }}
+                    >
+                      {d.amount != null ? formatCurrency(d.amount) : '—'}
+                    </td>
+                    <td style={{ padding: '10px', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--color-text-3)' }}>
+                      {d.donation_date ? formatDate(d.donation_date) : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        <p className="mt-3 font-mono text-[10px] text-white/20">
+        <p
+          style={{
+            marginTop: 10,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 10,
+            color: 'var(--color-text-3)',
+          }}
+        >
           Source: FEC via sync_donations.py
         </p>
       </Card>
+    </div>
+  );
+}
+
+function SummaryStat({
+  label,
+  value,
+  sub,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  valueColor?: string;
+}) {
+  return (
+    <div
+      style={{
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 10,
+        padding: '14px 16px',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: 'var(--color-text-3)',
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 22,
+          fontWeight: 700,
+          color: valueColor || 'var(--color-text-1)',
+          lineHeight: 1,
+        }}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div
+          style={{
+            marginTop: 4,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 11,
+            color: 'var(--color-text-3)',
+          }}
+        >
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -1283,7 +1822,15 @@ function FinanceTab({
 
   if (!finance || !finance.totals) {
     return (
-      <p className="py-12 text-center font-body text-sm text-white/40">
+      <p
+        style={{
+          padding: '48px 0',
+          textAlign: 'center',
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 13,
+          color: 'var(--color-text-3)',
+        }}
+      >
         No finance data available.
       </p>
     );
@@ -1295,102 +1842,135 @@ function FinanceTab({
   const candidate_id = finance.candidate_id;
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Hero stats */}
-      <div className="grid grid-cols-2 2xl:grid-cols-4 gap-4 mb-8">
-        <FinanceStatCard label="Total Raised" value={totals.receipts} />
-        <FinanceStatCard label="Total Spent" value={totals.disbursements} />
-        <FinanceStatCard label="Cash on Hand" value={totals.cash_on_hand} />
-        <FinanceStatCard label="Debt" value={totals.debt} />
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gap: 10,
+        }}
+      >
+        <SummaryStat label="Total Raised" value={totals.receipts != null ? formatCurrency(totals.receipts) : '—'} valueColor="var(--color-green)" />
+        <SummaryStat label="Total Spent" value={totals.disbursements != null ? formatCurrency(totals.disbursements) : '—'} />
+        <SummaryStat label="Cash on Hand" value={totals.cash_on_hand != null ? formatCurrency(totals.cash_on_hand) : '—'} valueColor="var(--color-accent-text)" />
+        <SummaryStat label="Debt" value={totals.debt != null ? formatCurrency(totals.debt) : '—'} valueColor={(totals.debt || 0) > 0 ? 'var(--color-red)' : 'var(--color-text-1)'} />
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* LEFT: Top Donors */}
-        <div className="flex-1">
-          <Card>
-            <CardTitle>Top Donors</CardTitle>
-            {top_donors.length === 0 ? (
-              <p className="font-body text-sm text-white/30">No donor data.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-white/10 text-white/40">
-                      <th className="py-2 text-left font-body text-xs uppercase">Donor Name</th>
-                      <th className="py-2 text-left font-body text-xs uppercase">Employer</th>
-                      <th className="py-2 text-right font-body text-xs uppercase">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {top_donors.map((donor, i) => (
-                      <tr
-                        key={i}
-                        className={`border-b border-white/5 last:border-0 ${
-                          i % 2 === 1 ? 'bg-white/[0.02]' : ''
-                        }`}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+        {/* Top Donors */}
+        <Card>
+          <CardTitle>Top Donors</CardTitle>
+          {top_donors.length === 0 ? (
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)', margin: 0 }}>
+              No donor data.
+            </p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    {['Donor', 'Employer', 'Amount'].map((h, i) => (
+                      <th
+                        key={h}
+                        style={{
+                          padding: '8px 10px',
+                          textAlign: i === 2 ? 'right' : 'left',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: 'var(--color-text-3)',
+                        }}
                       >
-                        <td className="py-2.5 font-body font-medium text-white">{donor.name}</td>
-                        <td className="py-2.5 font-body text-white/50">{donor.employer}</td>
-                        <td className="py-2.5 text-right font-mono text-pink-400">
-                          ${(donor.amount ?? 0).toLocaleString()}
-                        </td>
-                      </tr>
+                        {h}
+                      </th>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
-        </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  {top_donors.map((donor, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                      <td style={{ padding: '10px', fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-1)' }}>
+                        {donor.name}
+                      </td>
+                      <td style={{ padding: '10px', fontFamily: "'Inter', sans-serif", fontSize: 12, color: 'var(--color-text-2)' }}>
+                        {donor.employer || '—'}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px',
+                          textAlign: 'right',
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: 'var(--color-green)',
+                        }}
+                      >
+                        ${(donor.amount ?? 0).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
 
-        {/* RIGHT: Committees */}
-        <div className="lg:w-[40%]">
-          <Card>
-            <CardTitle>Committees</CardTitle>
-            {committees.length === 0 ? (
-              <p className="font-body text-sm text-white/30">No committee data.</p>
-            ) : (
-              <div className="space-y-2">
-                {committees.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2">
-                    <span className="font-body text-sm text-white/80">{c.name}</span>
-                    <span className="rounded bg-white/5 px-2 py-0.5 font-body text-[10px] uppercase text-white/40">
-                      {c.designation}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+        {/* Committees */}
+        <Card>
+          <CardTitle>Committees</CardTitle>
+          {committees.length === 0 ? (
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)', margin: 0 }}>
+              No committee data.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {committees.map((c) => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-1)' }}>
+                    {c.name}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: 'var(--color-text-3)',
+                      background: 'var(--color-surface-2)',
+                      borderRadius: 5,
+                      padding: '2px 7px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    {c.designation}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {candidate_id && (
-            <div className="mt-4">
+            <div style={{ marginTop: 12 }}>
               <a
                 href={`https://www.fec.gov/data/candidate/${candidate_id}/`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-body text-sm text-blue-400 transition-colors hover:text-blue-300 no-underline"
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  color: 'var(--color-accent-text)',
+                  textDecoration: 'none',
+                }}
               >
-                View on FEC &rarr;
+                View on FEC →
               </a>
             </div>
           )}
-        </div>
+        </Card>
       </div>
-    </div>
-  );
-}
-
-function FinanceStatCard({ label, value }: { label: string; value: number | null | undefined }) {
-  return (
-    <div
-      className="rounded-xl border border-white/5 p-6"
-      style={{ backgroundColor: '#0F172A' }}
-    >
-      <div className="font-mono text-3xl font-bold text-white">
-        {value != null ? formatCurrency(value) : '—'}
-      </div>
-      <div className="mt-1 font-body text-xs uppercase text-white/40">{label}</div>
     </div>
   );
 }
@@ -1424,14 +2004,12 @@ function StockTradesTab({
   personId?: string;
   party?: string;
 }) {
-  if (loading) return <Spinner />;
-
   // Build timeline markers from trade data
   const timelineMarkers: TradeMarker[] = useMemo(() => {
     return trades
       .filter((t) => t.transaction_date && t.ticker)
       .map((t) => ({
-        date: t.transaction_date!, // non-null guaranteed by filter above
+        date: t.transaction_date!,
         person_id: personId || '',
         display_name: personName,
         party: party || null,
@@ -1441,7 +2019,6 @@ function StockTradesTab({
       }));
   }, [trades, personId, personName, party]);
 
-  // Get the most-traded ticker for the timeline display
   const topTicker = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const t of trades) {
@@ -1459,96 +2036,165 @@ function StockTradesTab({
     ? `https://www.capitoltrades.com/politicians/${bioguideId}`
     : 'https://www.capitoltrades.com/trades';
 
+  if (loading) return <Spinner />;
+
   return (
-    <div className="space-y-6">
-      {/* Header with Capitol Trades link */}
-      <div className="flex items-center justify-between">
-        <h3 className="font-heading text-lg font-bold text-white">Stock Trades</h3>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <h3
+          style={{
+            fontFamily: "'Playfair Display', serif",
+            fontStyle: 'italic',
+            fontWeight: 700,
+            fontSize: 20,
+            color: 'var(--color-text-1)',
+            margin: 0,
+          }}
+        >
+          Stock Trades
+        </h3>
         <a
           href={capitolTradesUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 12,
+            color: 'var(--color-accent-text)',
+            textDecoration: 'none',
+          }}
         >
           View full history on Capitol Trades
-          <ExternalLink size={14} />
+          <ExternalLink size={13} />
         </a>
       </div>
 
-      {/* Trade Timeline visualization */}
+      {/* Timeline */}
       {timelineMarkers.length > 0 && topTicker && (
         <TradeTimeline trades={timelineMarkers} ticker={topTicker} />
       )}
 
       {trades.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-white/40 text-sm">No stock trades found for this member.</p>
+        <div
+          style={{
+            padding: '48px 0',
+            textAlign: 'center',
+          }}
+        >
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)' }}>
+            No stock trades found for this member.
+          </p>
           <a
             href={capitolTradesUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              marginTop: 8,
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              color: 'var(--color-accent-text)',
+              textDecoration: 'none',
+            }}
           >
             Check Capitol Trades <ExternalLink size={12} />
           </a>
         </div>
       ) : (
-        <div className="space-y-2">
-          {trades.map((t, i: number) => (
-            <div
-              key={t.id || i}
-              className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4"
-            >
-              {/* Ticker */}
-              <div className="w-16 shrink-0">
-                <span className="font-mono text-sm font-bold text-white">{t.ticker || '—'}</span>
-              </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {trades.map((t, i) => {
+            const isBuy = (t.transaction_type || '').toLowerCase().includes('purchase');
+            const isSell = (t.transaction_type || '').toLowerCase().includes('sale');
+            const typeColor = isBuy
+              ? { token: 'var(--color-green)', hex: '#3DB87A' }
+              : isSell
+              ? { token: 'var(--color-red)', hex: '#E63946' }
+              : { token: 'var(--color-text-3)', hex: '#B4ADA0' };
+            return (
+              <div
+                key={t.id || i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 16,
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                }}
+              >
+                {/* Ticker */}
+                <div style={{ width: 64, flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: 'var(--color-text-1)' }}>
+                  {t.ticker || '—'}
+                </div>
 
-              {/* Type badge */}
-              <div className="w-20 shrink-0">
-                <span
-                  className={`inline-block rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase ${
-                    t.transaction_type?.includes('purchase')
-                      ? 'bg-emerald-500/20 text-emerald-400'
-                      : t.transaction_type?.includes('sale')
-                      ? 'bg-red-500/20 text-red-400'
-                      : 'bg-white/10 text-white/50'
-                  }`}
-                >
-                  {t.transaction_type || 'unknown'}
-                </span>
-              </div>
+                {/* Type badge */}
+                <div style={{ width: 88, flexShrink: 0 }}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: typeColor.token,
+                      background: `${typeColor.hex}1F`,
+                      borderRadius: 5,
+                      padding: '2px 8px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    {t.transaction_type || 'unknown'}
+                  </span>
+                </div>
 
-              {/* Asset name */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-white/70 truncate">{t.asset_name || t.ticker || '—'}</p>
-              </div>
+                {/* Asset name */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 13,
+                      color: 'var(--color-text-2)',
+                      margin: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {t.asset_name || t.ticker || '—'}
+                  </p>
+                </div>
 
-              {/* Amount */}
-              <div className="w-32 shrink-0 text-right">
-                <span className="font-mono text-sm text-white/50">{t.amount_range || '—'}</span>
-              </div>
+                {/* Amount */}
+                <div style={{ width: 120, flexShrink: 0, textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--color-text-2)' }}>
+                  {t.amount_range || '—'}
+                </div>
 
-              {/* Date */}
-              <div className="w-24 shrink-0 text-right">
-                <span className="font-mono text-[11px] text-white/30">
+                {/* Date */}
+                <div style={{ width: 90, flexShrink: 0, textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--color-text-3)' }}>
                   {t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : '—'}
-                </span>
-              </div>
+                </div>
 
-              {/* Source link */}
-              {t.source_url && (
-                <a
-                  href={t.source_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-white/20 hover:text-white/50 transition-colors"
-                >
-                  <ExternalLink size={14} />
-                </a>
-              )}
-            </div>
-          ))}
+                {/* Source link */}
+                {t.source_url && (
+                  <a
+                    href={t.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ flexShrink: 0, color: 'var(--color-text-3)' }}
+                  >
+                    <ExternalLink size={13} />
+                  </a>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

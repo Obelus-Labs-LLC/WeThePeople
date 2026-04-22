@@ -1,45 +1,108 @@
 import { Link } from 'react-router-dom';
 import { Heart } from 'lucide-react';
+import Logo from './Logo';
 
+/**
+ * Site footer — redesign (Apr 2026).
+ *
+ * Token-driven: surface bg, border tokens, text-3 links with text-2 hover,
+ * monospaced copyright line. Uses new <Logo> instead of the legacy blue
+ * square. Sponsor banner retains the heart-on-GitHub CTA but re-skinned
+ * in --color-red to match the system.
+ */
 export default function Footer() {
   return (
-    <footer className="border-t border-white/5 bg-[#0f1115]">
+    <footer
+      style={{
+        borderTop: '1px solid var(--color-border)',
+        backgroundColor: 'var(--color-surface)',
+      }}
+    >
       <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Top row */}
+        {/* Top row — brand + nav */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-6">
-          {/* Brand */}
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-xs font-black text-white">
-              WP
-            </div>
-            <span className="text-sm font-semibold text-white">WeThePeople</span>
-          </div>
+          <Logo size="sm" />
 
-          {/* Nav links */}
-          <div className="flex flex-wrap gap-6 text-xs text-slate-400">
-            <Link to="/about" className="hover:text-white transition-colors">About</Link>
-            <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-white transition-colors">Terms of Use</Link>
-            <Link to="/disclaimer" className="hover:text-white transition-colors">Disclaimer</Link>
-            <Link to="/methodology" className="hover:text-white transition-colors">Methodology</Link>
-            <Link to="/stories" className="hover:text-white transition-colors">Stories</Link>
+          <div
+            className="flex flex-wrap gap-6"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+            }}
+          >
+            {[
+              { to: '/about', label: 'About' },
+              { to: '/privacy', label: 'Privacy Policy' },
+              { to: '/terms', label: 'Terms of Use' },
+              { to: '/disclaimer', label: 'Disclaimer' },
+              { to: '/methodology', label: 'Methodology' },
+              { to: '/stories', label: 'Stories' },
+            ].map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="no-underline transition-colors text-[var(--color-text-3)] hover:text-[var(--color-text-2)]"
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
         </div>
 
         {/* Support banner */}
-        <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl bg-white/[0.03] border border-white/10 px-5 py-4">
+        <div
+          className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+          style={{
+            backgroundColor: 'rgba(230, 57, 70, 0.06)', // --color-red dim
+            border: '1px solid rgba(230, 57, 70, 0.18)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+          }}
+        >
           <div className="flex items-center gap-3">
-            <Heart className="w-5 h-5 text-rose-400 shrink-0" />
+            <Heart
+              className="w-5 h-5 shrink-0"
+              style={{ color: 'var(--color-red)' }}
+            />
             <div>
-              <p className="text-sm font-medium text-white">Support this open-source project</p>
-              <p className="text-xs text-slate-400">WeThePeople is free and open source. Help us keep it running.</p>
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: 'var(--color-text-1)',
+                  margin: 0,
+                }}
+              >
+                Support this open-source project
+              </p>
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  color: 'var(--color-text-3)',
+                  margin: '2px 0 0',
+                }}
+              >
+                WeThePeople is free and open source. Help us keep it running.
+              </p>
             </div>
           </div>
           <a
             href="https://github.com/sponsors/Obelus-Labs-LLC"
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-2 text-sm font-medium text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-colors"
+            className="shrink-0 inline-flex items-center gap-2 no-underline transition-colors"
+            style={{
+              backgroundColor: 'rgba(230, 57, 70, 0.10)',
+              border: '1px solid rgba(230, 57, 70, 0.22)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '8px 16px',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 14,
+              fontWeight: 500,
+              color: 'var(--color-red)',
+            }}
           >
             <Heart className="w-4 h-4" />
             Sponsor on GitHub
@@ -47,13 +110,34 @@ export default function Footer() {
         </div>
 
         {/* Disclaimer text */}
-        <p className="text-[11px] text-slate-500 leading-relaxed mb-4">
-          Data sourced from public records including Congress.gov, Senate LDA, USASpending.gov, Federal Register, SEC EDGAR, OpenFDA, USPTO, EPA ECHO, and other government APIs. This platform is for informational purposes only and does not constitute financial, legal, or investment advice.
+        <p
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 11,
+            lineHeight: 1.6,
+            color: 'var(--color-text-3)',
+            marginBottom: 16,
+          }}
+        >
+          Data sourced from public records including Congress.gov, Senate LDA,
+          USASpending.gov, Federal Register, SEC EDGAR, OpenFDA, USPTO, EPA
+          ECHO, and other government APIs. This platform is for informational
+          purposes only and does not constitute financial, legal, or investment
+          advice.
         </p>
 
-        {/* Bottom row */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-4 border-t border-white/5">
-          <span className="text-[11px] text-slate-600">
+        {/* Bottom row — copyright + external links */}
+        <div
+          className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-4"
+          style={{ borderTop: '1px solid var(--color-border)' }}
+        >
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+            }}
+          >
             &copy; {new Date().getFullYear()} Obelus Labs LLC. All rights reserved.
           </span>
           <div className="flex items-center gap-4">
@@ -61,7 +145,11 @@ export default function Footer() {
               href="https://github.com/Obelus-Labs-LLC/WeThePeople"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[11px] text-slate-600 hover:text-slate-400 transition-colors"
+              className="no-underline transition-colors text-[var(--color-text-3)] hover:text-[var(--color-text-2)]"
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 11,
+              }}
             >
               Open Source on GitHub
             </a>
@@ -69,7 +157,7 @@ export default function Footer() {
               href="https://x.com/WTPForUs"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-slate-600 hover:text-slate-400 transition-colors"
+              className="transition-colors text-[var(--color-text-3)] hover:text-[var(--color-text-2)]"
               aria-label="Follow us on X"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">

@@ -12,69 +12,336 @@ import {
 import { CivicSectorHeader } from '../components/SectorHeader';
 import { useAuth } from '../contexts/AuthContext';
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'text-zinc-400 bg-zinc-800',
-  in_progress: 'text-blue-400 bg-blue-500/15',
-  partially_fulfilled: 'text-amber-400 bg-amber-500/15',
-  fulfilled: 'text-emerald-400 bg-emerald-500/15',
-  broken: 'text-red-400 bg-red-500/15',
-  retired: 'text-zinc-500 bg-zinc-800',
+// ─────────────────────────────────────────────────────────────────────
+// Tokens (status / sector pill maps)
+// ─────────────────────────────────────────────────────────────────────
+
+// CSS custom properties can't accept an alpha suffix, so for `${hex}18` opacity
+// combinations we keep parallel hex fallbacks alongside the semantic tokens.
+const STATUS_TOKEN: Record<string, { token: string; hex: string; label: string }> = {
+  pending:              { token: 'var(--color-text-3)', hex: '#6E7A85', label: 'Pending' },
+  in_progress:          { token: 'var(--color-dem)',    hex: '#4A7FDE', label: 'In Progress' },
+  partially_fulfilled:  { token: 'var(--color-accent)', hex: '#C5A028', label: 'Partially Fulfilled' },
+  fulfilled:            { token: 'var(--color-green)',  hex: '#3DB87A', label: 'Fulfilled' },
+  broken:               { token: 'var(--color-red)',    hex: '#E63946', label: 'Broken' },
+  retired:              { token: 'var(--color-text-3)', hex: '#6E7A85', label: 'Retired' },
 };
 
-function ProgressBar({ value }: { value: number }) {
+const getStatus = (s: string) => STATUS_TOKEN[s] || STATUS_TOKEN.pending;
+
+// Feature nav pills (match HTML prototype order + tokens)
+const FEATURE_PILLS: Array<{ to: string; label: string; icon: typeof Target; token: string; hex: string }> = [
+  { to: '/civic/promises',    label: 'Promises',    icon: Target,    token: 'var(--color-accent)', hex: '#C5A028' },
+  { to: '/civic/proposals',   label: 'Proposals',   icon: Megaphone, token: 'var(--color-dem)',    hex: '#4A7FDE' },
+  { to: '/civic/annotations', label: 'Annotations', icon: BookOpen,  token: 'var(--color-green)',  hex: '#3DB87A' },
+  { to: '/civic/badges',      label: 'Badges',      icon: Trophy,    token: 'var(--color-ind)',    hex: '#B06FD8' },
+  { to: '/civic/verify',      label: 'Verify',      icon: Shield,    token: 'var(--color-verify)', hex: '#2EC4B6' },
+];
+
+// ─────────────────────────────────────────────────────────────────────
+// Small helpers
+// ─────────────────────────────────────────────────────────────────────
+
+function ProgressBar({ value, color }: { value: number; color: string }) {
+  const pct = Math.max(0, Math.min(100, value));
   return (
-    <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+    <div
+      style={{
+        height: 4,
+        borderRadius: 2,
+        background: 'var(--color-surface-2)',
+        overflow: 'hidden',
+        width: '100%',
+      }}
+    >
       <div
-        className="h-full bg-amber-500 rounded-full transition-all"
-        style={{ width: `${Math.min(value, 100)}%` }}
+        style={{
+          height: '100%',
+          borderRadius: 2,
+          background: color,
+          width: `${pct}%`,
+          transition: 'width 0.6s ease',
+        }}
       />
     </div>
   );
 }
 
+function EyebrowPill({ label }: { label: string }) {
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 7,
+        border: '1px solid var(--color-accent-dim)',
+        borderRadius: 20,
+        padding: '5px 14px',
+        background: 'var(--color-accent-dim)',
+        marginBottom: 20,
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 11,
+          fontWeight: 700,
+          color: 'var(--color-accent-text)',
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Promise card
+// ─────────────────────────────────────────────────────────────────────
+
 function PromiseCard({ item }: { item: PromiseItem }) {
-  const sc = STATUS_COLORS[item.status] || STATUS_COLORS.pending;
+  const st = getStatus(item.status);
   return (
     <Link
       to={`/civic/promises/${item.id}`}
-      className="block bg-zinc-900/60 border border-white/10 rounded-xl p-4 hover:border-amber-500/30 transition-colors group"
+      className="group"
+      style={{
+        display: 'block',
+        padding: 18,
+        borderRadius: 12,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
+        transition: 'border-color 0.15s ease',
+        textDecoration: 'none',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-border-hover)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
     >
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <h3 className="text-sm font-semibold text-zinc-200 group-hover:text-white transition-colors line-clamp-2">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+        <div
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--color-text-1)',
+            lineHeight: 1.4,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
           {item.title}
-        </h3>
-        <span className={`shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded ${sc}`} style={{ fontFamily: 'Oswald, sans-serif' }}>
-          {item.status.replace(/_/g, ' ')}
+        </div>
+        <span
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 10,
+            fontWeight: 700,
+            borderRadius: 20,
+            padding: '3px 8px',
+            background: `${st.hex}1F`,
+            color: st.token,
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {st.label}
         </span>
       </div>
-      <div className="flex items-center gap-2 text-xs text-zinc-500 mb-3">
-        <span className="font-mono">{item.person_name || item.person_id}</span>
-        {item.category && <span className="px-1.5 py-0.5 rounded border border-zinc-800 uppercase text-[10px]">{item.category}</span>}
+      <div
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 11,
+          color: 'var(--color-text-3)',
+          marginBottom: 10,
+        }}
+      >
+        {item.person_name || item.person_id}
+        {item.category && (
+          <>
+            {' · '}
+            <span style={{ letterSpacing: '0.05em', textTransform: 'uppercase' }}>{item.category}</span>
+          </>
+        )}
       </div>
-      <ProgressBar value={item.progress} />
-      <div className="flex items-center justify-between mt-2">
-        <span className="text-[10px] text-zinc-600 font-mono">{item.progress}% complete</span>
-        <span className="text-[10px] text-zinc-600">{item.milestones?.length || 0} milestones</span>
+      <ProgressBar value={item.progress} color={st.token} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+        <span
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 10,
+            color: 'var(--color-text-3)',
+          }}
+        >
+          {item.progress}% complete
+        </span>
+        <span
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 10,
+            color: 'var(--color-text-3)',
+          }}
+        >
+          {item.milestones?.length || 0} milestones
+        </span>
       </div>
     </Link>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Proposal card
+// ─────────────────────────────────────────────────────────────────────
+
 function ProposalCard({ item }: { item: ProposalItem }) {
+  const totalVotes = (item.upvotes || 0) + (item.downvotes || 0);
+  const supportPct = totalVotes > 0 ? Math.round(((item.upvotes || 0) / totalVotes) * 100) : 0;
   return (
-    <div className="bg-zinc-900/60 border border-white/10 rounded-xl p-4 hover:border-amber-500/30 transition-colors">
-      <h3 className="text-sm font-semibold text-zinc-200 mb-1 line-clamp-2">{item.title}</h3>
-      <p className="text-xs text-zinc-500 line-clamp-2 mb-3">{item.body}</p>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 text-xs">
-          <span className="flex items-center gap-1 text-emerald-500"><ThumbsUp size={12} /> {item.upvotes}</span>
-          <span className="flex items-center gap-1 text-red-400"><ThumbsDown size={12} /> {item.downvotes}</span>
+    <div
+      style={{
+        padding: '16px 18px',
+        borderRadius: 12,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        transition: 'border-color 0.15s ease',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-border-hover)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--color-text-1)',
+            marginBottom: 4,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {item.title}
         </div>
-        {item.category && <span className="text-[10px] text-zinc-600 uppercase">{item.category}</span>}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {item.category && (
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 10,
+                color: 'var(--color-text-3)',
+                background: 'var(--color-surface-2)',
+                borderRadius: 4,
+                padding: '2px 7px',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {item.category}
+            </span>
+          )}
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+            }}
+          >
+            {totalVotes.toLocaleString()} votes
+          </span>
+        </div>
+      </div>
+      {totalVotes > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 60 }}>
+          <div
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 18,
+              fontWeight: 700,
+              color: 'var(--color-green)',
+              lineHeight: 1,
+            }}
+          >
+            {supportPct}%
+          </div>
+          <div style={{ width: 50 }}>
+            <ProgressBar value={supportPct} color="var(--color-green)" />
+          </div>
+          <div
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 10,
+              color: 'var(--color-text-3)',
+            }}
+          >
+            support
+          </div>
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+        <button
+          aria-label="Upvote"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            border: '1px solid rgba(61,184,122,0.3)',
+            background: 'rgba(61,184,122,0.1)',
+            color: 'var(--color-green)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <ThumbsUp size={14} />
+        </button>
+        <button
+          aria-label="Downvote"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            border: '1px solid rgba(230,57,70,0.3)',
+            background: 'rgba(230,57,70,0.1)',
+            color: 'var(--color-red)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <ThumbsDown size={14} />
+        </button>
       </div>
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Submit forms (re-skinned, same logic)
+// ─────────────────────────────────────────────────────────────────────
+
+const inputStyle = (accent: string): React.CSSProperties => ({
+  width: '100%',
+  padding: '9px 12px',
+  background: 'var(--color-surface-2)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 8,
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 13,
+  color: 'var(--color-text-1)',
+  outline: 'none',
+});
 
 function ProposalSubmitForm({ onSubmitted, onCancel }: { onSubmitted: () => void; onCancel: () => void }) {
   const [title, setTitle] = useState('');
@@ -98,41 +365,135 @@ function ProposalSubmitForm({ onSubmitted, onCancel }: { onSubmitted: () => void
   };
 
   return (
-    <div className="bg-zinc-900/80 border border-blue-500/30 rounded-xl p-4 mb-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-bold text-white">New Proposal</h4>
-        <button onClick={onCancel} className="text-zinc-500 hover:text-white"><X size={16} /></button>
+    <div
+      style={{
+        padding: 18,
+        borderRadius: 12,
+        border: '1px solid rgba(74,127,222,0.3)',
+        background: 'var(--color-surface)',
+        marginBottom: 12,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h4
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 700,
+            color: 'var(--color-text-1)',
+            margin: 0,
+          }}
+        >
+          New Proposal
+        </h4>
+        <button
+          onClick={onCancel}
+          aria-label="Close form"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--color-text-3)',
+            cursor: 'pointer',
+            padding: 4,
+          }}
+        >
+          <X size={16} />
+        </button>
       </div>
       <input
-        type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
         placeholder="Short, specific title (e.g., 'Cap prescription drug markups at 200%')"
-        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+        style={inputStyle('var(--color-dem)')}
         maxLength={140}
       />
       <textarea
-        value={body} onChange={(e) => setBody(e.target.value)}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
         placeholder="Explain the proposal: what problem it solves, what it changes, who benefits."
         rows={5}
-        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-500 focus:outline-none resize-none"
+        style={{ ...inputStyle('var(--color-dem)'), resize: 'none' }}
         maxLength={2000}
       />
-      <div className="grid grid-cols-2 gap-2">
-        <select value={sector} onChange={(e) => setSector(e.target.value)} className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white focus:border-blue-500 focus:outline-none">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <select
+          value={sector}
+          onChange={(e) => setSector(e.target.value)}
+          style={inputStyle('var(--color-dem)')}
+        >
           <option value="">Sector (optional)</option>
-          <option value="politics">Politics</option><option value="finance">Finance</option><option value="health">Health</option>
-          <option value="technology">Technology</option><option value="energy">Energy</option><option value="transportation">Transportation</option>
-          <option value="defense">Defense</option><option value="chemicals">Chemicals</option><option value="agriculture">Agriculture</option>
-          <option value="telecom">Telecom</option><option value="education">Education</option>
+          <option value="politics">Politics</option>
+          <option value="finance">Finance</option>
+          <option value="health">Health</option>
+          <option value="technology">Technology</option>
+          <option value="energy">Energy</option>
+          <option value="transportation">Transportation</option>
+          <option value="defense">Defense</option>
+          <option value="chemicals">Chemicals</option>
+          <option value="agriculture">Agriculture</option>
+          <option value="telecom">Telecom</option>
+          <option value="education">Education</option>
         </select>
-        <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category (e.g., healthcare)"
-          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-500 focus:outline-none" maxLength={40} />
+        <input
+          type="text"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          placeholder="Category (e.g., healthcare)"
+          style={inputStyle('var(--color-dem)')}
+          maxLength={40}
+        />
       </div>
-      {error && <p className="text-red-400 text-xs">{error}</p>}
-      <div className="flex items-center justify-end gap-2">
-        <button onClick={onCancel} className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white">Cancel</button>
-        <button onClick={submit} disabled={!title.trim() || !body.trim() || submitting}
-          className="px-4 py-1.5 bg-blue-500 text-white text-xs font-bold rounded hover:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider">
-          {submitting ? 'Submitting...' : 'Submit'}
+      {error && (
+        <p
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 11,
+            color: 'var(--color-red)',
+            margin: 0,
+          }}
+        >
+          {error}
+        </p>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+        <button
+          onClick={onCancel}
+          style={{
+            padding: '7px 14px',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 12,
+            fontWeight: 500,
+            color: 'var(--color-text-2)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={submit}
+          disabled={!title.trim() || !body.trim() || submitting}
+          style={{
+            padding: '8px 16px',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 12,
+            fontWeight: 700,
+            color: 'var(--color-dem)',
+            background: 'rgba(74,127,222,0.12)',
+            border: '1px solid var(--color-dem)',
+            borderRadius: 8,
+            cursor: (!title.trim() || !body.trim() || submitting) ? 'not-allowed' : 'pointer',
+            opacity: (!title.trim() || !body.trim() || submitting) ? 0.5 : 1,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {submitting ? 'Submitting…' : 'Submit'}
         </button>
       </div>
     </div>
@@ -155,9 +516,12 @@ function PromiseSubmitForm({ onSubmitted, onCancel }: { onSubmitted: () => void;
     setError('');
     try {
       await createPromise({
-        person_id: personId.trim(), person_name: personName.trim() || undefined,
-        title: title.trim(), description: description.trim() || undefined,
-        source_url: sourceUrl.trim() || undefined, category: category || undefined,
+        person_id: personId.trim(),
+        person_name: personName.trim() || undefined,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        source_url: sourceUrl.trim() || undefined,
+        category: category || undefined,
       });
       onSubmitted();
     } catch (e: unknown) {
@@ -167,38 +531,151 @@ function PromiseSubmitForm({ onSubmitted, onCancel }: { onSubmitted: () => void;
   };
 
   return (
-    <div className="bg-zinc-900/80 border border-amber-500/30 rounded-xl p-4 mb-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-bold text-white">Track a Promise</h4>
-        <button onClick={onCancel} className="text-zinc-500 hover:text-white"><X size={16} /></button>
+    <div
+      style={{
+        padding: 18,
+        borderRadius: 12,
+        border: '1px solid var(--color-accent-dim)',
+        background: 'var(--color-surface)',
+        marginBottom: 12,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h4
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 700,
+            color: 'var(--color-text-1)',
+            margin: 0,
+          }}
+        >
+          Track a Promise
+        </h4>
+        <button
+          onClick={onCancel}
+          aria-label="Close form"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--color-text-3)',
+            cursor: 'pointer',
+            padding: 4,
+          }}
+        >
+          <X size={16} />
+        </button>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <input type="text" value={personId} onChange={(e) => setPersonId(e.target.value)} placeholder="person_id (e.g., mitch_mcconnell)"
-          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none" maxLength={80} />
-        <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="Display name (optional)"
-          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none" maxLength={120} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <input
+          type="text"
+          value={personId}
+          onChange={(e) => setPersonId(e.target.value)}
+          placeholder="person_id (e.g., mitch_mcconnell)"
+          style={inputStyle('var(--color-accent)')}
+          maxLength={80}
+        />
+        <input
+          type="text"
+          value={personName}
+          onChange={(e) => setPersonName(e.target.value)}
+          placeholder="Display name (optional)"
+          style={inputStyle('var(--color-accent)')}
+          maxLength={120}
+        />
       </div>
-      <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Promise headline (e.g., 'Repeal the ACA')"
-        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none" maxLength={140} />
-      <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What did they say? What does fulfillment look like?" rows={3}
-        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none resize-none" maxLength={1000} />
-      <div className="grid grid-cols-2 gap-2">
-        <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="Source URL (speech, tweet, interview)"
-          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none" />
-        <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category (optional)"
-          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none" maxLength={40} />
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Promise headline (e.g., 'Repeal the ACA')"
+        style={inputStyle('var(--color-accent)')}
+        maxLength={140}
+      />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="What did they say? What does fulfillment look like?"
+        rows={3}
+        style={{ ...inputStyle('var(--color-accent)'), resize: 'none' }}
+        maxLength={1000}
+      />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <input
+          type="url"
+          value={sourceUrl}
+          onChange={(e) => setSourceUrl(e.target.value)}
+          placeholder="Source URL (speech, tweet, interview)"
+          style={inputStyle('var(--color-accent)')}
+        />
+        <input
+          type="text"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          placeholder="Category (optional)"
+          style={inputStyle('var(--color-accent)')}
+          maxLength={40}
+        />
       </div>
-      {error && <p className="text-red-400 text-xs">{error}</p>}
-      <div className="flex items-center justify-end gap-2">
-        <button onClick={onCancel} className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white">Cancel</button>
-        <button onClick={submit} disabled={!personId.trim() || !title.trim() || submitting}
-          className="px-4 py-1.5 bg-amber-500 text-black text-xs font-bold rounded hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider">
-          {submitting ? 'Submitting...' : 'Submit'}
+      {error && (
+        <p
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 11,
+            color: 'var(--color-red)',
+            margin: 0,
+          }}
+        >
+          {error}
+        </p>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+        <button
+          onClick={onCancel}
+          style={{
+            padding: '7px 14px',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 12,
+            fontWeight: 500,
+            color: 'var(--color-text-2)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={submit}
+          disabled={!personId.trim() || !title.trim() || submitting}
+          style={{
+            padding: '8px 16px',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 12,
+            fontWeight: 700,
+            color: 'var(--color-accent-text)',
+            background: 'var(--color-accent-dim)',
+            border: '1px solid var(--color-accent)',
+            borderRadius: 8,
+            cursor: (!personId.trim() || !title.trim() || submitting) ? 'not-allowed' : 'pointer',
+            opacity: (!personId.trim() || !title.trim() || submitting) ? 0.5 : 1,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {submitting ? 'Submitting…' : 'Submit'}
         </button>
       </div>
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────────
 
 export default function CivicHubPage() {
   const { isAuthenticated } = useAuth();
@@ -217,7 +694,7 @@ export default function CivicHubPage() {
       fetchPromises({ limit: 6, sort: 'hot' }),
       fetchProposals({ limit: 6, sort: 'hot' }),
     ]).then(([prom, prop]) => {
-        if (cancelled) return;
+      if (cancelled) return;
       if (prom.status === 'fulfilled') { setPromises(prom.value.items); setPromiseTotal(prom.value.total); }
       if (prop.status === 'fulfilled') { setProposals(prop.value.items); setProposalTotal(prop.value.total); }
       setLoading(false);
@@ -229,127 +706,327 @@ export default function CivicHubPage() {
   const onPromiseSubmitted = () => { setShowPromiseForm(false); setRefreshTick(x => x + 1); };
 
   return (
-    <main id="main-content" className="min-h-screen bg-slate-950 text-white">
-      <div className="max-w-6xl mx-auto px-4 pt-6">
+    <main
+      id="main-content"
+      style={{
+        minHeight: '100vh',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text-1)',
+      }}
+    >
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 40px 0' }}>
         <CivicSectorHeader />
       </div>
 
-      {/* Hero */}
-      <div className="px-4 pt-6 pb-10 text-center max-w-3xl mx-auto">
-        <h1 className="text-3xl sm:text-4xl font-bold mb-3" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          <span className="text-amber-400">Civic</span> Hub
-        </h1>
-        <p className="text-zinc-400 text-sm leading-relaxed max-w-xl mx-auto">
-          Track political promises, propose policy ideas, annotate bills, and earn badges for civic participation.
-          Your engagement is scored using Wilson confidence intervals — quality contributions rise to the top.
-        </p>
-      </div>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 40px 64px' }}>
+        {/* Hero */}
+        <div style={{ marginBottom: 28 }}>
+          <EyebrowPill label="Civic Engagement" />
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(32px, 5vw, 44px)',
+              color: 'var(--color-text-1)',
+              margin: '0 0 8px 0',
+              letterSpacing: '-0.01em',
+              lineHeight: 1.08,
+            }}
+          >
+            Civic Hub
+          </h1>
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 14,
+              color: 'var(--color-text-2)',
+              maxWidth: 560,
+              lineHeight: 1.6,
+              margin: 0,
+            }}
+          >
+            Track political promises, vote on policy proposals, and earn badges for civic participation.
+            Contributions scored using Wilson confidence intervals — quality rises to the top.
+          </p>
+        </div>
 
-      <div className="max-w-6xl mx-auto px-4 pb-16">
-        {/* Feature cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-12">
-          {[
-            { to: '/civic/promises', icon: Target, label: 'Promise Tracker', desc: 'Hold politicians accountable', color: 'text-amber-400' },
-            { to: '/civic/proposals', icon: Megaphone, label: 'Proposals', desc: 'Citizen policy ideas', color: 'text-blue-400' },
-            { to: '/civic/annotations', icon: BookOpen, label: 'Bill Annotations', desc: 'Annotate legislation', color: 'text-emerald-400' },
-            { to: '/civic/badges', icon: Trophy, label: 'Badges', desc: 'Civic achievements', color: 'text-purple-400' },
-            { to: '/civic/verify', icon: Shield, label: 'Verify', desc: 'Confirm your district', color: 'text-cyan-400' },
-          ].map((f) => (
+        {/* Feature nav pills */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 28, flexWrap: 'wrap' }}>
+          {FEATURE_PILLS.map((pill) => (
             <Link
-              key={f.to}
-              to={f.to}
-              className="bg-zinc-900/60 border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors group text-center"
+              key={pill.to}
+              to={pill.to}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: '1px solid var(--color-border)',
+                background: 'transparent',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--color-text-2)',
+                textDecoration: 'none',
+                transition: 'border-color 0.15s ease, background 0.15s ease, color 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = pill.token;
+                e.currentTarget.style.background = `${pill.hex}18`;
+                e.currentTarget.style.color = pill.token;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border)';
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--color-text-2)';
+              }}
             >
-              <f.icon size={24} className={`mx-auto mb-2 ${f.color}`} />
-              <div className="text-sm font-semibold text-zinc-200 group-hover:text-white transition-colors">{f.label}</div>
-              <div className="text-[10px] text-zinc-600 mt-0.5">{f.desc}</div>
+              <pill.icon size={13} />
+              {pill.label}
             </Link>
           ))}
         </div>
 
         {loading && (
-          <div className="flex justify-center py-20" aria-busy="true">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" role="status">
-              <span className="sr-only">Loading civic data...</span>
+          <div
+            style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}
+            aria-busy="true"
+          >
+            <div
+              style={{
+                height: 32,
+                width: 32,
+                borderRadius: '50%',
+                border: '2px solid var(--color-border)',
+                borderTopColor: 'var(--color-accent)',
+                animation: 'spin 1s linear infinite',
+              }}
+              role="status"
+            >
+              <span className="sr-only">Loading civic data…</span>
             </div>
           </div>
         )}
 
         {!loading && (
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Promises */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+              gap: 32,
+            }}
+          >
+            {/* Promises section */}
             <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2" style={{ fontFamily: 'Oswald, sans-serif' }}>
-                  <Target size={18} className="text-amber-400" />
-                  Promise Tracker
-                  <span className="text-xs text-zinc-600 font-mono ml-1">{promiseTotal}</span>
-                </h2>
-                <div className="flex items-center gap-3">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--color-text-1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <Target size={14} style={{ color: 'var(--color-accent)' }} />
+                  Active Promises
+                  <span style={{ color: 'var(--color-text-3)', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 400 }}>
+                    — {promiseTotal.toLocaleString()} tracked
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   {isAuthenticated && !showPromiseForm && (
-                    <button onClick={() => setShowPromiseForm(true)}
-                      className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold">
-                      <Plus size={12} /> New
+                    <button
+                      onClick={() => setShowPromiseForm(true)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        border: '1px solid var(--color-accent)',
+                        background: 'var(--color-accent-dim)',
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: 'var(--color-accent-text)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Plus size={12} /> Track a Promise
                     </button>
                   )}
-                  <Link to="/civic/promises" className="text-xs text-zinc-500 hover:text-amber-400 transition-colors flex items-center gap-1">
+                  <Link
+                    to="/civic/promises"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 3,
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 12,
+                      color: 'var(--color-text-3)',
+                      textDecoration: 'none',
+                    }}
+                  >
                     View all <ChevronRight size={12} />
                   </Link>
                 </div>
               </div>
-              {showPromiseForm && <PromiseSubmitForm onSubmitted={onPromiseSubmitted} onCancel={() => setShowPromiseForm(false)} />}
+              {showPromiseForm && (
+                <PromiseSubmitForm onSubmitted={onPromiseSubmitted} onCancel={() => setShowPromiseForm(false)} />
+              )}
               {!isAuthenticated && (
-                <div className="text-xs text-zinc-500 mb-3">
-                  <Link to="/login" className="text-amber-400 hover:underline">Log in</Link> to submit a promise.
+                <div
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    color: 'var(--color-text-3)',
+                    marginBottom: 12,
+                  }}
+                >
+                  <Link
+                    to="/login"
+                    style={{ color: 'var(--color-accent-text)', textDecoration: 'underline' }}
+                  >
+                    Log in
+                  </Link>{' '}
+                  to submit a promise.
                 </div>
               )}
               {promises.length === 0 ? (
-                <div className="text-center py-12 bg-zinc-900/40 rounded-xl border border-white/5">
-                  <Target size={32} className="mx-auto text-zinc-700 mb-3" />
-                  <p className="text-zinc-500 text-sm mb-1">No promises tracked yet.</p>
-                  <p className="text-zinc-600 text-xs">Be the first to submit a politician's promise for accountability tracking.</p>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '48px 0',
+                    background: 'var(--color-surface)',
+                    borderRadius: 12,
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  <Target
+                    size={32}
+                    style={{ margin: '0 auto 12px', color: 'var(--color-text-3)', display: 'block' }}
+                  />
+                  <p style={{ color: 'var(--color-text-2)', fontSize: 13, margin: '0 0 4px', fontFamily: "'Inter', sans-serif" }}>
+                    No promises tracked yet.
+                  </p>
+                  <p style={{ color: 'var(--color-text-3)', fontSize: 11, margin: 0, fontFamily: "'Inter', sans-serif" }}>
+                    Be the first to submit a politician's promise for accountability tracking.
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {promises.map((p) => <PromiseCard key={p.id} item={p} />)}
                 </div>
               )}
             </section>
 
-            {/* Proposals */}
+            {/* Proposals section */}
             <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2" style={{ fontFamily: 'Oswald, sans-serif' }}>
-                  <Megaphone size={18} className="text-blue-400" />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--color-text-1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <Megaphone size={14} style={{ color: 'var(--color-dem)' }} />
                   Citizen Proposals
-                  <span className="text-xs text-zinc-600 font-mono ml-1">{proposalTotal}</span>
-                </h2>
-                <div className="flex items-center gap-3">
+                  <span style={{ color: 'var(--color-text-3)', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 400 }}>
+                    — {proposalTotal.toLocaleString()} submitted
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   {isAuthenticated && !showProposalForm && (
-                    <button onClick={() => setShowProposalForm(true)}
-                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-semibold">
-                      <Plus size={12} /> New
+                    <button
+                      onClick={() => setShowProposalForm(true)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        border: '1px solid var(--color-dem)',
+                        background: 'rgba(74,127,222,0.12)',
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: 'var(--color-dem)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Plus size={12} /> Submit Proposal
                     </button>
                   )}
-                  <Link to="/civic/proposals" className="text-xs text-zinc-500 hover:text-amber-400 transition-colors flex items-center gap-1">
+                  <Link
+                    to="/civic/proposals"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 3,
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 12,
+                      color: 'var(--color-text-3)',
+                      textDecoration: 'none',
+                    }}
+                  >
                     View all <ChevronRight size={12} />
                   </Link>
                 </div>
               </div>
-              {showProposalForm && <ProposalSubmitForm onSubmitted={onProposalSubmitted} onCancel={() => setShowProposalForm(false)} />}
+              {showProposalForm && (
+                <ProposalSubmitForm onSubmitted={onProposalSubmitted} onCancel={() => setShowProposalForm(false)} />
+              )}
               {!isAuthenticated && (
-                <div className="text-xs text-zinc-500 mb-3">
-                  <Link to="/login" className="text-blue-400 hover:underline">Log in</Link> to submit a proposal.
+                <div
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    color: 'var(--color-text-3)',
+                    marginBottom: 12,
+                  }}
+                >
+                  <Link
+                    to="/login"
+                    style={{ color: 'var(--color-dem)', textDecoration: 'underline' }}
+                  >
+                    Log in
+                  </Link>{' '}
+                  to submit a proposal.
                 </div>
               )}
               {proposals.length === 0 ? (
-                <div className="text-center py-12 bg-zinc-900/40 rounded-xl border border-white/5">
-                  <Megaphone size={32} className="mx-auto text-zinc-700 mb-3" />
-                  <p className="text-zinc-500 text-sm mb-1">No proposals yet.</p>
-                  <p className="text-zinc-600 text-xs">Submit a policy proposal and let the community vote on it.</p>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '48px 0',
+                    background: 'var(--color-surface)',
+                    borderRadius: 12,
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  <Megaphone
+                    size={32}
+                    style={{ margin: '0 auto 12px', color: 'var(--color-text-3)', display: 'block' }}
+                  />
+                  <p style={{ color: 'var(--color-text-2)', fontSize: 13, margin: '0 0 4px', fontFamily: "'Inter', sans-serif" }}>
+                    No proposals yet.
+                  </p>
+                  <p style={{ color: 'var(--color-text-3)', fontSize: 11, margin: 0, fontFamily: "'Inter', sans-serif" }}>
+                    Submit a policy proposal and let the community vote on it.
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {proposals.map((p) => <ProposalCard key={p.id} item={p} />)}
                 </div>
               )}
@@ -357,6 +1034,10 @@ export default function CivicHubPage() {
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </main>
   );
 }

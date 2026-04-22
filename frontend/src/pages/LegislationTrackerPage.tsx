@@ -1,13 +1,15 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, ChevronDown, FileText, Users } from 'lucide-react';
+import { Search, Filter, ChevronDown, FileText, Users, X } from 'lucide-react';
 import CSVExport from '../components/CSVExport';
 import { motion } from 'framer-motion';
 import { getApiBaseUrl } from '../api/client';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import BillPipeline from '../components/BillPipeline';
 
-// ── Types ──
+// ─────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────
 
 interface BillEntry {
   bill_id: string;
@@ -38,7 +40,9 @@ interface BillsResponse {
   bills: BillEntry[];
 }
 
-// ── Constants ──
+// ─────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS = [
   { key: 'all', label: 'All Statuses' },
@@ -56,31 +60,64 @@ const CHAMBER_OPTIONS = [
   { key: 'senate', label: 'Senate' },
 ];
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  introduced: { bg: 'rgba(107,114,128,0.2)', text: '#9CA3AF' },
-  in_committee: { bg: 'rgba(245,158,11,0.2)', text: '#F59E0B' },
-  passed_one: { bg: 'rgba(59,130,246,0.2)', text: '#3B82F6' },
-  passed_house: { bg: 'rgba(59,130,246,0.2)', text: '#3B82F6' },
-  passed_senate: { bg: 'rgba(59,130,246,0.2)', text: '#3B82F6' },
-  passed_both: { bg: 'rgba(139,92,246,0.2)', text: '#8B5CF6' },
-  enacted: { bg: 'rgba(16,185,129,0.2)', text: '#10B981' },
-  became_law: { bg: 'rgba(16,185,129,0.2)', text: '#10B981' },
-  signed: { bg: 'rgba(16,185,129,0.2)', text: '#10B981' },
-  vetoed: { bg: 'rgba(239,68,68,0.2)', text: '#EF4444' },
-  failed: { bg: 'rgba(239,68,68,0.2)', text: '#EF4444' },
+// 5-stage pipeline matching v2 design handoff Section 12
+const STAGES = ['Introduced', 'In Committee', 'Passed Committee', 'Passed One Chamber', 'Signed into Law'] as const;
+
+// Hex fallbacks kept for `${hex}12` / `${hex}18` opacity suffixes (CSS vars don't
+// support alpha append).
+const STAGE_COLORS: Array<{ token: string; hex: string }> = [
+  { token: 'var(--color-text-3)', hex: '#6E7A85' }, // 0: Introduced
+  { token: 'var(--color-dem)',    hex: '#4A7FDE' }, // 1: In Committee
+  { token: 'var(--color-accent)', hex: '#C5A028' }, // 2: Passed Committee
+  { token: 'var(--color-green)',  hex: '#3DB87A' }, // 3: Passed One Chamber
+  { token: '#10B981',             hex: '#10B981' }, // 4: Signed into Law
+];
+
+// Map status_bucket → stage index (1-based progress, matches HTML prototype)
+const STATUS_TO_PROGRESS: Record<string, number> = {
+  introduced: 1,
+  in_committee: 2,
+  passed_one: 4,
+  passed_house: 4,
+  passed_senate: 4,
+  passed_committee: 3,
+  passed_both: 4,
+  enacted: 5,
+  became_law: 5,
+  signed: 5,
+  vetoed: 2,  // stalled at committee / presidential veto stage
+  failed: 1,
 };
 
-const PIPELINE_STAGES = ['Introduced', 'Committee', 'Floor Vote', 'Other Chamber', 'President', 'Law'] as const;
+const STATUS_LABELS: Record<string, string> = {
+  introduced: 'Introduced',
+  in_committee: 'In Committee',
+  passed_one: 'Passed One Chamber',
+  passed_house: 'Passed House',
+  passed_senate: 'Passed Senate',
+  passed_committee: 'Passed Committee',
+  passed_both: 'Passed Both Chambers',
+  enacted: 'Signed into Law',
+  became_law: 'Signed into Law',
+  signed: 'Signed into Law',
+  vetoed: 'Vetoed',
+  failed: 'Failed',
+};
 
-const PARTY_COLORS: Record<string, string> = { D: '#3B82F6', R: '#EF4444', I: '#A855F7' };
+const PARTY_HEX: Record<string, string> = {
+  D: '#4A7FDE',
+  R: '#E05555',
+  I: '#B06FD8',
+};
 
 const PAGE_SIZE = 20;
 
-// ── Helpers ──
+// ─────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────
 
-function statusStyle(status: string | null) {
-  if (!status) return { bg: 'rgba(107,114,128,0.2)', text: '#9CA3AF' };
-  return STATUS_COLORS[status.toLowerCase().replace(/\s+/g, '_')] || STATUS_COLORS.introduced;
+function normalizeStatus(status: string | null | undefined): string {
+  return (status || 'introduced').toLowerCase().replace(/\s+/g, '_');
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -90,29 +127,18 @@ function formatDate(dateStr: string | null | undefined): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function statusToStageIndex(status: string | null): number {
-  if (!status) return 0;
-  const map: Record<string, number> = {
-    introduced: 0,
-    in_committee: 1,
-    passed_one: 2,
-    passed_house: 2,
-    passed_senate: 2,
-    passed_both: 3,
-    enacted: 5,
-    became_law: 5,
-    signed: 5,
-    vetoed: 4,
-    failed: 0,
-  };
-  return map[status.toLowerCase().replace(/\s+/g, '_')] ?? 0;
+function progressFromStatus(status: string | null | undefined): number {
+  const key = normalizeStatus(status);
+  return STATUS_TO_PROGRESS[key] ?? 1;
 }
 
-function partyColor(party: string | null): string {
-  return PARTY_COLORS[party?.charAt(0) || ''] || '#6B7280';
+function partyHex(party: string | null): string {
+  return PARTY_HEX[(party || '').charAt(0).toUpperCase()] || '#6E7A85';
 }
 
-// ── Page ──
+// ─────────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────────
 
 export default function LegislationTrackerPage() {
   const [bills, setBills] = useState<BillEntry[]>([]);
@@ -179,15 +205,12 @@ export default function LegislationTrackerPage() {
     if (bills.length < total) setOffset(bills.length);
   };
 
-  // Unique sponsors for the dropdown
-  // TODO: Fetch all unique sponsors from API instead of deriving from loaded page
+  // Unique sponsors for dropdown
   const uniqueSponsors = useMemo(() => {
     const map = new Map<string, string>();
     for (const bill of bills) {
       const primary = bill.sponsors?.find((s) => s.role === 'sponsor') || bill.sponsors?.[0];
-      if (primary?.display_name) {
-        map.set(primary.display_name, primary.display_name);
-      }
+      if (primary?.display_name) map.set(primary.display_name, primary.display_name);
     }
     return Array.from(map.values()).sort();
   }, [bills]);
@@ -208,7 +231,7 @@ export default function LegislationTrackerPage() {
     if (pipelineStage) {
       const allowed = pipelineStageToBuckets[pipelineStage] || [];
       result = result.filter((b) => {
-        const bucket = b.status_bucket?.toLowerCase().replace(/\s+/g, '_') || 'introduced';
+        const bucket = normalizeStatus(b.status_bucket);
         return allowed.includes(bucket);
       });
     }
@@ -222,33 +245,64 @@ export default function LegislationTrackerPage() {
   }, [bills, pipelineStage, sponsorFilter]);
 
   return (
-    <div className="min-h-screen">
-      <div className="relative z-10 mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
-        {/* Nav */}
+    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', color: 'var(--color-text-1)' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '32px 40px 64px' }}>
+        {/* Header chrome */}
         <motion.nav
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="mb-10"
+          style={{ marginBottom: 40 }}
         >
           <PoliticsSectorHeader />
         </motion.nav>
 
-        {/* Header */}
+        {/* Hero */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="mb-8"
+          style={{ marginBottom: 24 }}
         >
-          <p className="font-heading text-xs font-semibold tracking-[0.3em] text-blue-400 uppercase mb-3">
+          <div
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              color: 'var(--color-accent-text)',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              marginBottom: 8,
+            }}
+          >
             Legislation Tracker
-          </p>
-          <h1 className="font-heading text-4xl font-bold tracking-tight text-white lg:text-5xl">
+          </div>
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(32px, 5vw, 44px)',
+              color: 'var(--color-text-1)',
+              margin: '0 0 8px 0',
+              letterSpacing: '-0.01em',
+              lineHeight: 1.05,
+            }}
+          >
             Active Legislation
           </h1>
-          <p className="mt-3 max-w-2xl font-body text-base text-white/40 leading-relaxed">
-            Browse bills and resolutions moving through Congress. Filter by status, chamber, or search by keyword.
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 14,
+              color: 'var(--color-text-2)',
+              maxWidth: 600,
+              lineHeight: 1.6,
+              margin: 0,
+            }}
+          >
+            Bills and resolutions moving through Congress — filter by status, chamber, sponsor, or search by
+            keyword.
           </p>
         </motion.div>
 
@@ -257,83 +311,179 @@ export default function LegislationTrackerPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-8"
+          style={{ marginBottom: 24 }}
         >
-          {/* Search bar */}
-          <div className="relative mb-4">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
+          <div style={{ position: 'relative', marginBottom: showFilters ? 12 : 0 }}>
+            <Search
+              size={16}
+              style={{
+                position: 'absolute',
+                left: 14,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--color-text-3)',
+                pointerEvents: 'none',
+              }}
+            />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search legislation by title or keyword..."
-              className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-12 py-3 font-body text-sm text-white placeholder:text-white/20 focus:border-blue-500/50 focus:outline-none transition-colors"
+              placeholder="Search bills by title or keyword..."
+              style={{
+                width: '100%',
+                padding: '12px 120px 12px 40px',
+                borderRadius: 10,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                color: 'var(--color-text-1)',
+                outline: 'none',
+                transition: 'border-color 0.15s ease',
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-border-hover)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
             />
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-body text-xs transition-colors ${
-                showFilters ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-white/40 hover:text-white/60'
-              }`}
+              onClick={() => setShowFilters((s) => !s)}
+              style={{
+                position: 'absolute',
+                right: 8,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid var(--color-border)',
+                background: showFilters ? 'rgba(74,127,222,0.12)' : 'var(--color-surface-2)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 11,
+                color: showFilters ? 'var(--color-dem)' : 'var(--color-text-2)',
+                cursor: 'pointer',
+              }}
             >
-              <Filter size={14} />
-              Filters
-              <ChevronDown size={12} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+              <Filter size={12} /> Filters
+              <ChevronDown
+                size={11}
+                style={{
+                  transition: 'transform 0.2s ease',
+                  transform: showFilters ? 'rotate(180deg)' : 'rotate(0deg)',
+                }}
+              />
             </button>
           </div>
 
-          {/* Filter pills */}
           {showFilters && (
-            <div className="flex flex-wrap gap-6 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-              {/* Status */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 24,
+                padding: 16,
+                borderRadius: 10,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+              }}
+            >
               <div>
-                <span className="font-body text-xs uppercase text-white/30 mb-2 block">Status</span>
-                <div className="flex flex-wrap gap-2">
-                  {STATUS_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.key}
-                      onClick={() => { setStatusFilter(opt.key); setPipelineStage(''); }}
-                      className={`rounded-full px-3 py-1.5 font-body text-xs transition-all ${
-                        statusFilter === opt.key
-                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                          : 'bg-white/5 text-white/40 border border-white/5 hover:text-white/60'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: 'var(--color-text-3)',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    display: 'block',
+                    marginBottom: 8,
+                  }}
+                >
+                  Status
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {STATUS_OPTIONS.map((opt) => {
+                    const active = statusFilter === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        onClick={() => { setStatusFilter(opt.key); setPipelineStage(''); }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 999,
+                          border: active
+                            ? '1px solid var(--color-dem)'
+                            : '1px solid var(--color-border)',
+                          background: active ? 'rgba(74,127,222,0.12)' : 'transparent',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 11,
+                          fontWeight: active ? 600 : 500,
+                          color: active ? 'var(--color-dem)' : 'var(--color-text-2)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Chamber */}
               <div>
-                <span className="font-body text-xs uppercase text-white/30 mb-2 block">Chamber</span>
-                <div className="flex flex-wrap gap-2">
-                  {CHAMBER_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.key}
-                      onClick={() => setChamberFilter(opt.key)}
-                      className={`rounded-full px-3 py-1.5 font-body text-xs transition-all ${
-                        chamberFilter === opt.key
-                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                          : 'bg-white/5 text-white/40 border border-white/5 hover:text-white/60'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: 'var(--color-text-3)',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    display: 'block',
+                    marginBottom: 8,
+                  }}
+                >
+                  Chamber
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {CHAMBER_OPTIONS.map((opt) => {
+                    const active = chamberFilter === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        onClick={() => setChamberFilter(opt.key)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 999,
+                          border: active
+                            ? '1px solid var(--color-dem)'
+                            : '1px solid var(--color-border)',
+                          background: active ? 'rgba(74,127,222,0.12)' : 'transparent',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 11,
+                          fontWeight: active ? 600 : 500,
+                          color: active ? 'var(--color-dem)' : 'var(--color-text-2)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           )}
         </motion.div>
 
-        {/* Bill Pipeline visualization */}
+        {/* Bill Pipeline (existing click-to-filter visualization, preserved) */}
         {bills.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.25 }}
-            className="mb-6"
+            style={{ marginBottom: 20 }}
           >
             <BillPipeline
               bills={bills}
@@ -343,67 +493,123 @@ export default function LegislationTrackerPage() {
           </motion.div>
         )}
 
-        {/* Sponsor filter + active pipeline filter indicator */}
+        {/* Sponsor + active-filter chips */}
         {bills.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.4, delay: 0.3 }}
-            className="flex flex-wrap items-center gap-3 mb-4"
+            style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 14 }}
           >
-            {/* Sponsor dropdown */}
             {uniqueSponsors.length > 0 && (
-              <div className="relative">
-                <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+              <div style={{ position: 'relative' }}>
+                <Users
+                  size={12}
+                  style={{
+                    position: 'absolute',
+                    left: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--color-text-3)',
+                    pointerEvents: 'none',
+                  }}
+                />
                 <select
                   value={sponsorFilter}
                   onChange={(e) => setSponsorFilter(e.target.value)}
-                  className="appearance-none rounded-lg border border-white/10 bg-white/[0.03] pl-8 pr-8 py-1.5 font-body text-xs text-white/60 focus:border-blue-500/50 focus:outline-none transition-colors cursor-pointer"
-                  style={{ backgroundImage: 'none' }}
+                  style={{
+                    appearance: 'none',
+                    padding: '7px 28px 7px 28px',
+                    borderRadius: 8,
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 11,
+                    color: 'var(--color-text-2)',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
                 >
                   <option value="">All Sponsors</option>
                   {uniqueSponsors.map((name) => (
                     <option key={name} value={name}>{name}</option>
                   ))}
                 </select>
-                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+                <ChevronDown
+                  size={11}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--color-text-3)',
+                    pointerEvents: 'none',
+                  }}
+                />
               </div>
             )}
 
-            {/* Active filters display */}
-            {(pipelineStage || sponsorFilter) && (
-              <div className="flex items-center gap-2">
-                {pipelineStage && (
-                  <button
-                    onClick={() => setPipelineStage('')}
-                    className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2.5 py-1 text-[10px] font-medium text-blue-400 hover:bg-blue-500/25 transition-colors"
-                  >
-                    Stage: {pipelineStage.replace(/_/g, ' ')}
-                    <span className="text-blue-400/60">&times;</span>
-                  </button>
-                )}
-                {sponsorFilter && (
-                  <button
-                    onClick={() => setSponsorFilter('')}
-                    className="inline-flex items-center gap-1 rounded-full bg-purple-500/15 px-2.5 py-1 text-[10px] font-medium text-purple-400 hover:bg-purple-500/25 transition-colors"
-                  >
-                    Sponsor: {sponsorFilter}
-                    <span className="text-purple-400/60">&times;</span>
-                  </button>
-                )}
-              </div>
+            {pipelineStage && (
+              <button
+                onClick={() => setPipelineStage('')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 10px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: 'rgba(74,127,222,0.15)',
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 10,
+                  fontWeight: 500,
+                  color: 'var(--color-dem)',
+                  cursor: 'pointer',
+                }}
+              >
+                Stage: {pipelineStage.replace(/_/g, ' ')}
+                <X size={10} />
+              </button>
+            )}
+            {sponsorFilter && (
+              <button
+                onClick={() => setSponsorFilter('')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 10px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: 'rgba(176,111,216,0.15)',
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 10,
+                  fontWeight: 500,
+                  color: 'var(--color-ind)',
+                  cursor: 'pointer',
+                }}
+              >
+                Sponsor: {sponsorFilter}
+                <X size={10} />
+              </button>
             )}
           </motion.div>
         )}
 
         {/* Results count + CSV export */}
         {!loading && !error && (
-          <div className="mb-4 flex items-center justify-between">
-            <p className="font-mono text-xs text-white/30">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <p
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 11,
+                color: 'var(--color-text-3)',
+                margin: 0,
+              }}
+            >
               {filteredBills.length !== bills.length
                 ? `${filteredBills.length} of ${total.toLocaleString()} bill${total !== 1 ? 's' : ''} shown`
-                : `${total.toLocaleString()} bill${total !== 1 ? 's' : ''} found`
-              }
+                : `${total.toLocaleString()} bill${total !== 1 ? 's' : ''} found`}
             </p>
             <CSVExport
               data={filteredBills.map((b) => ({
@@ -436,34 +642,81 @@ export default function LegislationTrackerPage() {
           </div>
         )}
 
-        {/* Error state */}
+        {/* Error */}
         {error && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-8 text-center">
-            <p className="font-body text-sm text-red-400">{error}</p>
+          <div
+            style={{
+              padding: 32,
+              borderRadius: 12,
+              border: '1px solid rgba(230,57,70,0.3)',
+              background: 'rgba(230,57,70,0.05)',
+              textAlign: 'center',
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                color: 'var(--color-red)',
+                margin: 0,
+              }}
+            >
+              {error}
+            </p>
             <button
               onClick={() => fetchBills(0)}
-              className="mt-4 rounded-lg border border-white/10 bg-white/5 px-4 py-2 font-body text-sm text-white/60 hover:bg-white/10 transition-colors"
+              style={{
+                marginTop: 14,
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                color: 'var(--color-text-2)',
+                cursor: 'pointer',
+              }}
             >
               Retry
             </button>
           </div>
         )}
 
-        {/* Loading state */}
+        {/* Loading */}
         {loading && bills.length === 0 && !error && (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
+            <div
+              style={{
+                height: 32,
+                width: 32,
+                borderRadius: '50%',
+                border: '2px solid var(--color-border)',
+                borderTopColor: 'var(--color-accent)',
+                animation: 'spin 1s linear infinite',
+              }}
+            />
           </div>
         )}
 
-        {/* Empty state */}
+        {/* Empty */}
         {!loading && !error && filteredBills.length === 0 && (
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] py-16 text-center">
-            <FileText size={40} className="mx-auto mb-4 text-white/10" />
-            <p className="font-body text-sm text-white/40">
+          <div
+            style={{
+              padding: '60px 20px',
+              borderRadius: 12,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+              textAlign: 'center',
+            }}
+          >
+            <FileText
+              size={40}
+              style={{ display: 'block', margin: '0 auto 14px', color: 'var(--color-text-3)' }}
+            />
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-2)', margin: '0 0 4px' }}>
               No legislation found matching your criteria.
             </p>
-            <p className="mt-1 font-body text-xs text-white/20">
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: 'var(--color-text-3)', margin: 0 }}>
               Try adjusting your filters or search term.
             </p>
           </div>
@@ -471,7 +724,7 @@ export default function LegislationTrackerPage() {
 
         {/* Bill cards */}
         {filteredBills.length > 0 && (
-          <div className="flex flex-col gap-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {filteredBills.map((bill, idx) => (
               <motion.div
                 key={bill.bill_id}
@@ -487,123 +740,322 @@ export default function LegislationTrackerPage() {
 
         {/* Load more */}
         {bills.length > 0 && bills.length < total && (
-          <div className="mt-8 flex justify-center">
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 32 }}>
             <button
               onClick={loadMore}
               disabled={loading}
-              className="rounded-lg border border-white/10 bg-white/5 px-6 py-2.5 font-body text-sm text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+              style={{
+                padding: '10px 20px',
+                borderRadius: 8,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--color-text-2)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.5 : 1,
+                transition: 'background 0.15s ease, color 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.background = 'var(--color-surface-2)';
+                  e.currentTarget.style.color = 'var(--color-text-1)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--color-surface)';
+                e.currentTarget.style.color = 'var(--color-text-2)';
+              }}
             >
-              {loading ? 'Loading...' : `Show More (${bills.length} of ${total.toLocaleString()})`}
+              {loading ? 'Loading…' : `Show More (${bills.length} of ${total.toLocaleString()})`}
             </button>
           </div>
         )}
 
         {/* Footer */}
-        <div className="mt-16 border-t border-white/5 pt-6 flex items-center justify-between">
-          <Link to="/politics" className="font-body text-sm text-white/50 hover:text-white transition-colors no-underline">
-            &larr; Politics Dashboard
+        <div
+          style={{
+            marginTop: 64,
+            paddingTop: 20,
+            borderTop: '1px solid var(--color-border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Link
+            to="/politics"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--color-text-2)',
+              textDecoration: 'none',
+              transition: 'color 0.15s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+          >
+            ← Politics Dashboard
           </Link>
-          <span className="font-mono text-[10px] text-white/15">WeThePeople</span>
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10,
+              color: 'var(--color-text-3)',
+            }}
+          >
+            WeThePeople
+          </span>
         </div>
       </div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
 
-// ── Legislation Card ──
+// ─────────────────────────────────────────────────────────────────────
+// Legislation Card (with 5-dot vertical pipeline indicator)
+// ─────────────────────────────────────────────────────────────────────
 
 function LegislationCard({ bill }: { bill: BillEntry }) {
-  const st = statusStyle(bill.status_bucket);
-  const stageIndex = statusToStageIndex(bill.status_bucket);
+  const progress = progressFromStatus(bill.status_bucket); // 1-5
+  const stageIdx = Math.max(0, Math.min(4, progress - 1));
+  const stage = STAGE_COLORS[stageIdx];
   const primarySponsor = bill.sponsors?.find((s) => s.role === 'sponsor') || bill.sponsors?.[0];
+  const statusLabel = STATUS_LABELS[normalizeStatus(bill.status_bucket)] || STAGES[stageIdx];
 
   return (
     <Link
       to={`/politics/bill/${bill.bill_id}`}
-      className="no-underline block"
+      style={{ textDecoration: 'none', display: 'block' }}
     >
       <div
-        className="group rounded-xl border border-white/5 p-6 transition-all duration-300 hover:border-white/10"
-        style={{ backgroundColor: '#0F172A' }}
+        style={{
+          padding: '16px 20px',
+          borderRadius: 10,
+          border: '1px solid var(--color-border)',
+          background: 'var(--color-surface)',
+          cursor: 'pointer',
+          transition: 'border-color 0.18s ease, transform 0.18s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = 'var(--color-border-hover)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'var(--color-border)';
+        }}
       >
-        {/* Top row: bill ID + badges */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          <span className="rounded-full border border-blue-500/30 bg-blue-500/20 px-2.5 py-0.5 font-mono text-xs font-bold text-blue-400">
-            {bill.bill_id}
-          </span>
-          {bill.status_bucket && (
-            <span
-              className="rounded-full px-2.5 py-0.5 font-body text-[10px] font-bold uppercase"
-              style={{ backgroundColor: st.bg, color: st.text }}
-            >
-              {bill.status_bucket.replace(/_/g, ' ')}
-            </span>
-          )}
-          {bill.policy_area && (
-            <span className="rounded-full bg-white/5 px-2.5 py-0.5 font-body text-[10px] uppercase text-white/40">
-              {bill.policy_area}
-            </span>
-          )}
-        </div>
-
-        {/* Title */}
-        <h2 className="font-body text-lg font-medium text-white line-clamp-2 group-hover:text-blue-400 transition-colors">
-          {bill.title}
-        </h2>
-
-        {/* Pipeline */}
-        <div className="mt-4 flex items-center gap-1">
-          {PIPELINE_STAGES.map((stage, i) => (
-            <div key={stage} className="flex items-center gap-1 flex-1">
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+          {/* 5-dot vertical pipeline indicator */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 3,
+              flexShrink: 0,
+              paddingTop: 4,
+            }}
+            aria-label={`Pipeline stage ${progress} of 5: ${statusLabel}`}
+          >
+            {STAGES.map((_, i) => (
               <div
-                className={`h-1.5 flex-1 rounded-full transition-colors ${
-                  i <= stageIndex ? 'bg-blue-500' : 'bg-white/10'
-                }`}
+                key={i}
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background:
+                    i < progress
+                      ? STAGE_COLORS[Math.min(i, STAGE_COLORS.length - 1)].token
+                      : 'var(--color-surface-2)',
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Content */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Badge row */}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+              <span
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'var(--color-dem)',
+                  background: 'rgba(74,127,222,0.12)',
+                  borderRadius: 5,
+                  padding: '2px 7px',
+                  letterSpacing: '0.02em',
+                }}
+              >
+                {bill.bill_id}
+              </span>
+              <span
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: stage.token,
+                  background: `${stage.hex}1F`,
+                  borderRadius: 5,
+                  padding: '2px 7px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {statusLabel}
+              </span>
+              {bill.policy_area && (
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 10,
+                    color: 'var(--color-text-3)',
+                    background: 'var(--color-surface-2)',
+                    borderRadius: 5,
+                    padding: '2px 7px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {bill.policy_area}
+                </span>
+              )}
+            </div>
+
+            {/* Title */}
+            <div
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 14,
+                fontWeight: 600,
+                color: 'var(--color-text-1)',
+                marginBottom: 5,
+                lineHeight: 1.4,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {bill.title}
+            </div>
+
+            {/* Meta row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+              {primarySponsor && (
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 11,
+                    color: 'var(--color-text-3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: partyHex(primarySponsor.party),
+                    }}
+                  />
+                  Sponsor:{' '}
+                  <span style={{ color: 'var(--color-text-2)' }}>
+                    {primarySponsor.display_name}
+                  </span>
+                  {primarySponsor.party && (
+                    <span style={{ color: 'var(--color-text-3)' }}>
+                      ({primarySponsor.party}
+                      {primarySponsor.state ? `-${primarySponsor.state}` : ''})
+                    </span>
+                  )}
+                </span>
+              )}
+              {bill.introduced_date && (
+                <span
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 11,
+                    color: 'var(--color-text-3)',
+                  }}
+                >
+                  Introduced {formatDate(bill.introduced_date)}
+                </span>
+              )}
+              {bill.latest_action_date && (
+                <span
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 11,
+                    color: 'var(--color-text-3)',
+                  }}
+                >
+                  Last action {formatDate(bill.latest_action_date)}
+                </span>
+              )}
+            </div>
+
+            {/* Latest action text */}
+            {bill.latest_action_text && (
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 11,
+                  color: 'var(--color-text-3)',
+                  margin: '6px 0 0 0',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 1,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {bill.latest_action_text}
+              </p>
+            )}
+          </div>
+
+          {/* Right-side progress badge */}
+          <div style={{ flexShrink: 0, textAlign: 'right', minWidth: 70 }}>
+            <div
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10,
+                color: 'var(--color-text-3)',
+                marginBottom: 4,
+              }}
+            >
+              Stage {progress}/5
+            </div>
+            <div
+              style={{
+                width: 60,
+                height: 4,
+                borderRadius: 2,
+                background: 'var(--color-surface-2)',
+                marginLeft: 'auto',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  borderRadius: 2,
+                  background: stage.token,
+                  width: `${(progress / 5) * 100}%`,
+                  transition: 'width 0.6s ease',
+                }}
               />
             </div>
-          ))}
+          </div>
         </div>
-        <div className="mt-1 flex justify-between">
-          {PIPELINE_STAGES.map((stage, i) => (
-            <span
-              key={stage}
-              className={`font-mono text-[9px] ${
-                i <= stageIndex ? 'text-blue-400/60' : 'text-white/15'
-              }`}
-            >
-              {stage}
-            </span>
-          ))}
-        </div>
-
-        {/* Meta row */}
-        <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-white/30">
-          {primarySponsor && (
-            <span className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2 w-2 rounded-full"
-                style={{ backgroundColor: partyColor(primarySponsor.party) }}
-              />
-              <span className="text-white/50">{primarySponsor.display_name}</span>
-              {primarySponsor.party && (
-                <span className="text-white/20">({primarySponsor.party})</span>
-              )}
-            </span>
-          )}
-          {bill.introduced_date && (
-            <span>Introduced {formatDate(bill.introduced_date)}</span>
-          )}
-          {bill.latest_action_date && (
-            <span>Last action {formatDate(bill.latest_action_date)}</span>
-          )}
-        </div>
-
-        {/* Latest action text */}
-        {bill.latest_action_text && (
-          <p className="mt-2 font-body text-xs text-white/20 line-clamp-1">
-            {bill.latest_action_text}
-          </p>
-        )}
       </div>
     </Link>
   );
