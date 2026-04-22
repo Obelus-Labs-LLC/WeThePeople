@@ -648,7 +648,7 @@ const HomePage: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen flex flex-col"
+      className="min-h-screen"
       style={{ background: "var(--color-bg)", color: "var(--color-text-1)" }}
     >
       <SiteHeader />
