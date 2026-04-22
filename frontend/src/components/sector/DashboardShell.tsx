@@ -130,29 +130,24 @@ export function SectorHero({
   eyebrow, titleLine1, titleLine2, titleAccent, titleTrail, sub, ctas, rightSlot,
 }: SectorHeroProps) {
   return (
-    <div
-      className="grid"
-      style={{
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-        gap: 32,
-        marginBottom: 48,
-      }}
-    >
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.1 }}
-        className="flex flex-col justify-center"
+    <>
+      {/* Hero — single column, Politics template (clamp 32→52, weight 800, Inter sub) */}
+      <div
+        className="animate-fade-up"
+        style={{
+          maxWidth: 760,
+          marginBottom: 32,
+        }}
       >
         <p
           style={{
             fontFamily: "'Inter', sans-serif",
             fontSize: 11,
             fontWeight: 600,
-            letterSpacing: '0.2em',
+            letterSpacing: '0.1em',
             textTransform: 'uppercase',
             color: 'var(--color-accent-text)',
-            marginBottom: 16,
+            margin: '0 0 12px 0',
           }}
         >
           {eyebrow}
@@ -161,9 +156,9 @@ export function SectorHero({
           style={{
             fontFamily: "'Playfair Display', serif",
             fontStyle: 'italic',
-            fontWeight: 900,
-            fontSize: 'clamp(40px, 5.5vw, 68px)',
-            lineHeight: 1.0,
+            fontWeight: 800,
+            fontSize: 'clamp(32px, 4vw, 52px)',
+            lineHeight: 1.05,
             letterSpacing: '-0.01em',
             color: 'var(--color-text-1)',
             margin: 0,
@@ -186,91 +181,99 @@ export function SectorHero({
         </h1>
         <p
           style={{
-            fontFamily: "'Playfair Display', serif",
-            fontStyle: 'italic',
+            fontFamily: "'Inter', sans-serif",
             fontWeight: 400,
-            fontSize: 18,
-            lineHeight: 1.5,
+            fontSize: 16,
+            lineHeight: 1.55,
             color: 'var(--color-text-2)',
-            marginTop: 20,
-            maxWidth: 520,
+            margin: '16px 0 0 0',
+            maxWidth: 640,
           }}
         >
           {sub}
         </p>
-        <div className="flex flex-wrap" style={{ gap: 12, marginTop: 28 }}>
-          {ctas.map((cta) => {
-            const style: React.CSSProperties = cta.primary
-              ? {
-                  gap: 8,
-                  padding: '12px 20px',
-                  borderRadius: 'var(--radius-card)',
-                  background: 'var(--color-accent)',
-                  color: '#07090C',
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 14,
-                  fontWeight: 700,
-                }
-              : {
-                  gap: 8,
-                  padding: '12px 20px',
-                  borderRadius: 'var(--radius-card)',
-                  background: 'transparent',
-                  border: '1px solid var(--color-border-hover)',
-                  color: 'var(--color-text-2)',
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 14,
-                  fontWeight: 600,
-                };
-            const body = (
-              <>
-                {cta.label}
-                {cta.primary && <ArrowRight size={14} />}
-                {cta.badge && (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--color-research)',
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {cta.badge}
-                  </span>
-                )}
-              </>
-            );
-            return cta.external ? (
-              <a
-                key={cta.label}
-                href={cta.to}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center no-underline"
-                style={style}
-              >
-                {body}
-              </a>
-            ) : (
-              <Link
-                key={cta.label}
-                to={cta.to}
-                className="inline-flex items-center no-underline"
-                style={style}
-              >
-                {body}
-              </Link>
-            );
-          })}
-        </div>
-      </motion.div>
-      <div
-        className="grid"
-        style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}
-      >
-        {rightSlot}
+        {ctas.length > 0 && (
+          <div className="flex flex-wrap" style={{ gap: 12, marginTop: 24 }}>
+            {ctas.map((cta) => {
+              const style: React.CSSProperties = cta.primary
+                ? {
+                    gap: 8,
+                    padding: '10px 18px',
+                    borderRadius: 'var(--radius-card)',
+                    background: 'var(--color-accent)',
+                    color: '#07090C',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }
+                : {
+                    gap: 8,
+                    padding: '10px 18px',
+                    borderRadius: 'var(--radius-card)',
+                    background: 'transparent',
+                    border: '1px solid var(--color-border-hover)',
+                    color: 'var(--color-text-2)',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  };
+              const body = (
+                <>
+                  {cta.label}
+                  {cta.primary && <ArrowRight size={14} />}
+                  {cta.badge && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: 'var(--color-research)',
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {cta.badge}
+                    </span>
+                  )}
+                </>
+              );
+              return cta.external ? (
+                <a
+                  key={cta.label}
+                  href={cta.to}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center no-underline"
+                  style={style}
+                >
+                  {body}
+                </a>
+              ) : (
+                <Link
+                  key={cta.label}
+                  to={cta.to}
+                  className="inline-flex items-center no-underline"
+                  style={style}
+                >
+                  {body}
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
-    </div>
+      {/* Stats — 4-col row below hero, Politics template */}
+      {rightSlot && (
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gap: 12,
+            marginBottom: 32,
+          }}
+        >
+          {rightSlot}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -773,7 +776,7 @@ export function DashboardShellLayout({
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-bg)' }}>
       {header}
-      <div className="mx-auto" style={{ maxWidth: 1400, padding: '24px 32px 80px' }}>
+      <div className="mx-auto" style={{ maxWidth: 1280, padding: '40px 40px 80px' }}>
         {children}
       </div>
     </div>
