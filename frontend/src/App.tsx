@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "./contexts/AuthContext";
 import PoliticsLayout from "./layouts/PoliticsLayout";
@@ -116,8 +116,8 @@ const LoginPage = React.lazy(() => import("./pages/LoginPage"));
 const SignupPage = React.lazy(() => import("./pages/SignupPage"));
 const AccountPage = React.lazy(() => import("./pages/AccountPage"));
 const ZipLookupPage = React.lazy(() => import("./pages/ZipLookupPage"));
-const StoriesPage = React.lazy(() => import("./pages/StoriesPage"));
-const StoryDetailPage = React.lazy(() => import("./pages/StoryDetailPage"));
+// Stories moved to the Journal site — routes redirect via MovedToJournalPage
+const MovedToJournalPage = React.lazy(() => import("./pages/MovedToJournalPage"));
 const MovedToResearchPage = React.lazy(() => import("./pages/MovedToResearchPage"));
 const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage"));
 const PrivacyPolicyPage = React.lazy(() => import("./pages/PrivacyPolicyPage"));
@@ -126,15 +126,28 @@ const DisclaimerPage = React.lazy(() => import("./pages/DisclaimerPage"));
 const AboutPage = React.lazy(() => import("./pages/AboutPage"));
 const MethodologyPage = React.lazy(() => import("./pages/MethodologyPage"));
 
-const App: React.FC = () => (
-  <ErrorBoundary>
-    <AuthProvider>
-    <BrowserRouter>
+// Landing page has its own SiteHeader with search + Log in/Sign up.
+// All other pages rely on the global floating overlays.
+const GlobalOverlays: React.FC = () => {
+  const { pathname } = useLocation();
+  const isLanding = pathname === "/";
+  if (isLanding) return null;
+  return (
+    <>
       <GlobalSearch />
       <ChatAgent />
       <div className="fixed top-3 right-32 z-50">
         <UserMenu />
       </div>
+    </>
+  );
+};
+
+const App: React.FC = () => (
+  <ErrorBoundary>
+    <AuthProvider>
+    <BrowserRouter>
+      <GlobalOverlays />
       <Suspense fallback={
         <div className="flex h-screen items-center justify-center bg-slate-950">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
@@ -287,9 +300,9 @@ const App: React.FC = () => (
           <Route path="/civic/badges" element={<BadgesPage />} />
           <Route path="/civic/verify" element={<CivicVerifyPage />} />
 
-          {/* Stories */}
-          <Route path="/stories" element={<StoriesPage />} />
-          <Route path="/stories/:slug" element={<StoryDetailPage />} />
+          {/* Stories — moved to the Journal site */}
+          <Route path="/stories" element={<MovedToJournalPage />} />
+          <Route path="/stories/:slug" element={<MovedToJournalPage />} />
 
           {/* Zip Code Lookup */}
           <Route path="/lookup" element={<ZipLookupPage />} />
