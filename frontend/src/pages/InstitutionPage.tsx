@@ -76,8 +76,11 @@ function FilingRow({ filing }: { filing: SECFiling }) {
   const url = filing.filing_url || filing.primary_doc_url;
   return (
     <div className="group flex items-center gap-4 rounded-lg border border-transparent bg-white/5 p-4 transition-all duration-150 hover:bg-white/10 hover:border-white/10">
-      <div className="flex h-auto w-16 flex-shrink-0 items-center justify-center rounded bg-[rgba(52,211,153,0.1)] px-2 py-2">
-        <span className="font-mono text-sm font-bold text-[#34D399]">{filing.form_type || '?'}</span>
+      <div
+        className="flex h-auto w-16 flex-shrink-0 items-center justify-center rounded px-2 py-2"
+        style={{ background: 'rgba(61,184,122,0.12)' }}
+      >
+        <span className="font-mono text-sm font-bold" style={{ color: 'var(--color-green)' }}>{filing.form_type || '?'}</span>
       </div>
       <div className="min-w-0 flex-1">
         <p className="font-body text-base font-medium text-white truncate mb-1">
@@ -261,22 +264,25 @@ export default function InstitutionPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-transparent">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" />
+      <div className="flex h-screen items-center justify-center" style={{ background: 'var(--color-bg)' }}>
+        <div
+          className="h-8 w-8 animate-spin rounded-full border-2"
+          style={{ borderColor: 'var(--color-green)', borderTopColor: 'transparent' }}
+        />
       </div>
     );
   }
 
   if (!detail) {
     return (
-      <div className="flex h-screen items-center justify-center bg-transparent">
-        <p className="font-body text-white/60">Institution not found.</p>
+      <div className="flex h-screen items-center justify-center" style={{ background: 'var(--color-bg)' }}>
+        <p className="font-body" style={{ color: 'var(--color-text-3)' }}>Institution not found.</p>
       </div>
     );
   }
 
   const latestFin = financials[0] || null;
-  const ACCENT = '#34D399';
+  const ACCENT = 'var(--color-green)';
 
   return (
     <div className="flex flex-col w-full h-screen relative">
@@ -318,7 +324,7 @@ export default function InstitutionPage() {
         {/* Left Sidebar */}
         <div
           className="hidden md:flex flex-col w-[30%] lg:w-[25%] border-r p-8 overflow-y-auto shrink-0"
-          style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}
+          style={{ background: 'rgba(235,229,213,0.02)', borderColor: 'rgba(235,229,213,0.08)', scrollbarWidth: 'thin', scrollbarColor: 'rgba(235,229,213,0.1) transparent' }}
         >
           {/* Logo */}
           <div className="mb-6 flex justify-center">
@@ -337,20 +343,23 @@ export default function InstitutionPage() {
           <div className="flex items-center justify-center gap-3 mb-1">
             <h1
               className="text-3xl font-bold leading-tight text-center"
-              style={{ fontFamily: "'Syne', sans-serif", color: '#E2E8F0' }}
+              style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 900, color: 'var(--color-text-1)', letterSpacing: '-0.02em' }}
             >
               {detail.display_name}
             </h1>
             <WatchlistButton entityType="company" entityId={detail.institution_id || institution_id || ""} entityName={detail.display_name} sector="finance" />
           </div>
           {detail.headquarters && (
-            <p className="text-sm text-center mb-4" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
+            <p className="text-sm text-center mb-4" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--color-text-3)' }}>
               {detail.headquarters}
             </p>
           )}
           <div className="flex justify-center gap-2 mb-6 flex-wrap">
             {detail.ticker && (
-              <span className="rounded bg-[#34D399]/20 px-3 py-1 font-mono text-sm font-bold text-[#6EE7B7]">
+              <span
+                className="rounded px-3 py-1 font-mono text-sm font-bold"
+                style={{ background: 'rgba(61,184,122,0.14)', color: 'var(--color-green)' }}
+              >
                 {detail.ticker}
               </span>
             )}
@@ -374,8 +383,8 @@ export default function InstitutionPage() {
               ['FDIC CERT', detail.fdic_cert],
             ].map(([label, value]) => value ? (
               <div key={label}>
-                <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>{label}</p>
-                <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: '#E2E8F0' }}>{value}</p>
+                <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--color-text-3)' }}>{label}</p>
+                <p className="text-sm font-medium" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--color-text-1)' }}>{value}</p>
               </div>
             ) : null)}
           </div>
@@ -383,7 +392,7 @@ export default function InstitutionPage() {
           {/* Market Data in sidebar */}
           {stock && (
             <div className="mt-6 space-y-3">
-              <p className="text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>MARKET DATA</p>
+              <p className="text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--color-text-3)' }}>MARKET DATA</p>
               {stock.market_cap != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Market Cap</p><p className="font-mono text-lg text-white">{fmtDollar(stock.market_cap)}</p></div>}
               {stock.pe_ratio != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>P/E Ratio</p><p className="font-mono text-sm text-white">{stock.pe_ratio.toFixed(2)}</p></div>}
               {stock.eps != null && <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>EPS</p><p className="font-mono text-sm text-white">${stock.eps.toFixed(2)}</p></div>}
@@ -395,7 +404,7 @@ export default function InstitutionPage() {
           {/* FDIC Snapshot in sidebar */}
           {latestFin && (
             <div className="mt-6 space-y-3">
-              <p className="text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>FDIC SNAPSHOT</p>
+              <p className="text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--color-text-3)' }}>FDIC SNAPSHOT</p>
               <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Total Assets</p><p className="font-mono text-lg text-white">{fmtDollar(latestFin.total_assets)}</p></div>
               <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Total Deposits</p><p className="font-mono text-sm text-white">{fmtDollar(latestFin.total_deposits)}</p></div>
               <div><p className="text-xs text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Net Income</p><p className="font-mono text-sm text-white">{fmtDollar(latestFin.net_income)}</p></div>
@@ -428,7 +437,7 @@ export default function InstitutionPage() {
           {/* Activity Over Time */}
           {trends && (
             <div className="mt-6">
-              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
+              <p className="text-xs uppercase tracking-wider mb-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--color-text-3)' }}>
                 Activity Over Time
               </p>
               <TrendChart data={trends} height={120} />
@@ -439,7 +448,7 @@ export default function InstitutionPage() {
         {/* Right Panel */}
         <div className="flex-1 flex flex-col min-h-0" style={{ background: 'transparent' }}>
           {/* Tabs */}
-          <div className="relative flex gap-8 border-b px-8 pt-4 shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+          <div className="relative flex gap-8 border-b px-8 pt-4 shrink-0" style={{ borderColor: 'rgba(235,229,213,0.08)' }}>
             {TABS.map((tab) => (
               <button
                 key={tab.key}
@@ -465,7 +474,7 @@ export default function InstitutionPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto p-8" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+          <div className="flex-1 overflow-y-auto p-8" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(235,229,213,0.1) transparent' }}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
@@ -481,17 +490,29 @@ export default function InstitutionPage() {
               {/* Filter */}
               <div className="mb-4 flex items-center gap-3 shrink-0">
                 <span className="font-mono text-xs text-white/40">FILTER:</span>
-                {[{ label: 'ALL', value: null }, { label: 'PURCHASE', value: 'P' }, { label: 'SALE', value: 'S' }, { label: 'AWARD', value: 'A' }].map((opt) => (
-                  <button key={opt.label} onClick={() => { setTradeFilter(opt.value); }}
-                    className={`rounded px-3 py-1 font-mono text-xs font-bold transition-colors ${tradeFilter === opt.value ? 'bg-[#34D399]/20 text-[#34D399] border border-[#34D399]/30' : 'bg-white/5 text-white/50 border border-transparent hover:text-white'}`}>
-                    {opt.label}
-                  </button>
-                ))}
+                {[{ label: 'ALL', value: null }, { label: 'PURCHASE', value: 'P' }, { label: 'SALE', value: 'S' }, { label: 'AWARD', value: 'A' }].map((opt) => {
+                  const active = tradeFilter === opt.value;
+                  return (
+                    <button
+                      key={opt.label}
+                      onClick={() => { setTradeFilter(opt.value); }}
+                      className="rounded px-3 py-1 font-mono text-xs font-bold transition-colors"
+                      style={{
+                        background: active ? 'rgba(61,184,122,0.14)' : 'rgba(235,229,213,0.04)',
+                        color: active ? 'var(--color-green)' : 'var(--color-text-3)',
+                        border: `1px solid ${active ? 'rgba(61,184,122,0.3)' : 'transparent'}`,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
               {/* Table */}
               <div className="rounded-xl border border-white/10 bg-white/[0.03]">
                 {!tradesLoaded ? (
-                  <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
+                  <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2" style={{ borderColor: 'var(--color-green)', borderTopColor: 'transparent' }} /></div>
                 ) : (
                   <table className="w-full">
                     <thead className="sticky top-0 z-10 bg-white/[0.05]">
@@ -515,13 +536,20 @@ export default function InstitutionPage() {
                             {t.filer_title && <p className="font-mono text-[10px] text-white/40">{t.filer_title}</p>}
                           </td>
                           <td className="px-4 py-4">
-                            <span className={`inline-block rounded px-2 py-1 font-mono text-xs font-bold uppercase ${
-                              t.transaction_type === 'P' ? 'bg-[rgba(16,185,129,0.1)] text-[#10B981]' :
-                              t.transaction_type === 'S' ? 'bg-[rgba(239,68,68,0.1)] text-[#EF4444]' :
-                              'bg-[rgba(245,158,11,0.1)] text-[#FBBF24]'
-                            }`}>
-                              {t.transaction_type === 'P' ? 'PURCHASE' : t.transaction_type === 'S' ? 'SALE' : t.transaction_type === 'A' ? 'AWARD' : t.transaction_type || '\u2014'}
-                            </span>
+                            {(() => {
+                              const isP = t.transaction_type === 'P';
+                              const isS = t.transaction_type === 'S';
+                              const bg = isP ? 'rgba(61,184,122,0.12)' : isS ? 'rgba(230,57,70,0.12)' : 'rgba(197,160,40,0.14)';
+                              const color = isP ? 'var(--color-green)' : isS ? 'var(--color-red)' : 'var(--color-accent)';
+                              return (
+                                <span
+                                  className="inline-block rounded px-2 py-1 font-mono text-xs font-bold uppercase"
+                                  style={{ background: bg, color }}
+                                >
+                                  {isP ? 'PURCHASE' : isS ? 'SALE' : t.transaction_type === 'A' ? 'AWARD' : t.transaction_type || '\u2014'}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-4 text-right font-mono text-sm text-white">{t.shares != null ? t.shares.toLocaleString() : '\u2014'}</td>
                           <td className="px-4 py-4 text-right font-mono text-sm text-white">{t.price_per_share != null ? `$${t.price_per_share.toFixed(2)}` : '\u2014'}</td>
@@ -542,7 +570,7 @@ export default function InstitutionPage() {
           {activeTab === 'lobbying' && (
             <div>
               {!lobbyingLoaded ? (
-                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
+                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2" style={{ borderColor: 'var(--color-green)', borderTopColor: 'transparent' }} /></div>
               ) : lobbyingData.length === 0 ? (
                 <p className="font-body text-sm text-white/40">No lobbying disclosures found. Data will appear after sync jobs run.</p>
               ) : (
@@ -556,13 +584,18 @@ export default function InstitutionPage() {
                           {f.client_name && <span className="text-white/40 text-xs ml-2">for {f.client_name}</span>}
                         </div>
                         <div className="text-right">
-                          {f.income != null && <span className="font-mono text-sm font-bold text-[#34D399]">{fmtDollar(f.income)}</span>}
+                          {f.income != null && <span className="font-mono text-sm font-bold" style={{ color: 'var(--color-green)' }}>{fmtDollar(f.income)}</span>}
                         </div>
                       </div>
                       <div className="flex gap-3 text-xs text-white/40 font-mono">
                         <span>{f.filing_year} {f.filing_period || ''}</span>
                         {f.filing_uuid && (
-                          <a href={`https://lda.senate.gov/filings/filing/${f.filing_uuid}/`} target="_blank" rel="noopener noreferrer" className="text-[#34D399]/60 hover:text-[#34D399]">
+                          <a
+                            href={`https://lda.senate.gov/filings/filing/${f.filing_uuid}/`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--color-green)', opacity: 0.75 }}
+                          >
                             View Filing <ExternalLink size={10} className="inline" />
                           </a>
                         )}
@@ -579,7 +612,7 @@ export default function InstitutionPage() {
           {activeTab === 'contracts' && (
             <div>
               {!contractsLoaded ? (
-                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
+                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2" style={{ borderColor: 'var(--color-green)', borderTopColor: 'transparent' }} /></div>
               ) : contractsData.length === 0 ? (
                 <p className="font-body text-sm text-white/40">No government contracts found. Data will appear after sync jobs run.</p>
               ) : (
@@ -589,13 +622,18 @@ export default function InstitutionPage() {
                     <div key={c.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
                       <div className="flex items-start justify-between mb-2">
                         <p className="font-body text-sm text-white flex-1 mr-4 line-clamp-2">{c.description || 'No description'}</p>
-                        {c.award_amount != null && <span className="font-mono text-sm font-bold text-[#34D399] whitespace-nowrap">{fmtDollar(c.award_amount)}</span>}
+                        {c.award_amount != null && <span className="font-mono text-sm font-bold whitespace-nowrap" style={{ color: 'var(--color-green)' }}>{fmtDollar(c.award_amount)}</span>}
                       </div>
                       <div className="flex gap-3 text-xs text-white/40 font-mono">
                         {c.awarding_agency && <span>{c.awarding_agency}</span>}
                         {c.start_date && <span>{c.start_date}</span>}
                         {c.award_id && (
-                          <a href={`https://www.usaspending.gov/award/${c.award_id}`} target="_blank" rel="noopener noreferrer" className="text-[#34D399]/60 hover:text-[#34D399]">
+                          <a
+                            href={`https://www.usaspending.gov/award/${c.award_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--color-green)', opacity: 0.75 }}
+                          >
                             USASpending <ExternalLink size={10} className="inline" />
                           </a>
                         )}
@@ -611,29 +649,41 @@ export default function InstitutionPage() {
           {activeTab === 'enforcement' && (
             <div>
               {!enforcementLoaded ? (
-                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
+                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2" style={{ borderColor: 'var(--color-green)', borderTopColor: 'transparent' }} /></div>
               ) : enforcementData.length === 0 ? (
                 <p className="font-body text-sm text-white/40">No enforcement actions found. Data will appear after sync jobs run.</p>
               ) : (
                 <div className="space-y-3">
                   <div className="flex gap-6 mb-4">
                     <span className="font-mono text-xs text-white/40">{enforcementTotal} actions</span>
-                    {enforcementPenalties > 0 && <span className="font-mono text-xs text-[#FF3366]">Total penalties: {fmtDollar(enforcementPenalties)}</span>}
+                    {enforcementPenalties > 0 && <span className="font-mono text-xs" style={{ color: 'var(--color-red)' }}>Total penalties: {fmtDollar(enforcementPenalties)}</span>}
                   </div>
                   {enforcementData.map((a) => (
                     <div key={a.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
                       <div className="flex items-start justify-between mb-2">
                         <p className="font-body text-sm font-medium text-white flex-1 mr-4">{a.case_title}</p>
                         {a.penalty_amount != null && a.penalty_amount > 0 && (
-                          <span className="font-mono text-sm font-bold text-[#FF3366] whitespace-nowrap">{fmtDollar(a.penalty_amount)}</span>
+                          <span className="font-mono text-sm font-bold whitespace-nowrap" style={{ color: 'var(--color-red)' }}>{fmtDollar(a.penalty_amount)}</span>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs font-mono">
                         {a.case_date && <span className="text-white/40">{a.case_date}</span>}
-                        {a.enforcement_type && <span className="rounded bg-[#FF3366]/10 px-2 py-0.5 text-[#FF3366]">{a.enforcement_type}</span>}
+                        {a.enforcement_type && (
+                          <span
+                            className="rounded px-2 py-0.5"
+                            style={{ background: 'rgba(230,57,70,0.12)', color: 'var(--color-red)' }}
+                          >
+                            {a.enforcement_type}
+                          </span>
+                        )}
                         {a.source && <span className="text-white/30">{a.source}</span>}
                         {a.case_url && (
-                          <a href={a.case_url} target="_blank" rel="noopener noreferrer" className="text-[#34D399]/60 hover:text-[#34D399]">
+                          <a
+                            href={a.case_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--color-green)', opacity: 0.75 }}
+                          >
                             Source <ExternalLink size={10} className="inline" />
                           </a>
                         )}
@@ -650,7 +700,7 @@ export default function InstitutionPage() {
           {activeTab === 'donations' && (
             <div>
               {!donationsLoaded ? (
-                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" /></div>
+                <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2" style={{ borderColor: 'var(--color-green)', borderTopColor: 'transparent' }} /></div>
               ) : donationsData.length === 0 ? (
                 <p className="font-body text-sm text-white/40">No political donations found. Data will appear after sync jobs run.</p>
               ) : (
@@ -663,7 +713,7 @@ export default function InstitutionPage() {
                           <span className="font-body text-sm font-medium text-white">{d.candidate_name || d.committee_name || 'Unknown'}</span>
                           {d.committee_name && d.candidate_name && <span className="text-white/40 text-xs ml-2">via {d.committee_name}</span>}
                         </div>
-                        {d.amount != null && <span className="font-mono text-sm font-bold text-[#34D399]">{fmtDollar(d.amount)}</span>}
+                        {d.amount != null && <span className="font-mono text-sm font-bold" style={{ color: 'var(--color-green)' }}>{fmtDollar(d.amount)}</span>}
                       </div>
                       <div className="flex gap-3 text-xs text-white/40 font-mono">
                         {d.cycle && <span>Cycle: {d.cycle}</span>}

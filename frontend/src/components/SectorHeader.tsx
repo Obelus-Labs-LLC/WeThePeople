@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import Logo from './Logo';
 
 interface NavLink {
   label: string;
@@ -9,57 +10,103 @@ interface NavLink {
 interface SectorHeaderProps {
   sector: string;
   links: NavLink[];
+  /** Accent colour override for Logo + active underline. Defaults to --color-accent. */
+  accent?: string;
+  /** 3-letter mark inside the Logo box. Defaults to "WTP". */
+  mark?: string;
 }
 
-const SECTOR_COLORS: Record<string, { bg: string; activeBg: string; activeText: string }> = {
-  politics: { bg: 'bg-blue-500', activeBg: 'bg-blue-500/20', activeText: 'text-blue-400' },
-  finance: { bg: 'bg-emerald-500', activeBg: 'bg-emerald-500/20', activeText: 'text-emerald-400' },
-  health: { bg: 'bg-red-500', activeBg: 'bg-red-500/20', activeText: 'text-red-400' },
-  technology: { bg: 'bg-violet-500', activeBg: 'bg-violet-500/20', activeText: 'text-violet-400' },
-  energy: { bg: 'bg-orange-500', activeBg: 'bg-orange-500/20', activeText: 'text-orange-400' },
-  transportation: { bg: 'bg-blue-500', activeBg: 'bg-blue-500/20', activeText: 'text-blue-400' },
-  defense: { bg: 'bg-indigo-700', activeBg: 'bg-indigo-700/20', activeText: 'text-indigo-400' },
-  verify: { bg: 'bg-emerald-500', activeBg: 'bg-emerald-500/20', activeText: 'text-emerald-400' },
-  chemicals: { bg: 'bg-amber-500', activeBg: 'bg-amber-500/20', activeText: 'text-amber-400' },
-  agriculture: { bg: 'bg-green-600', activeBg: 'bg-green-600/20', activeText: 'text-green-400' },
-  telecom: { bg: 'bg-cyan-500', activeBg: 'bg-cyan-500/20', activeText: 'text-cyan-400' },
-  education: { bg: 'bg-purple-500', activeBg: 'bg-purple-500/20', activeText: 'text-purple-400' },
-  civic: { bg: 'bg-amber-500', activeBg: 'bg-amber-500/20', activeText: 'text-amber-400' },
-};
-
-export default function SectorHeader({ sector, links }: SectorHeaderProps) {
+/**
+ * Sticky sector navigation bar — redesign (Apr 2026).
+ *
+ * 52px bar with backdrop-blur and a thin bottom border. Left cluster is the
+ * new Logo (WTP mark only) paired with the uppercase sector name; right
+ * cluster is underline-style nav tabs. Replaces the legacy filled-"WP"
+ * square + colored pill active state with a single-accent system.
+ *
+ * Sibling sites (Verify / Research / Journal) re-skin by passing `accent`
+ * + `mark`; the component itself stays sector-agnostic.
+ */
+export default function SectorHeader({
+  sector,
+  links,
+  accent = 'var(--color-accent)',
+  mark = 'WTP',
+}: SectorHeaderProps) {
   const { pathname } = useLocation();
-  const colors = SECTOR_COLORS[sector] || SECTOR_COLORS.politics;
 
   return (
-    <nav className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-8 sm:pr-44">
-      {/* Left: WP logo + sector name — links back to landing */}
-      <Link to="/" className="flex items-center gap-2 no-underline shrink-0">
-        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${colors.bg} font-heading text-sm font-black text-white`}>
-          WP
-        </div>
-        <span className="font-heading text-lg font-bold text-white tracking-wide uppercase">
+    <nav
+      className="sticky top-0 z-50 flex items-center justify-between overflow-x-auto scrollbar-hide mb-8"
+      style={{
+        height: 52,
+        padding: '0 32px',
+        borderBottom: '1px solid var(--color-border)',
+        backgroundColor: 'rgba(7, 9, 12, 0.88)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+      }}
+    >
+      {/* Left: WTP mark + uppercase sector name — links back to landing */}
+      <Link
+        to="/"
+        className="flex items-center no-underline shrink-0"
+        style={{ gap: 12 }}
+      >
+        <Logo size="sm" accent={accent} mark={mark} wordmark={null} />
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-1)',
+          }}
+        >
           {sector}
         </span>
       </Link>
 
-      {/* Right: pill-style nav tabs — horizontal scroll on mobile */}
-      <div className="flex items-center gap-1 overflow-x-auto flex-nowrap w-full sm:w-auto -mx-1 px-1 scrollbar-hide">
+      {/* Right: underline-style nav tabs */}
+      <div
+        className="flex items-center flex-nowrap shrink-0"
+        style={{ gap: 4 }}
+      >
         {links.map((link) => {
-          const active = link.to === '/'
-            ? pathname === '/'
-            : pathname === link.to || pathname.startsWith(link.to + '/');
+          const active =
+            link.to === '/'
+              ? pathname === '/'
+              : pathname === link.to || pathname.startsWith(link.to + '/');
           return (
             <Link
               key={link.label}
               to={link.to}
-              className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors no-underline whitespace-nowrap shrink-0 ${
+              className={`relative flex items-center no-underline whitespace-nowrap shrink-0 transition-colors ${
                 active
-                  ? `${colors.activeBg} ${colors.activeText}`
-                  : 'text-white/40 hover:text-white/70'
+                  ? 'text-[var(--color-text-1)]'
+                  : 'text-[var(--color-text-3)] hover:text-[rgba(235,229,213,0.65)]'
               }`}
+              style={{
+                height: 52,
+                padding: '0 12px',
+                fontSize: 13,
+                fontWeight: active ? 600 : 400,
+              }}
             >
               {link.label}
+              {active && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    bottom: -1,
+                    left: 12,
+                    right: 12,
+                    height: 1.5,
+                    backgroundColor: accent,
+                  }}
+                />
+              )}
             </Link>
           );
         })}
@@ -68,7 +115,7 @@ export default function SectorHeader({ sector, links }: SectorHeaderProps) {
   );
 }
 
-// ── Pre-configured sector headers ──
+// ── Pre-configured sector headers (NavLink arrays preserved verbatim) ──
 
 const POLITICS_LINKS: NavLink[] = [
   { label: 'Sectors', to: '/' },

@@ -1,6 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Filter, Landmark, Search } from 'lucide-react';
+import { Filter, Landmark, Search, TrendingUp, ArrowUpRight, ArrowDownRight, Newspaper } from 'lucide-react';
 import { FinanceSectorHeader } from '../components/SectorHeader';
+import {
+  ResearchToolLayout,
+  ResearchSection,
+  ResearchRowCard,
+  ResearchEmptyState,
+} from '../components/research/ResearchToolLayout';
 import {
   getAllInsiderTrades,
   getMacroIndicators,
@@ -9,30 +15,27 @@ import {
   type MacroIndicator,
   type SectorNewsItem,
 } from '../api/finance';
-import { fmtDollar } from '../utils/format';
+import { fmtDollar, fmtNum } from '../utils/format';
 
-// ── Helpers ──
+const TYPE_LABELS: Record<string, string> = { P: 'PURCHASE', S: 'SALE', A: 'AWARD' };
+
+function typeAccent(t: string | null): string {
+  if (t === 'P') return 'var(--color-green)';
+  if (t === 'S') return 'var(--color-red)';
+  return 'var(--color-dem)';
+}
 
 function fmtShares(n: number | null | undefined): string {
   if (n == null) return '—';
   return n.toLocaleString();
 }
 
-const TYPE_LABELS: Record<string, string> = { P: 'PURCHASE', S: 'SALE', A: 'AWARD' };
-
-function typeBadgeClasses(t: string | null): string {
-  if (t === 'P') return 'bg-[rgba(16,185,129,0.1)] text-[#10B981]';
-  if (t === 'S') return 'bg-[rgba(239,68,68,0.1)] text-[#EF4444]';
-  return 'bg-[rgba(59,130,246,0.1)] text-[#34D399]';
-}
-
-// ── Page ──
-
 export default function InsiderTradesDashboardPage() {
   const [trades, setTrades] = useState<InsiderTradeItem[]>([]);
   const [indicators, setIndicators] = useState<MacroIndicator[]>([]);
   const [news, setNews] = useState<SectorNewsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
@@ -42,12 +45,13 @@ export default function InsiderTradesDashboardPage() {
     return trades.filter(
       (t) =>
         t.company_name?.toLowerCase().includes(q) ||
-        t.filer_name?.toLowerCase().includes(q)
+        t.filer_name?.toLowerCase().includes(q),
     );
   }, [trades, search]);
 
   useEffect(() => {
     setLoading(true);
+    setError(null);
     Promise.all([
       getAllInsiderTrades({ limit: 100, transaction_type: filter || undefined }),
       getMacroIndicators(),
@@ -58,215 +62,223 @@ export default function InsiderTradesDashboardPage() {
         setIndicators(macroRes.indicators || []);
         setNews(newsRes.news || []);
       })
-      .catch(() => {})
+      .catch(() => {
+        setError('Failed to load insider trades.');
+      })
       .finally(() => setLoading(false));
   }, [filter]);
 
-  if (loading && trades.length === 0) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-transparent">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#34D399] border-t-transparent" />
-      </div>
-    );
-  }
+  const totalValue = trades.reduce((sum, t) => sum + (t.total_value || 0), 0);
+  const purchases = trades.filter((t) => t.transaction_type === 'P').length;
+  const sales = trades.filter((t) => t.transaction_type === 'S').length;
+
+  const inputStyle: React.CSSProperties = {
+    padding: '8px 12px 8px 34px',
+    borderRadius: '8px',
+    border: '1px solid rgba(235,229,213,0.1)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-text-1)',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '12px',
+    outline: 'none',
+    width: '240px',
+  };
+
+  const selectStyle: React.CSSProperties = {
+    padding: '8px 12px',
+    borderRadius: '8px',
+    border: '1px solid rgba(235,229,213,0.1)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-text-1)',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '12px',
+    outline: 'none',
+    colorScheme: 'dark',
+  };
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-14">
-        <FinanceSectorHeader />
-
-        {/* Header */}
-        <div className="flex items-end justify-between mb-6 animate-fade-up">
-          <div>
-            <h1 className="font-heading text-3xl sm:text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
-              Insider Trades
-            </h1>
-            <p className="mt-1 font-body text-lg text-white/50">
-              Executive transactions, macro indicators, and sector news
-            </p>
-          </div>
-          <div className="hidden md:flex flex-col items-end gap-1">
-            <p className="font-mono text-[11px] text-white/30">
-              DATA SOURCE: <span className="text-white/50">SEC FORM 4</span>
-            </p>
-            <p className="font-mono text-[11px] text-white/30">
-              STATUS: <span className="text-[#34D399]">ONLINE</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-3" style={{ minHeight: 'calc(100vh - 300px)' }}>
-          {/* Left Column: Insider Trades Table */}
-          <div
-            className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] shadow-2xl xl:col-span-2 animate-fade-up"
-            style={{ animationDelay: '200ms', animationFillMode: 'both' }}
-          >
-            {/* Panel header */}
-            <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.05] px-4 py-4">
-              <h2 className="font-heading text-lg font-bold uppercase tracking-wider text-white">
-                Recent Insider Trades
-              </h2>
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40" />
+    <ResearchToolLayout
+      sectorHeader={<FinanceSectorHeader />}
+      eyebrow={{ label: 'Insider Trades', color: 'var(--color-green)' }}
+      title="Insider Trades"
+      description="SEC Form 4 executive transactions, macro indicators, and sector news."
+      accent="var(--color-green)"
+      loading={loading && trades.length === 0}
+      error={error}
+      stats={[
+        { label: 'Trade Value', value: fmtDollar(totalValue), icon: TrendingUp, accent: 'var(--color-green)' },
+        { label: 'Purchases', value: fmtNum(purchases), icon: ArrowUpRight, accent: 'var(--color-green)' },
+        { label: 'Sales', value: fmtNum(sales), icon: ArrowDownRight, accent: 'var(--color-red)' },
+        { label: 'Trades', value: fmtNum(trades.length), icon: Landmark },
+      ]}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <ResearchSection
+            title="Recent Insider Trades"
+            subtitle="Filter and search Form 4 transactions by type, company, or executive."
+            action={(
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative' }}>
+                  <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-3)' }} />
                   <input
                     type="text"
                     placeholder="Search company or insider…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="rounded bg-white/[0.03] border border-white/10 pl-8 pr-3 py-1 font-mono text-xs text-white placeholder-white/30 outline-none focus:border-[#34D399]/50 w-52"
+                    style={inputStyle}
                   />
                 </div>
-                <Filter size={16} className="text-white/50" />
-                <select
-                  className="rounded bg-slate-800 border border-white/10 px-2 py-1 font-mono text-xs text-white outline-none"
-                  style={{ colorScheme: 'dark' }}
-                  value={filter || ''}
-                  onChange={(e) => setFilter(e.target.value || null)}
-                >
-                  <option value="" style={{ background: '#1e293b', color: '#fff' }}>ALL TYPES</option>
-                  <option value="P" style={{ background: '#1e293b', color: '#fff' }}>PURCHASE</option>
-                  <option value="S" style={{ background: '#1e293b', color: '#fff' }}>SALE</option>
-                  <option value="A" style={{ background: '#1e293b', color: '#fff' }}>AWARD</option>
+                <Filter size={14} color="var(--color-text-3)" />
+                <select value={filter || ''} onChange={(e) => setFilter(e.target.value || null)} style={selectStyle}>
+                  <option value="">ALL TYPES</option>
+                  <option value="P">PURCHASE</option>
+                  <option value="S">SALE</option>
+                  <option value="A">AWARD</option>
                 </select>
               </div>
-            </div>
-
-            {/* Table */}
-            <div className="flex-1 overflow-y-auto overflow-x-auto">
-              <table className="w-full min-w-[600px]">
-                <thead className="sticky top-0 z-10 bg-[#0a0a0f]">
-                  <tr className="border-b border-white/10">
-                    <th className="hidden sm:table-cell px-4 py-3 text-left font-mono text-xs text-white/40">DATE</th>
-                    <th className="px-4 py-3 text-left font-mono text-xs text-white/40">INSIDER</th>
-                    <th className="px-4 py-3 text-left font-mono text-xs text-white/40">COMPANY</th>
-                    <th className="px-4 py-3 text-left font-mono text-xs text-white/40">TYPE</th>
-                    <th className="hidden sm:table-cell px-4 py-3 text-right font-mono text-xs text-white/40">SHARES</th>
-                    <th className="px-4 py-3 text-right font-mono text-xs text-white/40">VALUE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTrades.map((t, idx) => (
-                    <tr
-                      key={t.id}
-                      className="border-b border-white/10 transition-colors hover:bg-white/[0.05] animate-fade-up cursor-pointer"
-                      style={{ animationDelay: `${300 + idx * 50}ms`, animationFillMode: 'both' }}
-                      onClick={() => t.filing_url && window.open(t.filing_url, '_blank')}
-                    >
-                      <td className="hidden sm:table-cell px-4 py-3 font-mono text-xs text-white/40">
-                        {t.transaction_date || '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-body text-sm font-bold text-white">{t.filer_name}</p>
-                        {t.filer_title && (
-                          <p className="font-mono text-xs text-white/40">{t.filer_title}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-body text-sm text-white">{t.company_name}</p>
-                        {t.ticker && (
-                          <p className="font-mono text-xs text-[#34D399]">{t.ticker}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block rounded px-2 py-1 font-mono text-xs font-bold uppercase ${typeBadgeClasses(t.transaction_type)}`}>
-                          {TYPE_LABELS[t.transaction_type || ''] || t.transaction_type || '—'}
-                        </span>
-                      </td>
-                      <td className="hidden sm:table-cell px-4 py-3 text-right font-mono text-sm text-white">
-                        {fmtShares(t.shares)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-sm font-bold text-white">
-                        {fmtDollar(t.total_value)}
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredTrades.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center font-body text-sm text-white/40">
-                        {search.trim() ? 'No trades match your search.' : 'No insider trades on record.'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Right Column */}
-          <div
-            className="flex flex-col gap-6 overflow-y-auto animate-fade-up"
-            style={{ animationDelay: '400ms', animationFillMode: 'both' }}
+            )}
           >
-            {/* Macro Indicators */}
-            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] p-6">
-              <Landmark size={100} className="pointer-events-none absolute right-4 top-4 text-white/10 opacity-10" />
-              <h2 className="font-heading text-lg font-bold uppercase tracking-wider text-white mb-5">
-                Macro Indicators
-              </h2>
-              <div className="space-y-4">
-                {indicators.length === 0 ? (
-                  <p className="font-body text-sm text-white/40">No macro data available.</p>
-                ) : (
-                  indicators.map((ind) => (
-                    <div key={ind.series_id} className="flex items-center justify-between border-b border-white/10 pb-2">
-                      <div>
-                        <p className="font-body text-sm text-white">
+            {filteredTrades.length === 0 ? (
+              <ResearchEmptyState icon={TrendingUp} text={search.trim() ? 'No trades match your search.' : 'No insider trades on record.'} />
+            ) : (
+              <div style={{ overflowX: 'auto', borderRadius: '14px', border: '1px solid rgba(235,229,213,0.08)', background: 'var(--color-surface)' }}>
+                <table style={{ width: '100%', minWidth: '620px', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(235,229,213,0.08)' }}>
+                      <th style={thStyle}>DATE</th>
+                      <th style={thStyle}>INSIDER</th>
+                      <th style={thStyle}>COMPANY</th>
+                      <th style={thStyle}>TYPE</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>SHARES</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>VALUE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTrades.map((t) => {
+                      const accent = typeAccent(t.transaction_type);
+                      return (
+                        <tr
+                          key={t.id}
+                          onClick={() => t.filing_url && window.open(t.filing_url, '_blank')}
+                          style={{ borderBottom: '1px solid rgba(235,229,213,0.04)', cursor: t.filing_url ? 'pointer' : 'default' }}
+                        >
+                          <td style={tdStyle}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)' }}>
+                              {t.transaction_date || '—'}
+                            </span>
+                          </td>
+                          <td style={tdStyle}>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-1)', margin: 0 }}>{t.filer_name}</p>
+                            {t.filer_title && (
+                              <p style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-text-3)', margin: '2px 0 0' }}>{t.filer_title}</p>
+                            )}
+                          </td>
+                          <td style={tdStyle}>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-1)', margin: 0 }}>{t.company_name}</p>
+                            {t.ticker && (
+                              <p style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-green)', margin: '2px 0 0' }}>{t.ticker}</p>
+                            )}
+                          </td>
+                          <td style={tdStyle}>
+                            <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: '4px', fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', background: `${accent}1f`, color: accent }}>
+                              {TYPE_LABELS[t.transaction_type || ''] || t.transaction_type || '—'}
+                            </span>
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--color-text-1)' }}>{fmtShares(t.shares)}</span>
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 700, color: 'var(--color-text-1)' }}>{fmtDollar(t.total_value)}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </ResearchSection>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <ResearchSection title="Macro Indicators" subtitle="Headline FRED series.">
+            {indicators.length === 0 ? (
+              <ResearchEmptyState icon={Landmark} text="No macro data available." />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {indicators.map((ind) => (
+                  <ResearchRowCard key={ind.series_id} hoverable={false}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-1)', margin: 0 }}>
                           {ind.series_title || ind.series_id}
                         </p>
-                        <p className="font-mono text-xs text-white/40">{ind.observation_date}</p>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-text-3)', margin: '2px 0 0' }}>
+                          {ind.observation_date}
+                        </p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-mono text-xl font-bold text-white">
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: 700, color: 'var(--color-text-1)', margin: 0 }}>
                           {ind.value != null ? ind.value.toFixed(2) : '—'}
                         </p>
                         {ind.units && (
-                          <p className="font-mono text-xs text-white/40">{ind.units}</p>
+                          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-text-3)', margin: '2px 0 0' }}>{ind.units}</p>
                         )}
                       </div>
                     </div>
-                  ))
-                )}
+                  </ResearchRowCard>
+                ))}
               </div>
-            </div>
+            )}
+          </ResearchSection>
 
-            {/* Sector News */}
-            <div className="flex flex-1 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-6">
-              <h2 className="font-heading text-lg font-bold uppercase tracking-wider text-white mb-5">
-                Sector News
-              </h2>
-              <div className="flex-1 space-y-4 overflow-y-auto">
-                {news.length === 0 ? (
-                  <p className="font-body text-sm text-white/40">No sector news available.</p>
-                ) : (
-                  news.map((item) => (
-                    <a
-                      key={item.id}
-                      href={item.url || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="-mx-2 block rounded p-2 transition-colors hover:bg-white/[0.03] no-underline group border-b border-white/10 pb-4 mb-0"
-                    >
-                      <p className="font-body text-sm font-medium text-white transition-colors group-hover:text-[#34D399] mb-1">
+          <ResearchSection title="Sector News" subtitle="Finance-sector press releases.">
+            {news.length === 0 ? (
+              <ResearchEmptyState icon={Newspaper} text="No sector news available." />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {news.map((item) => (
+                  <a key={item.id} href={item.url || '#'} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <ResearchRowCard accent="var(--color-dem)">
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 500, color: 'var(--color-text-1)', margin: '0 0 8px' }}>
                         {item.title || 'Untitled'}
                       </p>
-                      <div className="flex items-center gap-3">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {item.release_date && (
-                          <span className="font-mono text-xs text-white/40">{item.release_date}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-text-3)' }}>{item.release_date}</span>
                         )}
                         {item.release_type && (
-                          <span className="font-mono text-xs text-[#34D399]">{item.release_type}</span>
+                          <span style={{ padding: '2px 6px', borderRadius: '4px', background: 'rgba(74,127,222,0.12)', fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-dem)' }}>
+                            {item.release_type}
+                          </span>
                         )}
                       </div>
-                    </a>
-                  ))
-                )}
+                    </ResearchRowCard>
+                  </a>
+                ))}
               </div>
-            </div>
-          </div>
+            )}
+          </ResearchSection>
         </div>
       </div>
-    </div>
+    </ResearchToolLayout>
   );
 }
+
+const thStyle: React.CSSProperties = {
+  padding: '12px 14px',
+  textAlign: 'left',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '10px',
+  fontWeight: 700,
+  letterSpacing: '0.15em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+  background: 'var(--color-surface)',
+};
+
+const tdStyle: React.CSSProperties = {
+  padding: '12px 14px',
+  verticalAlign: 'top',
+};

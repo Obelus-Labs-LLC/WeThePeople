@@ -1,20 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ShieldCheck, ExternalLink, Building2, Search, Filter,
-  CheckCircle2, XCircle, Clock,
+  ShieldCheck, ExternalLink, Building2, Search,
+  CheckCircle2, XCircle, Clock, AlertTriangle,
 } from 'lucide-react';
 import { HealthSectorHeader } from '../components/SectorHeader';
 import {
+  ResearchToolLayout,
+  ResearchSection,
+  ResearchRowCard,
+  ResearchEmptyState,
+} from '../components/research/ResearchToolLayout';
+import {
   getHealthCompanies,
   getHealthCompanyRecalls,
-  type CompanyListItem,
   type RecallItem,
 } from '../api/health';
-import { fmtDate } from '../utils/format';
+import { fmtDate, fmtNum } from '../utils/format';
 import { getApiBaseUrl } from '../api/client';
-
-// ── Types ──
 
 interface FDAApprovalItem {
   drug_name: string;
@@ -31,8 +34,6 @@ interface FDAApprovalsResponse {
   approvals: FDAApprovalItem[];
 }
 
-// ── API ──
-
 const API_BASE = getApiBaseUrl();
 
 async function getFDAApprovals(): Promise<FDAApprovalsResponse> {
@@ -41,38 +42,28 @@ async function getFDAApprovals(): Promise<FDAApprovalsResponse> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   } catch {
-    // API may not exist yet - return empty
     return { total: 0, approvals: [] };
   }
 }
 
-// ── Status badge helpers ──
-
 function statusConfig(status: string) {
   switch (status) {
     case 'approved':
-      return { icon: CheckCircle2, color: '#10B981', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.2)', label: 'APPROVED' };
+      return { icon: CheckCircle2, color: 'var(--color-green)', label: 'APPROVED' };
     case 'rejected':
-      return { icon: XCircle, color: '#DC2626', bg: 'rgba(220,38,38,0.1)', border: 'rgba(220,38,38,0.2)', label: 'REJECTED' };
+      return { icon: XCircle, color: 'var(--color-red)', label: 'REJECTED' };
     default:
-      return { icon: Clock, color: '#F59E0B', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)', label: 'PENDING' };
+      return { icon: Clock, color: 'var(--color-accent)', label: 'PENDING' };
   }
 }
 
-// ── Recall classification color ──
-
-function recallClassColor(cls: string | null): { bar: string; label: string } {
-  if (!cls) return { bar: '#64748B', label: 'Unknown' };
-  if (cls.includes('I') && !cls.includes('II') && !cls.includes('III'))
-    return { bar: '#DC2626', label: 'Class I' };
-  if (cls.includes('II') && !cls.includes('III'))
-    return { bar: '#F59E0B', label: 'Class II' };
-  if (cls.includes('III'))
-    return { bar: '#3B82F6', label: 'Class III' };
-  return { bar: '#64748B', label: cls };
+function recallClassAccent(cls: string | null): string {
+  if (!cls) return 'var(--color-text-3)';
+  if (cls.includes('I') && !cls.includes('II') && !cls.includes('III')) return 'var(--color-red)';
+  if (cls.includes('II') && !cls.includes('III')) return 'var(--color-accent)';
+  if (cls.includes('III')) return 'var(--color-dem)';
+  return 'var(--color-text-3)';
 }
-
-// ── Page ──
 
 export default function FDAApprovalsPage() {
   const [approvals, setApprovals] = useState<FDAApprovalItem[]>([]);
@@ -86,38 +77,25 @@ export default function FDAApprovalsPage() {
     let cancelled = false;
     async function loadData() {
       try {
-        // Try fetching FDA approvals endpoint
         const approvalsRes = await getFDAApprovals();
-
         if (approvalsRes.approvals.length > 0) {
           setApprovals(approvalsRes.approvals);
         } else {
           setApiAvailable(false);
         }
-
         if (cancelled) return;
 
-        // Also fetch recent recalls as FDA activity data
         const companiesRes = await getHealthCompanies({ limit: 30 });
         if (cancelled) return;
         const companies = companiesRes.companies || [];
-
         const recallSets = await Promise.all(
           companies.slice(0, 20).map((c) =>
             getHealthCompanyRecalls(c.company_id, { limit: 10 })
-              .then((res) =>
-                (res.recalls || []).map((r) => ({
-                  ...r,
-                  companyId: c.company_id,
-                  companyName: c.display_name,
-                }))
-              )
-              .catch(() => [] as (RecallItem & { companyId: string; companyName: string })[])
-          )
+              .then((res) => (res.recalls || []).map((r) => ({ ...r, companyId: c.company_id, companyName: c.display_name })))
+              .catch(() => [] as (RecallItem & { companyId: string; companyName: string })[]),
+          ),
         );
-
         if (cancelled) return;
-
         const allRecalls = recallSets
           .flat()
           .sort((a, b) => {
@@ -126,7 +104,6 @@ export default function FDAApprovalsPage() {
             return db - da;
           })
           .slice(0, 50);
-
         setRecentRecalls(allRecalls);
       } catch {
         setApiAvailable(false);
@@ -134,34 +111,18 @@ export default function FDAApprovalsPage() {
         setLoading(false);
       }
     }
-
     loadData();
     return () => { cancelled = true; };
   }, []);
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#DC2626] border-t-transparent" />
-          <p className="text-sm text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            Loading FDA activity data...
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   const filteredRecalls = recentRecalls.filter((r) => {
     if (searchFilter.trim()) {
       const q = searchFilter.toLowerCase();
       if (
         !(r.product_description && r.product_description.toLowerCase().includes(q)) &&
-        !(r.companyName.toLowerCase().includes(q)) &&
+        !r.companyName.toLowerCase().includes(q) &&
         !(r.recall_number && r.recall_number.toLowerCase().includes(q))
-      ) {
-        return false;
-      }
+      ) return false;
     }
     if (statusFilter !== 'all') {
       if (statusFilter === 'ongoing' && !(r.status && r.status.toLowerCase().includes('ongoing'))) return false;
@@ -171,77 +132,54 @@ export default function FDAApprovalsPage() {
     return true;
   });
 
+  const classICount = recentRecalls.filter((r) => r.classification && r.classification.includes('I') && !r.classification.includes('II')).length;
+
   return (
-    <div className="flex flex-col w-full min-h-screen">
-      <div className="mx-auto w-full max-w-[1400px] flex flex-col px-8 py-8 md:px-12 md:py-10">
-        <HealthSectorHeader />
-
-        {/* Header */}
-        <div className="flex items-end justify-between pb-6 mb-8 shrink-0 border-b border-white/10">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <ShieldCheck size={16} style={{ color: '#DC2626' }} />
-              <span
-                className="text-sm uppercase text-white/40"
-                style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.2em' }}
-              >
-                FDA ACTIVITY
-              </span>
-            </div>
-            <h1
-              className="text-4xl md:text-5xl font-bold text-white"
-              style={{ fontFamily: "'Syne', sans-serif" }}
-            >
-              FDA Approvals & Recalls
-            </h1>
-            <p className="text-sm mt-2 text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              Track FDA approvals, rejections, and recent recall activity across tracked companies.
-            </p>
-          </div>
-        </div>
-
-        {/* Approvals section (if API available) */}
+    <ResearchToolLayout
+      sectorHeader={<HealthSectorHeader />}
+      eyebrow={{ label: 'FDA Activity', color: 'var(--color-red)' }}
+      title="FDA Approvals & Recalls"
+      description="FDA approvals, rejections, and recent recall activity across tracked health and pharma companies."
+      accent="var(--color-red)"
+      loading={loading}
+      stats={[
+        { label: 'Approvals', value: fmtNum(approvals.length), icon: CheckCircle2, accent: 'var(--color-green)' },
+        { label: 'Recalls', value: fmtNum(recentRecalls.length), icon: ShieldCheck, accent: 'var(--color-accent)' },
+        { label: 'Class I', value: fmtNum(classICount), icon: AlertTriangle, accent: 'var(--color-red)' },
+      ]}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
         {apiAvailable && approvals.length > 0 && (
-          <div className="mb-10">
-            <h2 className="text-sm font-bold uppercase mb-4 text-white/50"
-              style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.1em' }}>
-              RECENT APPROVALS
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <ResearchSection
+            title="Recent FDA Approvals"
+            subtitle="Newly approved drugs and devices from tracked companies."
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
               {approvals.map((a, idx) => {
                 const cfg = statusConfig(a.status);
                 const StatusIcon = cfg.icon;
                 return (
-                  <div
-                    key={idx}
-                    className="rounded-xl border border-white/10 bg-white/[0.05] backdrop-blur-sm p-5"
-                    style={{
-                      opacity: 0,
-                      animation: `card-enter 0.3s ease-out ${idx * 0.05}s forwards`,
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="flex items-center gap-1 rounded border px-2 py-1 text-xs font-bold"
-                        style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.color }}>
-                        <StatusIcon size={12} /> {cfg.label}
+                  <ResearchRowCard key={idx} accent={cfg.color}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '4px', fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', background: `${cfg.color}1f`, border: `1px solid ${cfg.color}33`, color: cfg.color }}>
+                        <StatusIcon size={11} /> {cfg.label}
                       </span>
-                      <span className="text-xs text-white/30" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)' }}>
                         {fmtDate(a.approval_date)}
                       </span>
                     </div>
-
-                    <h3 className="text-lg font-bold text-white mb-1" style={{ fontFamily: "'Syne', sans-serif" }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 900, fontSize: '18px', color: 'var(--color-text-1)', margin: '0 0 4px' }}>
                       {a.drug_name}
                     </h3>
-                    <p className="text-sm text-white/50 mb-3 line-clamp-2">{a.indication}</p>
-
-                    <div className="flex items-center justify-between border-t border-white/10 pt-3">
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-2)', margin: '0 0 12px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {a.indication}
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '10px', borderTop: '1px solid rgba(235,229,213,0.06)' }}>
                       <Link
                         to={`/health/${a.company_id}`}
-                        className="flex items-center gap-2 text-sm no-underline transition-colors hover:text-[#FCA5A5]"
-                        style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.5)' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)', textDecoration: 'none' }}
                       >
-                        <Building2 size={14} />
+                        <Building2 size={12} />
                         {a.company_name}
                       </Link>
                       {a.source_url && (
@@ -249,175 +187,149 @@ export default function FDAApprovalsPage() {
                           href={a.source_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs hover:underline"
-                          style={{ color: '#93C5FD' }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-dem)', textDecoration: 'none' }}
                         >
                           FDA Source <ExternalLink size={10} />
                         </a>
                       )}
                     </div>
-                  </div>
+                  </ResearchRowCard>
                 );
               })}
             </div>
-          </div>
+          </ResearchSection>
         )}
 
-        {/* Coming soon notice if no approvals API */}
         {!apiAvailable && (
-          <div className="rounded-xl border border-white/10 bg-white/[0.05] backdrop-blur-sm p-8 mb-8 text-center">
-            <ShieldCheck size={40} className="mx-auto mb-4 text-white/20" />
-            <h3 className="text-lg font-bold text-white mb-2" style={{ fontFamily: "'Syne', sans-serif" }}>
+          <div style={{ padding: '28px', borderRadius: '14px', border: '1px dashed rgba(235,229,213,0.1)', background: 'var(--color-surface)', textAlign: 'center' }}>
+            <ShieldCheck size={40} color="var(--color-text-3)" style={{ margin: '0 auto 12px', opacity: 0.5 }} />
+            <h3 style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 900, fontSize: '20px', color: 'var(--color-text-1)', margin: '0 0 6px' }}>
               FDA Approvals Endpoint Coming Soon
             </h3>
-            <p className="text-sm text-white/40 mb-4" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              The /api/health/fda/approvals endpoint is not yet available. Below you can browse recent FDA recall activity across all tracked companies.
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-3)', margin: 0 }}>
+              Approvals data isn't live yet — browsing recent recall activity instead.
             </p>
           </div>
         )}
 
-        {/* Recent Recalls Section */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold uppercase text-white/50"
-              style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.1em' }}>
-              RECENT FDA RECALLS ({filteredRecalls.length})
-            </h2>
-          </div>
-
-          {/* Search + Filter bar */}
-          <div className="flex flex-col sm:flex-row gap-3 mb-6">
-            <div className="relative flex-1">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
-              <input
-                type="text"
-                placeholder="Search product or company..."
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/[0.05] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#DC2626]/50 transition-colors"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              />
-            </div>
-            <div className="flex gap-2">
-              {['all', 'ongoing', 'terminated', 'completed'].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className="rounded-lg border px-4 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer transition-colors"
+        <ResearchSection
+          title={`Recent FDA Recalls (${fmtNum(filteredRecalls.length)})`}
+          subtitle="FDA enforcement reports across tracked companies."
+          action={(
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative' }}>
+                <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-3)' }} />
+                <input
+                  type="text"
+                  placeholder="Search product, company, number…"
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
                   style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    background: statusFilter === s ? 'rgba(220,38,38,0.15)' : 'rgba(255,255,255,0.05)',
-                    borderColor: statusFilter === s ? 'rgba(220,38,38,0.3)' : 'rgba(255,255,255,0.1)',
-                    color: statusFilter === s ? '#FCA5A5' : 'rgba(255,255,255,0.4)',
+                    padding: '8px 12px 8px 34px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(235,229,213,0.1)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-text-1)',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '12px',
+                    outline: 'none',
+                    width: '240px',
                   }}
-                >
-                  {s === 'all' ? 'ALL' : s.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Recall Cards */}
-          {filteredRecalls.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-white/10 bg-white/[0.03]">
-              <Search size={48} className="text-white/10 mb-4" />
-              <p className="text-sm text-white/40" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                No recalls match your filters.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredRecalls.map((r, idx) => {
-                const cls = recallClassColor(r.classification);
+                />
+              </div>
+              {['all', 'ongoing', 'terminated', 'completed'].map((s) => {
+                const active = statusFilter === s;
                 return (
-                  <div
-                    key={`${r.id}-${idx}`}
-                    className="flex rounded-xl border border-white/10 overflow-hidden"
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
                     style={{
-                      opacity: 0,
-                      animation: `card-enter 0.3s ease-out ${idx * 0.02}s forwards`,
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${active ? 'rgba(230,57,70,0.3)' : 'rgba(235,229,213,0.1)'}`,
+                      background: active ? 'rgba(230,57,70,0.15)' : 'transparent',
+                      color: active ? 'var(--color-red)' : 'var(--color-text-3)',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      letterSpacing: '0.15em',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
                     }}
                   >
-                    {/* Color bar */}
-                    <div className="w-2 shrink-0" style={{ background: cls.bar }} />
-
-                    {/* Content */}
-                    <div className="flex-1 p-5 bg-white/[0.05] backdrop-blur-sm">
-                      {/* Top: badges */}
-                      <div className="flex items-center gap-2 mb-3 flex-wrap">
-                        {r.classification && (
-                          <span
-                            className="rounded border px-2 py-1 text-xs font-bold"
-                            style={{
-                              background: `${cls.bar}15`,
-                              borderColor: `${cls.bar}30`,
-                              color: cls.bar,
-                            }}
-                          >
-                            {r.classification}
-                          </span>
-                        )}
-                        {r.status && (
-                          <span
-                            className="rounded px-2 py-1 text-xs font-bold"
-                            style={{
-                              background: r.status.toLowerCase().includes('ongoing') ? 'rgba(220,38,38,0.1)' : 'rgba(255,255,255,0.05)',
-                              color: r.status.toLowerCase().includes('ongoing') ? '#FCA5A5' : 'rgba(255,255,255,0.4)',
-                            }}
-                          >
-                            {r.status.toUpperCase()}
-                          </span>
-                        )}
-                        {r.recall_number && (
-                          <span className="text-xs ml-auto" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.3)' }}>
-                            {r.recall_number}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Product */}
-                      <p className="text-sm font-semibold text-white mb-2" style={{ fontFamily: "'Syne', sans-serif" }}>
-                        {r.product_description || 'No product description'}
-                      </p>
-
-                      {/* Reason */}
-                      {r.reason_for_recall && (
-                        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 mb-3">
-                          <p className="text-xs uppercase tracking-wider mb-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.3)' }}>REASON</p>
-                          <p className="text-sm text-white/60 line-clamp-2">{r.reason_for_recall}</p>
-                        </div>
-                      )}
-
-                      {/* Footer */}
-                      <div className="flex items-center justify-between border-t border-white/10 pt-3">
-                        <Link
-                          to={`/health/${r.companyId}`}
-                          className="flex items-center gap-2 text-sm no-underline transition-colors hover:text-[#FCA5A5]"
-                          style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.5)' }}
-                        >
-                          <Building2 size={14} />
-                          {r.companyName}
-                          <ExternalLink size={12} />
-                        </Link>
-                        <span className="text-sm" style={{ fontFamily: "'JetBrains Mono', monospace", color: 'rgba(255,255,255,0.4)' }}>
-                          {fmtDate(r.recall_initiation_date)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                    {s === 'all' ? 'ALL' : s.toUpperCase()}
+                  </button>
                 );
               })}
             </div>
           )}
-        </div>
+        >
+          {filteredRecalls.length === 0 ? (
+            <ResearchEmptyState icon={Search} text="No recalls match your filters." />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {filteredRecalls.map((r) => {
+                const accent = recallClassAccent(r.classification);
+                return (
+                  <ResearchRowCard key={r.id} accent={accent}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                      {r.classification && (
+                        <span style={{ padding: '3px 8px', borderRadius: '4px', fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 700, background: `${accent}1f`, border: `1px solid ${accent}33`, color: accent }}>
+                          {r.classification}
+                        </span>
+                      )}
+                      {r.status && (
+                        <span
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            background: r.status.toLowerCase().includes('ongoing') ? 'rgba(230,57,70,0.15)' : 'rgba(235,229,213,0.05)',
+                            color: r.status.toLowerCase().includes('ongoing') ? 'var(--color-red)' : 'var(--color-text-3)',
+                          }}
+                        >
+                          {r.status.toUpperCase()}
+                        </span>
+                      )}
+                      {r.recall_number && (
+                        <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-text-3)' }}>
+                          {r.recall_number}
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', fontWeight: 600, color: 'var(--color-text-1)', margin: '0 0 10px' }}>
+                      {r.product_description || 'No product description'}
+                    </p>
+                    {r.reason_for_recall && (
+                      <div style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(235,229,213,0.06)', background: 'rgba(235,229,213,0.03)', marginBottom: '10px' }}>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--color-text-3)', margin: '0 0 4px' }}>Reason</p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-2)', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {r.reason_for_recall}
+                        </p>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid rgba(235,229,213,0.06)' }}>
+                      <Link
+                        to={`/health/${r.companyId}`}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)', textDecoration: 'none' }}
+                      >
+                        <Building2 size={12} />
+                        {r.companyName}
+                        <ExternalLink size={10} />
+                      </Link>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)' }}>
+                        {fmtDate(r.recall_initiation_date)}
+                      </span>
+                    </div>
+                  </ResearchRowCard>
+                );
+              })}
+            </div>
+          )}
+        </ResearchSection>
       </div>
-
-      <style>{`
-        @keyframes card-enter {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </div>
+    </ResearchToolLayout>
   );
 }
