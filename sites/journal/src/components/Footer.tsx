@@ -1,76 +1,115 @@
 import { Link } from 'react-router-dom';
 
+const LINKS: Array<{ label: string; to?: string; href?: string }> = [
+  { label: 'About', to: '/about' },
+  { label: 'Subscribe', to: '/subscribe' },
+  { label: 'Coverage', to: '/coverage' },
+  { label: 'Verify Data', to: '/verify-our-data' },
+  { label: 'Corrections', to: '/corrections' },
+  { label: 'Main Site', href: 'https://wethepeopleforus.com' },
+  { label: 'Research', href: 'https://research.wethepeopleforus.com' },
+  { label: 'Methodology', href: 'https://wethepeopleforus.com/methodology' },
+  { label: 'GitHub', href: 'https://github.com/Obelus-Labs-LLC/WeThePeople' },
+];
+
+const linkStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '10px',
+  fontWeight: 600,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+  transition: 'color 0.2s',
+  textDecoration: 'none',
+};
+
 export function Footer() {
   return (
-    <footer className="border-t border-zinc-900 py-8 px-4">
+    <footer
+      style={{
+        borderTop: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
+        padding: '36px 16px 44px',
+        marginTop: 64,
+      }}
+    >
       <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="text-center sm:text-left">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span
+                style={{
+                  height: 6,
+                  width: 6,
+                  borderRadius: '999px',
+                  background: 'var(--color-journal)',
+                  boxShadow: '0 0 8px var(--color-journal)',
+                  display: 'inline-block',
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  letterSpacing: '0.24em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-journal)',
+                }}
+              >
+                WeThePeople Research
+              </span>
+            </div>
             <p
-              className="text-sm font-semibold text-zinc-400 mb-1"
-              style={{ fontFamily: 'Oswald, sans-serif' }}
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontStyle: 'italic',
+                fontWeight: 900,
+                fontSize: '22px',
+                letterSpacing: '-0.02em',
+                color: 'var(--color-text-1)',
+                lineHeight: 1.1,
+              }}
             >
               The Influence Journal
             </p>
-            <p className="text-xs text-zinc-600">
+            <p
+              className="mt-1"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--color-text-3)',
+              }}
+            >
               Part of the WeThePeople ecosystem
             </p>
           </div>
-          <nav className="flex items-center gap-6">
-            <Link
-              to="/about"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              About
-            </Link>
-            <Link
-              to="/subscribe"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Subscribe
-            </Link>
-            <Link
-              to="/coverage"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Coverage
-            </Link>
-            <Link
-              to="/verify-our-data"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Verify Data
-            </Link>
-            <Link
-              to="/corrections"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Corrections
-            </Link>
-            <a
-              href="https://wethepeopleforus.com"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Main Site
-            </a>
-            <a
-              href="https://research.wethepeopleforus.com"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Research
-            </a>
-            <a
-              href="https://wethepeopleforus.com/methodology"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Methodology
-            </a>
-            <a
-              href="https://github.com/Obelus-Labs-LLC/WeThePeople"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              GitHub
-            </a>
+          <nav className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {LINKS.map((l) =>
+              l.to ? (
+                <Link
+                  key={l.label}
+                  to={l.to}
+                  style={linkStyle}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-accent-text)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
+                >
+                  {l.label}
+                </Link>
+              ) : (
+                <a
+                  key={l.label}
+                  href={l.href}
+                  style={linkStyle}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-accent-text)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
+                >
+                  {l.label}
+                </a>
+              )
+            )}
           </nav>
         </div>
       </div>

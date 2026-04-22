@@ -1,100 +1,177 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Database, Shield, Eye, Bot, AlertTriangle, ArrowRight } from 'lucide-react';
 
+// ── Shared styles for journal static pages ──────────────────────────
+const backLinkStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  fontWeight: 600,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+  textDecoration: 'none',
+  transition: 'color 0.2s',
+};
+const eyebrowStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  fontWeight: 700,
+  letterSpacing: '0.24em',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent-text)',
+};
+const h1Style: React.CSSProperties = {
+  fontFamily: 'var(--font-display)',
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: 'clamp(36px, 5.5vw, 56px)',
+  letterSpacing: '-0.025em',
+  lineHeight: 1.05,
+  color: 'var(--color-text-1)',
+};
+const h2Style: React.CSSProperties = {
+  fontFamily: 'var(--font-display)',
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: '26px',
+  letterSpacing: '-0.015em',
+  color: 'var(--color-text-1)',
+};
+const proseParagraph: React.CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: '16px',
+  lineHeight: 1.8,
+  color: 'var(--color-text-1)',
+};
+const cardStyle: React.CSSProperties = {
+  borderRadius: '14px',
+  border: '1px solid rgba(235,229,213,0.08)',
+  background: 'var(--color-surface)',
+  padding: '22px',
+};
+const pillButtonStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  fontWeight: 700,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  padding: '10px 18px',
+  borderRadius: '10px',
+  border: '1px solid rgba(235,229,213,0.12)',
+  background: 'rgba(235,229,213,0.02)',
+  color: 'var(--color-text-1)',
+  textDecoration: 'none',
+  transition: 'all 0.2s',
+};
+
 export default function AboutPage() {
   return (
-    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
+    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16" style={{ color: 'var(--color-text-1)' }}>
       <article className="max-w-[720px] mx-auto">
-        {/* Back link */}
         <Link
           to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8"
+          className="inline-flex items-center gap-1.5 mb-8"
+          style={backLinkStyle}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
         >
-          <ArrowLeft size={14} />
+          <ArrowLeft size={12} />
           Back to Journal
         </Link>
 
-        <p className="text-xs uppercase tracking-[0.2em] text-amber-400 font-medium mb-3">
-          About
-        </p>
-        <h1
-          className="text-3xl sm:text-4xl font-bold text-white leading-tight mb-6"
-          style={{ fontFamily: 'Oswald, sans-serif' }}
-        >
+        <p className="mb-3" style={eyebrowStyle}>About</p>
+        <h1 className="mb-8" style={h1Style}>
           About The Influence Journal
         </h1>
 
-        <div className="space-y-6 mb-12">
-          <p className="text-zinc-300 leading-[1.85] text-base">
+        <div className="space-y-5 mb-14">
+          <p style={proseParagraph}>
             The Influence Journal is the investigative arm of WeThePeople, a civic
             transparency platform that tracks how corporations lobby Congress, win
             government contracts, face enforcement actions, and donate to politicians
             across 11 sectors.
           </p>
-          <p className="text-zinc-300 leading-[1.85] text-base">
+          <p style={proseParagraph}>
             Every story published here is generated from public government records.
             We analyze data from Senate lobbying disclosures, USASpending.gov federal
             contracts, SEC filings, the Federal Register, FEC campaign finance reports,
             and dozens of other public databases to surface patterns of corporate
             influence that would otherwise remain buried in raw data.
           </p>
-          <p className="text-zinc-300 leading-[1.85] text-base">
+          <p
+            style={{
+              ...proseParagraph,
+              fontFamily: 'var(--font-display)',
+              fontStyle: 'italic',
+              fontSize: '22px',
+              color: 'var(--color-text-1)',
+              borderLeft: '3px solid var(--color-accent)',
+              paddingLeft: 18,
+            }}
+          >
             Our goal is simple: follow the money from industry to politics.
           </p>
         </div>
 
-        {/* AI Disclosure — CRITICAL TRANSPARENCY */}
-        <h2
-          className="text-xl font-bold text-white mb-6"
-          style={{ fontFamily: 'Oswald, sans-serif' }}
-        >
-          How Stories Are Produced
-        </h2>
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6 mb-12 space-y-4">
+        {/* AI Disclosure */}
+        <h2 className="mb-6" style={h2Style}>How Stories Are Produced</h2>
+        <div className="mb-14" style={cardStyle}>
           <div className="flex items-start gap-3">
-            <Bot size={20} className="text-amber-400 shrink-0 mt-1" />
-            <div className="space-y-3 text-sm text-zinc-400 leading-relaxed">
+            <Bot size={20} style={{ color: 'var(--color-accent-text)', flexShrink: 0, marginTop: 4 }} />
+            <div className="space-y-3" style={{ ...proseParagraph, fontSize: '14px', lineHeight: 1.7, color: 'var(--color-text-2)' }}>
               <p>
-                <strong className="text-zinc-200">Stories on The Influence Journal are
-                generated using a combination of algorithmic pattern detection and AI.</strong>{' '}
+                <strong style={{ color: 'var(--color-text-1)' }}>
+                  Stories on The Influence Journal are generated using a combination of algorithmic pattern detection and AI.
+                </strong>{' '}
                 We believe in full transparency about this process:
               </p>
               <ol className="list-decimal list-inside space-y-2 ml-1">
                 <li>
-                  <strong className="text-zinc-300">Pattern detection algorithms</strong> scan
-                  public government databases for noteworthy patterns: lobbying spikes, contract
-                  windfalls, enforcement gaps, stock trading overlaps with legislative activity,
-                  and more.
+                  <strong style={{ color: 'var(--color-text-1)' }}>Pattern detection algorithms</strong> scan
+                  public government databases for noteworthy patterns: lobbying spikes, contract windfalls,
+                  enforcement gaps, stock trading overlaps with legislative activity, and more.
                 </li>
                 <li>
-                  <strong className="text-zinc-300">Structured skeletons</strong> are generated
-                  algorithmically from the raw data, with every dollar amount, count, and date
-                  pulled directly from government records.
+                  <strong style={{ color: 'var(--color-text-1)' }}>Structured skeletons</strong> are generated
+                  algorithmically from the raw data, with every dollar amount, count, and date pulled directly
+                  from government records.
                 </li>
                 <li>
-                  <strong className="text-zinc-300">AI narrative enhancement</strong> (using
-                  Anthropic's Claude) may be used to transform structured data into readable
-                  prose. When used, the AI is bound by strict rules: it cannot invent numbers,
-                  cannot editorialize, cannot accuse anyone of wrongdoing, and must include
-                  legal disclaimers.
+                  <strong style={{ color: 'var(--color-text-1)' }}>AI narrative enhancement</strong> (using
+                  Anthropic's Claude) may be used to transform structured data into readable prose. When used,
+                  the AI is bound by strict rules: it cannot invent numbers, cannot editorialize, cannot accuse
+                  anyone of wrongdoing, and must include legal disclaimers.
                 </li>
                 <li>
-                  <strong className="text-zinc-300">Automated fact-checking</strong> re-verifies
-                  every key number against the source database before any story reaches the
-                  review queue.
+                  <strong style={{ color: 'var(--color-text-1)' }}>Automated fact-checking</strong> re-verifies
+                  every key number against the source database before any story reaches the review queue.
                 </li>
                 <li>
-                  <strong className="text-zinc-300">Human editorial review</strong> is required
+                  <strong style={{ color: 'var(--color-text-1)' }}>Human editorial review</strong> is required
                   before any story is published. No story goes live automatically.
                 </li>
               </ol>
-              <p className="text-xs text-zinc-500 mt-3 border-t border-zinc-800 pt-3">
-                Each story's byline indicates how it was generated: "Algorithmically Generated"
-                for pure template-based stories, or "AI-Enhanced" for stories where Claude was
-                used for narrative prose. Our entire pipeline is{' '}
+              <p
+                className="mt-3 pt-3"
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px',
+                  lineHeight: 1.6,
+                  letterSpacing: '0.06em',
+                  color: 'var(--color-text-3)',
+                  borderTop: '1px solid rgba(235,229,213,0.08)',
+                }}
+              >
+                Each story's byline indicates how it was generated: "Algorithmically Generated" for pure
+                template-based stories, or "AI-Enhanced" for stories where Claude was used for narrative prose.
+                Our entire pipeline is{' '}
                 <a
                   href="https://github.com/Obelus-Labs-LLC/WeThePeople"
-                  className="text-amber-400/70 hover:text-amber-400 transition-colors"
+                  style={{
+                    color: 'var(--color-accent-text)',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '3px',
+                  }}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -107,52 +184,79 @@ export default function AboutPage() {
         </div>
 
         {/* Principles */}
-        <h2
-          className="text-xl font-bold text-white mb-6"
-          style={{ fontFamily: 'Oswald, sans-serif' }}
-        >
-          Our Principles
-        </h2>
-        <div className="grid gap-4 mb-12">
+        <h2 className="mb-6" style={h2Style}>Our Principles</h2>
+        <div className="grid gap-4 mb-14">
           {[
             {
               icon: Database,
               title: 'Data-First',
-              description: 'Every claim is backed by public government data. We cite our sources with direct links so you can verify every finding independently.',
+              description:
+                'Every claim is backed by public government data. We cite our sources with direct links so you can verify every finding independently.',
             },
             {
               icon: Eye,
               title: 'Transparent Methodology',
-              description: 'Our data collection, analysis, and story generation pipeline is documented and open source. We publish our methodology so you know exactly how we work.',
+              description:
+                'Our data collection, analysis, and story generation pipeline is documented and open source. We publish our methodology so you know exactly how we work.',
             },
             {
               icon: Shield,
               title: 'No Editorial Opinions',
-              description: 'We present the data and let readers draw their own conclusions. Our stories contain facts and context, not opinions or partisan framing.',
+              description:
+                'We present the data and let readers draw their own conclusions. Our stories contain facts and context, not opinions or partisan framing.',
             },
             {
               icon: Bot,
               title: 'AI Transparency',
-              description: 'Every story discloses whether it was algorithmically generated or AI-enhanced. We never hide the role of automation in our process.',
+              description:
+                'Every story discloses whether it was algorithmically generated or AI-enhanced. We never hide the role of automation in our process.',
             },
             {
               icon: AlertTriangle,
               title: 'Corrections & Accountability',
-              description: 'When we get something wrong, we fix it publicly and promptly. All corrections, clarifications, and retractions are documented in our correction log.',
+              description:
+                'When we get something wrong, we fix it publicly and promptly. All corrections, clarifications, and retractions are documented in our correction log.',
             },
           ].map((item) => {
             const Icon = item.icon;
             return (
-              <div
-                key={item.title}
-                className="flex gap-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
-              >
-                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-400/15 shrink-0">
-                  <Icon size={20} className="text-amber-400" />
+              <div key={item.title} className="flex gap-4" style={cardStyle}>
+                <div
+                  className="flex items-center justify-center shrink-0"
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: '10px',
+                    background: 'rgba(197,160,40,0.12)',
+                    border: '1px solid rgba(197,160,40,0.28)',
+                  }}
+                >
+                  <Icon size={20} style={{ color: 'var(--color-accent-text)' }} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed">{item.description}</p>
+                  <h3
+                    className="mb-1"
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      letterSpacing: '0.18em',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-text-1)',
+                    }}
+                  >
+                    {item.title}
+                  </h3>
+                  <p
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '14px',
+                      lineHeight: 1.65,
+                      color: 'var(--color-text-2)',
+                    }}
+                  >
+                    {item.description}
+                  </p>
                 </div>
               </div>
             );
@@ -160,16 +264,19 @@ export default function AboutPage() {
         </div>
 
         {/* Data sources */}
-        <h2
-          className="text-xl font-bold text-white mb-4"
-          style={{ fontFamily: 'Oswald, sans-serif' }}
+        <h2 className="mb-4" style={h2Style}>Data Sources</h2>
+        <p
+          className="mb-5"
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '14px',
+            lineHeight: 1.7,
+            color: 'var(--color-text-2)',
+          }}
         >
-          Data Sources
-        </h2>
-        <p className="text-zinc-400 text-sm leading-relaxed mb-4">
           Our investigations draw from 30+ public data sources across 11 sectors:
         </p>
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-12">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6 mb-14" style={{ listStyle: 'none', paddingLeft: 0 }}>
           {[
             'Senate LDA (Lobbying)',
             'USASpending.gov (Contracts)',
@@ -184,8 +291,28 @@ export default function AboutPage() {
             'NHTSA (Vehicle Safety)',
             'ClinicalTrials.gov (Health)',
           ].map((source) => (
-            <li key={source} className="text-sm text-zinc-500 flex items-start gap-2">
-              <span className="text-amber-400 mt-1 shrink-0">&#8226;</span>
+            <li
+              key={source}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '12px',
+                letterSpacing: '0.04em',
+                color: 'var(--color-text-2)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  color: 'var(--color-accent-text)',
+                  marginTop: 1,
+                  flexShrink: 0,
+                }}
+              >
+                &#8226;
+              </span>
               {source}
             </li>
           ))}
@@ -193,41 +320,51 @@ export default function AboutPage() {
 
         {/* Links */}
         <div className="flex flex-col sm:flex-row flex-wrap gap-3">
-          <Link
-            to="/coverage"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-lg transition-colors text-sm font-medium"
-          >
-            Coverage Balance
-            <ArrowRight size={14} />
-          </Link>
-          <Link
-            to="/corrections"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-lg transition-colors text-sm font-medium"
-          >
-            Corrections & Retractions
-            <ArrowRight size={14} />
-          </Link>
-          <Link
-            to="/verify-our-data"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-lg transition-colors text-sm font-medium"
-          >
-            Verify Our Data
-            <ArrowRight size={14} />
-          </Link>
-          <a
-            href="https://wethepeopleforus.com/methodology"
-            className="inline-flex items-center gap-2 px-5 py-2.5 border border-zinc-800 hover:border-zinc-700 text-zinc-300 rounded-lg transition-colors text-sm font-medium"
-          >
-            View Full Methodology
-            <ArrowRight size={14} />
-          </a>
-          <a
-            href="https://wethepeopleforus.com"
-            className="inline-flex items-center gap-2 px-5 py-2.5 border border-zinc-800 hover:border-zinc-700 text-zinc-300 rounded-lg transition-colors text-sm font-medium"
-          >
-            Explore WeThePeople
-            <ArrowRight size={14} />
-          </a>
+          {[
+            { label: 'Coverage Balance', to: '/coverage' },
+            { label: 'Corrections & Retractions', to: '/corrections' },
+            { label: 'Verify Our Data', to: '/verify-our-data' },
+          ].map((l) => (
+            <Link
+              key={l.label}
+              to={l.to}
+              className="inline-flex items-center gap-2"
+              style={pillButtonStyle}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(197,160,40,0.35)';
+                e.currentTarget.style.color = 'var(--color-accent-text)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(235,229,213,0.12)';
+                e.currentTarget.style.color = 'var(--color-text-1)';
+              }}
+            >
+              {l.label}
+              <ArrowRight size={12} />
+            </Link>
+          ))}
+          {[
+            { label: 'View Full Methodology', href: 'https://wethepeopleforus.com/methodology' },
+            { label: 'Explore WeThePeople', href: 'https://wethepeopleforus.com' },
+          ].map((l) => (
+            <a
+              key={l.label}
+              href={l.href}
+              className="inline-flex items-center gap-2"
+              style={pillButtonStyle}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(197,160,40,0.35)';
+                e.currentTarget.style.color = 'var(--color-accent-text)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(235,229,213,0.12)';
+                e.currentTarget.style.color = 'var(--color-text-1)';
+              }}
+            >
+              {l.label}
+              <ArrowRight size={12} />
+            </a>
+          ))}
         </div>
       </article>
     </main>
