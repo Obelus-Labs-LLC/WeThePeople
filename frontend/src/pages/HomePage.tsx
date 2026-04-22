@@ -9,183 +9,39 @@ import {
   type InfluenceLeader,
 } from "../api/influence";
 import {
-  DollarSign,
-  FileText,
-  Shield,
-  Users,
-  TrendingUp,
   ArrowRight,
-  ShieldCheck,
-  AlertTriangle,
   MapPin,
-  Search,
-  Newspaper,
-  FlaskConical,
-  ExternalLink,
-  Target,
+  TrendingUp,
 } from "lucide-react";
 import Footer from "../components/Footer";
-import { getApiBaseUrl } from "../api/client";
+import SiteHeader from "../components/SiteHeader";
 
-const ANOMALY_API = getApiBaseUrl();
-
-interface TopAnomaly {
-  id: number;
-  pattern_type: string;
-  entity_type: string;
-  entity_id: string;
-  entity_name: string | null;
-  score: number;
-  title: string;
-}
-
-const ANOMALY_PATTERN_LABELS: Record<string, string> = {
-  trade_near_vote: "Trade Near Vote",
-  lobbying_spike: "Lobbying Spike",
-  enforcement_gap: "Enforcement Gap",
-  revolving_door: "Revolving Door",
+// Per-sector background tints shown on hover over a tile (see redesign spec).
+// No icons on tiles — the slug label + name + tagline + accent bar carry meaning.
+const SECTOR_BG_TINTS: Record<string, string> = {
+  politics:       "rgba(40, 70, 130, 0.18)",
+  finance:        "rgba(30, 100, 70, 0.18)",
+  health:         "rgba(120, 30, 65, 0.18)",
+  energy:         "rgba(130, 70, 20, 0.18)",
+  technology:     "rgba(65, 30, 140, 0.18)",
+  defense:        "rgba(25, 30, 80, 0.18)",
+  transportation: "rgba(25, 60, 100, 0.18)",
+  chemicals:      "rgba(15, 80, 80, 0.18)",
+  agriculture:    "rgba(35, 85, 25, 0.18)",
+  telecom:        "rgba(15, 55, 95, 0.18)",
+  education:      "rgba(65, 20, 130, 0.18)",
 };
 
-function SuspiciousPatternsTeaser() {
-  const [anomalies, setAnomalies] = useState<TopAnomaly[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${ANOMALY_API}/anomalies/top?limit=3`)
-      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
-      .then((data) => setAnomalies(data.anomalies || []))
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  if (anomalies.length === 0) return null;
-
-  return (
-    <div className="pb-12">
-      <div className="max-w-5xl mx-auto px-4">
-        <div className="flex items-center gap-2 mb-4">
-          <AlertTriangle className="w-5 h-5 text-amber-400" />
-          <h3 className="text-xl font-bold text-white">Suspicious Patterns</h3>
-        </div>
-        <div className="space-y-2">
-          {anomalies.map((a) => (
-            <Link
-              key={a.id}
-              to="/influence/anomalies"
-              className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-lg px-4 py-3 hover:bg-white/[0.08] transition-colors no-underline group"
-            >
-              <div
-                className={`w-8 h-8 rounded flex items-center justify-center text-white font-bold text-sm ${
-                  a.score >= 8 ? "bg-red-500" : a.score >= 6 ? "bg-orange-500" : "bg-amber-500"
-                }`}
-              >
-                {a.score.toFixed(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-white font-medium truncate group-hover:text-amber-400 transition-colors">
-                  {a.title}
-                </div>
-                <div className="text-[10px] text-white/30">
-                  {ANOMALY_PATTERN_LABELS[a.pattern_type] || a.pattern_type}
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-        <div className="mt-3 text-center">
-          <Link
-            to="/influence/anomalies"
-            className="inline-flex items-center gap-1.5 text-sm text-amber-400 hover:text-amber-300 transition-colors"
-          >
-            View all suspicious patterns <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface StoryTeaser {
-  slug: string;
-  title: string;
-  summary: string;
-  sector: string;
-}
-
-const SECTOR_BADGE_COLORS: Record<string, string> = {
-  finance: "bg-emerald-500/20 text-emerald-400",
-  health: "bg-rose-500/20 text-rose-400",
-  technology: "bg-violet-500/20 text-violet-400",
-  energy: "bg-orange-500/20 text-orange-400",
-  transportation: "bg-blue-500/20 text-blue-400",
-  defense: "bg-red-500/20 text-red-400",
-  politics: "bg-blue-500/20 text-blue-400",
+const SECTOR_ROUTES: Record<string, string> = {
+  finance: "/finance",
+  health: "/health",
+  tech: "/technology",
+  technology: "/technology",
+  energy: "/energy",
+  transportation: "/transportation",
+  defense: "/defense",
 };
 
-function LatestStoriesTeaser() {
-  const [stories, setStories] = useState<StoryTeaser[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${ANOMALY_API}/stories/latest?limit=3`)
-      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
-      .then((data) => setStories(Array.isArray(data) ? data : data.stories || []))
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  if (stories.length === 0) return null;
-
-  return (
-    <div className="pb-12">
-      <div className="max-w-5xl mx-auto px-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Newspaper className="w-5 h-5 text-blue-400" />
-          <h3 className="text-xl font-bold text-white">Latest Stories</h3>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {stories.map((s) => (
-            <Link
-              key={s.slug}
-              to={`/stories/${s.slug}`}
-              className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/[0.08] transition-colors no-underline group"
-            >
-              {s.sector && (
-                <span
-                  className={`inline-block text-[10px] uppercase font-semibold px-2 py-0.5 rounded mb-2 ${
-                    SECTOR_BADGE_COLORS[s.sector] || "bg-slate-500/20 text-slate-400"
-                  }`}
-                >
-                  {s.sector}
-                </span>
-              )}
-              <div className="text-sm font-bold text-white mb-1 group-hover:text-blue-400 transition-colors line-clamp-2">
-                {s.title}
-              </div>
-              <div className="text-xs text-white/50 leading-relaxed line-clamp-3">
-                {s.summary}
-              </div>
-            </Link>
-          ))}
-        </div>
-        <div className="mt-3 text-center">
-          <Link
-            to="/stories"
-            className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            View all stories <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Free Unsplash images (Unsplash license — free for commercial use)
-const FLAG_BG =
-  "https://images.unsplash.com/photo-1508433957232-3107f5fd5995?w=1920&q=80&auto=format";
-
-// TODO: Import from utils/helpers.ts
 function formatMoney(n: number): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
@@ -193,38 +49,581 @@ function formatMoney(n: number): string {
   return `$${n.toLocaleString()}`;
 }
 
-const SECTOR_COLORS: Record<string, string> = {
-  finance: "text-emerald-400",
-  health: "text-rose-400",
-  tech: "text-violet-400",
-  energy: "text-orange-400",
-  transportation: "text-blue-400",
-  defense: "text-red-400",
-};
+// ─────────────────────────────────────────────────────────────────────
+// Hero overline badge — gold dim chip with pulsing dot
+// ─────────────────────────────────────────────────────────────────────
 
-const SECTOR_ROUTES: Record<string, string> = {
-  finance: "/finance",
-  health: "/health",
-  tech: "/technology",
-  energy: "/energy",
-  transportation: "/transportation",
-  defense: "/defense",
-};
+function LiveBadge() {
+  return (
+    <div
+      className="inline-flex items-center"
+      style={{
+        gap: 8,
+        border: "1px solid var(--color-accent-dim)",
+        borderRadius: "var(--radius-pill)",
+        padding: "5px 14px",
+        background: "var(--color-accent-dim)",
+        marginBottom: 36,
+      }}
+    >
+      <span
+        className="animate-pulse-dot"
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: "var(--color-accent)",
+        }}
+      />
+      <span
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--color-accent-text)",
+        }}
+      >
+        Civic Transparency Platform
+      </span>
+    </div>
+  );
+}
 
-/** Left-border accent color per sector slug */
-const SECTOR_ACCENT: Record<string, string> = {
-  politics: "border-l-blue-500",
-  finance: "border-l-emerald-500",
-  health: "border-l-rose-500",
-  // Future sectors - not yet implemented
-  chemicals: "border-l-amber-500",
-  energy: "border-l-orange-500",
-  technology: "border-l-violet-500",
-  transportation: "border-l-blue-500",
-  // Future sectors - not yet implemented
-  defense: "border-l-red-500",
-  agriculture: "border-l-lime-500",
-};
+// ─────────────────────────────────────────────────────────────────────
+// Stats ticker — horizontally scrolling between hero and sector grid
+// ─────────────────────────────────────────────────────────────────────
+
+function StatsTicker({ stats }: { stats: InfluenceStats | null }) {
+  const items = stats
+    ? [
+        `${formatMoney(stats.total_lobbying_spend)} in lobbying tracked`,
+        `${stats.politicians_connected.toLocaleString()} politicians monitored`,
+        `${SECTORS.length} industry sectors`,
+        `${formatMoney(stats.total_contract_value)} in gov contracts`,
+        `${stats.total_enforcement_actions.toLocaleString()} enforcement actions`,
+        "30+ government data sources",
+      ]
+    : [
+        "$4.2B in lobbying tracked",
+        "535 politicians monitored",
+        "11 industry sectors",
+        "$8.7B in gov contracts",
+        "50,000+ enforcement actions",
+        "30+ government data sources",
+      ];
+  // Doubled for seamless translateX(-50%) loop
+  const loop = [...items, ...items];
+
+  return (
+    <div
+      className="flex items-center overflow-hidden"
+      style={{
+        borderTop: "1px solid var(--color-border)",
+        borderBottom: "1px solid var(--color-border)",
+        background: "var(--color-surface)",
+      }}
+    >
+      {/* Fixed LIVE badge */}
+      <div
+        className="flex items-center shrink-0"
+        style={{
+          gap: 8,
+          padding: "10px 20px",
+          borderRight: "1px solid var(--color-border)",
+        }}
+      >
+        <span
+          className="animate-pulse-dot"
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: "var(--color-accent)",
+          }}
+        />
+        <span
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "var(--color-accent-text)",
+          }}
+        >
+          Live
+        </span>
+      </div>
+
+      {/* Scrolling track */}
+      <div className="flex-1 overflow-hidden" style={{ padding: "10px 0" }}>
+        <div className="animate-ticker flex whitespace-nowrap">
+          {loop.map((item, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center"
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 12,
+                color: "var(--color-text-2)",
+                padding: "0 28px",
+              }}
+            >
+              {item}
+              <span
+                style={{
+                  marginLeft: 28,
+                  color: "var(--color-accent-text)",
+                }}
+              >
+                ·
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Sector tile grid — hairline-divided grid, BG tint + accent bar on hover
+// ─────────────────────────────────────────────────────────────────────
+
+function SectorGrid() {
+  const navigate = useNavigate();
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  return (
+    <section style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 32px" }}>
+      <div style={{ marginBottom: 20 }}>
+        <div
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "var(--color-accent-text)",
+            marginBottom: 8,
+          }}
+        >
+          Explore by sector
+        </div>
+        <h2
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 700,
+            fontSize: 18,
+            color: "var(--color-text-1)",
+            margin: 0,
+          }}
+        >
+          {SECTORS.length} industries. One question: who's paying whom?
+        </h2>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+          gap: 1,
+          border: "1px solid var(--color-border)",
+          borderRadius: 12,
+          overflow: "hidden",
+          background: "var(--color-border)", // hairline gap color
+        }}
+      >
+        {SECTORS.map((sector) => {
+          const isHover = hovered === sector.slug;
+          const tint = SECTOR_BG_TINTS[sector.slug] || "transparent";
+          return (
+            <button
+              key={sector.slug}
+              type="button"
+              onClick={() => (sector.available ? navigate(sector.route) : undefined)}
+              onMouseEnter={() => setHovered(sector.slug)}
+              onMouseLeave={() => setHovered(null)}
+              disabled={!sector.available}
+              className="relative text-left focus:outline-none"
+              style={{
+                padding: "24px 20px",
+                background: isHover ? tint : "var(--color-surface)",
+                cursor: sector.available ? "pointer" : "not-allowed",
+                opacity: sector.available ? 1 : 0.45,
+                transition: "background 0.25s",
+                overflow: "hidden",
+                border: "none",
+              }}
+            >
+              {/* Sector slug label */}
+              <div
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color: isHover ? "var(--color-text-1)" : "var(--color-text-3)",
+                  marginBottom: 8,
+                  transition: "color 0.2s",
+                }}
+              >
+                {sector.slug}
+              </div>
+
+              {/* Sector name */}
+              <div
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: "var(--color-text-1)",
+                  lineHeight: 1.2,
+                }}
+              >
+                {sector.name}
+              </div>
+
+              {/* Tagline — only on hover */}
+              <div
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  color: "var(--color-text-2)",
+                  lineHeight: 1.5,
+                  marginTop: 6,
+                  display: isHover ? "block" : "none",
+                }}
+              >
+                {sector.tagline}
+              </div>
+
+              {/* Bottom accent bar — slides in on hover */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: 2,
+                  background: "var(--color-accent)",
+                  transform: isHover ? "scaleX(1)" : "scaleX(0)",
+                  transformOrigin: "left",
+                  transition: "transform 0.25s ease",
+                }}
+              />
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Ecosystem row — Civic Hub + sibling sites
+// ─────────────────────────────────────────────────────────────────────
+
+function EcosystemRow() {
+  // Per CLOD prototype: column layout, 20px padding, border & bg both = accent @ 0.15 alpha,
+  // label (14px 600, accent) + sub (12px TEXT2) + "Open →" (marginTop:8, 12px, accent).
+  // Accent colours come from README spec tokens — gold / emerald / violet / crimson.
+  const tiles = [
+    {
+      to: "/civic",
+      external: false,
+      title: "Civic Hub",
+      tagline: "Promises, proposals, badges",
+      accent: "var(--color-accent)",
+      bg: "rgba(197, 160, 40, 0.15)",
+      border: "rgba(197, 160, 40, 0.15)",
+    },
+    {
+      to: "https://verify.wethepeopleforus.com",
+      external: true,
+      title: "Verify Claims",
+      tagline: "Fact-check politicians",
+      accent: "var(--color-verify)",
+      bg: "rgba(16, 185, 129, 0.15)",
+      border: "rgba(16, 185, 129, 0.15)",
+    },
+    {
+      to: "https://research.wethepeopleforus.com",
+      external: true,
+      title: "Research Tools",
+      tagline: "Patents, drugs, trials, trades",
+      accent: "var(--color-research)",
+      bg: "rgba(139, 92, 246, 0.15)",
+      border: "rgba(139, 92, 246, 0.15)",
+    },
+    {
+      to: "https://journal.wethepeopleforus.com",
+      external: true,
+      title: "Influence Journal",
+      tagline: "Data-driven investigations",
+      accent: "var(--color-journal)",
+      bg: "rgba(230, 57, 70, 0.15)",
+      border: "rgba(230, 57, 70, 0.15)",
+    },
+  ];
+
+  return (
+    <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 32px 40px" }}>
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+        }}
+      >
+        {tiles.map((t) => {
+          const content = (
+            <>
+              <div
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: t.accent,
+                }}
+              >
+                {t.title}
+              </div>
+              <div
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  color: "var(--color-text-2)",
+                }}
+              >
+                {t.tagline}
+              </div>
+              <div
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  color: t.accent,
+                  marginTop: 8,
+                }}
+              >
+                Open →
+              </div>
+            </>
+          );
+          const commonStyle: React.CSSProperties = {
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            padding: 20,
+            borderRadius: 10,
+            background: t.bg,
+            border: `1px solid ${t.border}`,
+            textDecoration: "none",
+            cursor: "pointer",
+            transition: "background 0.2s",
+          };
+          return t.external ? (
+            <a
+              key={t.title}
+              href={t.to}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={commonStyle}
+            >
+              {content}
+            </a>
+          ) : (
+            <Link key={t.title} to={t.to} style={commonStyle}>
+              {content}
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Influence leaderboard — top lobbying + top contracts
+// ─────────────────────────────────────────────────────────────────────
+
+function LeaderboardSection({
+  topLobbying,
+  topContracts,
+}: {
+  topLobbying: InfluenceLeader[];
+  topContracts: InfluenceLeader[];
+}) {
+  if (topLobbying.length === 0 && topContracts.length === 0) return null;
+
+  const Card = ({
+    title,
+    rows,
+    valueColor,
+    valueKey,
+  }: {
+    title: string;
+    rows: InfluenceLeader[];
+    valueColor: string;
+    valueKey: "total_lobbying" | "total_contracts";
+  }) => (
+    <div
+      style={{
+        background: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-lg)",
+        padding: 20,
+      }}
+    >
+      <h3
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: "var(--color-text-3)",
+          marginBottom: 14,
+        }}
+      >
+        {title}
+      </h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {rows.map((l, i) => (
+          <Link
+            key={l.entity_id}
+            to={`${SECTOR_ROUTES[l.sector] || "/"}/${l.entity_id}`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "8px 4px",
+              borderRadius: "var(--radius-sm)",
+              textDecoration: "none",
+            }}
+          >
+            <div className="flex items-center" style={{ gap: 12, minWidth: 0 }}>
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 12,
+                  color: "var(--color-text-3)",
+                  width: 20,
+                }}
+              >
+                {i + 1}.
+              </span>
+              <span
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "var(--color-text-1)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {l.display_name}
+              </span>
+              <span
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "var(--color-text-3)",
+                }}
+              >
+                {l.sector}
+              </span>
+            </div>
+            <span
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 13,
+                color: valueColor,
+                marginLeft: 12,
+              }}
+            >
+              {formatMoney((l[valueKey] as number) || 0)}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 32px 48px" }}>
+      <div className="flex items-center" style={{ gap: 10, marginBottom: 16 }}>
+        <TrendingUp style={{ width: 20, height: 20, color: "var(--color-accent-text)" }} />
+        <h2
+          style={{
+            fontFamily: "'Playfair Display', serif",
+            fontStyle: "italic",
+            fontWeight: 700,
+            fontSize: 22,
+            color: "var(--color-text-1)",
+            letterSpacing: "-0.01em",
+            margin: 0,
+          }}
+        >
+          Influence leaderboard
+        </h2>
+      </div>
+
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+          gap: 16,
+        }}
+      >
+        {topLobbying.length > 0 && (
+          <Card
+            title="Top lobbying spenders"
+            rows={topLobbying}
+            valueColor="var(--color-green)"
+            valueKey="total_lobbying"
+          />
+        )}
+        {topContracts.length > 0 && (
+          <Card
+            title="Top gov contract recipients"
+            rows={topContracts}
+            valueColor="var(--color-dem)"
+            valueKey="total_contracts"
+          />
+        )}
+      </div>
+
+      <div style={{ marginTop: 14, textAlign: "center" }}>
+        <Link
+          to="/influence"
+          className="inline-flex items-center"
+          style={{
+            gap: 6,
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            color: "var(--color-accent-text)",
+            textDecoration: "none",
+          }}
+        >
+          View full Influence Explorer <ArrowRight style={{ width: 14, height: 14 }} />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Main page
+// ─────────────────────────────────────────────────────────────────────
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -233,303 +632,199 @@ const HomePage: React.FC = () => {
   const [topContracts, setTopContracts] = useState<InfluenceLeader[]>([]);
   const [zipCode, setZipCode] = useState("");
   const zipInputRef = useRef<HTMLInputElement>(null);
+  const zipValid = zipCode.replace(/\D/g, "").length === 5;
 
   useEffect(() => {
     let cancelled = false;
-    fetchInfluenceStats().then(setStats).catch(() => {});
-    fetchTopLobbying(5).then((r) => setTopLobbying(r.leaders)).catch(() => {});
-    fetchTopContracts(5).then((r) => setTopContracts(r.leaders)).catch(() => {});
+    fetchInfluenceStats().then((s) => { if (!cancelled) setStats(s); }).catch(() => {});
+    fetchTopLobbying(5)
+      .then((r) => { if (!cancelled) setTopLobbying(r.leaders); })
+      .catch(() => {});
+    fetchTopContracts(5)
+      .then((r) => { if (!cancelled) setTopContracts(r.leaders); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-white relative">
-      {/* Static flag background with heavy overlay — no animation */}
-      <div
-        className="fixed inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${FLAG_BG})` }}
-      />
-      <div className="fixed inset-0 bg-slate-950/92" />
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: "var(--color-bg)", color: "var(--color-text-1)" }}
+    >
+      <SiteHeader />
 
-      {/* All content */}
-      <div className="relative z-10 flex flex-col min-h-screen">
+      {/* ── HERO ── */}
+      <section
+        className="flex flex-col items-center"
+        style={{
+          minHeight: "82vh",
+          justifyContent: "center",
+          padding: "80px 32px 60px",
+          textAlign: "center",
+          position: "relative",
+        }}
+      >
+        <LiveBadge />
 
-        {/* ── HERO ── Focused: brand, purpose, zip code CTA */}
-        <div className="flex flex-col items-center pt-24 pb-16 px-4">
-          {/* Brand */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="h-14 w-14 rounded-xl bg-blue-600 flex items-center justify-center text-2xl font-black text-white shadow-lg shadow-blue-600/30">
-              WP
-            </div>
-            <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-white">
-              We The People
-            </h1>
-          </div>
+        <h1
+          style={{
+            fontFamily: "'Playfair Display', serif",
+            fontStyle: "italic",
+            fontWeight: 900,
+            fontSize: "clamp(52px, 7vw, 96px)",
+            lineHeight: 1.0,
+            letterSpacing: "-0.01em",
+            color: "var(--color-text-1)",
+            margin: "0 0 16px",
+            maxWidth: 900,
+          }}
+        >
+          We The People.
+        </h1>
 
-          <h2 className="text-2xl sm:text-4xl font-bold text-white text-center mb-3 leading-tight">
-            Who represents you? Follow the money.
-          </h2>
+        <p
+          style={{
+            fontFamily: "'Playfair Display', serif",
+            fontStyle: "italic",
+            fontWeight: 400,
+            fontSize: "clamp(20px, 2.5vw, 30px)",
+            lineHeight: 1.5,
+            color: "var(--color-text-2)",
+            maxWidth: 640,
+            margin: "0 auto 40px",
+          }}
+        >
+          Follow the money behind every vote, every bill, every contract —
+          across 11 sectors of corporate influence.
+        </p>
 
-          <p className="text-zinc-300 text-center text-base sm:text-lg max-w-2xl mb-2">
-            Track lobbying, government contracts, stock trades, and enforcement actions across 11 sectors of corporate influence on Congress.
-          </p>
-
-          <p className="text-zinc-400 text-center text-base sm:text-lg max-w-lg mb-10">
-            Enter your zip code to see your representatives and who's paying them.
-          </p>
-
-          {/* Zip code form */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const cleaned = zipCode.replace(/\D/g, "").slice(0, 5);
-              if (cleaned.length === 5) {
-                navigate(`/politics/find-rep?zip=${cleaned}`);
-              } else if (zipInputRef.current) {
-                zipInputRef.current.focus();
+        {/* ZIP form */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const cleaned = zipCode.replace(/\D/g, "").slice(0, 5);
+            if (cleaned.length === 5) {
+              navigate(`/politics/find-rep?zip=${cleaned}`);
+            } else if (zipInputRef.current) {
+              zipInputRef.current.focus();
+            }
+          }}
+          className="flex flex-wrap items-center justify-center"
+          style={{ gap: 12, marginBottom: 32, width: "100%" }}
+        >
+          <div style={{ position: "relative" }}>
+            <MapPin
+              style={{
+                position: "absolute",
+                left: 14,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 18,
+                height: 18,
+                color: zipValid ? "var(--color-accent-text)" : "var(--color-text-3)",
+                transition: "color 0.2s",
+              }}
+            />
+            <input
+              ref={zipInputRef}
+              type="text"
+              inputMode="numeric"
+              maxLength={5}
+              pattern="[0-9]{5}"
+              placeholder="Enter zip code"
+              value={zipCode}
+              onChange={(e) =>
+                setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))
               }
+              style={{
+                width: 280,
+                padding: "14px 14px 14px 42px",
+                borderRadius: "var(--radius-card)",
+                background: "var(--color-surface)",
+                border: `1.5px solid ${zipValid ? "var(--color-accent)" : "var(--color-border-hover)"}`,
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 16,
+                color: "var(--color-text-1)",
+                outline: "none",
+                transition: "border-color 0.2s",
+              }}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!zipValid}
+            className="inline-flex items-center justify-center"
+            style={{
+              gap: 8,
+              padding: "14px 24px",
+              borderRadius: "var(--radius-card)",
+              background: "rgba(197, 160, 40, 0.18)",
+              color: "var(--color-accent-text)",
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 15,
+              fontWeight: 600,
+              border: "1px solid rgba(197, 160, 40, 0.35)",
+              cursor: zipValid ? "pointer" : "not-allowed",
+              opacity: zipValid ? 1 : 0.45,
+              transition: "opacity 0.2s",
             }}
-            className="flex items-center gap-3 mb-10 w-full max-w-lg justify-center"
           >
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400" />
-              <input
-                ref={zipInputRef}
-                type="text"
-                inputMode="numeric"
-                maxLength={5}
-                pattern="[0-9]{5}"
-                placeholder="Enter zip code"
-                value={zipCode}
-                onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
-                className="pl-10 pr-4 py-4 w-64 sm:w-80 rounded-lg bg-white/10 border border-white/30 text-white text-xl placeholder-zinc-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-all"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={zipCode.replace(/\D/g, "").length !== 5}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Search className="w-5 h-5" />
-              <span className="hidden sm:inline">Find My Representatives</span>
-              <span className="sm:hidden">Find Reps</span>
-            </button>
-          </form>
+            <span>Find My Representatives</span>
+            <ArrowRight style={{ width: 16, height: 16 }} />
+          </button>
+        </form>
 
-          {/* Aggregate stats bar */}
-          {stats && (
-            <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-6 mb-6">
-              {[
-                { icon: DollarSign, label: "Lobbying Tracked", value: formatMoney(stats.total_lobbying_spend) },
-                { icon: FileText, label: "Gov Contracts", value: formatMoney(stats.total_contract_value) },
-                { icon: Shield, label: "Enforcement Actions", value: stats.total_enforcement_actions.toLocaleString() },
-                { icon: Users, label: "Politicians Tracked", value: stats.politicians_connected.toLocaleString() },
-              ].map((s) => (
-                <div key={s.label} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-4 py-2">
-                  <s.icon className="w-4 h-4 text-blue-400" />
-                  <div>
-                    <div className="text-lg font-bold text-white">{s.value}</div>
-                    <div className="text-[10px] text-zinc-400 uppercase tracking-wider">{s.label}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Secondary links */}
-          <div className="flex items-center gap-4">
-            <Link
-              to="/digest"
-              className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors no-underline"
-            >
-              Get weekly updates <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-            <span className="text-zinc-700">|</span>
-            <a
-              href="https://x.com/WTPForUs"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-300 transition-colors no-underline"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-              </svg>
-              @WTPForUs
-            </a>
-          </div>
+        {/* Secondary links */}
+        <div
+          className="flex flex-wrap items-center justify-center"
+          style={{ gap: 16, fontFamily: "'Inter', sans-serif", fontSize: 13 }}
+        >
+          <Link
+            to="/digest"
+            className="inline-flex items-center"
+            style={{
+              gap: 6,
+              color: "var(--color-accent-text)",
+              textDecoration: "none",
+            }}
+          >
+            Get weekly digest <ArrowRight style={{ width: 14, height: 14 }} />
+          </Link>
+          <span style={{ color: "var(--color-text-3)" }}>·</span>
+          <a
+            href="https://x.com/WTPForUs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center"
+            style={{
+              gap: 6,
+              color: "var(--color-text-3)",
+              textDecoration: "none",
+            }}
+          >
+            <svg style={{ width: 12, height: 12 }} viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+            </svg>
+            @WTPForUs
+          </a>
         </div>
+      </section>
 
-        {/* ── SECTORS ── */}
-        <div className="max-w-5xl mx-auto px-4 pb-10">
-          <h2 className="text-lg font-bold text-white mb-4 text-center">Explore by Sector</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {SECTORS.map((sector) => (
-              <button
-                key={sector.slug}
-                onClick={() =>
-                  sector.available
-                    ? navigate(sector.route)
-                    : undefined
-                }
-                className={`relative group rounded-xl border-l-2 ${SECTOR_ACCENT[sector.slug] || "border-l-slate-500"} bg-white/[0.04] border border-white/10 p-4 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-blue-500 ${
-                  sector.available
-                    ? "hover:bg-white/[0.08] hover:border-white/20 cursor-pointer"
-                    : "opacity-50 pointer-events-none"
-                }`}
-              >
-                <div className="text-xl mb-1.5">
-                  {sector.icon}
-                </div>
-                <div className="text-sm font-bold text-white mb-0.5">
-                  {sector.name}
-                </div>
-                <div className="text-xs text-zinc-400 leading-snug">
-                  {sector.tagline}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* ── STATS TICKER ── */}
+      <StatsTicker stats={stats} />
 
-        {/* ── ECOSYSTEM ── Compact row for sibling sites */}
-        <div className="max-w-5xl mx-auto px-4 pb-10">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Link
-              to="/civic"
-              className="group flex items-center gap-3 rounded-xl bg-cyan-500/[0.06] border border-cyan-500/20 p-4 transition-all duration-200 hover:bg-cyan-500/[0.12] no-underline"
-            >
-              <Target className="w-5 h-5 text-cyan-400 shrink-0" />
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-white">Civic Hub</div>
-                <div className="text-xs text-zinc-400">Promises, proposals, badges</div>
-              </div>
-            </Link>
-            <a
-              href="https://verify.wethepeopleforus.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center gap-3 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/20 p-4 transition-all duration-200 hover:bg-emerald-500/[0.12] no-underline"
-            >
-              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-white">Verify Claims</div>
-                <div className="text-xs text-zinc-400">Fact-check politicians</div>
-              </div>
-            </a>
-            <a
-              href="https://research.wethepeopleforus.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center gap-3 rounded-xl bg-violet-500/[0.04] border border-violet-500/20 p-4 transition-all duration-200 hover:bg-violet-500/[0.08] no-underline"
-            >
-              <FlaskConical className="w-5 h-5 text-violet-400 shrink-0" />
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-white">Research Tools</div>
-                <div className="text-xs text-zinc-400">Patents, drugs, trials, trades</div>
-              </div>
-            </a>
-            <a
-              href="https://journal.wethepeopleforus.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center gap-3 rounded-xl bg-amber-500/[0.04] border border-amber-500/20 p-4 transition-all duration-200 hover:bg-amber-500/[0.08] no-underline"
-            >
-              <Newspaper className="w-5 h-5 text-amber-400 shrink-0" />
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-white">Influence Journal</div>
-                <div className="text-xs text-zinc-400">Data-driven investigations</div>
-              </div>
-            </a>
-          </div>
-        </div>
+      {/* ── SECTOR GRID ── */}
+      <SectorGrid />
 
-        {/* ── DISCOVER ── Below-fold content: leaderboard, patterns, stories */}
-        <div className="border-t border-white/5 pt-12">
-          {/* Influence Leaderboard */}
-          {(topLobbying.length > 0 || topContracts.length > 0) && (
-            <div className="pb-12">
-              <div className="max-w-5xl mx-auto px-4">
-                <div className="flex items-center gap-2 mb-6">
-                  <TrendingUp className="w-5 h-5 text-blue-400" />
-                  <h2 className="text-xl font-bold text-white">Influence Leaderboard</h2>
-                </div>
+      {/* ── ECOSYSTEM ── */}
+      <EcosystemRow />
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  {topLobbying.length > 0 && (
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-                      <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
-                        Top Lobbying Spenders
-                      </h3>
-                      <div className="space-y-3">
-                        {topLobbying.map((l, i) => (
-                          <Link
-                            key={l.entity_id}
-                            to={`${SECTOR_ROUTES[l.sector] || "/"}/${l.entity_id}`}
-                            className="flex items-center justify-between hover:bg-white/5 rounded-lg px-2 py-1.5 transition-colors"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-zinc-500 text-sm w-5">{i + 1}.</span>
-                              <span className="text-white font-medium text-sm">{l.display_name}</span>
-                              <span className={`text-xs uppercase font-semibold ${SECTOR_COLORS[l.sector] || "text-zinc-400"}`}>
-                                {l.sector}
-                              </span>
-                            </div>
-                            <span className="text-emerald-400 font-mono text-sm">
-                              {formatMoney(l.total_lobbying || 0)}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {topContracts.length > 0 && (
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-                      <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
-                        Top Gov Contract Recipients
-                      </h3>
-                      <div className="space-y-3">
-                        {topContracts.map((l, i) => (
-                          <Link
-                            key={l.entity_id}
-                            to={`${SECTOR_ROUTES[l.sector] || "/"}/${l.entity_id}`}
-                            className="flex items-center justify-between hover:bg-white/5 rounded-lg px-2 py-1.5 transition-colors"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-zinc-500 text-sm w-5">{i + 1}.</span>
-                              <span className="text-white font-medium text-sm">{l.display_name}</span>
-                              <span className={`text-xs uppercase font-semibold ${SECTOR_COLORS[l.sector] || "text-zinc-400"}`}>
-                                {l.sector}
-                              </span>
-                            </div>
-                            <span className="text-blue-400 font-mono text-sm">
-                              {formatMoney(l.total_contracts || 0)}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-4 text-center">
-                  <Link
-                    to="/influence"
-                    className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                  >
-                    View full Influence Explorer <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <SuspiciousPatternsTeaser />
-          <LatestStoriesTeaser />
-        </div>
-
-        <Footer />
+      {/* ── BELOW-FOLD DISCOVERY ── */}
+      <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 48 }}>
+        <LeaderboardSection topLobbying={topLobbying} topContracts={topContracts} />
       </div>
+
+      <Footer />
     </div>
   );
 };
