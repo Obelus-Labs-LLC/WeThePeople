@@ -872,9 +872,9 @@ export interface ActivityItemShape {
   type: string;
   company_id?: string;
   company_name?: string;
-  date?: string;
-  description?: string;
-  url?: string;
+  date?: string | null;
+  description?: string | null;
+  url?: string | null;
   meta?: {
     award_amount?: number;
     penalty_amount?: number;

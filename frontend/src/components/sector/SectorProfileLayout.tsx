@@ -208,9 +208,9 @@ export function ProfileRecordCard({
   url,
   accent,
 }: {
-  title: string;
+  title: string | null;
   meta?: React.ReactNode;
-  amount?: string;
+  amount?: string | null;
   amountAccent?: string;
   description?: string | null;
   url?: string | null;
