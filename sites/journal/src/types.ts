@@ -85,37 +85,47 @@ export interface StoriesResponse {
 }
 
 /**
- * Category metadata for display
+ * Category metadata for display.
+ *
+ * `color` is the full opaque token (used for text, icons).
+ * `bg` is a low-alpha fill (used for pill backgrounds — always ~10% alpha).
+ * Tokens mirror the shared design system used across WTP sites.
  */
-export const CATEGORY_META: Record<string, { label: string; color: string; bgColor: string }> = {
-  lobbying: { label: 'Lobbying', color: 'text-amber-400', bgColor: 'bg-amber-400/15' },
-  lobbying_spike: { label: 'Lobbying Spike', color: 'text-amber-400', bgColor: 'bg-amber-400/15' },
-  contracts: { label: 'Contracts', color: 'text-blue-400', bgColor: 'bg-blue-400/15' },
-  contract_windfall: { label: 'Contract Windfall', color: 'text-blue-400', bgColor: 'bg-blue-400/15' },
-  enforcement: { label: 'Enforcement', color: 'text-red-400', bgColor: 'bg-red-400/15' },
-  enforcement_gap: { label: 'Enforcement Gap', color: 'text-red-400', bgColor: 'bg-red-400/15' },
-  trades: { label: 'Trades', color: 'text-emerald-400', bgColor: 'bg-emerald-400/15' },
-  trade_cluster: { label: 'Trade Cluster', color: 'text-emerald-400', bgColor: 'bg-emerald-400/15' },
-  trade_timing: { label: 'Trade Timing', color: 'text-emerald-400', bgColor: 'bg-emerald-400/15' },
-  regulatory: { label: 'Regulatory', color: 'text-violet-400', bgColor: 'bg-violet-400/15' },
-  regulatory_arbitrage: { label: 'Regulatory Arbitrage', color: 'text-violet-400', bgColor: 'bg-violet-400/15' },
-  revolving_door: { label: 'Revolving Door', color: 'text-orange-400', bgColor: 'bg-orange-400/15' },
-  bipartisan_buying: { label: 'Bipartisan Buying', color: 'text-cyan-400', bgColor: 'bg-cyan-400/15' },
-  full_influence_loop: { label: 'Influence Loop', color: 'text-rose-400', bgColor: 'bg-rose-400/15' },
-  stock_act_violation: { label: 'STOCK Act Violation', color: 'text-red-500', bgColor: 'bg-red-500/15' },
-  committee_stock_trade: { label: 'Committee Trading', color: 'text-orange-400', bgColor: 'bg-orange-400/15' },
-  penalty_contract_ratio: { label: 'Penalty Gap', color: 'text-red-400', bgColor: 'bg-red-400/15' },
-  prolific_trader: { label: 'Prolific Trader', color: 'text-emerald-400', bgColor: 'bg-emerald-400/15' },
-  enforcement_immunity: { label: 'Zero Enforcement', color: 'text-yellow-400', bgColor: 'bg-yellow-400/15' },
-  foreign_lobbying: { label: 'Foreign Lobbying', color: 'text-blue-400', bgColor: 'bg-blue-400/15' },
-  regulatory_capture: { label: 'Regulatory Capture', color: 'text-teal-400', bgColor: 'bg-teal-400/15' },
-  lobbying_breakdown: { label: 'Lobbying Breakdown', color: 'text-amber-400', bgColor: 'bg-amber-400/15' },
-  cross_sector: { label: 'Cross-Sector', color: 'text-indigo-400', bgColor: 'bg-indigo-400/15' },
-  fara_lobbying_spike: { label: 'FARA Lobbying', color: 'text-blue-400', bgColor: 'bg-blue-400/15' },
-  tax_lobbying: { label: 'Tax Lobbying', color: 'text-amber-500', bgColor: 'bg-amber-500/15' },
-  budget_influence: { label: 'Budget Influence', color: 'text-indigo-400', bgColor: 'bg-indigo-400/15' },
-  regulatory_loop: { label: 'Regulatory Loop', color: 'text-teal-400', bgColor: 'bg-teal-400/15' },
-  education_pipeline: { label: 'Education Pipeline', color: 'text-purple-400', bgColor: 'bg-purple-400/15' },
+export interface CategoryMeta {
+  label: string;
+  color: string;
+  bg: string;
+}
+
+export const CATEGORY_META: Record<string, CategoryMeta> = {
+  lobbying:               { label: 'Lobbying',            color: 'var(--color-accent-text)', bg: 'rgba(197,160,40,0.12)' },
+  lobbying_spike:         { label: 'Lobbying Spike',      color: 'var(--color-accent-text)', bg: 'rgba(197,160,40,0.12)' },
+  lobbying_breakdown:     { label: 'Lobbying Breakdown',  color: 'var(--color-accent-text)', bg: 'rgba(197,160,40,0.12)' },
+  tax_lobbying:           { label: 'Tax Lobbying',        color: 'var(--color-accent-text)', bg: 'rgba(197,160,40,0.12)' },
+  fara_lobbying_spike:    { label: 'FARA Lobbying',       color: 'var(--color-dem)',         bg: 'rgba(74,127,222,0.12)' },
+  foreign_lobbying:       { label: 'Foreign Lobbying',    color: 'var(--color-dem)',         bg: 'rgba(74,127,222,0.12)' },
+  contracts:              { label: 'Contracts',           color: 'var(--color-dem)',         bg: 'rgba(74,127,222,0.12)' },
+  contract_windfall:      { label: 'Contract Windfall',   color: 'var(--color-dem)',         bg: 'rgba(74,127,222,0.12)' },
+  enforcement:            { label: 'Enforcement',         color: 'var(--color-red)',         bg: 'rgba(230,57,70,0.12)' },
+  enforcement_gap:        { label: 'Enforcement Gap',     color: 'var(--color-red)',         bg: 'rgba(230,57,70,0.12)' },
+  stock_act_violation:    { label: 'STOCK Act Violation', color: 'var(--color-red)',         bg: 'rgba(230,57,70,0.12)' },
+  penalty_contract_ratio: { label: 'Penalty Gap',         color: 'var(--color-red)',         bg: 'rgba(230,57,70,0.12)' },
+  enforcement_immunity:   { label: 'Zero Enforcement',    color: 'var(--color-red)',         bg: 'rgba(230,57,70,0.12)' },
+  trades:                 { label: 'Trades',              color: 'var(--color-green)',       bg: 'rgba(61,184,122,0.12)' },
+  trade_cluster:          { label: 'Trade Cluster',       color: 'var(--color-green)',       bg: 'rgba(61,184,122,0.12)' },
+  trade_timing:           { label: 'Trade Timing',        color: 'var(--color-green)',       bg: 'rgba(61,184,122,0.12)' },
+  prolific_trader:        { label: 'Prolific Trader',     color: 'var(--color-green)',       bg: 'rgba(61,184,122,0.12)' },
+  committee_stock_trade:  { label: 'Committee Trading',   color: 'var(--color-green)',       bg: 'rgba(61,184,122,0.12)' },
+  regulatory:             { label: 'Regulatory',          color: 'var(--color-research)',    bg: 'rgba(139,92,246,0.12)' },
+  regulatory_arbitrage:   { label: 'Regulatory Arbitrage',color: 'var(--color-research)',    bg: 'rgba(139,92,246,0.12)' },
+  regulatory_capture:     { label: 'Regulatory Capture',  color: 'var(--color-research)',    bg: 'rgba(139,92,246,0.12)' },
+  regulatory_loop:        { label: 'Regulatory Loop',     color: 'var(--color-research)',    bg: 'rgba(139,92,246,0.12)' },
+  revolving_door:         { label: 'Revolving Door',      color: 'var(--color-ind)',         bg: 'rgba(176,111,216,0.12)' },
+  bipartisan_buying:      { label: 'Bipartisan Buying',   color: 'var(--color-verify)',      bg: 'rgba(16,185,129,0.12)' },
+  full_influence_loop:    { label: 'Influence Loop',      color: 'var(--color-journal)',     bg: 'rgba(230,57,70,0.12)' },
+  cross_sector:           { label: 'Cross-Sector',        color: 'var(--color-ind)',         bg: 'rgba(176,111,216,0.12)' },
+  budget_influence:       { label: 'Budget Influence',    color: 'var(--color-dem)',         bg: 'rgba(74,127,222,0.12)' },
+  education_pipeline:     { label: 'Education Pipeline',  color: 'var(--color-research)',    bg: 'rgba(139,92,246,0.12)' },
 };
 
 export const SECTOR_LABELS: Record<string, string> = {

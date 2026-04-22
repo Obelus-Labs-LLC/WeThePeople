@@ -1,18 +1,73 @@
 @import "tailwindcss";
 
-body {
-  margin: 0;
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
-  background-color: #09090b;
-  color: #fafafa;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@theme {
+  /* ── Background layers ────────────────────────────────────────── */
+  --color-bg:           #07090C;
+  --color-surface:      #0D1117;
+  --color-surface-2:    #141C25;
+
+  /* ── Borders ──────────────────────────────────────────────────── */
+  --color-border:       rgba(235, 229, 213, 0.08);
+  --color-border-hover: rgba(235, 229, 213, 0.14);
+
+  /* ── Text ─────────────────────────────────────────────────────── */
+  --color-text-1: #EBE5D5;                    /* primary — warm off-white */
+  --color-text-2: rgba(235, 229, 213, 0.50);  /* secondary */
+  --color-text-3: rgba(235, 229, 213, 0.22);  /* muted / labels */
+
+  /* ── Accent — Gold (shared with main site) ────────────────────── */
+  --color-accent:      #C5A028;
+  --color-accent-dim:  rgba(197, 160, 40, 0.12);
+  --color-accent-text: #D4AE35;
+
+  /* ── Data colors — shared across sites ────────────────────────── */
+  --color-dem:   #4A7FDE;
+  --color-rep:   #E05555;
+  --color-ind:   #B06FD8;
+  --color-green: #3DB87A;
+  --color-red:   #E63946;
+  --color-amber: #C5A028;
+
+  /* ── Journal site accent (crimson) ────────────────────────────── */
+  --color-journal:  #E63946;
+  --color-verify:   #10B981;
+  --color-research: #8B5CF6;
+
+  /* ── Fonts ────────────────────────────────────────────────────── */
+  --font-display: 'Playfair Display', serif;   /* editorial italic headlines */
+  --font-editorial: 'Oswald', sans-serif;       /* newspaper-style masthead */
+  --font-body:    'Inter', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
 }
 
-/* Oswald headings utility */
-.font-oswald {
-  font-family: 'Oswald', sans-serif;
+/* ── Global base ───────────────────────────────────────────────── */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background-color: #07090C;
+  color: #EBE5D5;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
 }
+
+/* ── Scrollbar ─────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(235, 229, 213, 0.08);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(235, 229, 213, 0.14);
+}
+
+/* ── Typography utilities ──────────────────────────────────────── */
+.font-oswald    { font-family: 'Oswald', sans-serif; }
+.font-display   { font-family: 'Playfair Display', serif; }
+.font-mono      { font-family: 'JetBrains Mono', monospace; }
+.font-body      { font-family: 'Inter', sans-serif; }
 
 /* Line clamp utilities */
 .line-clamp-2 {
@@ -21,7 +76,6 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-
 .line-clamp-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -30,21 +84,23 @@ body {
 }
 
 /* Smooth scroll */
-html {
-  scroll-behavior: smooth;
-}
+html { scroll-behavior: smooth; }
 
 /* Article body prose-like styling */
 article p {
   margin-bottom: 1.5rem;
+  line-height: 1.75;
+  color: var(--color-text-1);
 }
+article p:last-child { margin-bottom: 0; }
 
-article p:last-child {
-  margin-bottom: 0;
-}
-
-/* Selection color */
+/* Selection color — gold like main site */
 ::selection {
-  background-color: rgba(251, 191, 36, 0.25);
-  color: #fafafa;
+  background-color: rgba(197, 160, 40, 0.28);
+  color: #EBE5D5;
+}
+
+/* Shared pulse for eyebrow dots */
+@keyframes research-ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
 }

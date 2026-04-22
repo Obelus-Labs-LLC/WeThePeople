@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Clock, FileText, Link2, Share2, ShieldCheck, ShieldAlert, ShieldQuestion, AlertTriangle, Bot, Flag, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  ArrowLeft, Clock, FileText, Link2, Share2, ShieldCheck, ShieldAlert, ShieldQuestion,
+  AlertTriangle, Bot, Flag, ChevronDown, ChevronUp,
+} from 'lucide-react';
 import { CategoryBadge } from '../components/CategoryBadge';
 import { SectorTag } from '../components/SectorTag';
 import { StoryCard } from '../components/StoryCard';
@@ -28,6 +31,32 @@ function shareOnTwitter(title: string) {
   window.open(`https://x.com/intent/tweet?text=${text}&url=${url}`, '_blank');
 }
 
+// ── Prose styling constants ─────────────────────────────────────────
+const proseParagraphStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: '17px',
+  lineHeight: 1.8,
+  color: 'var(--color-text-1)',
+  marginBottom: '1.5rem',
+};
+const inlineLinkStyle: React.CSSProperties = {
+  color: 'var(--color-accent-text)',
+  textDecoration: 'underline',
+  textUnderlineOffset: '3px',
+  textDecorationThickness: '1px',
+};
+const proseHeadingStyle = (fontSize: string): React.CSSProperties => ({
+  fontFamily: 'var(--font-display)',
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize,
+  letterSpacing: '-0.015em',
+  color: 'var(--color-text-1)',
+  marginTop: '2.25rem',
+  marginBottom: '1rem',
+  lineHeight: 1.15,
+});
+
 /**
  * Render inline markdown: **bold**, *italic*, and [links](url).
  */
@@ -37,12 +66,10 @@ function renderInline(text: string): React.ReactNode[] {
   let key = 0;
 
   while (remaining.length > 0) {
-    // Find the earliest match among all patterns
     const linkMatch = remaining.match(/^(.*?)\[([^\]]+)\]\(([^)]+)\)(.*)/s);
     const boldMatch = remaining.match(/^(.*?)\*\*(.+?)\*\*(.*)/s);
     const italicMatch = remaining.match(/^(.*?)\*(.+?)\*(.*)/s);
 
-    // Pick the earliest match by prefix length
     type MatchType = { type: 'link' | 'bold' | 'italic'; match: RegExpMatchArray };
     const candidates: MatchType[] = [];
     if (linkMatch) candidates.push({ type: 'link', match: linkMatch });
@@ -54,7 +81,6 @@ function renderInline(text: string): React.ReactNode[] {
       break;
     }
 
-    // Sort by prefix length (earliest match first)
     candidates.sort((a, b) => (a.match[1]?.length ?? 0) - (b.match[1]?.length ?? 0));
     const best = candidates[0];
 
@@ -65,7 +91,7 @@ function renderInline(text: string): React.ReactNode[] {
         <a
           key={key++}
           href={linkMatch[3]}
-          className="text-amber-400/80 hover:text-amber-400 underline underline-offset-2 transition-colors"
+          style={inlineLinkStyle}
           {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
         >
           {linkMatch[2]}
@@ -74,11 +100,25 @@ function renderInline(text: string): React.ReactNode[] {
       remaining = linkMatch[4];
     } else if (best.type === 'bold' && boldMatch) {
       if (boldMatch[1]) parts.push(<span key={key++}>{boldMatch[1]}</span>);
-      parts.push(<strong key={key++} className="text-white font-semibold">{boldMatch[2]}</strong>);
+      parts.push(
+        <strong
+          key={key++}
+          style={{ color: 'var(--color-text-1)', fontWeight: 700 }}
+        >
+          {boldMatch[2]}
+        </strong>
+      );
       remaining = boldMatch[3];
     } else if (best.type === 'italic' && italicMatch) {
       if (italicMatch[1]) parts.push(<span key={key++}>{italicMatch[1]}</span>);
-      parts.push(<em key={key++} className="text-zinc-400 italic">{italicMatch[2]}</em>);
+      parts.push(
+        <em
+          key={key++}
+          style={{ color: 'var(--color-text-2)', fontStyle: 'italic' }}
+        >
+          {italicMatch[2]}
+        </em>
+      );
       remaining = italicMatch[3];
     } else {
       parts.push(<span key={key++}>{remaining}</span>);
@@ -94,14 +134,13 @@ function renderInline(text: string): React.ReactNode[] {
 function renderContent(content: string) {
   const blocks = content.split(/\n{2,}/).filter(Boolean);
   if (blocks.length <= 1 && !content.includes('\n- ') && !content.includes('\n**')) {
-    return <p className="text-zinc-300 leading-[1.85] text-base">{renderInline(content)}</p>;
+    return <p style={proseParagraphStyle}>{renderInline(content)}</p>;
   }
   return blocks.map((block, i) => {
-    // Handle markdown ## headings
     const h2Match = block.match(/^##\s+(.+)/);
     if (h2Match) {
       return (
-        <h2 key={i} className="text-xl font-bold text-white mt-8 mb-4" style={{ fontFamily: 'Oswald, sans-serif' }}>
+        <h2 key={i} style={proseHeadingStyle('28px')}>
           {h2Match[1]}
         </h2>
       );
@@ -109,35 +148,73 @@ function renderContent(content: string) {
     const h3Match = block.match(/^###\s+(.+)/);
     if (h3Match) {
       return (
-        <h3 key={i} className="text-lg font-bold text-white mt-6 mb-3" style={{ fontFamily: 'Oswald, sans-serif' }}>
+        <h3 key={i} style={proseHeadingStyle('22px')}>
           {h3Match[1]}
         </h3>
       );
     }
-    // Handle markdown tables (lines with | separators)
-    const lines = block.split('\n').filter(l => l.trim());
-    const isTable = lines.length >= 2
-      && lines[0].includes('|')
-      && lines[1].trim().replace(/[\s|:-]/g, '') === '';
+
+    // Tables
+    const lines = block.split('\n').filter((l) => l.trim());
+    const isTable =
+      lines.length >= 2 &&
+      lines[0].includes('|') &&
+      lines[1].trim().replace(/[\s|:-]/g, '') === '';
     if (isTable) {
-      const parseRow = (row: string) => row.split('|').map(c => c.trim()).filter(Boolean);
+      const parseRow = (row: string) => row.split('|').map((c) => c.trim()).filter(Boolean);
       const headers = parseRow(lines[0]);
       const dataRows = lines.slice(2).map(parseRow);
       return (
-        <div key={i} className="mb-6 overflow-x-auto rounded-lg border border-zinc-700/50">
-          <table className="w-full text-sm text-left">
+        <div
+          key={i}
+          className="mb-8 overflow-x-auto"
+          style={{
+            borderRadius: '12px',
+            border: '1px solid rgba(235,229,213,0.08)',
+            background: 'var(--color-surface)',
+          }}
+        >
+          <table className="w-full text-left" style={{ fontSize: '14px', borderCollapse: 'collapse' }}>
             <thead>
-              <tr className="border-b border-zinc-700/50 bg-zinc-800/50">
+              <tr style={{ borderBottom: '1px solid rgba(235,229,213,0.08)', background: 'rgba(235,229,213,0.02)' }}>
                 {headers.map((h, j) => (
-                  <th key={j} className="px-4 py-2.5 text-zinc-400 font-semibold text-xs uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{h}</th>
+                  <th
+                    key={j}
+                    style={{
+                      padding: '12px 16px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      letterSpacing: '0.18em',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-text-2)',
+                    }}
+                  >
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {dataRows.map((row, j) => (
-                <tr key={j} className={j % 2 === 0 ? 'bg-zinc-900/30' : 'bg-zinc-800/20'}>
+                <tr
+                  key={j}
+                  style={{
+                    borderTop: '1px solid rgba(235,229,213,0.04)',
+                    background: j % 2 === 0 ? 'transparent' : 'rgba(235,229,213,0.02)',
+                  }}
+                >
                   {row.map((cell, k) => (
-                    <td key={k} className="px-4 py-2 text-zinc-300 text-sm border-t border-zinc-800/50">{cell}</td>
+                    <td
+                      key={k}
+                      style={{
+                        padding: '10px 16px',
+                        fontFamily: 'var(--font-body)',
+                        color: 'var(--color-text-1)',
+                      }}
+                    >
+                      {cell}
+                    </td>
                   ))}
                 </tr>
               ))}
@@ -147,23 +224,46 @@ function renderContent(content: string) {
       );
     }
 
-    // Handle bullet lists (lines starting with -)
+    // Bullet lists
     const linesList = block.split('\n');
-    const isList = linesList.every(line => line.trim().startsWith('- ') || line.trim() === '');
-    if (isList && linesList.some(line => line.trim().startsWith('- '))) {
+    const isList =
+      linesList.every((line) => line.trim().startsWith('- ') || line.trim() === '') &&
+      linesList.some((line) => line.trim().startsWith('- '));
+    if (isList) {
       return (
-        <ul key={i} className="mb-6 space-y-2 ml-1">
-          {linesList.filter(line => line.trim().startsWith('- ')).map((line, j) => (
-            <li key={j} className="flex gap-2 text-zinc-300 leading-[1.85] text-base">
-              <span className="text-amber-400 shrink-0 mt-0.5">&#8226;</span>
-              <span>{renderInline(line.trim().slice(2))}</span>
-            </li>
-          ))}
+        <ul key={i} className="mb-6" style={{ marginLeft: 4, paddingLeft: 0, listStyle: 'none' }}>
+          {linesList
+            .filter((line) => line.trim().startsWith('- '))
+            .map((line, j) => (
+              <li
+                key={j}
+                style={{
+                  ...proseParagraphStyle,
+                  marginBottom: '0.5rem',
+                  display: 'flex',
+                  gap: 10,
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    color: 'var(--color-accent-text)',
+                    flexShrink: 0,
+                    marginTop: 4,
+                    fontWeight: 700,
+                  }}
+                >
+                  &#8226;
+                </span>
+                <span>{renderInline(line.trim().slice(2))}</span>
+              </li>
+            ))}
         </ul>
       );
     }
+
     return (
-      <p key={i} className="text-zinc-300 leading-[1.85] text-base mb-6">
+      <p key={i} style={proseParagraphStyle}>
         {renderInline(block)}
       </p>
     );
@@ -216,11 +316,45 @@ function dataSourceInfo(tableName: string): { label: string; url?: string; wtpPa
   };
 }
 
+// ── Shared atoms for this page ─────────────────────────────────────
+const metaTextStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+};
+const metaPipeStyle: React.CSSProperties = {
+  color: 'var(--color-text-3)',
+  opacity: 0.45,
+};
+const sectionHeadingStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '12px',
+  fontWeight: 700,
+  letterSpacing: '0.22em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-1)',
+};
+const buttonChromeStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '10px',
+  fontWeight: 600,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  padding: '8px 14px',
+  borderRadius: '10px',
+  border: '1px solid rgba(235,229,213,0.12)',
+  background: 'transparent',
+  color: 'var(--color-text-2)',
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+};
+
 export default function StoryPage() {
   const { slug } = useParams<{ slug: string }>();
   const { story, related, loading, error } = useStory(slug);
 
-  // All hooks must be called before any conditional returns (Rules of Hooks)
   const [reportOpen, setReportOpen] = useState(false);
   const [reportEmail, setReportEmail] = useState('');
   const [reportDescription, setReportDescription] = useState('');
@@ -231,7 +365,19 @@ export default function StoryPage() {
   if (loading) {
     return (
       <main id="main-content" className="flex-1 flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" role="status"><span className="sr-only">Loading story...</span></div>
+        <div
+          role="status"
+          className="animate-spin"
+          style={{
+            height: 32,
+            width: 32,
+            borderRadius: '999px',
+            border: '2px solid rgba(235,229,213,0.15)',
+            borderTopColor: 'var(--color-accent)',
+          }}
+        >
+          <span className="sr-only">Loading story...</span>
+        </div>
       </main>
     );
   }
@@ -241,17 +387,35 @@ export default function StoryPage() {
       <main id="main-content" className="flex-1 px-4 py-20">
         <div className="max-w-xl mx-auto text-center">
           <h1
-            className="text-3xl font-bold text-white mb-4"
-            style={{ fontFamily: 'Oswald, sans-serif' }}
+            className="mb-4"
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(32px, 5vw, 48px)',
+              color: 'var(--color-text-1)',
+            }}
           >
             Story Not Found
           </h1>
-          <p className="text-zinc-400 mb-6">
+          <p
+            className="mb-6"
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '15px',
+              color: 'var(--color-text-2)',
+            }}
+          >
             {error || 'This story could not be loaded.'}
           </p>
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 transition-colors"
+            className="inline-flex items-center gap-2 no-underline"
+            style={{
+              ...metaTextStyle,
+              color: 'var(--color-accent-text)',
+              fontSize: '12px',
+            }}
           >
             <ArrowLeft size={14} />
             Back to Journal
@@ -285,39 +449,85 @@ export default function StoryPage() {
   };
 
   const isRetracted = story.status === 'retracted';
-  const aiLabel = story.ai_generated === 'opus'
-    ? 'AI-Enhanced'
-    : story.ai_generated === 'human'
-      ? 'Human-Written'
-      : 'Algorithmically Generated';
+  const aiLabel =
+    story.ai_generated === 'opus'
+      ? 'AI-Enhanced'
+      : story.ai_generated === 'human'
+        ? 'Human-Written'
+        : 'Algorithmically Generated';
 
   const corrections = story.corrections ?? [];
 
   return (
-    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
-      <article className="max-w-[720px] mx-auto">
+    <main
+      id="main-content"
+      className="flex-1 px-4 py-10 sm:py-16 relative"
+      style={{ color: 'var(--color-text-1)' }}
+    >
+      <article className="max-w-[720px] mx-auto relative" style={{ zIndex: 1 }}>
         {/* Back link */}
         <Link
           to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8"
+          className="inline-flex items-center gap-1.5 no-underline mb-8 transition-colors"
+          style={{ ...metaTextStyle, fontSize: '11px' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
         >
-          <ArrowLeft size={14} />
+          <ArrowLeft size={12} />
           Back to Journal
         </Link>
 
         {/* RETRACTION BANNER */}
         {isRetracted && (
-          <div className="rounded-lg border-2 border-red-500/40 bg-red-950/30 p-5 mb-8">
+          <div
+            className="mb-8"
+            style={{
+              borderRadius: '14px',
+              border: '1.5px solid rgba(230,57,70,0.4)',
+              background: 'rgba(230,57,70,0.06)',
+              padding: '20px 22px',
+            }}
+          >
             <div className="flex items-start gap-3">
-              <AlertTriangle size={20} className="text-red-400 shrink-0 mt-0.5" />
+              <AlertTriangle size={20} style={{ color: 'var(--color-red)', flexShrink: 0, marginTop: 2 }} />
               <div>
-                <h2 className="text-base font-bold text-red-400 mb-2">Story Retracted</h2>
-                <p className="text-sm text-red-300/80 leading-relaxed">
-                  {story.retraction_reason || 'This story has been retracted due to data accuracy concerns.'}
+                <h2
+                  className="mb-2"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontStyle: 'italic',
+                    fontWeight: 900,
+                    fontSize: '20px',
+                    color: 'var(--color-red)',
+                  }}
+                >
+                  Story Retracted
+                </h2>
+                <p
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '14px',
+                    lineHeight: 1.65,
+                    color: 'var(--color-text-2)',
+                  }}
+                >
+                  {story.retraction_reason ||
+                    'This story has been retracted due to data accuracy concerns.'}
                 </p>
-                <p className="text-xs text-red-400/50 mt-3">
-                  WeThePeople is committed to accuracy. When we identify errors, we retract and correct.
-                  See our <Link to="/corrections" className="underline hover:text-red-300">corrections policy</Link>.
+                <p
+                  className="mt-3"
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '11px',
+                    letterSpacing: '0.08em',
+                    color: 'var(--color-text-3)',
+                  }}
+                >
+                  WeThePeople is committed to accuracy. When we identify errors, we retract and correct. See our{' '}
+                  <Link to="/corrections" style={{ ...inlineLinkStyle, color: 'var(--color-red)' }}>
+                    corrections policy
+                  </Link>
+                  .
                 </p>
               </div>
             </div>
@@ -326,24 +536,85 @@ export default function StoryPage() {
 
         {/* CORRECTION NOTICES */}
         {corrections.length > 0 && !isRetracted && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-4 mb-8">
+          <div
+            className="mb-8"
+            style={{
+              borderRadius: '14px',
+              border: '1px solid rgba(197,160,40,0.35)',
+              background: 'rgba(197,160,40,0.05)',
+              padding: '16px 20px',
+            }}
+          >
             <button
               onClick={() => setCorrectionsOpen(!correctionsOpen)}
-              className="flex items-center gap-2 w-full text-left cursor-pointer bg-transparent border-0 p-0"
+              className="flex items-center gap-2 w-full text-left"
+              style={{
+                background: 'transparent',
+                border: 0,
+                padding: 0,
+                cursor: 'pointer',
+              }}
             >
-              <AlertTriangle size={16} className="text-amber-400 shrink-0" />
-              <span className="text-sm font-semibold text-amber-400">
+              <AlertTriangle size={16} style={{ color: 'var(--color-accent-text)', flexShrink: 0 }} />
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-accent-text)',
+                }}
+              >
                 {corrections.length} correction{corrections.length > 1 ? 's' : ''} issued
               </span>
-              {correctionsOpen ? <ChevronUp size={14} className="text-amber-400 ml-auto" /> : <ChevronDown size={14} className="text-amber-400 ml-auto" />}
+              {correctionsOpen ? (
+                <ChevronUp size={14} style={{ color: 'var(--color-accent-text)', marginLeft: 'auto' }} />
+              ) : (
+                <ChevronDown size={14} style={{ color: 'var(--color-accent-text)', marginLeft: 'auto' }} />
+              )}
             </button>
             {correctionsOpen && (
-              <div className="mt-3 space-y-3 border-t border-amber-500/20 pt-3">
+              <div
+                className="mt-3 space-y-3 pt-3"
+                style={{ borderTop: '1px solid rgba(197,160,40,0.2)' }}
+              >
                 {corrections.map((c, i) => (
-                  <div key={i} className="text-sm">
-                    <span className="text-xs text-amber-400/60 uppercase tracking-wider">{c.type}</span>
-                    {c.date && <span className="text-xs text-zinc-600 ml-2">{formatDate(c.date)}</span>}
-                    <p className="text-zinc-400 leading-relaxed mt-1">{c.description}</p>
+                  <div key={i}>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '10px',
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-accent-text)',
+                      }}
+                    >
+                      {c.type}
+                    </span>
+                    {c.date && (
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '10px',
+                          color: 'var(--color-text-3)',
+                          marginLeft: 8,
+                        }}
+                      >
+                        {formatDate(c.date)}
+                      </span>
+                    )}
+                    <p
+                      className="mt-1"
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: '14px',
+                        lineHeight: 1.6,
+                        color: 'var(--color-text-2)',
+                      }}
+                    >
+                      {c.description}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -352,56 +623,100 @@ export default function StoryPage() {
         )}
 
         {/* Category + sector */}
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-5">
           <CategoryBadge category={story.category} size="md" />
           <SectorTag sector={story.sector} />
         </div>
 
         {/* Title */}
         <h1
-          className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight mb-5"
-          style={{ fontFamily: 'Oswald, sans-serif' }}
+          className="mb-5"
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontStyle: 'italic',
+            fontWeight: 900,
+            fontSize: 'clamp(36px, 5.5vw, 56px)',
+            letterSpacing: '-0.025em',
+            lineHeight: 1.05,
+            color: 'var(--color-text-1)',
+          }}
         >
           {story.title}
         </h1>
 
-        {/* Byline with AI disclosure */}
-        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500 mb-4 pb-4 border-b border-zinc-800">
-          <span className="font-medium text-zinc-400">WeThePeople Research</span>
-          <span className="text-zinc-700">|</span>
-          <span>{formatDate(story.published_at)}</span>
-          <span className="text-zinc-700">|</span>
-          <span className="flex items-center gap-1">
-            <Clock size={14} />
-            {story.read_time_minutes ?? estimateReadTime(story.body || story.content || '')} min read
+        {/* Byline / meta */}
+        <div
+          className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-4 mb-4"
+          style={{
+            borderBottom: '1px solid rgba(235,229,213,0.08)',
+          }}
+        >
+          <span
+            style={{
+              ...metaTextStyle,
+              color: 'var(--color-text-2)',
+              fontWeight: 700,
+            }}
+          >
+            WeThePeople Research
+          </span>
+          <span style={metaPipeStyle}>|</span>
+          <span style={metaTextStyle}>{formatDate(story.published_at)}</span>
+          <span style={metaPipeStyle}>|</span>
+          <span style={{ ...metaTextStyle, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Clock size={12} />
+            {story.read_time_minutes ?? estimateReadTime(story.body || story.content || '')} min
           </span>
           {(story.data_sources?.length ?? story.citations?.length ?? 0) > 0 && (
             <>
-              <span className="text-zinc-700">|</span>
-              <span className="flex items-center gap-1">
-                <FileText size={14} />
-                {story.data_sources?.length ?? story.citations?.length ?? 0} data sources
+              <span style={metaPipeStyle}>|</span>
+              <span style={{ ...metaTextStyle, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <FileText size={12} />
+                {story.data_sources?.length ?? story.citations?.length ?? 0} sources
               </span>
             </>
           )}
           {story.verification_tier && (
             <>
-              <span className="text-zinc-700">|</span>
+              <span style={metaPipeStyle}>|</span>
               {story.verification_tier === 'verified' && (
-                <span className="flex items-center gap-1 text-emerald-400">
-                  <ShieldCheck size={14} />
+                <span
+                  style={{
+                    ...metaTextStyle,
+                    color: 'var(--color-verify)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <ShieldCheck size={12} />
                   Verified
                 </span>
               )}
               {story.verification_tier === 'partially_verified' && (
-                <span className="flex items-center gap-1 text-amber-400">
-                  <ShieldAlert size={14} />
+                <span
+                  style={{
+                    ...metaTextStyle,
+                    color: 'var(--color-accent-text)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <ShieldAlert size={12} />
                   Partially Verified
                 </span>
               )}
               {story.verification_tier === 'unverified' && (
-                <span className="flex items-center gap-1 text-zinc-500">
-                  <ShieldQuestion size={14} />
+                <span
+                  style={{
+                    ...metaTextStyle,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <ShieldQuestion size={12} />
                   Unverified
                 </span>
               )}
@@ -409,88 +724,183 @@ export default function StoryPage() {
           )}
         </div>
 
-        {/* AI generation disclosure + data freshness */}
-        <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-600 mb-8">
-          <span className="flex items-center gap-1">
-            <Bot size={12} />
+        {/* AI / data freshness */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-10">
+          <span
+            style={{
+              ...metaTextStyle,
+              fontSize: '10px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              color: 'var(--color-text-3)',
+            }}
+          >
+            <Bot size={11} />
             {aiLabel}
           </span>
           {story.data_date_range && (
             <>
-              <span className="text-zinc-800">|</span>
-              <span>Data period: {story.data_date_range}</span>
+              <span style={metaPipeStyle}>·</span>
+              <span style={{ ...metaTextStyle, fontSize: '10px' }}>
+                Data period: {story.data_date_range}
+              </span>
             </>
           )}
           {story.data_freshness_at && (
             <>
-              <span className="text-zinc-800">|</span>
-              <span>Data checked: {formatDate(story.data_freshness_at)}</span>
+              <span style={metaPipeStyle}>·</span>
+              <span style={{ ...metaTextStyle, fontSize: '10px' }}>
+                Data checked: {formatDate(story.data_freshness_at)}
+              </span>
             </>
           )}
           {story.updated_at && story.updated_at !== story.published_at && (
             <>
-              <span className="text-zinc-800">|</span>
-              <span>Last updated: {formatDate(story.updated_at)}</span>
+              <span style={metaPipeStyle}>·</span>
+              <span style={{ ...metaTextStyle, fontSize: '10px' }}>
+                Last updated: {formatDate(story.updated_at)}
+              </span>
             </>
           )}
         </div>
 
         {/* Summary / lede */}
-        <div className="mb-8">
-          <p className="text-lg text-zinc-300 leading-relaxed font-medium">
+        <div className="mb-10">
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '20px',
+              lineHeight: 1.55,
+              fontWeight: 500,
+              color: 'var(--color-text-1)',
+              borderLeft: '3px solid var(--color-accent)',
+              paddingLeft: 18,
+            }}
+          >
             {story.summary}
           </p>
         </div>
 
         {/* Body */}
-        <div className="mb-12">
-          {renderContent(story.body || story.content || '')}
-        </div>
+        <div className="mb-12">{renderContent(story.body || story.content || '')}</div>
 
         {/* Share buttons */}
-        <div className="flex items-center gap-3 mb-10 pb-10 border-b border-zinc-800">
-          <span className="text-xs text-zinc-500 uppercase tracking-wider mr-2">Share</span>
+        <div
+          className="flex items-center gap-3 flex-wrap pb-10 mb-10"
+          style={{ borderBottom: '1px solid rgba(235,229,213,0.08)' }}
+        >
+          <span style={{ ...metaTextStyle, marginRight: 4 }}>Share</span>
           <button
             onClick={copyLink}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 text-xs text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors cursor-pointer bg-transparent"
+            style={buttonChromeStyle}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(197,160,40,0.35)';
+              e.currentTarget.style.color = 'var(--color-text-1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(235,229,213,0.12)';
+              e.currentTarget.style.color = 'var(--color-text-2)';
+            }}
+            className="inline-flex items-center gap-1.5"
           >
-            <Link2 size={14} />
+            <Link2 size={12} />
             Copy Link
           </button>
           <button
             onClick={() => shareOnTwitter(story.title)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 text-xs text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors cursor-pointer bg-transparent"
+            style={buttonChromeStyle}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(197,160,40,0.35)';
+              e.currentTarget.style.color = 'var(--color-text-1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(235,229,213,0.12)';
+              e.currentTarget.style.color = 'var(--color-text-2)';
+            }}
+            className="inline-flex items-center gap-1.5"
           >
-            <Share2 size={14} />
+            <Share2 size={12} />
             Share on X
           </button>
         </div>
 
         {/* Report an error */}
-        <div className="mb-10 pb-10 border-b border-zinc-800">
+        <div
+          className="pb-10 mb-10"
+          style={{ borderBottom: '1px solid rgba(235,229,213,0.08)' }}
+        >
           {!reportOpen && !reportSubmitted && (
             <button
               onClick={() => setReportOpen(true)}
-              className="inline-flex items-center gap-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors cursor-pointer bg-transparent border-0 p-0"
+              className="inline-flex items-center gap-2 transition-colors"
+              style={{
+                ...metaTextStyle,
+                fontSize: '10px',
+                background: 'transparent',
+                border: 0,
+                padding: 0,
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-1)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
             >
-              <Flag size={12} />
+              <Flag size={11} />
               Report an error in this story
             </button>
           )}
           {reportSubmitted && (
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-4">
-              <p className="text-sm text-emerald-400">
+            <div
+              style={{
+                borderRadius: '12px',
+                border: '1px solid rgba(16,185,129,0.35)',
+                background: 'rgba(16,185,129,0.06)',
+                padding: '14px 18px',
+              }}
+            >
+              <p
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '14px',
+                  color: 'var(--color-verify)',
+                }}
+              >
                 Thank you for your report. Our editorial team will review it promptly.
               </p>
             </div>
           )}
           {reportOpen && !reportSubmitted && (
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5">
-              <h3 className="text-sm font-bold text-zinc-300 mb-3 flex items-center gap-2">
-                <Flag size={14} className="text-amber-400" />
+            <div
+              style={{
+                borderRadius: '14px',
+                border: '1px solid rgba(235,229,213,0.08)',
+                background: 'var(--color-surface)',
+                padding: '20px 22px',
+              }}
+            >
+              <h3
+                className="mb-3 flex items-center gap-2"
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-text-1)',
+                }}
+              >
+                <Flag size={13} style={{ color: 'var(--color-accent-text)' }} />
                 Report an Error
               </h3>
-              <p className="text-xs text-zinc-500 mb-4">
+              <p
+                className="mb-4"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '13px',
+                  lineHeight: 1.55,
+                  color: 'var(--color-text-2)',
+                }}
+              >
                 If you believe any information in this story is inaccurate, please describe the error below.
                 Our editorial team reviews all reports.
               </p>
@@ -500,27 +910,81 @@ export default function StoryPage() {
                   placeholder="Your email (optional, for follow-up)"
                   value={reportEmail}
                   onChange={(e) => setReportEmail(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
+                  className="w-full focus:outline-none"
+                  style={{
+                    background: 'rgba(235,229,213,0.03)',
+                    border: '1px solid rgba(235,229,213,0.1)',
+                    borderRadius: '10px',
+                    padding: '10px 14px',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '14px',
+                    color: 'var(--color-text-1)',
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(197,160,40,0.4)')}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(235,229,213,0.1)')}
                 />
                 <textarea
                   placeholder="Describe the error you found..."
                   value={reportDescription}
                   onChange={(e) => setReportDescription(e.target.value)}
                   rows={3}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 resize-none"
+                  className="w-full focus:outline-none resize-none"
+                  style={{
+                    background: 'rgba(235,229,213,0.03)',
+                    border: '1px solid rgba(235,229,213,0.1)',
+                    borderRadius: '10px',
+                    padding: '10px 14px',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '14px',
+                    color: 'var(--color-text-1)',
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(197,160,40,0.4)')}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(235,229,213,0.1)')}
                 />
-                {reportError && <p className="text-xs text-red-400">{reportError}</p>}
+                {reportError && (
+                  <p
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '12px',
+                      color: 'var(--color-red)',
+                    }}
+                  >
+                    {reportError}
+                  </p>
+                )}
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleReportSubmit}
                     disabled={!reportDescription.trim()}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      letterSpacing: '0.18em',
+                      textTransform: 'uppercase',
+                      padding: '10px 18px',
+                      borderRadius: '10px',
+                      background: reportDescription.trim() ? 'var(--color-accent)' : 'rgba(235,229,213,0.06)',
+                      color: reportDescription.trim() ? '#07090C' : 'var(--color-text-3)',
+                      border: 0,
+                      cursor: reportDescription.trim() ? 'pointer' : 'not-allowed',
+                      transition: 'background 0.2s',
+                    }}
                   >
                     Submit Report
                   </button>
                   <button
                     onClick={() => setReportOpen(false)}
-                    className="px-4 py-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer bg-transparent border-0"
+                    style={{
+                      ...metaTextStyle,
+                      fontSize: '10px',
+                      background: 'transparent',
+                      border: 0,
+                      cursor: 'pointer',
+                      padding: '10px 4px',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-1)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
                   >
                     Cancel
                   </button>
@@ -530,39 +994,105 @@ export default function StoryPage() {
           )}
         </div>
 
-        {/* Sources — data tables + original government sources + entity links */}
-        {((story.data_sources && story.data_sources.length > 0) || (story.entity_ids && story.entity_ids.length > 0) || (story.citations && story.citations.length > 0)) && (
-          <section className="mb-10 pb-10 border-b border-zinc-800">
-            <h2
-              className="text-xl font-bold text-white mb-4"
-              style={{ fontFamily: 'Oswald, sans-serif' }}
-            >
-              Sources & Data
+        {/* Sources */}
+        {((story.data_sources && story.data_sources.length > 0) ||
+          (story.entity_ids && story.entity_ids.length > 0) ||
+          (story.citations && story.citations.length > 0)) && (
+          <section
+            className="pb-10 mb-10"
+            style={{ borderBottom: '1px solid rgba(235,229,213,0.08)' }}
+          >
+            <h2 className="mb-3" style={sectionHeadingStyle}>
+              Sources &amp; Data
             </h2>
-            <p className="text-xs text-zinc-500 mb-5">
+            <p
+              className="mb-5"
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '13px',
+                lineHeight: 1.6,
+                color: 'var(--color-text-2)',
+              }}
+            >
               All data sourced from public government records. Click to view original sources or explore on our platform.
             </p>
 
             {/* Government data sources */}
             {story.data_sources && story.data_sources.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">Government Data Sources</h3>
+                <h3
+                  className="mb-3"
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.22em',
+                    textTransform: 'uppercase',
+                    color: 'var(--color-text-2)',
+                  }}
+                >
+                  Government Data Sources
+                </h3>
                 <div className="space-y-2">
                   {story.data_sources.map((src, i) => {
                     const info = dataSourceInfo(src);
                     return (
-                      <div key={i} className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/30 px-4 py-2.5">
-                        <span className="text-amber-400 font-mono text-xs shrink-0">[{i + 1}]</span>
+                      <div
+                        key={i}
+                        className="flex items-center gap-3"
+                        style={{
+                          borderRadius: '10px',
+                          border: '1px solid rgba(235,229,213,0.08)',
+                          background: 'rgba(235,229,213,0.02)',
+                          padding: '10px 14px',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            color: 'var(--color-accent-text)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          [{i + 1}]
+                        </span>
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm text-zinc-300">{info.label}</span>
-                          <span className="text-xs text-zinc-600 ml-2">({src})</span>
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              fontSize: '14px',
+                              color: 'var(--color-text-1)',
+                            }}
+                          >
+                            {info.label}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '11px',
+                              color: 'var(--color-text-3)',
+                              marginLeft: 8,
+                            }}
+                          >
+                            ({src})
+                          </span>
                         </div>
                         {info.url && (
                           <a
                             href={info.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-amber-400/70 hover:text-amber-400 transition-colors shrink-0"
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '10px',
+                              letterSpacing: '0.14em',
+                              textTransform: 'uppercase',
+                              color: 'var(--color-accent-text)',
+                              textDecoration: 'none',
+                              flexShrink: 0,
+                            }}
                           >
                             Original source
                           </a>
@@ -572,7 +1102,15 @@ export default function StoryPage() {
                             href={`https://wethepeopleforus.com${info.wtpPath}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-blue-400/70 hover:text-blue-400 transition-colors shrink-0"
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '10px',
+                              letterSpacing: '0.14em',
+                              textTransform: 'uppercase',
+                              color: 'var(--color-dem)',
+                              textDecoration: 'none',
+                              flexShrink: 0,
+                            }}
                           >
                             View on WTP
                           </a>
@@ -584,16 +1122,25 @@ export default function StoryPage() {
               </div>
             )}
 
-            {/* Entities referenced */}
+            {/* Entities */}
             {story.entity_ids && story.entity_ids.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">Entities Referenced</h3>
+                <h3
+                  className="mb-3"
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.22em',
+                    textTransform: 'uppercase',
+                    color: 'var(--color-text-2)',
+                  }}
+                >
+                  Entities Referenced
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   {story.entity_ids.map((eid, i) => {
-                    // Detect person IDs (underscore-separated names like josh_gottheimer)
-                    // vs company IDs (dash-separated like nvidia, lockheed-martin)
                     const isPerson = eid.includes('_') && !eid.includes('-');
-                    // Map DB sector names to frontend route prefixes
                     const sectorRouteMap: Record<string, string> = {
                       tech: 'technology',
                       technology: 'technology',
@@ -612,14 +1159,36 @@ export default function StoryPage() {
                     const href = isPerson
                       ? `https://wethepeopleforus.com/politics/people/${eid}`
                       : `https://wethepeopleforus.com/${sectorRoute}/${eid}`;
-                    const displayName = eid.replace(/-/g, ' ').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                    const displayName = eid
+                      .replace(/-/g, ' ')
+                      .replace(/_/g, ' ')
+                      .replace(/\b\w/g, (c) => c.toUpperCase());
                     return (
                       <a
                         key={i}
                         href={href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/30 text-xs text-zinc-300 hover:text-white hover:border-amber-500/30 transition-colors"
+                        className="inline-flex items-center gap-1.5 no-underline transition-colors"
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          letterSpacing: '0.08em',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(235,229,213,0.1)',
+                          background: 'rgba(235,229,213,0.02)',
+                          color: 'var(--color-text-1)',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'rgba(197,160,40,0.35)';
+                          e.currentTarget.style.color = 'var(--color-accent-text)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'rgba(235,229,213,0.1)';
+                          e.currentTarget.style.color = 'var(--color-text-1)';
+                        }}
                       >
                         {displayName}
                       </a>
@@ -629,19 +1198,74 @@ export default function StoryPage() {
               </div>
             )}
 
-            {/* Legacy citations (if any) */}
+            {/* Legacy citations */}
             {story.citations && story.citations.length > 0 && (
               <div>
-                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">Citations</h3>
-                <ol className="space-y-3">
+                <h3
+                  className="mb-3"
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.22em',
+                    textTransform: 'uppercase',
+                    color: 'var(--color-text-2)',
+                  }}
+                >
+                  Citations
+                </h3>
+                <ol className="space-y-3" style={{ listStyle: 'none', paddingLeft: 0 }}>
                   {story.citations.map((cite, i) => (
-                    <li key={i} className="flex gap-3 text-sm">
-                      <span className="text-amber-400 font-mono text-xs mt-0.5 shrink-0">[{i + 1}]</span>
+                    <li key={i} className="flex gap-3">
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: 'var(--color-accent-text)',
+                          flexShrink: 0,
+                          marginTop: 2,
+                        }}
+                      >
+                        [{i + 1}]
+                      </span>
                       <div>
-                        <span className="text-zinc-300">{cite.label}</span>
-                        {cite.source_type && <span className="text-zinc-600 ml-2 text-xs">({cite.source_type})</span>}
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '14px',
+                            color: 'var(--color-text-1)',
+                          }}
+                        >
+                          {cite.label}
+                        </span>
+                        {cite.source_type && (
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '11px',
+                              color: 'var(--color-text-3)',
+                              marginLeft: 8,
+                            }}
+                          >
+                            ({cite.source_type})
+                          </span>
+                        )}
                         {cite.url && (
-                          <a href={cite.url} target="_blank" rel="noopener noreferrer" className="ml-2 text-amber-400/70 hover:text-amber-400 text-xs transition-colors">
+                          <a
+                            href={cite.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2"
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '10px',
+                              letterSpacing: '0.14em',
+                              textTransform: 'uppercase',
+                              color: 'var(--color-accent-text)',
+                              textDecoration: 'none',
+                            }}
+                          >
                             View source
                           </a>
                         )}
@@ -654,31 +1278,37 @@ export default function StoryPage() {
           </section>
         )}
 
-        {/*
-          NOTE: every published body already ends with its own category-specific
-          disclaimer (see jobs.detect_stories._normalize_disclaimer_block). We
-          used to render a second static "Disclaimer:" panel here which
-          duplicated the body text and confused readers on stories whose body
-          disclaimer did not match. The panel was removed 2026-04-17; keep the
-          lightweight Methodology CTA instead so readers can still jump to the
-          methodology page from the story footer.
-        */}
-        <div className="mb-12 text-xs text-zinc-500">
+        <div
+          className="mb-12"
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '13px',
+            color: 'var(--color-text-3)',
+          }}
+        >
           For data sources and verification methodology, see{' '}
           <a
             href="https://wethepeopleforus.com/methodology"
-            className="text-amber-400/70 hover:text-amber-400 transition-colors"
+            style={inlineLinkStyle}
           >
             our methodology page
-          </a>.
+          </a>
+          .
         </div>
 
         {/* Related stories */}
         {related.length > 0 && (
           <section>
             <h2
-              className="text-xl font-bold text-white mb-5"
-              style={{ fontFamily: 'Oswald, sans-serif' }}
+              className="mb-5"
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontStyle: 'italic',
+                fontWeight: 900,
+                fontSize: '28px',
+                letterSpacing: '-0.015em',
+                color: 'var(--color-text-1)',
+              }}
             >
               More Investigations
             </h2>

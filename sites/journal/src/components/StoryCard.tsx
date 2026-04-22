@@ -19,41 +19,101 @@ function formatDate(dateStr: string): string {
 }
 
 export function StoryCard({ story, featured = false }: StoryCardProps) {
+  const readMinutes =
+    story.read_time_minutes ||
+    Math.max(1, Math.ceil(((story.body || story.content || '').split(/\s+/).length) / 200));
+  const sourceCount = story.data_sources?.length ?? story.citations?.length ?? 0;
+
   if (featured) {
     return (
       <Link to={`/story/${story.slug}`} className="group block no-underline">
-        <article className="relative rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden hover:border-zinc-700 transition-colors">
-          {/* Hero placeholder with gradient overlay */}
-          <div className="relative h-64 sm:h-80 bg-gradient-to-br from-amber-900/30 via-zinc-900 to-zinc-950">
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-transparent" />
-            {/* Pattern overlay for visual interest */}
-            <div className="absolute inset-0 opacity-10" style={{
-              backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(251,191,36,0.4) 1px, transparent 0)',
-              backgroundSize: '24px 24px',
-            }} />
+        <article
+          className="relative overflow-hidden"
+          style={{
+            borderRadius: '16px',
+            border: '1px solid rgba(235,229,213,0.08)',
+            background: 'var(--color-surface)',
+            transition: 'border-color 0.25s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(197,160,40,0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(235,229,213,0.08)';
+          }}
+        >
+          {/* Hero panel */}
+          <div
+            className="relative h-64 sm:h-80"
+            style={{
+              background:
+                'radial-gradient(ellipse at 20% 10%, rgba(197,160,40,0.18) 0%, transparent 55%), linear-gradient(160deg, #141C25, #07090C)',
+            }}
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 1px 1px, rgba(197,160,40,0.18) 1px, transparent 0)',
+                backgroundSize: '24px 24px',
+                opacity: 0.5,
+              }}
+            />
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  'linear-gradient(to top, #07090C 0%, rgba(7,9,12,0.6) 60%, transparent 100%)',
+              }}
+            />
             <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
               <div className="flex items-center gap-2 mb-3">
                 <CategoryBadge category={story.category} size="md" />
                 <SectorTag sector={story.sector} />
               </div>
               <h2
-                className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 group-hover:text-amber-400 transition-colors leading-tight"
-                style={{ fontFamily: 'Oswald, sans-serif' }}
+                className="mb-3 leading-[1.08]"
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontStyle: 'italic',
+                  fontWeight: 900,
+                  fontSize: 'clamp(28px, 4vw, 44px)',
+                  letterSpacing: '-0.02em',
+                  color: 'var(--color-text-1)',
+                  transition: 'color 0.2s',
+                }}
               >
                 {story.title}
               </h2>
-              <p className="text-zinc-400 text-base leading-relaxed line-clamp-2 max-w-3xl">
+              <p
+                className="line-clamp-2 max-w-3xl"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '16px',
+                  lineHeight: 1.6,
+                  color: 'var(--color-text-2)',
+                }}
+              >
                 {story.summary}
               </p>
-              <div className="flex items-center gap-4 mt-4 text-sm text-zinc-500">
+              <div
+                className="flex items-center gap-4 mt-4"
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px',
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-text-3)',
+                }}
+              >
                 <span>{formatDate(story.published_at)}</span>
                 <span className="flex items-center gap-1">
-                  <Clock size={14} />
-                  {story.read_time_minutes || Math.max(1, Math.ceil(((story.body || story.content || '').split(/\s+/).length) / 200))} min
+                  <Clock size={12} />
+                  {readMinutes} min
                 </span>
                 <span className="flex items-center gap-1">
-                  <FileText size={14} />
-                  {story.data_sources?.length ?? story.citations?.length ?? 0} sources
+                  <FileText size={12} />
+                  {sourceCount} sources
                 </span>
               </div>
             </div>
@@ -65,29 +125,70 @@ export function StoryCard({ story, featured = false }: StoryCardProps) {
 
   return (
     <Link to={`/story/${story.slug}`} className="group block no-underline">
-      <article className="flex flex-col h-full rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 hover:border-zinc-700 hover:bg-zinc-900/80 transition-all">
+      <article
+        className="flex flex-col h-full"
+        style={{
+          padding: '20px',
+          borderRadius: '14px',
+          border: '1px solid rgba(235,229,213,0.08)',
+          background: 'var(--color-surface)',
+          transition: 'border-color 0.25s, background 0.25s',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = 'rgba(197,160,40,0.3)';
+          e.currentTarget.style.background = 'var(--color-surface-2)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'rgba(235,229,213,0.08)';
+          e.currentTarget.style.background = 'var(--color-surface)';
+        }}
+      >
         <div className="flex items-center gap-2 mb-3">
           <CategoryBadge category={story.category} />
           <SectorTag sector={story.sector} />
         </div>
         <h3
-          className="text-lg font-bold text-white mb-2 group-hover:text-amber-400 transition-colors leading-snug"
-          style={{ fontFamily: 'Oswald, sans-serif' }}
+          className="mb-2 leading-snug"
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontStyle: 'italic',
+            fontWeight: 900,
+            fontSize: '22px',
+            letterSpacing: '-0.01em',
+            color: 'var(--color-text-1)',
+          }}
         >
           {story.title}
         </h3>
-        <p className="text-sm text-zinc-400 leading-relaxed line-clamp-3 flex-1 mb-4">
+        <p
+          className="line-clamp-3 flex-1 mb-4"
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '14px',
+            lineHeight: 1.6,
+            color: 'var(--color-text-2)',
+          }}
+        >
           {story.summary}
         </p>
-        <div className="flex items-center gap-3 text-xs text-zinc-500 mt-auto">
+        <div
+          className="flex items-center gap-3 mt-auto"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '10px',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-3)',
+          }}
+        >
           <span>{formatDate(story.published_at)}</span>
           <span className="flex items-center gap-1">
-            <Clock size={12} />
-            {story.read_time_minutes || Math.max(1, Math.ceil(((story.body || story.content || '').split(/\s+/).length) / 200))} min
+            <Clock size={11} />
+            {readMinutes} min
           </span>
           <span className="flex items-center gap-1">
-            <FileText size={12} />
-            {story.data_sources?.length ?? story.citations?.length ?? 0} sources
+            <FileText size={11} />
+            {sourceCount} sources
           </span>
         </div>
       </article>

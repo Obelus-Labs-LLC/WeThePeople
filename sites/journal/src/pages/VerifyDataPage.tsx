@@ -96,87 +96,220 @@ const DATA_SOURCES: DataSource[] = [
   },
 ];
 
+const backLinkStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  fontWeight: 600,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+  textDecoration: 'none',
+  transition: 'color 0.2s',
+};
+const linkLabelStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  fontWeight: 700,
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent-text)',
+  textDecoration: 'none',
+  transition: 'color 0.2s',
+};
+const eyebrowStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  fontWeight: 700,
+  letterSpacing: '0.24em',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent-text)',
+};
+const h1Style: React.CSSProperties = {
+  fontFamily: 'var(--font-display)',
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: 'clamp(36px, 5.5vw, 56px)',
+  letterSpacing: '-0.025em',
+  lineHeight: 1.05,
+  color: 'var(--color-text-1)',
+};
+const h2Style: React.CSSProperties = {
+  fontFamily: 'var(--font-display)',
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: '28px',
+  letterSpacing: '-0.015em',
+  color: 'var(--color-text-1)',
+};
+const subLabelStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '10px',
+  fontWeight: 700,
+  letterSpacing: '0.22em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+};
+const pillButtonStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  fontWeight: 700,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  padding: '11px 18px',
+  borderRadius: '10px',
+  border: '1px solid rgba(235,229,213,0.12)',
+  background: 'rgba(235,229,213,0.02)',
+  color: 'var(--color-text-1)',
+  textDecoration: 'none',
+  transition: 'all 0.2s',
+};
+
 export default function VerifyDataPage() {
   return (
-    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
+    <main
+      id="main-content"
+      className="flex-1 px-4 py-10 sm:py-16"
+      style={{ color: 'var(--color-text-1)' }}
+    >
       <article className="max-w-[720px] mx-auto">
-        {/* Back link */}
         <Link
           to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8"
+          className="inline-flex items-center gap-1.5 mb-8"
+          style={backLinkStyle}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
         >
-          <ArrowLeft size={14} />
+          <ArrowLeft size={12} />
           Back to Journal
         </Link>
 
-        <p className="text-xs uppercase tracking-[0.2em] text-amber-400 font-medium mb-3">
-          Transparency
-        </p>
-        <h1
-          className="text-3xl sm:text-4xl font-bold text-white leading-tight mb-6"
-          style={{ fontFamily: 'Oswald, sans-serif' }}
-        >
-          Verify Our Data
-        </h1>
+        <p className="mb-3" style={eyebrowStyle}>Transparency</p>
+        <h1 className="mb-8" style={h1Style}>Verify Our Data</h1>
 
-        <div className="space-y-4 mb-12">
-          <p className="text-zinc-300 leading-[1.85] text-base">
-            Every story published by The Influence Journal is built from public
-            government records. We believe transparency requires verifiability.
-            Below is a complete list of every data source we use, what we pull
-            from it, and how you can look it up yourself.
+        <div className="space-y-5 mb-14">
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '17px',
+              lineHeight: 1.75,
+              color: 'var(--color-text-1)',
+            }}
+          >
+            Every story published by The Influence Journal is built from public government records. We
+            believe transparency requires verifiability. Below is a complete list of every data source we
+            use, what we pull from it, and how you can look it up yourself.
           </p>
-          <p className="text-zinc-300 leading-[1.85] text-base">
+          <p
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: '22px',
+              letterSpacing: '-0.01em',
+              color: 'var(--color-text-1)',
+              borderLeft: '3px solid var(--color-accent)',
+              paddingLeft: 18,
+            }}
+          >
             You don't have to take our word for it. Check the data.
           </p>
         </div>
 
-        {/* Data sources list */}
-        <h2
-          className="text-xl font-bold text-white mb-6"
-          style={{ fontFamily: 'Oswald, sans-serif' }}
-        >
-          Our Data Sources
-        </h2>
+        <h2 className="mb-6" style={h2Style}>Our Data Sources</h2>
 
         <div className="space-y-4 mb-12">
           {DATA_SOURCES.map((source, i) => (
             <div
               key={source.name}
-              className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
+              style={{
+                borderRadius: '14px',
+                border: '1px solid rgba(235,229,213,0.08)',
+                background: 'var(--color-surface)',
+                padding: '20px 22px',
+              }}
             >
-              <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-start justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-400/15 shrink-0">
-                    <span className="text-xs font-bold text-amber-400">{i + 1}</span>
+                  <div
+                    className="flex items-center justify-center shrink-0"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '8px',
+                      background: 'rgba(197,160,40,0.12)',
+                      border: '1px solid rgba(197,160,40,0.28)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: 'var(--color-accent-text)',
+                      }}
+                    >
+                      {i + 1}
+                    </span>
                   </div>
-                  <h3 className="text-sm font-semibold text-white">{source.name}</h3>
+                  <h3
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontStyle: 'italic',
+                      fontWeight: 900,
+                      fontSize: '18px',
+                      letterSpacing: '-0.005em',
+                      color: 'var(--color-text-1)',
+                    }}
+                  >
+                    {source.name}
+                  </h3>
                 </div>
                 <a
                   href={source.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors shrink-0"
+                  className="inline-flex items-center gap-1 shrink-0"
+                  style={linkLabelStyle}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-1)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-accent-text)')}
                 >
                   {source.domain}
                   <ExternalLink size={11} />
                 </a>
               </div>
 
-              <div className="space-y-2 pl-11">
+              <div className="space-y-3" style={{ paddingLeft: 44 }}>
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-zinc-500 mb-1 flex items-center gap-1.5">
+                  <p className="mb-1 flex items-center gap-1.5" style={subLabelStyle}>
                     <Database size={10} />
                     What We Pull
                   </p>
-                  <p className="text-sm text-zinc-400 leading-relaxed">{source.what}</p>
+                  <p
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '14px',
+                      lineHeight: 1.65,
+                      color: 'var(--color-text-2)',
+                    }}
+                  >
+                    {source.what}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-zinc-500 mb-1 flex items-center gap-1.5">
+                  <p className="mb-1 flex items-center gap-1.5" style={subLabelStyle}>
                     <Search size={10} />
                     How to Verify
                   </p>
-                  <p className="text-sm text-zinc-400 leading-relaxed">{source.howToVerify}</p>
+                  <p
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '14px',
+                      lineHeight: 1.65,
+                      color: 'var(--color-text-2)',
+                    }}
+                  >
+                    {source.howToVerify}
+                  </p>
                 </div>
               </div>
             </div>
@@ -184,23 +317,54 @@ export default function VerifyDataPage() {
         </div>
 
         {/* Open source callout */}
-        <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-6 mb-8">
-          <div className="flex items-start gap-3">
-            <Code size={20} className="text-amber-400 shrink-0 mt-0.5" />
+        <div
+          className="mb-10 relative overflow-hidden"
+          style={{
+            borderRadius: '14px',
+            border: '1px solid rgba(197,160,40,0.25)',
+            background: 'linear-gradient(135deg, rgba(197,160,40,0.06) 0%, var(--color-surface) 60%)',
+            padding: '22px',
+          }}
+        >
+          <div className="flex items-start gap-3 relative" style={{ zIndex: 1 }}>
+            <Code size={20} style={{ color: 'var(--color-accent-text)', flexShrink: 0, marginTop: 2 }} />
             <div>
-              <h3 className="text-sm font-semibold text-white mb-2">Open Source</h3>
-              <p className="text-sm text-zinc-400 leading-relaxed mb-3">
-                Our code is open source. You can audit every query, every
-                algorithm, and every data pipeline yourself.
+              <h3
+                className="mb-2"
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-text-1)',
+                }}
+              >
+                Open Source
+              </h3>
+              <p
+                className="mb-3"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '14px',
+                  lineHeight: 1.65,
+                  color: 'var(--color-text-2)',
+                }}
+              >
+                Our code is open source. You can audit every query, every algorithm, and every data
+                pipeline yourself.
               </p>
               <a
                 href="https://github.com/Obelus-Labs-LLC/WeThePeople"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 transition-colors font-medium"
+                className="inline-flex items-center gap-2"
+                style={linkLabelStyle}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-1)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-accent-text)')}
               >
                 github.com/Obelus-Labs-LLC/WeThePeople
-                <ExternalLink size={13} />
+                <ExternalLink size={12} />
               </a>
             </div>
           </div>
@@ -210,13 +374,29 @@ export default function VerifyDataPage() {
         <div className="flex flex-col sm:flex-row gap-3">
           <Link
             to="/coverage"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-lg transition-colors text-sm font-medium"
+            style={pillButtonStyle}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(197,160,40,0.35)';
+              e.currentTarget.style.color = 'var(--color-accent-text)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(235,229,213,0.12)';
+              e.currentTarget.style.color = 'var(--color-text-1)';
+            }}
           >
             View Coverage Balance
           </Link>
           <Link
             to="/about"
-            className="inline-flex items-center gap-2 px-5 py-2.5 border border-zinc-800 hover:border-zinc-700 text-zinc-300 rounded-lg transition-colors text-sm font-medium"
+            style={pillButtonStyle}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(197,160,40,0.35)';
+              e.currentTarget.style.color = 'var(--color-accent-text)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(235,229,213,0.12)';
+              e.currentTarget.style.color = 'var(--color-text-1)';
+            }}
           >
             About The Journal
           </Link>

@@ -5,6 +5,118 @@ import { apiFetch } from '../api/client';
 import { CATEGORY_META, SECTOR_LABELS } from '../types';
 import type { Story, StoriesResponse } from '../types';
 
+const backLinkStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  fontWeight: 600,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+  textDecoration: 'none',
+  transition: 'color 0.2s',
+};
+const eyebrowStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  fontWeight: 700,
+  letterSpacing: '0.24em',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent-text)',
+};
+const h1Style: React.CSSProperties = {
+  fontFamily: 'var(--font-display)',
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: 'clamp(36px, 5.5vw, 56px)',
+  letterSpacing: '-0.025em',
+  lineHeight: 1.05,
+  color: 'var(--color-text-1)',
+};
+const h2Style: React.CSSProperties = {
+  fontFamily: 'var(--font-display)',
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: '24px',
+  letterSpacing: '-0.015em',
+  color: 'var(--color-text-1)',
+};
+const bodyProse: React.CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: '16px',
+  lineHeight: 1.8,
+  color: 'var(--color-text-1)',
+};
+const metaMono: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+};
+
+function PartyBar({
+  label,
+  count,
+  max,
+  color,
+  Icon,
+}: {
+  label: string;
+  count: number;
+  max: number;
+  color: string;
+  Icon: typeof Users;
+}) {
+  const pct = Math.round((count / max) * 100);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span
+          className="flex items-center gap-2"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            color,
+          }}
+        >
+          <Icon size={13} /> {label}
+        </span>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '12px',
+            color: 'var(--color-text-2)',
+          }}
+        >
+          {count} {count === 1 ? 'story' : 'stories'}
+        </span>
+      </div>
+      <div
+        style={{
+          height: 8,
+          borderRadius: '999px',
+          background: 'rgba(235,229,213,0.06)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${pct}%`,
+            background: color,
+            borderRadius: '999px',
+            transition: 'width 0.7s ease',
+            boxShadow: `0 0 14px ${color}66`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function CoverageBalancePage() {
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +141,6 @@ export default function CoverageBalancePage() {
     return () => controller.abort();
   }, []);
 
-  // Parse party affiliations from entity_ids and evidence
   const partyStats = useMemo(() => {
     let dem = 0;
     let rep = 0;
@@ -39,25 +150,33 @@ export default function CoverageBalancePage() {
     for (const story of stories) {
       const evidence = story.evidence as Record<string, unknown> | undefined;
       const entityIds = story.entity_ids ?? [];
-
-      // Try to extract party info from evidence
-      let storyParties = new Set<string>();
+      const storyParties = new Set<string>();
 
       if (evidence) {
-        // Check for party data in evidence fields
         const evidenceStr = JSON.stringify(evidence).toLowerCase();
-        if (evidenceStr.includes('"party":"d"') || evidenceStr.includes('"party": "d"') || evidenceStr.includes('democrat')) {
+        if (
+          evidenceStr.includes('"party":"d"') ||
+          evidenceStr.includes('"party": "d"') ||
+          evidenceStr.includes('democrat')
+        ) {
           storyParties.add('D');
         }
-        if (evidenceStr.includes('"party":"r"') || evidenceStr.includes('"party": "r"') || evidenceStr.includes('republican')) {
+        if (
+          evidenceStr.includes('"party":"r"') ||
+          evidenceStr.includes('"party": "r"') ||
+          evidenceStr.includes('republican')
+        ) {
           storyParties.add('R');
         }
-        if (evidenceStr.includes('"party":"i"') || evidenceStr.includes('"party": "i"') || evidenceStr.includes('independent')) {
+        if (
+          evidenceStr.includes('"party":"i"') ||
+          evidenceStr.includes('"party": "i"') ||
+          evidenceStr.includes('independent')
+        ) {
           storyParties.add('I');
         }
       }
 
-      // Also check entity_ids for party-coded IDs (e.g., "person:D:..." or "pol:R:...")
       for (const eid of entityIds) {
         const upper = eid.toUpperCase();
         if (upper.includes(':D:') || upper.includes(':D-') || upper.endsWith(':D')) storyParties.add('D');
@@ -74,225 +193,331 @@ export default function CoverageBalancePage() {
     return { dem, rep, ind, noParty };
   }, [stories]);
 
-  // Category breakdown
   const categoryBreakdown = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const story of stories) {
       const cat = story.category || 'unknown';
       counts[cat] = (counts[cat] || 0) + 1;
     }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1]);
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
   }, [stories]);
 
-  // Sector breakdown
   const sectorBreakdown = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const story of stories) {
       const sec = story.sector || 'unknown';
       counts[sec] = (counts[sec] || 0) + 1;
     }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1]);
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
   }, [stories]);
 
-  const maxParty = Math.max(partyStats.dem, partyStats.rep, 1);
+  const maxParty = Math.max(partyStats.dem, partyStats.rep, partyStats.ind, partyStats.noParty, 1);
 
   return (
-    <main id="main-content" className="flex-1 px-4 py-10 sm:py-16">
+    <main
+      id="main-content"
+      className="flex-1 px-4 py-10 sm:py-16"
+      style={{ color: 'var(--color-text-1)' }}
+    >
       <article className="max-w-[720px] mx-auto">
-        {/* Back link */}
         <Link
           to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8"
+          className="inline-flex items-center gap-1.5 mb-8"
+          style={backLinkStyle}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
         >
-          <ArrowLeft size={14} />
+          <ArrowLeft size={12} />
           Back to Journal
         </Link>
 
-        <p className="text-xs uppercase tracking-[0.2em] text-amber-400 font-medium mb-3">
+        <p className="mb-3" style={eyebrowStyle}>
           Coverage Balance
         </p>
-        <h1
-          className="text-3xl sm:text-4xl font-bold text-white leading-tight mb-6"
-          style={{ fontFamily: 'Oswald, sans-serif' }}
-        >
+        <h1 className="mb-8" style={h1Style}>
           Non-Partisan Coverage Report
         </h1>
 
-        <div className="space-y-4 mb-12">
-          <p className="text-zinc-300 leading-[1.85] text-base">
-            WeThePeople covers all politicians and corporations regardless of party
-            affiliation. Our story detection algorithms are pattern-based and
-            party-blind. When lobbying money flows to a politician, when a
-            corporation wins a suspicious contract, or when a lawmaker trades
-            stock in a company they regulate, our system flags it regardless of
-            party, state, or seniority.
+        <div className="space-y-5 mb-14">
+          <p style={bodyProse}>
+            The Influence Journal covers all politicians and corporations regardless of party
+            affiliation. Our story detection is pattern-based and party-blind. When lobbying money
+            flows to a politician, when a corporation wins a suspicious contract, or when a lawmaker
+            trades stock in a company they regulate, our system flags it — regardless of party,
+            state, or seniority.
           </p>
-          <p className="text-zinc-300 leading-[1.85] text-base">
-            This page provides a live breakdown of our published stories so you
-            can see for yourself that our coverage is balanced.
+          <p style={{ ...bodyProse, fontSize: '15px', color: 'var(--color-text-2)' }}>
+            This page provides a live breakdown of our published stories so you can see for yourself
+            that our coverage is balanced.
           </p>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" />
+        {loading && (
+          <div className="flex items-center justify-center py-16">
+            <div
+              className="animate-spin"
+              style={{
+                height: 28,
+                width: 28,
+                borderRadius: '999px',
+                border: '2px solid rgba(235,229,213,0.15)',
+                borderTopColor: 'var(--color-accent)',
+              }}
+            />
           </div>
-        ) : error ? (
-          <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center">
-            <p className="text-red-400 text-sm">{error}</p>
+        )}
+
+        {error && !loading && (
+          <div
+            style={{
+              borderRadius: '14px',
+              border: '1px solid rgba(230,57,70,0.35)',
+              background: 'rgba(230,57,70,0.06)',
+              padding: '20px 22px',
+              textAlign: 'center',
+            }}
+          >
+            <p
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '14px',
+                color: 'var(--color-red)',
+              }}
+            >
+              {error}
+            </p>
           </div>
-        ) : (
+        )}
+
+        {!loading && !error && (
           <>
             {/* Total stories */}
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6 mb-8 text-center">
-              <BarChart3 size={28} className="text-amber-400 mx-auto mb-3" />
-              <p className="text-4xl font-bold text-white mb-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-                {stories.length}
-              </p>
-              <p className="text-sm text-zinc-400">Total Stories Published</p>
+            <div
+              className="text-center mb-12"
+              style={{
+                borderRadius: '16px',
+                border: '1px solid rgba(197,160,40,0.25)',
+                background: 'linear-gradient(135deg, rgba(197,160,40,0.08) 0%, var(--color-surface) 60%)',
+                padding: '30px 24px',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundImage:
+                    'radial-gradient(circle at 1px 1px, rgba(197,160,40,0.15) 1px, transparent 0)',
+                  backgroundSize: '24px 24px',
+                  opacity: 0.25,
+                  pointerEvents: 'none',
+                }}
+              />
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <BarChart3
+                  size={26}
+                  style={{ color: 'var(--color-accent-text)', margin: '0 auto 10px' }}
+                />
+                <p
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontStyle: 'italic',
+                    fontWeight: 900,
+                    fontSize: '56px',
+                    letterSpacing: '-0.025em',
+                    lineHeight: 1,
+                    color: 'var(--color-text-1)',
+                    marginBottom: 8,
+                  }}
+                >
+                  {stories.length}
+                </p>
+                <p style={metaMono}>Total Stories Published</p>
+              </div>
             </div>
 
             {/* Party coverage */}
-            <h2
-              className="text-xl font-bold text-white mb-4"
-              style={{ fontFamily: 'Oswald, sans-serif' }}
-            >
+            <h2 className="mb-3" style={h2Style}>
               Stories by Party Involvement
             </h2>
-            <p className="text-sm text-zinc-500 mb-6 leading-relaxed">
-              A story may involve politicians from multiple parties and is counted
-              once for each party mentioned. Stories about corporations with no
-              identified politician are counted separately.
+            <p
+              className="mb-7"
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '14px',
+                lineHeight: 1.7,
+                color: 'var(--color-text-2)',
+              }}
+            >
+              A story may involve politicians from multiple parties and is counted once for each
+              party mentioned. Stories about corporations with no identified politician are counted
+              separately.
             </p>
 
-            <div className="space-y-4 mb-12">
-              {/* Democrat bar */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-medium text-blue-400 flex items-center gap-2">
-                    <Users size={14} /> Democrat
-                  </span>
-                  <span className="text-sm text-zinc-400">{partyStats.dem} stories</span>
-                </div>
-                <div className="h-6 bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 rounded-full transition-all duration-700"
-                    style={{ width: `${(partyStats.dem / maxParty) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Republican bar */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-medium text-red-400 flex items-center gap-2">
-                    <Users size={14} /> Republican
-                  </span>
-                  <span className="text-sm text-zinc-400">{partyStats.rep} stories</span>
-                </div>
-                <div className="h-6 bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-red-500 rounded-full transition-all duration-700"
-                    style={{ width: `${(partyStats.rep / maxParty) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Independent bar */}
+            <div className="space-y-5 mb-14">
+              <PartyBar
+                label="Democrat"
+                count={partyStats.dem}
+                max={maxParty}
+                color="var(--color-dem)"
+                Icon={Users}
+              />
+              <PartyBar
+                label="Republican"
+                count={partyStats.rep}
+                max={maxParty}
+                color="var(--color-rep)"
+                Icon={Users}
+              />
               {partyStats.ind > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm font-medium text-purple-400 flex items-center gap-2">
-                      <Users size={14} /> Independent
-                    </span>
-                    <span className="text-sm text-zinc-400">{partyStats.ind} stories</span>
-                  </div>
-                  <div className="h-6 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-purple-500 rounded-full transition-all duration-700"
-                      style={{ width: `${(partyStats.ind / maxParty) * 100}%` }}
-                    />
-                  </div>
-                </div>
+                <PartyBar
+                  label="Independent"
+                  count={partyStats.ind}
+                  max={maxParty}
+                  color="var(--color-ind)"
+                  Icon={Users}
+                />
               )}
-
-              {/* Corporate-only stories */}
               {partyStats.noParty > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                      <Building2 size={14} /> Corporate Only (no party identified)
-                    </span>
-                    <span className="text-sm text-zinc-400">{partyStats.noParty} stories</span>
-                  </div>
-                  <div className="h-6 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-zinc-600 rounded-full transition-all duration-700"
-                      style={{ width: `${(partyStats.noParty / maxParty) * 100}%` }}
-                    />
-                  </div>
-                </div>
+                <PartyBar
+                  label="Corporate Only"
+                  count={partyStats.noParty}
+                  max={maxParty}
+                  color="var(--color-text-2)"
+                  Icon={Building2}
+                />
               )}
             </div>
 
             {/* Category breakdown */}
-            <h2
-              className="text-xl font-bold text-white mb-4"
-              style={{ fontFamily: 'Oswald, sans-serif' }}
-            >
+            <h2 className="mb-5" style={h2Style}>
               Stories by Category
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-14">
               {categoryBreakdown.map(([cat, count]) => {
                 const meta = CATEGORY_META[cat];
+                const color = meta?.color ?? 'var(--color-text-2)';
+                const bg = meta?.bg ?? 'rgba(235,229,213,0.03)';
                 return (
                   <div
                     key={cat}
-                    className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3"
+                    className="flex items-center justify-between"
+                    style={{
+                      borderRadius: '12px',
+                      border: `1px solid ${color}26`,
+                      background: bg,
+                      padding: '12px 16px',
+                    }}
                   >
-                    <span className={`text-sm font-medium ${meta?.color ?? 'text-zinc-300'}`}>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        letterSpacing: '0.16em',
+                        textTransform: 'uppercase',
+                        color,
+                      }}
+                    >
                       {meta?.label ?? cat}
                     </span>
-                    <span className="text-sm text-zinc-500 font-mono">{count}</span>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '13px',
+                        color: 'var(--color-text-2)',
+                      }}
+                    >
+                      {count}
+                    </span>
                   </div>
                 );
               })}
             </div>
 
             {/* Sector breakdown */}
-            <h2
-              className="text-xl font-bold text-white mb-4"
-              style={{ fontFamily: 'Oswald, sans-serif' }}
-            >
+            <h2 className="mb-5" style={h2Style}>
               Stories by Sector
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-14">
               {sectorBreakdown.map(([sec, count]) => (
                 <div
                   key={sec}
-                  className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3"
+                  className="flex items-center justify-between"
+                  style={{
+                    borderRadius: '12px',
+                    border: '1px solid rgba(235,229,213,0.08)',
+                    background: 'var(--color-surface)',
+                    padding: '12px 16px',
+                  }}
                 >
-                  <span className="text-sm font-medium text-zinc-300">
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      letterSpacing: '0.16em',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-text-1)',
+                    }}
+                  >
                     {SECTOR_LABELS[sec] ?? sec}
                   </span>
-                  <span className="text-sm text-zinc-500 font-mono">{count}</span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '13px',
+                      color: 'var(--color-text-2)',
+                    }}
+                  >
+                    {count}
+                  </span>
                 </div>
               ))}
             </div>
 
             {/* Methodology note */}
-            <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-6">
+            <div
+              style={{
+                borderRadius: '14px',
+                border: '1px solid rgba(197,160,40,0.28)',
+                background: 'rgba(197,160,40,0.05)',
+                padding: '22px',
+              }}
+            >
               <div className="flex items-start gap-3">
-                <Scale size={20} className="text-amber-400 shrink-0 mt-0.5" />
+                <Scale
+                  size={18}
+                  style={{ color: 'var(--color-accent-text)', marginTop: 3, flexShrink: 0 }}
+                />
                 <div>
-                  <h3 className="text-sm font-semibold text-white mb-2">Our Commitment</h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed">
-                    WeThePeople covers all politicians and corporations regardless
-                    of party affiliation. Our story detection algorithms are
-                    pattern-based and party-blind. When the data shows influence, we
-                    report it &mdash; no matter who is involved.
+                  <h3
+                    className="mb-2"
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      letterSpacing: '0.2em',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-accent-text)',
+                    }}
+                  >
+                    Our Commitment
+                  </h3>
+                  <p
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '14px',
+                      lineHeight: 1.7,
+                      color: 'var(--color-text-2)',
+                    }}
+                  >
+                    The Influence Journal covers all politicians and corporations regardless of
+                    party affiliation. Our story detection algorithms are pattern-based and
+                    party-blind. When the data shows influence, we report it — no matter who is
+                    involved.
                   </p>
                 </div>
               </div>
