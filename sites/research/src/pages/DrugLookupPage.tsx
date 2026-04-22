@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Pill, FlaskConical, AlertTriangle, ArrowLeft, ExternalLink } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, Pill, FlaskConical, AlertTriangle, ExternalLink } from 'lucide-react';
 import { apiFetch, mainSiteUrl } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -161,22 +161,12 @@ export default function DrugLookupPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Back link */}
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-red-400 uppercase">Drug Lookup</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          Drug Search
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Search for a drug or product name to find FDA recalls and clinical trials across all tracked health companies.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Drug Lookup"
+        title="Drug Search"
+        description="Search for a drug or product name to find FDA recalls and clinical trials across all tracked health companies."
+        accent="var(--color-red)"
+      />
 
       {/* Search Bar */}
       <div className="flex gap-3 mb-8 max-w-2xl">

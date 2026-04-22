@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, TrendingUp, AlertTriangle, Newspaper, ArrowLeft, ExternalLink } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { apiFetch, mainSiteUrl } from '../api/client';
+import { Search, TrendingUp, AlertTriangle, Newspaper, ExternalLink } from 'lucide-react';
+import { apiFetch } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -149,20 +149,12 @@ export default function MarketMoversPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-emerald-400 uppercase">Market Intelligence</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          Market Movers
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Biggest insider trades, consumer complaints, and Federal Reserve activity across the finance sector.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Market Intelligence"
+        title="Market Movers"
+        description="Biggest insider trades, consumer complaints, and Federal Reserve activity across the finance sector."
+        accent="var(--color-green)"
+      />
 
       {/* Tabs */}
       <div className="flex items-center gap-2 mb-6">

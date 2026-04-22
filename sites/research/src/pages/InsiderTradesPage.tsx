@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, TrendingUp, ArrowLeft, ExternalLink } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, Filter, TrendingUp, ExternalLink } from 'lucide-react';
 import { apiFetch, mainSiteUrl } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -80,22 +80,12 @@ export default function InsiderTradesPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Back link */}
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-emerald-400 uppercase">Insider Trades</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          Insider Trade Tracker
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Executive stock transactions from SEC Form 4 filings across tracked financial institutions.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Insider Trades"
+        title="Insider Trade Tracker"
+        description="Executive stock transactions from SEC Form 4 filings across tracked financial institutions."
+        accent="var(--color-green)"
+      />
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">

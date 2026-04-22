@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { FlaskConical, Search, ArrowLeft, ExternalLink, ChevronRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { FlaskConical, Search, ExternalLink, ChevronRight } from 'lucide-react';
 import { apiFetch, mainSiteUrl } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -188,22 +188,12 @@ export default function ClinicalTrialsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Back link */}
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-red-400 uppercase">Clinical Pipeline</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          Clinical Trial Tracker
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          {fmtNum(allTrials.length)} trials across tracked health companies, broken down by phase.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Clinical Pipeline"
+        title="Clinical Trial Tracker"
+        description={<>{fmtNum(allTrials.length)} trials across tracked health companies, broken down by phase.</>}
+        accent="var(--color-dem)"
+      />
 
       {/* Search */}
       <div className="relative max-w-lg mb-8">
@@ -254,7 +244,7 @@ export default function ClinicalTrialsPage() {
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-3">
-                          <span className="text-lg font-bold text-white" style={{ fontFamily: 'Oswald, sans-serif' }}>
+                          <span className="text-lg font-bold text-white">
                             {phase.label}
                           </span>
                           <span className="text-xs text-zinc-600">{phase.subtitle}</span>

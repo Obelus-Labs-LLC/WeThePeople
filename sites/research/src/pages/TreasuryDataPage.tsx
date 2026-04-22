@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Banknote, TrendingDown, TrendingUp, BarChart3 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Banknote, TrendingDown, TrendingUp, BarChart3 } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -98,22 +98,12 @@ export default function TreasuryDataPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Back link */}
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-emerald-400 uppercase">Treasury</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          Treasury / Budget Data
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Explore U.S. Treasury data including national debt trends, federal revenue sources, and government spending breakdowns.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Treasury"
+        title="Treasury / Budget Data"
+        description="Explore U.S. Treasury data including national debt trends, federal revenue sources, and government spending breakdowns."
+        accent="var(--color-green)"
+      />
 
       {/* Dataset tabs */}
       <div className="flex gap-2 mb-8 flex-wrap">

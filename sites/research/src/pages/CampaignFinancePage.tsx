@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, ArrowLeft, ExternalLink, DollarSign } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, ExternalLink } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -98,22 +98,12 @@ export default function CampaignFinancePage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Back link */}
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-emerald-400 uppercase">Campaign Finance</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          Campaign Finance Search
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Search FEC campaign finance data. Find candidates by name, state, and election cycle with total raised, spent, and cash on hand.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Campaign Finance"
+        title="Campaign Finance Search"
+        description="Search FEC campaign finance data. Find candidates by name, state, and election cycle with total raised, spent, and cash on hand."
+        accent="var(--color-green)"
+      />
 
       {/* Search controls */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 mb-8">

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { Search, GraduationCap, ArrowLeft, Percent, DollarSign } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, GraduationCap, Percent, DollarSign } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -97,22 +97,12 @@ export default function CollegeScorecardPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Back link */}
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-purple-400 uppercase">Education</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          College Scorecard Explorer
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Search the Department of Education College Scorecard. Compare tuition, graduation rates, loan default rates, and post-graduation earnings.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Education"
+        title="College Scorecard Explorer"
+        description="Search the Department of Education College Scorecard. Compare tuition, graduation rates, loan default rates, and post-graduation earnings."
+        accent="var(--color-research)"
+      />
 
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 max-w-3xl">
