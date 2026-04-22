@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { Search, HandCoins, ArrowLeft, Calendar, Building2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, HandCoins, Calendar, Building2 } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -112,22 +112,12 @@ export default function FederalGrantsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Back link */}
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-green-400 uppercase">Grants</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          Federal Grants Explorer
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Search federal grant opportunities by keyword and agency. Find funding amounts, deadlines, categories, and eligibility requirements.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Grants"
+        title="Federal Grants Explorer"
+        description="Search federal grant opportunities by keyword and agency. Find funding amounts, deadlines, categories, and eligibility requirements."
+        accent="var(--color-green)"
+      />
 
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 max-w-3xl">

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Calendar, ExternalLink, SearchX, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, Calendar, ExternalLink, SearchX } from 'lucide-react';
 import { apiFetch, mainSiteUrl } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -135,25 +135,12 @@ export default function PatentSearchPage() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
       <div className="flex flex-col gap-8">
-        {/* Back link */}
-        <div>
-          <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
-            <ArrowLeft size={14} />
-            Back to Research Tools
-          </Link>
-        </div>
-
-        {/* Header */}
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-bold tracking-[0.2em] text-violet-400 uppercase">Patent Search</span>
-          <h1 className="text-4xl font-bold tracking-tight text-zinc-50" style={{ fontFamily: 'Oswald, sans-serif' }}>
-            Patent Explorer
-          </h1>
-          <p className="text-base text-zinc-400 leading-relaxed max-w-2xl">
-            Search across {loading ? '...' : fmtNum(totalPatents)} patents from{' '}
-            {loading ? '...' : uniqueCompanies} technology companies.
-          </p>
-        </div>
+        <ToolHeader
+          eyebrow="Patent Search"
+          title="Patent Explorer"
+          description={<>Search across {loading ? '...' : fmtNum(totalPatents)} patents from {loading ? '...' : uniqueCompanies} technology companies.</>}
+          accent="var(--color-research)"
+        />
 
         {/* Search bar */}
         <div className="relative max-w-2xl w-full">

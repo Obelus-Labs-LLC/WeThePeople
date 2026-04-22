@@ -1,10 +1,87 @@
 @import "tailwindcss";
 
-body {
+@theme {
+  /* ── Background layers ────────────────────────────────────────── */
+  --color-bg:           #07090C;
+  --color-surface:      #0D1117;
+  --color-surface-2:    #141C25;
+
+  /* ── Borders ──────────────────────────────────────────────────── */
+  --color-border:       rgba(235, 229, 213, 0.08);
+  --color-border-hover: rgba(235, 229, 213, 0.14);
+
+  /* ── Text ─────────────────────────────────────────────────────── */
+  --color-text-1: #EBE5D5;
+  --color-text-2: rgba(235, 229, 213, 0.50);
+  --color-text-3: rgba(235, 229, 213, 0.22);
+
+  /* ── Accent — Gold (shared) ───────────────────────────────────── */
+  --color-accent:      #C5A028;
+  --color-accent-dim:  rgba(197, 160, 40, 0.12);
+  --color-accent-text: #D4AE35;
+
+  /* ── Data colors ──────────────────────────────────────────────── */
+  --color-dem:   #4A7FDE;
+  --color-rep:   #E05555;
+  --color-ind:   #B06FD8;
+  --color-green: #3DB87A;
+  --color-red:   #E63946;
+  --color-amber: #C5A028;
+
+  /* ── Site accents ─────────────────────────────────────────────── */
+  --color-journal:  #E63946;
+  --color-verify:   #10B981;
+  --color-research: #8B5CF6;
+
+  /* ── Fonts ────────────────────────────────────────────────────── */
+  --font-display:   'Playfair Display', serif;
+  --font-editorial: 'Oswald', sans-serif;
+  --font-body:      'Inter', sans-serif;
+  --font-mono:      'JetBrains Mono', monospace;
+}
+
+html, body, #root {
   margin: 0;
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
-  background-color: #09090b;
-  color: #fafafa;
+  padding: 0;
+  background-color: #07090C;
+  color: #EBE5D5;
+  font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(235, 229, 213, 0.08);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(235, 229, 213, 0.14);
+}
+
+.font-oswald  { font-family: 'Oswald', sans-serif; }
+.font-display { font-family: 'Playfair Display', serif; }
+.font-mono    { font-family: 'JetBrains Mono', monospace; }
+.font-body    { font-family: 'Inter', sans-serif; }
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+html { scroll-behavior: smooth; }
+
+::selection {
+  background-color: rgba(139, 92, 246, 0.28);
+  color: #EBE5D5;
 }

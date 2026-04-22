@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, BookOpen, DollarSign, Scale, AlertTriangle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { BookOpen, DollarSign, Scale, AlertTriangle } from 'lucide-react';
 import { apiFetch, mainSiteUrl } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -86,22 +86,12 @@ export default function StudentLoanPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Back link */}
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-amber-400 uppercase">Education</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          Student Loan Servicer Tracker
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Track student loan servicers and lending companies. View government contracts, lobbying spend, enforcement actions, and borrower outcomes.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Education"
+        title="Student Loan Servicer Tracker"
+        description="Track student loan servicers and lending companies. View government contracts, lobbying spend, enforcement actions, and borrower outcomes."
+        accent="var(--color-accent-text)"
+      />
 
       {/* Summary stats */}
       {!loading && companies.length > 0 && (

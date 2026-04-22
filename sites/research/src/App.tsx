@@ -55,7 +55,19 @@ const TreasuryDataPage = lazy(() => import('./pages/TreasuryDataPage'))
 function PageLoader() {
   return (
     <div className="flex h-[60vh] items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300" role="status"><span className="sr-only">Loading...</span></div>
+      <div
+        className="animate-spin"
+        role="status"
+        style={{
+          height: 32,
+          width: 32,
+          borderRadius: '999px',
+          border: '2px solid rgba(235,229,213,0.15)',
+          borderTopColor: 'var(--color-research)',
+        }}
+      >
+        <span className="sr-only">Loading…</span>
+      </div>
     </div>
   )
 }
@@ -65,180 +77,207 @@ function PageLoader() {
 interface ToolCard {
   title: string
   description: string
-  icon: React.ComponentType<{ size?: number; className?: string }>
+  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>
   path: string
-  iconClass: string
-  bgClass: string
+  accent: string
   available: boolean
 }
+
+const VIOLET = 'var(--color-research)'
+const DEM = 'var(--color-dem)'
+const RED = 'var(--color-red)'
+const GREEN = 'var(--color-green)'
+const AMBER = 'var(--color-accent-text)'
+const IND = 'var(--color-ind)'
 
 const tools: ToolCard[] = [
   {
     title: 'Patent Explorer',
-    description: 'Search across thousands of patents from tracked technology companies. Find prior art, explore patent portfolios, and link IP to policy.',
+    description:
+      'Search across thousands of patents from tracked technology companies. Find prior art, explore patent portfolios, and link IP to policy.',
     icon: FileSearch,
     path: '/patents',
-    iconClass: 'text-violet-500', bgClass: 'bg-violet-500/15',
+    accent: VIOLET,
     available: true,
   },
   {
     title: 'Drug Lookup',
-    description: 'Search for a drug or medication by name. View FDA recalls and clinical trials across all tracked health companies.',
+    description:
+      'Search for a drug or medication by name. View FDA recalls and clinical trials across all tracked health companies.',
     icon: Pill,
     path: '/drugs',
-    iconClass: 'text-red-600', bgClass: 'bg-red-600/15',
+    accent: RED,
     available: true,
   },
   {
     title: 'Clinical Trial Tracker',
-    description: 'Visualize the clinical trial pipeline by phase. Browse Phase 1 through Phase 4 trials with enrollment data and status tracking.',
+    description:
+      'Visualize the clinical trial pipeline by phase. Browse Phase 1 through Phase 4 trials with enrollment data and status tracking.',
     icon: FlaskConical,
     path: '/clinical-trials',
-    iconClass: 'text-blue-500', bgClass: 'bg-blue-500/15',
+    accent: DEM,
     available: true,
   },
   {
     title: 'Insider Trade Tracker',
-    description: 'Executive stock transactions from SEC Form 4 filings. Filter by transaction type, search by company or insider name.',
+    description:
+      'Executive stock transactions from SEC Form 4 filings. Filter by transaction type, search by company or insider name.',
     icon: TrendingUp,
     path: '/insider-trades',
-    iconClass: 'text-emerald-500', bgClass: 'bg-emerald-500/15',
+    accent: GREEN,
     available: true,
   },
   {
     title: 'FDA Safety Monitor',
-    description: 'Track FDA recalls, adverse events, and safety signals across tracked health companies. Filter by severity and classification.',
+    description:
+      'Track FDA recalls, adverse events, and safety signals across tracked health companies. Filter by severity and classification.',
     icon: ShieldCheck,
     path: '/fda-approvals',
-    iconClass: 'text-amber-500', bgClass: 'bg-amber-500/15',
+    accent: AMBER,
     available: true,
   },
   {
     title: 'Market Movers',
-    description: 'Biggest insider trades, complaint spikes, and notable sector news aggregated across the finance sector.',
+    description:
+      'Biggest insider trades, complaint spikes, and notable sector news aggregated across the finance sector.',
     icon: Search,
     path: '/market-movers',
-    iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
+    accent: GREEN,
     available: true,
   },
   {
     title: 'Regulatory News',
-    description: 'Federal Reserve press releases, enforcement actions across finance and health, and regulatory news from government sources.',
+    description:
+      'Federal Reserve press releases, enforcement actions across finance and health, and regulatory news from government sources.',
     icon: Newspaper,
     path: '/regulatory-news',
-    iconClass: 'text-blue-400', bgClass: 'bg-blue-400/15',
+    accent: DEM,
     available: true,
   },
   {
     title: 'Food Safety Search',
-    description: 'Search FDA and USDA food recall databases. Find recalls by product name, company, or reason — with severity classification and distribution data.',
+    description:
+      'Search FDA and USDA food recall databases. Find recalls by product name, company, or reason — with severity classification and distribution data.',
     icon: ShieldAlert,
     path: '/food-safety',
-    iconClass: 'text-red-600', bgClass: 'bg-red-600/15',
+    accent: RED,
     available: true,
   },
   {
     title: 'Toxic Release Inventory',
-    description: 'Explore EPA Toxic Release Inventory data. Filter by state, chemical, facility, or year to find reported toxic chemical releases near you.',
+    description:
+      'Explore EPA Toxic Release Inventory data. Filter by state, chemical, facility, or year to find reported toxic chemical releases near you.',
     icon: Flame,
     path: '/toxic-releases',
-    iconClass: 'text-orange-500', bgClass: 'bg-orange-500/15',
+    accent: RED,
     available: true,
   },
   {
     title: 'Foreign Lobbying (FARA)',
-    description: 'Search the FARA registry for foreign agents, principals, and the countries they represent. Track who lobbies for foreign governments in the U.S.',
+    description:
+      'Search the FARA registry for foreign agents, principals, and the countries they represent. Track who lobbies for foreign governments in the U.S.',
     icon: Globe,
     path: '/foreign-lobbying',
-    iconClass: 'text-indigo-400', bgClass: 'bg-indigo-400/15',
+    accent: IND,
     available: true,
   },
   {
     title: 'Government Salary Database',
-    description: 'Search federal job openings with salary data from USAJobs. Filter by keyword, agency, minimum salary, and location across all government positions.',
+    description:
+      'Search federal job openings with salary data from USAJobs. Filter by keyword, agency, minimum salary, and location across all government positions.',
     icon: Building2,
     path: '/gov-salaries',
-    iconClass: 'text-blue-400', bgClass: 'bg-blue-400/15',
+    accent: DEM,
     available: true,
   },
   {
     title: 'Revolving Door Tracker',
-    description: 'Detect patterns of officials moving between government and lobbying. Cross-references FARA data with anomaly detection for revolving-door activity.',
+    description:
+      'Detect patterns of officials moving between government and lobbying. Cross-references FARA data with anomaly detection for revolving-door activity.',
     icon: ArrowRightLeft,
     path: '/revolving-door',
-    iconClass: 'text-purple-400', bgClass: 'bg-purple-400/15',
+    accent: VIOLET,
     available: true,
   },
   {
     title: 'Campaign Finance Search',
-    description: 'Search FEC campaign finance data by candidate, state, and election cycle. View total raised, spent, cash on hand, and link to FEC profiles.',
+    description:
+      'Search FEC campaign finance data by candidate, state, and election cycle. View total raised, spent, cash on hand, and link to FEC profiles.',
     icon: DollarSign,
     path: '/campaign-finance',
-    iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
+    accent: GREEN,
     available: true,
   },
   {
     title: 'Bill Text Analysis',
-    description: 'Search congressional bills by lobbying topic and cross-reference with Senate lobbying disclosures. See which companies are lobbying on the same issues being legislated.',
+    description:
+      'Search congressional bills by lobbying topic and cross-reference with Senate lobbying disclosures. See which companies are lobbying on the same issues being legislated.',
     icon: FileSearch,
     path: '/bill-text',
-    iconClass: 'text-amber-400', bgClass: 'bg-amber-400/15',
+    accent: AMBER,
     available: true,
   },
   {
     title: 'Earmarks Tracker',
-    description: 'Search congressionally directed spending from USASpending.gov. Find federal grants and direct payments by state, keyword, or congress member.',
+    description:
+      'Search congressionally directed spending from USASpending.gov. Find federal grants and direct payments by state, keyword, or congress member.',
     icon: Landmark,
     path: '/earmarks',
-    iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
+    accent: GREEN,
     available: true,
   },
   {
     title: 'FCC Complaint Lookup',
-    description: 'Search FCC consumer complaints by company, issue type, or state. Track telecom and broadband complaint trends across carriers.',
+    description:
+      'Search FCC consumer complaints by company, issue type, or state. Track telecom and broadband complaint trends across carriers.',
     icon: Radio,
     path: '/fcc-complaints',
-    iconClass: 'text-cyan-400', bgClass: 'bg-cyan-400/15',
+    accent: DEM,
     available: true,
   },
   {
     title: 'Spectrum / License Search',
-    description: 'Search FCC spectrum licenses by company or entity. View call signs, frequencies, service types, grant and expiration dates.',
+    description:
+      'Search FCC spectrum licenses by company or entity. View call signs, frequencies, service types, grant and expiration dates.',
     icon: Signal,
     path: '/spectrum',
-    iconClass: 'text-blue-400', bgClass: 'bg-blue-400/15',
+    accent: DEM,
     available: true,
   },
   {
     title: 'College Scorecard',
-    description: 'Explore Department of Education data on colleges and universities. Compare tuition, graduation rates, default rates, and post-graduation earnings.',
+    description:
+      'Explore Department of Education data on colleges and universities. Compare tuition, graduation rates, default rates, and post-graduation earnings.',
     icon: GraduationCap,
     path: '/college-scorecard',
-    iconClass: 'text-purple-400', bgClass: 'bg-purple-400/15',
+    accent: VIOLET,
     available: true,
   },
   {
     title: 'Student Loan Servicers',
-    description: 'Track student loan servicers and lending companies. View government contracts, lobbying spend, enforcement actions, and borrower outcomes.',
+    description:
+      'Track student loan servicers and lending companies. View government contracts, lobbying spend, enforcement actions, and borrower outcomes.',
     icon: BookOpen,
     path: '/student-loans',
-    iconClass: 'text-amber-400', bgClass: 'bg-amber-400/15',
+    accent: AMBER,
     available: true,
   },
   {
     title: 'Federal Grants Explorer',
-    description: 'Search federal grant opportunities by keyword and agency. Find funding amounts, deadlines, eligibility requirements, and grant categories.',
+    description:
+      'Search federal grant opportunities by keyword and agency. Find funding amounts, deadlines, eligibility requirements, and grant categories.',
     icon: HandCoins,
     path: '/federal-grants',
-    iconClass: 'text-green-400', bgClass: 'bg-green-400/15',
+    accent: GREEN,
     available: true,
   },
   {
     title: 'Treasury / Budget Data',
-    description: 'Explore U.S. Treasury data including national debt trends, federal revenue sources, and government spending breakdowns over time.',
+    description:
+      'Explore U.S. Treasury data including national debt trends, federal revenue sources, and government spending breakdowns over time.',
     icon: Banknote,
     path: '/treasury',
-    iconClass: 'text-emerald-400', bgClass: 'bg-emerald-400/15',
+    accent: GREEN,
     available: true,
   },
 ]
@@ -249,39 +288,106 @@ function HomePage() {
   const [search, setSearch] = useState('')
   const q = search.trim().toLowerCase()
   const filteredTools = q
-    ? tools.filter(t => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
+    ? tools.filter(
+        (t) => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q),
+      )
     : tools
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ color: 'var(--color-text-1)' }}
+    >
       <EcosystemNav active="research" />
 
-      <main id="main-content" className="flex-1 px-4 py-16 sm:py-24">
-        <div className="max-w-5xl mx-auto">
+      <main id="main-content" className="flex-1 px-4 py-14 sm:py-20">
+        <div className="max-w-6xl mx-auto">
           {/* Hero */}
-          <div className="text-center mb-16">
-            <h1
-              className="text-5xl sm:text-6xl font-bold tracking-tight mb-3 text-white"
-              style={{ fontFamily: 'Oswald, sans-serif' }}
+          <div className="text-center mb-12">
+            <div
+              className="inline-flex items-center gap-2 mb-4"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.24em',
+                textTransform: 'uppercase',
+                color: 'var(--color-research)',
+              }}
             >
+              <span
+                aria-hidden
+                style={{
+                  height: 7,
+                  width: 7,
+                  borderRadius: '999px',
+                  background: 'var(--color-research)',
+                  boxShadow: '0 0 10px var(--color-research)',
+                }}
+              />
               WTP Research
+            </div>
+            <h1
+              className="mb-4"
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontStyle: 'italic',
+                fontWeight: 900,
+                fontSize: 'clamp(44px, 6.5vw, 72px)',
+                letterSpacing: '-0.03em',
+                lineHeight: 1,
+                color: 'var(--color-text-1)',
+              }}
+            >
+              Civic data, on demand.
             </h1>
-            <p className="text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-              Deep-dive research tools for civic data. Explore patents, drugs,
-              clinical trials, insider trades, and regulatory activity — all powered by the
-              WeThePeople data platform.
+            <p
+              className="max-w-2xl mx-auto"
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '16px',
+                lineHeight: 1.7,
+                color: 'var(--color-text-2)',
+              }}
+            >
+              Deep-dive research tools for civic data. Explore patents, drug pipelines, clinical
+              trials, insider trades, and regulatory activity — all powered by the WeThePeople
+              platform.
             </p>
           </div>
 
-          {/* Search bar */}
-          <div className="relative max-w-md mx-auto mb-10">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+          {/* Search */}
+          <div className="relative max-w-lg mx-auto mb-12">
+            <Search
+              size={15}
+              style={{
+                position: 'absolute',
+                left: 16,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--color-text-3)',
+                pointerEvents: 'none',
+              }}
+            />
             <input
               type="search"
-              placeholder="Search tools..."
+              placeholder="Search tools…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600/30 transition-all"
+              style={{
+                width: '100%',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                padding: '12px 16px 12px 42px',
+                fontFamily: 'var(--font-body)',
+                fontSize: '14px',
+                color: 'var(--color-text-1)',
+                outline: 'none',
+                transition: 'border-color 0.2s',
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--color-research)')}
+              onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--color-border)')}
             />
           </div>
 
@@ -289,40 +395,95 @@ function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredTools.map((tool) => {
               const Icon = tool.icon
-              const content = (
+              const card = (
                 <div
-                  className={`group relative flex flex-col rounded-xl border p-6 transition-all duration-200 h-full ${
-                    tool.available
-                      ? 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 hover:bg-zinc-900/80 cursor-pointer'
-                      : 'border-zinc-800/50 bg-zinc-900/20 opacity-60'
-                  }`}
+                  className="group relative flex flex-col h-full"
+                  style={{
+                    borderRadius: '16px',
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                    padding: '24px',
+                    transition: 'border-color 0.2s, transform 0.2s',
+                    cursor: tool.available ? 'pointer' : 'default',
+                    opacity: tool.available ? 1 : 0.55,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!tool.available) return
+                    e.currentTarget.style.borderColor = `${tool.accent}66`
+                    e.currentTarget.style.transform = 'translateY(-1px)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-border)'
+                    e.currentTarget.style.transform = 'translateY(0)'
+                  }}
                 >
-                  {/* Icon */}
                   <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-lg mb-4 ${tool.bgClass}`}
+                    className="flex items-center justify-center mb-5"
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '10px',
+                      background: `${tool.accent}1A`,
+                      border: `1px solid ${tool.accent}33`,
+                    }}
                   >
-                    <Icon size={20} className={tool.iconClass} />
+                    <Icon size={20} style={{ color: tool.accent }} />
                   </div>
 
-                  {/* Title */}
-                  <h2 className="text-lg font-semibold text-white mb-2">
+                  <h2
+                    className="mb-2"
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontStyle: 'italic',
+                      fontWeight: 900,
+                      fontSize: '22px',
+                      letterSpacing: '-0.015em',
+                      lineHeight: 1.15,
+                      color: 'var(--color-text-1)',
+                    }}
+                  >
                     {tool.title}
                   </h2>
 
-                  {/* Description */}
-                  <p className="text-sm text-zinc-400 leading-relaxed flex-1 mb-4">
+                  <p
+                    className="flex-1 mb-5"
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '14px',
+                      lineHeight: 1.6,
+                      color: 'var(--color-text-2)',
+                    }}
+                  >
                     {tool.description}
                   </p>
 
-                  {/* Footer */}
                   <div className="flex items-center justify-between">
                     {tool.available ? (
-                      <span className="flex items-center gap-1.5 text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">
-                        Open tool
-                        <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+                      <span
+                        className="flex items-center gap-1.5"
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          letterSpacing: '0.2em',
+                          textTransform: 'uppercase',
+                          color: tool.accent,
+                        }}
+                      >
+                        Open Tool
+                        <ArrowRight size={13} />
                       </span>
                     ) : (
-                      <span className="text-xs font-medium text-zinc-600 uppercase tracking-wider">
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          letterSpacing: '0.22em',
+                          textTransform: 'uppercase',
+                          color: 'var(--color-text-3)',
+                        }}
+                      >
                         Coming Soon
                       </span>
                     )}
@@ -332,21 +493,31 @@ function HomePage() {
 
               return tool.available ? (
                 <Link key={tool.path} to={tool.path} className="no-underline">
-                  {content}
+                  {card}
                 </Link>
               ) : (
-                <div key={tool.path}>{content}</div>
+                <div key={tool.path}>{card}</div>
               )
             })}
           </div>
 
           {/* Data source note */}
           <div className="mt-16 text-center">
-            <p className="text-sm text-zinc-600">
+            <p
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '13px',
+                color: 'var(--color-text-3)',
+              }}
+            >
               All data sourced from the{' '}
               <a
                 href="https://wethepeopleforus.com"
-                className="text-zinc-400 hover:text-zinc-300 underline underline-offset-2 transition-colors"
+                style={{
+                  color: 'var(--color-research)',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '3px',
+                }}
               >
                 WeThePeople
               </a>{' '}
@@ -356,35 +527,70 @@ function HomePage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-900 py-8 px-4">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-zinc-600">
-            Part of the WeThePeople ecosystem
-          </p>
-          <div className="flex items-center gap-6">
-            <a
-              href="https://wethepeopleforus.com"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Main Site
-            </a>
-            <a
-              href="https://wethepeopleforus.com/methodology"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Methodology
-            </a>
-            <a
-              href="https://github.com/Obelus-Labs-LLC/WeThePeople"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              GitHub
-            </a>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
+  )
+}
+
+function SiteFooter() {
+  const linkStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.22em',
+    textTransform: 'uppercase',
+    color: 'var(--color-text-3)',
+    textDecoration: 'none',
+    transition: 'color 0.2s',
+  }
+  return (
+    <footer
+      style={{
+        borderTop: '1px solid var(--color-border)',
+        padding: '28px 16px',
+      }}
+    >
+      <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '10px',
+            fontWeight: 600,
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-3)',
+          }}
+        >
+          Part of the WeThePeople Ecosystem
+        </p>
+        <div className="flex items-center gap-6">
+          <a
+            href="https://wethepeopleforus.com"
+            style={linkStyle}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-research)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
+          >
+            Main Site
+          </a>
+          <a
+            href="https://wethepeopleforus.com/methodology"
+            style={linkStyle}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-research)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
+          >
+            Methodology
+          </a>
+          <a
+            href="https://github.com/Obelus-Labs-LLC/WeThePeople"
+            style={linkStyle}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-research)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}
+          >
+            GitHub
+          </a>
+        </div>
+      </div>
+    </footer>
   )
 }
 
@@ -392,26 +598,15 @@ function HomePage() {
 
 function ToolLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ color: 'var(--color-text-1)' }}
+    >
       <EcosystemNav active="research" />
       <main id="main-content" className="flex-1">
-        <Suspense fallback={<PageLoader />}>
-          {children}
-        </Suspense>
+        <Suspense fallback={<PageLoader />}>{children}</Suspense>
       </main>
-      <footer className="border-t border-zinc-900 py-6 px-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <p className="text-xs text-zinc-600">
-            Part of the WeThePeople ecosystem
-          </p>
-          <a
-            href="https://wethepeopleforus.com"
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-          >
-            wethepeopleforus.com
-          </a>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }
@@ -444,7 +639,6 @@ export default function App() {
         <Route path="/student-loans" element={<ToolLayout><StudentLoanPage /></ToolLayout>} />
         <Route path="/federal-grants" element={<ToolLayout><FederalGrantsPage /></ToolLayout>} />
         <Route path="/treasury" element={<ToolLayout><TreasuryDataPage /></ToolLayout>} />
-        {/* Catch-all back to home */}
         <Route path="*" element={<HomePage />} />
       </Routes>
       <Analytics />

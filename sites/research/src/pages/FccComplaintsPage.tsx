@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { Search, Radio, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, Radio } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -100,22 +100,12 @@ export default function FccComplaintsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Back link */}
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-cyan-400 uppercase">Telecom</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          FCC Complaint Lookup
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Search FCC consumer complaints by company, issue type, or state. Track telecom and broadband complaint trends.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Telecom"
+        title="FCC Complaint Lookup"
+        description="Search FCC consumer complaints by company, issue type, or state. Track telecom and broadband complaint trends."
+        accent="var(--color-dem)"
+      />
 
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 max-w-3xl">

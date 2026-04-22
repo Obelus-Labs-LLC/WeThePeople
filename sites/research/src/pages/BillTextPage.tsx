@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Search, FileSearch, ArrowLeft, ExternalLink, Building2, BarChart3 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, FileSearch, ExternalLink, Building2, BarChart3 } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import { ToolHeader } from '../components/ToolHeader';
 
 // ── Types ──
 
@@ -79,23 +79,12 @@ export default function BillTextPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Back link */}
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-8">
-        <ArrowLeft size={14} />
-        Back to Research Tools
-      </Link>
-
-      {/* Header */}
-      <div className="mb-8">
-        <span className="text-xs font-bold tracking-[0.2em] text-amber-400 uppercase">Bill Analysis</span>
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 mt-1" style={{ fontFamily: 'Oswald, sans-serif' }}>
-          BILL TEXT SEARCH
-        </h1>
-        <p className="text-base text-zinc-400 mt-2 max-w-2xl">
-          Search congressional bills by lobbying topic and see which companies are lobbying on the same issues.
-          Cross-references Congress.gov with Senate lobbying disclosures.
-        </p>
-      </div>
+      <ToolHeader
+        eyebrow="Bill Analysis"
+        title="BILL TEXT SEARCH"
+        description="Search congressional bills by lobbying topic and see which companies are lobbying on the same issues. Cross-references Congress.gov with Senate lobbying disclosures."
+        accent="var(--color-accent-text)"
+      />
 
       {/* Search controls */}
       <div className="flex flex-col sm:flex-row gap-3 mb-8">
