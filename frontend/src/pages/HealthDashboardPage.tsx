@@ -190,7 +190,7 @@ export default function HealthDashboardPage() {
                 item={{
                   id: company.company_id,
                   displayName: company.display_name,
-                  ticker: company.ticker,
+                  ticker: company.ticker ?? undefined,
                   sectorKey: company.sector_type,
                   logo: (
                     <CompanyLogo

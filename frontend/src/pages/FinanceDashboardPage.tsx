@@ -190,7 +190,7 @@ export default function FinanceDashboardPage() {
                 item={{
                   id: inst.institution_id,
                   displayName: inst.display_name,
-                  ticker: inst.ticker,
+                  ticker: inst.ticker ?? undefined,
                   sectorKey: inst.sector_type,
                   logo: (
                     <CompanyLogo
