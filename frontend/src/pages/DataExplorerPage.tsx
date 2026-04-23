@@ -1,9 +1,24 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BarChart3, RefreshCw } from 'lucide-react';
 import { getApiBaseUrl } from '../api/client';
 
 const API_BASE = getApiBaseUrl();
+
+// ── Design tokens ──────────────────────────────────────────────────────
+const BG = '#07090C';
+const SURF = '#0D1117';
+const SURF2 = '#141C25';
+const B = 'rgba(235,229,213,0.08)';
+const T1 = '#EBE5D5';
+const T2 = '#A29A8A';
+const T3 = '#6F6A5F';
+const GOLD = '#C5A028';
+const GOLDT = '#D4AE35';
+const GOLDD = 'rgba(197,160,40,0.14)';
+const DRD = '#E63946';
+const DBL = '#4A7FDE';
+const DGR = '#3DB87A';
+const DPR = '#B06FD8';
 
 interface LobbyingLeader {
   entity_id: string;
@@ -25,33 +40,120 @@ interface StatsData {
   by_sector: Record<string, SectorStats>;
 }
 
+// Sector → accent color for this page
 const SECTOR_COLORS: Record<string, string> = {
-  finance: '#34D399',
-  health: '#F472B6',
-  tech: '#A78BFA',
-  energy: '#FB923C',
+  finance: DGR,
+  health: DPR,
+  tech: DBL,
+  energy: GOLD,
+  defense: DRD,
+  transportation: GOLDT,
+};
+
+const SECTOR_LABELS: Record<string, string> = {
+  finance: 'Finance',
+  health: 'Health',
+  tech: 'Tech',
+  energy: 'Energy',
+  defense: 'Defense',
+  transportation: 'Transport',
+};
+
+const METRIC_LABELS: Record<'lobbying' | 'contracts' | 'enforcement', string> = {
+  lobbying: 'Lobbying $',
+  contracts: 'Contracts $',
+  enforcement: 'Enforcement',
 };
 
 function formatMoney(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '$0';
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
   if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
   return `$${n.toLocaleString()}`;
 }
 
+function companyRoute(sector: string, entityId: string): string {
+  const map: Record<string, string> = {
+    finance: 'finance',
+    health: 'health',
+    tech: 'technology',
+    energy: 'energy',
+    defense: 'defense',
+    transportation: 'transportation',
+  };
+  return `/${map[sector] || 'politics'}/${entityId}`;
+}
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg, ' + BG + ')',
+  color: T1,
+  fontFamily: 'var(--font-body)',
+};
+
+const EXPLORE_LINKS = [
+  {
+    to: '/influence/money-flow',
+    label: 'Money Flow Sankey',
+    desc: 'Follow the money visually',
+    color: GOLD,
+  },
+  {
+    to: '/influence/network',
+    label: 'Influence Network',
+    desc: 'Force-directed connections',
+    color: DBL,
+  },
+  {
+    to: '/influence/map',
+    label: 'Spending Map',
+    desc: 'Geographic breakdown',
+    color: DPR,
+  },
+  {
+    to: '/influence/timeline',
+    label: 'Influence Timeline',
+    desc: 'Per-bill chronology',
+    color: DGR,
+  },
+  {
+    to: '/influence/closed-loops',
+    label: 'Closed Loops',
+    desc: 'Donation → vote → reward',
+    color: DRD,
+  },
+  {
+    to: '/influence/anomalies',
+    label: 'Anomalies',
+    desc: 'Flagged statistical deviations',
+    color: DRD,
+  },
+];
+
 export default function DataExplorerPage() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [leaders, setLeaders] = useState<LobbyingLeader[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedSectors, setSelectedSectors] = useState<Set<string>>(new Set(['finance', 'health', 'tech', 'energy']));
-  const [metric, setMetric] = useState<'lobbying' | 'contracts' | 'enforcement'>('lobbying');
+  const [selectedSectors, setSelectedSectors] = useState<Set<string>>(
+    new Set(['finance', 'health', 'tech', 'energy']),
+  );
+  const [metric, setMetric] = useState<'lobbying' | 'contracts' | 'enforcement'>(
+    'lobbying',
+  );
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     Promise.all([
-      fetch(`${API_BASE}/influence/stats`).then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
-      fetch(`${API_BASE}/influence/top-lobbying?limit=30`).then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
+      fetch(`${API_BASE}/influence/stats`).then((r) => {
+        if (!r.ok) throw new Error(r.statusText);
+        return r.json();
+      }),
+      fetch(`${API_BASE}/influence/top-lobbying?limit=30`).then((r) => {
+        if (!r.ok) throw new Error(r.statusText);
+        return r.json();
+      }),
     ])
       .then(([s, l]) => {
         if (cancelled) return;
@@ -59,8 +161,12 @@ export default function DataExplorerPage() {
         setLeaders(l.leaders || []);
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
-    return () => { cancelled = true; };
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const toggleSector = (s: string) => {
@@ -73,205 +179,664 @@ export default function DataExplorerPage() {
   };
 
   const filteredLeaders = leaders.filter((l) => selectedSectors.has(l.sector));
+  const maxLobbying = Math.max(
+    1,
+    ...filteredLeaders.map((l) => l.total_lobbying),
+  );
 
-  // Find max value for bar scaling
-  const maxLobbying = Math.max(...filteredLeaders.map((l) => l.total_lobbying), 1);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-      </div>
-    );
-  }
+  const filteredStats = stats
+    ? Object.entries(stats.by_sector)
+        .filter(([s]) => selectedSectors.has(s))
+        .reduce(
+          (acc, [, d]) => ({
+            lobbying: acc.lobbying + d.lobbying,
+            contracts: acc.contracts + d.contracts,
+            enforcement: acc.enforcement + d.enforcement,
+          }),
+          { lobbying: 0, contracts: 0, enforcement: 0 },
+        )
+    : null;
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <div className="mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-14">
-        <Link to="/influence" className="inline-flex items-center gap-2 text-white/40 hover:text-white/70 text-sm mb-6 no-underline">
-          <ArrowLeft className="w-4 h-4" /> Influence Explorer
+    <main id="main-content" style={pageShell}>
+      <div
+        style={{ maxWidth: 1240, margin: '0 auto', padding: '32px 40px 96px' }}
+      >
+        <Link
+          to="/influence"
+          style={{
+            color: T3,
+            textDecoration: 'none',
+            fontSize: 12,
+            letterSpacing: '0.04em',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            marginBottom: 18,
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          ← Influence Explorer
         </Link>
 
-        <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-            <BarChart3 className="w-8 h-8 inline-block mr-3 text-blue-400" />
-            Data Explorer
+        {/* Hero */}
+        <div style={{ marginBottom: 24 }}>
+          <div
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: 11,
+              fontWeight: 700,
+              color: GOLDT,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              marginBottom: 8,
+            }}
+          >
+            Data Explorer · Cross-sector
+          </div>
+          <h1
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(32px, 4.8vw, 48px)',
+              lineHeight: 1.02,
+              letterSpacing: '-0.01em',
+              color: T1,
+              margin: '0 0 10px',
+            }}
+          >
+            Query the whole database.
           </h1>
-          <p className="text-white/50">
-            Interactive cross-sector analysis. Click sectors to filter — all charts update together.
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: 14,
+              color: T2,
+              maxWidth: 640,
+              lineHeight: 1.6,
+              margin: 0,
+            }}
+          >
+            Interactive cross-sector comparison. Toggle sectors to filter the
+            breakdown, totals, and top-spender leaderboard at once.
           </p>
         </div>
 
-        {/* Sector toggles — dc.js-inspired coordinated filtering */}
-        <div className="flex flex-wrap gap-3 mb-8">
-          {Object.entries(SECTOR_COLORS).map(([sector, color]) => (
-            <button
-              key={sector}
-              onClick={() => toggleSector(sector)}
-              className={`px-5 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all border ${
-                selectedSectors.has(sector)
-                  ? 'bg-opacity-100 scale-100'
-                  : 'opacity-30 scale-95'
-              }`}
+        {/* Sector toggle row */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            alignItems: 'center',
+            marginBottom: 18,
+          }}
+        >
+          {Object.entries(SECTOR_COLORS).map(([sector, color]) => {
+            const on = selectedSectors.has(sector);
+            return (
+              <button
+                key={sector}
+                onClick={() => toggleSector(sector)}
+                aria-pressed={on}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  border: `1px solid ${on ? color : B}`,
+                  background: on ? color + '18' : 'transparent',
+                  color: on ? color : T3,
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {SECTOR_LABELS[sector] || sector}
+              </button>
+            );
+          })}
+          <button
+            onClick={() =>
+              setSelectedSectors(
+                new Set(['finance', 'health', 'tech', 'energy']),
+              )
+            }
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              background: 'transparent',
+              border: `1px solid ${B}`,
+              color: T3,
+              fontFamily: 'var(--font-body)',
+              fontSize: 11,
+              cursor: 'pointer',
+            }}
+          >
+            ↺ Reset
+          </button>
+          <span
+            style={{
+              marginLeft: 'auto',
+              color: T3,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+            }}
+          >
+            {selectedSectors.size} sector{selectedSectors.size !== 1 ? 's' : ''}{' '}
+            active
+          </span>
+        </div>
+
+        {/* Loading state */}
+        {loading && (
+          <div
+            style={{
+              background: SURF,
+              border: `1px solid ${B}`,
+              borderRadius: 12,
+              padding: '80px 24px',
+              textAlign: 'center',
+              color: T3,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+            }}
+          >
+            Loading cross-sector stats…
+          </div>
+        )}
+
+        {!loading && (
+          <>
+            {/* Top grid: breakdown / totals / quick-nav */}
+            <div
               style={{
-                backgroundColor: selectedSectors.has(sector) ? color + '20' : 'transparent',
-                borderColor: color + '40',
-                color: color,
+                display: 'grid',
+                gridTemplateColumns:
+                  'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)',
+                gap: 14,
+                marginBottom: 18,
               }}
             >
-              {sector}
-            </button>
-          ))}
-          <button
-            onClick={() => setSelectedSectors(new Set(['finance', 'health', 'tech', 'energy']))}
-            className="px-4 py-2 rounded-xl text-xs text-white/30 hover:text-white/60 border border-white/10 transition-colors"
-          >
-            <RefreshCw className="w-3 h-3 inline mr-1" /> Reset
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Sector breakdown donut */}
-          {stats && (
-            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
-              <h2 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">Sector Breakdown</h2>
-              <div className="flex flex-col gap-3">
-                {Object.entries(stats.by_sector)
-                  .filter(([s]) => selectedSectors.has(s))
-                  .map(([sector, data]) => {
-                    const val = metric === 'lobbying' ? data.lobbying : metric === 'contracts' ? data.contracts : data.enforcement;
-                    const total = Object.entries(stats.by_sector)
+              {/* Sector breakdown card */}
+              {stats && (
+                <div
+                  style={{
+                    background: SURF,
+                    border: `1px solid ${B}`,
+                    borderRadius: 12,
+                    padding: 20,
+                    minWidth: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: T3,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      marginBottom: 12,
+                    }}
+                  >
+                    Sector Breakdown
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {Object.entries(stats.by_sector)
                       .filter(([s]) => selectedSectors.has(s))
-                      .reduce((sum, [, d]) => sum + (metric === 'lobbying' ? d.lobbying : metric === 'contracts' ? d.contracts : d.enforcement), 0);
-                    const pct = total > 0 ? (val / total) * 100 : 0;
-                    return (
-                      <div key={sector}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span style={{ color: SECTOR_COLORS[sector] }} className="font-bold uppercase">{sector}</span>
-                          <span className="text-white/50 font-mono">
-                            {metric === 'enforcement' ? val.toLocaleString() : formatMoney(val)}
-                          </span>
+                      .map(([sector, data]) => {
+                        const val =
+                          metric === 'lobbying'
+                            ? data.lobbying
+                            : metric === 'contracts'
+                              ? data.contracts
+                              : data.enforcement;
+                        const total = Object.entries(stats.by_sector)
+                          .filter(([s]) => selectedSectors.has(s))
+                          .reduce(
+                            (sum, [, d]) =>
+                              sum +
+                              (metric === 'lobbying'
+                                ? d.lobbying
+                                : metric === 'contracts'
+                                  ? d.contracts
+                                  : d.enforcement),
+                            0,
+                          );
+                        const pct = total > 0 ? (val / total) * 100 : 0;
+                        const color = SECTOR_COLORS[sector] || T2;
+                        return (
+                          <div key={sector}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'baseline',
+                                marginBottom: 4,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color,
+                                  fontFamily: 'var(--font-mono)',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  letterSpacing: '0.06em',
+                                  textTransform: 'uppercase',
+                                }}
+                              >
+                                {SECTOR_LABELS[sector] || sector}
+                              </span>
+                              <span
+                                style={{
+                                  color: T1,
+                                  fontFamily: 'var(--font-mono)',
+                                  fontSize: 12,
+                                }}
+                              >
+                                {metric === 'enforcement'
+                                  ? val.toLocaleString()
+                                  : formatMoney(val)}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                height: 6,
+                                background: SURF2,
+                                borderRadius: 3,
+                                overflow: 'hidden',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  height: '100%',
+                                  background: color,
+                                  width: `${pct}%`,
+                                  transition: 'width 0.4s',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  {/* Metric toggle */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 6,
+                      marginTop: 14,
+                      paddingTop: 12,
+                      borderTop: `1px solid ${B}`,
+                    }}
+                  >
+                    {(['lobbying', 'contracts', 'enforcement'] as const).map(
+                      (m) => {
+                        const on = metric === m;
+                        return (
+                          <button
+                            key={m}
+                            onClick={() => setMetric(m)}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 5,
+                              border: `1px solid ${on ? GOLD : B}`,
+                              background: on ? GOLDD : 'transparent',
+                              color: on ? GOLDT : T3,
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 10,
+                              fontWeight: on ? 700 : 500,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {METRIC_LABELS[m]}
+                          </button>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Totals card */}
+              {filteredStats && (
+                <div
+                  style={{
+                    background: SURF,
+                    border: `1px solid ${B}`,
+                    borderRadius: 12,
+                    padding: 20,
+                    minWidth: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: T3,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      marginBottom: 12,
+                    }}
+                  >
+                    Filtered Totals
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14,
+                    }}
+                  >
+                    {[
+                      {
+                        label: 'Lobbying spend',
+                        value: formatMoney(filteredStats.lobbying),
+                        color: GOLD,
+                      },
+                      {
+                        label: 'Contract value',
+                        value: formatMoney(filteredStats.contracts),
+                        color: DPR,
+                      },
+                      {
+                        label: 'Enforcement actions',
+                        value: filteredStats.enforcement.toLocaleString(),
+                        color: DRD,
+                      },
+                    ].map((t) => (
+                      <div key={t.label}>
+                        <div
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: T3,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            marginBottom: 3,
+                          }}
+                        >
+                          {t.label}
                         </div>
-                        <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{ width: `${pct}%`, backgroundColor: SECTOR_COLORS[sector] }}
-                          />
+                        <div
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 22,
+                            fontWeight: 700,
+                            color: t.color,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {t.value}
                         </div>
                       </div>
-                    );
-                  })}
-              </div>
-              <div className="flex gap-2 mt-4">
-                {(['lobbying', 'contracts', 'enforcement'] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setMetric(m)}
-                    className={`px-3 py-1 rounded-md text-xs font-mono transition-colors ${
-                      metric === m ? 'bg-blue-500/20 text-blue-400' : 'text-white/30 hover:text-white/50'
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Totals cards */}
-          {stats && (
-            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
-              <h2 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">Filtered Totals</h2>
-              {(() => {
-                const filteredStats = Object.entries(stats.by_sector)
-                  .filter(([s]) => selectedSectors.has(s))
-                  .reduce(
-                    (acc, [, d]) => ({
-                      lobbying: acc.lobbying + d.lobbying,
-                      contracts: acc.contracts + d.contracts,
-                      enforcement: acc.enforcement + d.enforcement,
-                    }),
-                    { lobbying: 0, contracts: 0, enforcement: 0 }
-                  );
-                return (
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-white/40 text-xs font-mono">LOBBYING SPEND</p>
-                      <p className="text-2xl font-bold text-white font-mono">{formatMoney(filteredStats.lobbying)}</p>
-                    </div>
-                    <div>
-                      <p className="text-white/40 text-xs font-mono">CONTRACT VALUE</p>
-                      <p className="text-2xl font-bold text-white font-mono">{formatMoney(filteredStats.contracts)}</p>
-                    </div>
-                    <div>
-                      <p className="text-white/40 text-xs font-mono">ENFORCEMENT ACTIONS</p>
-                      <p className="text-2xl font-bold text-white font-mono">{filteredStats.enforcement.toLocaleString()}</p>
-                    </div>
+                    ))}
                   </div>
-                );
-              })()}
-            </div>
-          )}
+                </div>
+              )}
 
-          {/* Quick navigation */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
-            <h2 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">Explore</h2>
-            <div className="space-y-2">
-              {[
-                { to: '/influence/money-flow', label: 'Money Flow Sankey', desc: 'Follow the money visually' },
-                { to: '/influence/network', label: 'Influence Network', desc: 'Force-directed connections' },
-                { to: '/influence/map', label: 'Spending Map', desc: 'Geographic breakdown' },
-                { to: '/influence/story', label: 'Data Story', desc: 'Animated narrative' },
-                { to: '/influence/closed-loops', label: 'Closed Loops', desc: 'Detect circular influence' },
-              ].map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className="block rounded-lg bg-white/5 px-4 py-3 hover:bg-white/10 transition-colors no-underline"
+              {/* Quick-nav card */}
+              <div
+                style={{
+                  background: SURF,
+                  border: `1px solid ${B}`,
+                  borderRadius: 12,
+                  padding: 20,
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: T3,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    marginBottom: 12,
+                  }}
                 >
-                  <p className="text-sm text-white font-medium">{link.label}</p>
-                  <p className="text-xs text-white/30">{link.desc}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Top lobbying bar chart — coordinated with sector filter */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
-          <h2 className="text-xs font-mono text-white/40 uppercase tracking-wider mb-4">
-            Top Lobbying Spenders ({selectedSectors.size} sector{selectedSectors.size !== 1 ? 's' : ''})
-          </h2>
-          <div className="space-y-2">
-            {filteredLeaders.slice(0, 20).map((l, i) => (
-              <div key={l.entity_id} className="flex items-center gap-3">
-                <span className="text-white/20 font-mono text-xs w-6 text-right">{i + 1}</span>
-                <div className="flex-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm text-white truncate max-w-[300px]">{l.display_name}</span>
-                    <span className="text-xs font-mono text-white/50">{formatMoney(l.total_lobbying)}</span>
-                  </div>
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
+                  Explore
+                </div>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+                >
+                  {EXPLORE_LINKS.map((link) => (
+                    <Link
+                      key={link.to}
+                      to={link.to}
                       style={{
-                        width: `${(l.total_lobbying / maxLobbying) * 100}%`,
-                        backgroundColor: SECTOR_COLORS[l.sector],
+                        display: 'block',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        background: SURF2,
+                        border: `1px solid ${B}`,
+                        textDecoration: 'none',
+                        transition: 'border-color 0.15s, background 0.15s',
                       }}
-                    />
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.borderColor =
+                          link.color + '50';
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.borderColor = B;
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: T1,
+                        }}
+                      >
+                        <span style={{ color: link.color, marginRight: 6 }}>
+                          ◆
+                        </span>
+                        {link.label}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontSize: 11,
+                          color: T3,
+                          marginTop: 2,
+                        }}
+                      >
+                        {link.desc}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Top lobbying leaderboard */}
+            <div
+              style={{
+                background: SURF,
+                border: `1px solid ${B}`,
+                borderRadius: 12,
+                padding: 20,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  marginBottom: 14,
+                  paddingBottom: 12,
+                  borderBottom: `1px solid ${B}`,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: T3,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      marginBottom: 4,
+                    }}
+                  >
+                    Leaderboard · Read-only
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontStyle: 'italic',
+                      fontWeight: 700,
+                      fontSize: 22,
+                      color: T1,
+                    }}
+                  >
+                    Top lobbying spenders
                   </div>
                 </div>
                 <span
-                  className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded"
-                  style={{ color: SECTOR_COLORS[l.sector], backgroundColor: SECTOR_COLORS[l.sector] + '20' }}
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 11,
+                    color: T3,
+                  }}
                 >
-                  {l.sector}
+                  {filteredLeaders.length} result
+                  {filteredLeaders.length !== 1 ? 's' : ''}
                 </span>
               </div>
-            ))}
-          </div>
-        </div>
+
+              {filteredLeaders.length === 0 ? (
+                <div
+                  style={{
+                    padding: '40px 10px',
+                    textAlign: 'center',
+                    color: T3,
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 12,
+                  }}
+                >
+                  No spenders match the selected sectors.
+                </div>
+              ) : (
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                >
+                  {filteredLeaders.slice(0, 20).map((l, i) => {
+                    const color = SECTOR_COLORS[l.sector] || T2;
+                    return (
+                      <Link
+                        key={l.entity_id}
+                        to={companyRoute(l.sector, l.entity_id)}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '36px 1fr 90px 80px',
+                          gap: 12,
+                          alignItems: 'center',
+                          padding: '8px 10px',
+                          borderRadius: 8,
+                          textDecoration: 'none',
+                          color: 'inherit',
+                          transition: 'background 0.12s',
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLElement).style.background =
+                            SURF2;
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLElement).style.background =
+                            'transparent';
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: T3,
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 11,
+                            textAlign: 'right',
+                          }}
+                        >
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: T1,
+                              marginBottom: 4,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                            title={l.display_name}
+                          >
+                            {l.display_name}
+                          </div>
+                          <div
+                            style={{
+                              height: 4,
+                              background: SURF2,
+                              borderRadius: 2,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div
+                              style={{
+                                height: '100%',
+                                background: color,
+                                width: `${(l.total_lobbying / maxLobbying) * 100}%`,
+                                transition: 'width 0.4s',
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <span
+                          style={{
+                            color: GOLDT,
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 12,
+                            textAlign: 'right',
+                          }}
+                        >
+                          {formatMoney(l.total_lobbying)}
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color,
+                            background: color + '18',
+                            border: `1px solid ${color}30`,
+                            borderRadius: 5,
+                            padding: '3px 7px',
+                            textAlign: 'center',
+                            letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {SECTOR_LABELS[l.sector] || l.sector}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
-    </div>
+    </main>
   );
 }
