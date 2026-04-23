@@ -29,7 +29,7 @@ export interface EducationCompanyListItem {
   enforcement_count: number;
 }
 
-export interface EducationCompanyListResponse {
+interface EducationCompanyListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -87,7 +87,7 @@ export interface EducationFilingItem {
   description: string | null;
 }
 
-export interface EducationFilingsResponse {
+interface EducationFilingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -105,7 +105,7 @@ export interface EducationContractItem {
   contract_type: string | null;
 }
 
-export interface EducationContractsResponse {
+interface EducationContractsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -131,7 +131,7 @@ export interface EducationLobbyingItem {
   government_entities: string | null;
 }
 
-export interface EducationLobbyingResponse {
+interface EducationLobbyingResponse {
   total: number;
   limit: number;
   offset: number;
@@ -156,7 +156,7 @@ export interface EducationEnforcementItem {
   source: string | null;
 }
 
-export interface EducationEnforcementResponse {
+interface EducationEnforcementResponse {
   total: number;
   total_penalties: number;
   limit: number;
@@ -174,7 +174,7 @@ export interface EducationDonationItem {
   party: string | null;
 }
 
-export interface EducationDonationsResponse {
+interface EducationDonationsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -200,7 +200,7 @@ export interface EducationComparisonItem {
   profit_margin: number | null;
 }
 
-export interface EducationComparisonResponse {
+interface EducationComparisonResponse {
   companies: EducationComparisonItem[];
 }
 
@@ -216,7 +216,7 @@ export interface RecentActivityItem {
   meta: Record<string, any>;
 }
 
-export interface RecentActivityResponse {
+interface RecentActivityResponse {
   items: RecentActivityItem[];
 }
 

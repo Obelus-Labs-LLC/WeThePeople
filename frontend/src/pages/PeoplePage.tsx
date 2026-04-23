@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Search, SearchX, MapPin, Users, X } from 'lucide-react';
 import CSVExport from '../components/CSVExport';
 import { motion } from 'framer-motion';
-import { apiClient } from '../api/client';
+import { apiClient, getApiBaseUrl } from '../api/client';
 import type { Person } from '../api/types';
 
 // ── Types ──
@@ -412,13 +412,13 @@ export default function PeoplePage() {
     apiClient
       .getPeople({ limit: 600 })
       .then((res) => setPeople(res.people || []))
-      .catch(() => {})
+      .catch((err) => { console.warn('[PeoplePage] fetch failed:', err); })
       .finally(() => setLoading(false));
   }, []);
 
   const handleZipSearch = () => {
     if (zipCode.length < 5) return;
-    fetch(`/api/representatives?zip=${zipCode}`)
+    fetch(`${getApiBaseUrl()}/representatives?zip=${zipCode}`)
       .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
       .then((data: { representatives?: { person_id?: string }[]; results?: { person_id?: string }[] }) => {
         const reps = data.representatives || data.results || [];

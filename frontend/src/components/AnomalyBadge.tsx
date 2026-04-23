@@ -18,7 +18,7 @@ export default function AnomalyBadge({ entityType, entityId }: AnomalyBadgeProps
     fetch(`${API_BASE}/anomalies/entity/${entityType}/${entityId}?min_score=7`)
       .then((r) => r.json())
       .then((data) => setCount(data.total || 0))
-      .catch(() => {});
+      .catch((err) => { console.warn('[AnomalyBadge] fetch failed:', err); });
   }, [entityType, entityId]);
 
   if (count === 0) return null;

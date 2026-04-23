@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getApiBaseUrl } from '../api/client';
 
 interface AuthUser {
   id: number;
@@ -7,12 +8,19 @@ interface AuthUser {
   display_name?: string;
 }
 
+interface RegisterOptions {
+  displayName?: string;
+  zipCode?: string;
+  digestOptIn?: boolean;
+  alertOptIn?: boolean;
+}
+
 interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, displayName?: string) => Promise<void>;
+  register: (email: string, password: string, options?: RegisterOptions) => Promise<void>;
   logout: () => void;
 }
 
@@ -24,7 +32,7 @@ export function useAuth() {
   return ctx;
 }
 
-const API = '/api';
+const API = getApiBaseUrl();
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -42,7 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('wtp_access_token');
         localStorage.removeItem('wtp_refresh_token');
       }
-    } catch { /* network error */ }
+    } catch (err) {
+      console.warn('[AuthContext] fetchMe failed:', err);
+    }
     setLoading(false);
   }, []);
 
@@ -55,7 +65,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
     if (!r.ok) {
-      const d = await r.json().catch(() => ({ detail: 'Login failed' }));
+      const d = await r.json().catch((err) => {
+        console.warn('[AuthContext] login error body parse failed:', err);
+        return { detail: 'Login failed' };
+      });
       throw new Error(d.detail || 'Login failed');
     }
     const data = await r.json();
@@ -64,14 +77,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchMe();
   };
 
-  const register = async (email: string, password: string, displayName?: string) => {
+  const register = async (email: string, password: string, options: RegisterOptions = {}) => {
+    const body: Record<string, unknown> = {
+      email,
+      password,
+      display_name: options.displayName,
+    };
+    if (options.zipCode) body.zip_code = options.zipCode;
+    if (options.digestOptIn !== undefined) body.digest_opt_in = options.digestOptIn;
+    if (options.alertOptIn !== undefined) body.alert_opt_in = options.alertOptIn;
+
     const r = await fetch(`${API}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, display_name: displayName }),
+      body: JSON.stringify(body),
     });
     if (!r.ok) {
-      const d = await r.json().catch(() => ({ detail: 'Registration failed' }));
+      const d = await r.json().catch((err) => {
+        console.warn('[AuthContext] register error body parse failed:', err);
+        return { detail: 'Registration failed' };
+      });
       throw new Error(d.detail || 'Registration failed');
     }
     await login(email, password);

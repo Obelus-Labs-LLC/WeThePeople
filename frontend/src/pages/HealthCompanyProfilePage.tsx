@@ -116,7 +116,7 @@ export default function HealthCompanyProfilePage() {
     fetch(`${getApiBaseUrl()}/health/companies/${encodeURIComponent(companyId)}/trends`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (!cancelled && d) setTrends(d); })
-      .catch(() => {});
+      .catch((err) => { console.warn('[HealthCompanyProfilePage] fetch failed:', err); });
     return () => { cancelled = true; };
   }, [companyId]);
 
@@ -130,29 +130,29 @@ export default function HealthCompanyProfilePage() {
         setLobbying(l.filings || []); setLobbyTotal(l.total);
         if (s) setLobbySummary(s);
         setLobbyingLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[HealthCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'contracts' && !contractsLoaded) {
       getHealthCompanyContracts(companyId, { limit: 100 }).then((r) => {
         setContracts(r.contracts || []); setContractTotal(r.total); setContractsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[HealthCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getHealthCompanyEnforcement(companyId, { limit: 100 }).then((r) => {
         setEnforcement(r.actions || []); setEnforcementTotal(r.total);
         setTotalPenalties(r.total_penalties || 0);
         setEnforcementLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[HealthCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'trials' && !trialsLoaded) {
       getHealthCompanyTrials(companyId, { limit: 100 }).then((r) => {
         setTrials(r.trials || []); setTrialTotal(r.total); setTrialsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[HealthCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'recalls' && !recallsLoaded) {
       getHealthCompanyRecalls(companyId, { limit: 100 }).then((r) => {
         setRecalls(r.recalls || []); setRecallTotal(r.total); setRecallsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[HealthCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'payments' && !paymentsLoaded) {
       Promise.all([
@@ -164,7 +164,7 @@ export default function HealthCompanyProfilePage() {
         if (s) setPaymentSummary(s);
         setFilings(f.filings || []);
         setPaymentsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[HealthCompanyProfilePage] fetch failed:', err); });
     }
   }, [activeTab, companyId, lobbyingLoaded, contractsLoaded, enforcementLoaded, trialsLoaded, recallsLoaded, paymentsLoaded]);
 

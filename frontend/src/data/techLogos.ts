@@ -17,12 +17,3 @@ export const LOCAL_LOGOS = new Set([
   'trimble', 'twilio', 'uber', 'uipath', 'unity', 'varonis', 'veeva', 'workday',
   'zebra-technologies', 'zscaler',
 ]);
-
-/** Tech sector color + label configuration */
-export const TECH_SECTOR_COLORS: Record<string, { color: string; label: string }> = {
-  SOFTWARE: { color: '#8B5CF6', label: 'Software' },
-  HARDWARE: { color: '#F59E0B', label: 'Hardware' },
-  SEMICONDUCTOR: { color: '#3B82F6', label: 'Semiconductor' },
-  PLATFORM: { color: '#10B981', label: 'Platform' },
-  NETWORKING: { color: '#EC4899', label: 'Networking' },
-};

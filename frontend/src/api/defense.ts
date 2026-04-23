@@ -29,7 +29,7 @@ export interface DefenseCompanyListItem {
   lobbying_count: number;
 }
 
-export interface DefenseCompanyListResponse {
+interface DefenseCompanyListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -87,7 +87,7 @@ export interface DefenseFilingItem {
   description: string | null;
 }
 
-export interface DefenseFilingsResponse {
+interface DefenseFilingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -106,7 +106,7 @@ export interface DefenseContractItem {
   ai_summary: string | null;
 }
 
-export interface DefenseContractsResponse {
+interface DefenseContractsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -133,7 +133,7 @@ export interface DefenseLobbyingItem {
   ai_summary: string | null;
 }
 
-export interface DefenseLobbyingResponse {
+interface DefenseLobbyingResponse {
   total: number;
   limit: number;
   offset: number;
@@ -159,7 +159,7 @@ export interface DefenseEnforcementItem {
   ai_summary: string | null;
 }
 
-export interface DefenseEnforcementResponse {
+interface DefenseEnforcementResponse {
   total: number;
   total_penalties: number;
   limit: number;
@@ -186,7 +186,7 @@ export interface DefenseComparisonItem {
   profit_margin: number | null;
 }
 
-export interface DefenseComparisonResponse {
+interface DefenseComparisonResponse {
   companies: DefenseComparisonItem[];
 }
 
@@ -202,7 +202,7 @@ export interface RecentActivityItem {
   meta: Record<string, any>;
 }
 
-export interface RecentActivityResponse {
+interface RecentActivityResponse {
   items: RecentActivityItem[];
 }
 
@@ -221,7 +221,7 @@ export interface DefenseDonationItem {
   source_url: string | null;
 }
 
-export interface DefenseDonationsResponse {
+interface DefenseDonationsResponse {
   total: number;
   total_amount: number;
   limit: number;
@@ -238,7 +238,7 @@ export interface DefenseNewsItem {
   published: string;
 }
 
-export interface DefenseNewsResponse {
+interface DefenseNewsResponse {
   query: string;
   articles: DefenseNewsItem[];
 }

@@ -102,28 +102,6 @@ export function createProposal(data: { title: string; body: string; category?: s
   return apiFetch<{ id: number }>('/civic/proposals', { method: 'POST', body: data });
 }
 
-// ── Annotations ──
-
-export interface AnnotationItem {
-  id: number;
-  section_ref: string;
-  text_excerpt: string;
-  comment: string;
-  sentiment: string;
-  upvotes: number;
-  downvotes: number;
-  confidence_score: number | null;
-  created_at: string;
-}
-
-export function fetchAnnotations(billId: string, params: Record<string, string | number> = {}) {
-  return apiFetch<{ total: number; bill_id: string; items: AnnotationItem[] }>('/civic/annotations', { params: { bill_id: billId, ...params } });
-}
-
-export function createAnnotation(data: { bill_id: string; section_ref?: string; text_excerpt?: string; comment: string; sentiment?: string }) {
-  return apiFetch<{ id: number }>('/civic/annotations', { method: 'POST', body: data });
-}
-
 // ── Voting ──
 
 export function castVote(targetType: string, targetId: number, value: 1 | -1) {
@@ -169,8 +147,3 @@ export function verifyResidence(zipCode: string) {
   return apiFetch<{ level: number; state: string; zip: string; message: string }>('/civic/verify/residence', { method: 'POST', body: { zip_code: zipCode } });
 }
 
-// ── Leaderboard ──
-
-export function fetchLeaderboard(contentType: string, sort: string = 'hot', limit: number = 25) {
-  return apiFetch<{ content_type: string; sort: string; items: Record<string, unknown>[] }>('/civic/leaderboard', { params: { content_type: contentType, sort, limit } });
-}

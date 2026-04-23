@@ -45,7 +45,7 @@ export default function HealthCompaniesPage() {
         if (stale) return;
         setCompanies(Array.isArray(res.companies) ? res.companies : []);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[HealthCompaniesPage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setLoading(false);
       });

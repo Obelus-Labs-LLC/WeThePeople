@@ -181,7 +181,7 @@ export default function ChatAgent() {
           setRemaining(data.remaining);
           setLimit(data.limit);
         })
-        .catch(() => {});
+        .catch((err) => { console.warn('[ChatAgent] fetch failed:', err); });
     }
   }, [open]);
 

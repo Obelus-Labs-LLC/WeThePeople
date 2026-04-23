@@ -201,13 +201,13 @@ export default function InstitutionPage() {
         setFinancials(fin.financials || []);
         setStock(s.stock || null);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     // Fetch trends separately (non-blocking)
     fetch(`${getApiBaseUrl()}/finance/institutions/${encodeURIComponent(institution_id)}/trends`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (!cancelled && d) setTrends(d); })
-      .catch(() => {});
+      .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
     return () => { cancelled = true; };
   }, [institution_id]);
 
@@ -218,27 +218,27 @@ export default function InstitutionPage() {
     if (activeTab === 'insider' && !tradesLoaded) {
       getInstitutionInsiderTrades(institution_id, { limit: 100, transaction_type: tradeFilter || undefined })
         .then((r) => { setTrades(r.trades || []); setTradesLoaded(true); })
-        .catch(() => {});
+        .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
     }
     if (activeTab === 'lobbying' && !lobbyingLoaded) {
       getInstitutionLobbying(institution_id, { limit: 100 })
         .then((r) => { setLobbyingData(r.filings || []); setLobbyingTotal(r.total || 0); setLobbyingLoaded(true); })
-        .catch(() => {});
+        .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
     }
     if (activeTab === 'contracts' && !contractsLoaded) {
       getInstitutionContracts(institution_id, { limit: 100 })
         .then((r) => { setContractsData(r.contracts || []); setContractsTotal(r.total || 0); setContractsLoaded(true); })
-        .catch(() => {});
+        .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getInstitutionEnforcement(institution_id, { limit: 100 })
         .then((r) => { setEnforcementData(r.actions || []); setEnforcementTotal(r.total || 0); setEnforcementPenalties(r.total_penalties || 0); setEnforcementLoaded(true); })
-        .catch(() => {});
+        .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
     }
     if (activeTab === 'donations' && !donationsLoaded) {
       getInstitutionDonations(institution_id, { limit: 100 })
         .then((r) => { setDonationsData(r.donations || []); setDonationsTotal(r.total || 0); setDonationsLoaded(true); })
-        .catch(() => {});
+        .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
     }
     if (activeTab === 'financials' && !pressLoaded) {
       // Load press + FRED + filings in the collapsed financials tab
@@ -248,7 +248,7 @@ export default function InstitutionPage() {
       ]).then(([pr, fr]) => {
         if (pr) { setPressReleases(pr.press_releases || []); setPressLoaded(true); }
         if (fr) { setFredData(fr.observations || []); setFredLoaded(true); }
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
     }
   }, [activeTab, institution_id, complaintsLoaded, tradesLoaded, pressLoaded, fredLoaded, lobbyingLoaded, contractsLoaded, enforcementLoaded, donationsLoaded, tradeFilter]);
 
@@ -258,7 +258,7 @@ export default function InstitutionPage() {
     let stale = false;
     getInstitutionInsiderTrades(institution_id, { limit: 100, transaction_type: tradeFilter || undefined })
       .then((r) => { if (!stale) setTrades(r.trades || []); })
-      .catch(() => {});
+      .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
     return () => { stale = true; };
   }, [tradeFilter, institution_id, activeTab]);
 

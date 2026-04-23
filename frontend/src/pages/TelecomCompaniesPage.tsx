@@ -43,7 +43,7 @@ export default function TelecomCompaniesPage() {
         if (stale) return;
         setCompanies(Array.isArray(res.companies) ? res.companies : []);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[TelecomCompaniesPage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setLoading(false);
       });

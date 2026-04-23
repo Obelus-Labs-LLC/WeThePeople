@@ -56,7 +56,7 @@ interface SectorHeaderProps {
  * Sibling sites (Verify / Research / Journal) re-skin by passing `accent`
  * + `mark`; the component itself stays sector-agnostic.
  */
-export default function SectorHeader({
+function SectorHeader({
   sector,
   links,
   accent = 'var(--color-accent)',
@@ -412,17 +412,6 @@ const DEFENSE_LINKS: NavLink[] = [
 
 export function DefenseSectorHeader() {
   return <SectorHeader sector="defense" links={DEFENSE_LINKS} />;
-}
-
-const VERIFY_LINKS: NavLink[] = [
-  { label: 'Sectors', to: '/' },
-  { label: 'Dashboard', to: '/verify' },
-  { label: 'Submit', to: '/verify/submit' },
-  { label: 'Methodology', to: '/verify/methodology' },
-];
-
-export function VerifySectorHeader() {
-  return <SectorHeader sector="verify" links={VERIFY_LINKS} />;
 }
 
 const CHEMICALS_LINKS: NavLink[] = [

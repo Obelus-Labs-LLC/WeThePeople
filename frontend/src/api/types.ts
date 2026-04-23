@@ -230,6 +230,14 @@ export interface BalanceOfPower {
   total: ChamberBreakdown;
 }
 
+// /people/aggregate/chamber-party response — server-side aggregate of party
+// counts per chamber, so the dashboard doesn't have to download hundreds of
+// member rows to render the Balance-of-Power panel.
+export interface ChamberPartyBreakdown {
+  house: ChamberBreakdown;
+  senate: ChamberBreakdown;
+}
+
 // /actions/recent response
 export interface RecentAction {
   id: number;

@@ -16,7 +16,7 @@ import { Link } from 'react-router-dom';
  * like "COMING SOON"). Buttons can be an internal route (<Link>), an external
  * URL (<a>), or an `onClick` handler.
  */
-export type StatusAction = {
+type StatusAction = {
   label: string;
   primary?: boolean;
   to?: string;
@@ -24,7 +24,7 @@ export type StatusAction = {
   onClick?: () => void;
 };
 
-export interface StatusPageProps {
+interface StatusPageProps {
   art?: React.ReactNode;
   code?: string;
   overline?: string;

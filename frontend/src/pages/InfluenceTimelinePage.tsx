@@ -174,7 +174,7 @@ export default function InfluenceTimelinePage() {
         timelineEvents.sort((a, b) => b.date.localeCompare(a.date));
         setEvents(timelineEvents);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[InfluenceTimelinePage] fetch failed:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [entityType, entityId]);

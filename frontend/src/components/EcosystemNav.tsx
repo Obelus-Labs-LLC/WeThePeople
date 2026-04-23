@@ -18,7 +18,7 @@
  * sibling project's node_modules. Keep the four copies in sync visually.
  */
 
-export type EcosystemSite = 'core' | 'verify' | 'research' | 'journal';
+type EcosystemSite = 'core' | 'verify' | 'research' | 'journal';
 
 interface EcosystemNavProps {
   /** Highlights the current site in the switcher. Defaults to 'core'. */

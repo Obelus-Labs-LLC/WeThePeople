@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiBaseUrl } from '../api/client';
 import { PRESS_TIER_PRICE } from '../config';
+
+const API_BASE = getApiBaseUrl();
 
 /**
  * Account page redesign. Tabbed layout matching the design handoff:
@@ -211,7 +214,7 @@ export default function AccountPage() {
     if (!isAuthenticated) return;
     let cancelled = false;
     const token = localStorage.getItem('wtp_access_token');
-    fetch('/api/auth/watchlist', {
+    fetch(`${API_BASE}/auth/watchlist`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => {
@@ -221,7 +224,9 @@ export default function AccountPage() {
       .then((d) => {
         if (!cancelled) setWatchlist(d.items || []);
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.warn('[AccountPage] watchlist fetch failed:', err);
+      })
       .finally(() => {
         if (!cancelled) setWlLoading(false);
       });
@@ -235,7 +240,7 @@ export default function AccountPage() {
     if (!isAuthenticated) return;
     let cancelled = false;
     const token = localStorage.getItem('wtp_access_token');
-    fetch('/api/auth/api-keys', {
+    fetch(`${API_BASE}/auth/api-keys`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => {
@@ -245,7 +250,9 @@ export default function AccountPage() {
       .then((d) => {
         if (!cancelled) setApiKeys(Array.isArray(d) ? d : []);
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.warn('[AccountPage] api-keys fetch failed:', err);
+      })
       .finally(() => {
         if (!cancelled) setAkLoading(false);
       });
@@ -257,13 +264,14 @@ export default function AccountPage() {
   const removeWatchlist = async (id: number) => {
     const token = localStorage.getItem('wtp_access_token');
     try {
-      const res = await fetch(`/api/auth/watchlist/${id}`, {
+      const res = await fetch(`${API_BASE}/auth/watchlist/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(res.statusText);
       setWatchlist((prev) => prev.filter((i) => i.id !== id));
-    } catch {
+    } catch (err) {
+      console.warn('[AccountPage] watchlist delete failed:', err);
       // Delete failed — keep the row in UI so the user can retry
     }
   };
@@ -273,7 +281,7 @@ export default function AccountPage() {
     if (!name) return;
     const token = localStorage.getItem('wtp_access_token');
     try {
-      const res = await fetch('/api/auth/api-keys', {
+      const res = await fetch(`${API_BASE}/auth/api-keys`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -308,7 +316,7 @@ export default function AccountPage() {
     if (!window.confirm('Revoke this key? This cannot be undone.')) return;
     const token = localStorage.getItem('wtp_access_token');
     try {
-      const res = await fetch(`/api/auth/api-keys/${id}`, {
+      const res = await fetch(`${API_BASE}/auth/api-keys/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -322,7 +330,7 @@ export default function AccountPage() {
   const upgradeEnterprise = async () => {
     const token = localStorage.getItem('wtp_access_token');
     try {
-      const r = await fetch('/api/auth/checkout/enterprise', {
+      const r = await fetch(`${API_BASE}/auth/checkout/enterprise`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

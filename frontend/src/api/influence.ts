@@ -28,7 +28,7 @@ export interface InfluenceLeader {
   total_contracts?: number;
 }
 
-export interface InfluenceLeadersResponse {
+interface InfluenceLeadersResponse {
   leaders: InfluenceLeader[];
 }
 
@@ -40,7 +40,7 @@ export interface StateSpendingData {
   count: number;
 }
 
-export interface SpendingByStateResponse {
+interface SpendingByStateResponse {
   metric: SpendingMetric;
   sector: SectorFilter | null;
   states: Record<string, StateSpendingData>;
@@ -89,7 +89,7 @@ export interface TradeMarker {
   reporting_gap: string | null;
 }
 
-export interface TradeTimelineResponse {
+interface TradeTimelineResponse {
   ticker: string;
   trades: TradeMarker[];
 }

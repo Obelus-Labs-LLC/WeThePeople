@@ -272,14 +272,6 @@ export const sectionSubtitle: React.CSSProperties = {
   margin: '0 0 20px',
 };
 
-export const skeletonCard: React.CSSProperties = {
-  height: '96px',
-  borderRadius: '14px',
-  background: 'var(--color-surface)',
-  border: '1px solid rgba(235,229,213,0.06)',
-  animation: 'tab-skeleton-pulse 1.4s ease-in-out infinite',
-};
-
 export const emptyState: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',

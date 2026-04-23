@@ -30,7 +30,7 @@ export interface TechCompanyListItem {
   filing_count: number;
 }
 
-export interface TechCompanyListResponse {
+interface TechCompanyListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -76,7 +76,7 @@ export interface TechPatentItem {
   cpc_codes: string | null;
 }
 
-export interface TechPatentsResponse {
+interface TechPatentsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -94,7 +94,7 @@ export interface TechContractItem {
   contract_type: string | null;
 }
 
-export interface TechContractsResponse {
+interface TechContractsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -118,7 +118,7 @@ export interface TechFilingItem {
   description: string | null;
 }
 
-export interface TechFilingsResponse {
+interface TechFilingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -138,7 +138,7 @@ export interface TechLobbyingItem {
   government_entities: string | null;
 }
 
-export interface TechLobbyingResponse {
+interface TechLobbyingResponse {
   total: number;
   limit: number;
   offset: number;
@@ -163,7 +163,7 @@ export interface TechEnforcementItem {
   source: string | null;
 }
 
-export interface TechEnforcementResponse {
+interface TechEnforcementResponse {
   total: number;
   total_penalties: number;
   limit: number;
@@ -212,7 +212,7 @@ export interface TechComparisonItem {
   profit_margin: number | null;
 }
 
-export interface TechComparisonResponse {
+interface TechComparisonResponse {
   companies: TechComparisonItem[];
 }
 
@@ -222,7 +222,7 @@ export interface TechContractTrend {
   count: number;
 }
 
-export interface TechContractTrendsResponse {
+interface TechContractTrendsResponse {
   trends: TechContractTrend[];
 }
 
@@ -278,7 +278,7 @@ export interface TechRecentActivityItem {
   meta: Record<string, any>;
 }
 
-export interface TechRecentActivityResponse {
+interface TechRecentActivityResponse {
   items: TechRecentActivityItem[];
 }
 

@@ -160,7 +160,7 @@ export default function DataExplorerPage() {
         setStats(s);
         setLeaders(l.leaders || []);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[DataExplorerPage] fetch failed:', err); })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });

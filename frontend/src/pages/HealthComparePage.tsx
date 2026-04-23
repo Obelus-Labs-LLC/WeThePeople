@@ -143,7 +143,7 @@ export default function HealthComparePage() {
           setIdB(list[1].company_id);
         }
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[HealthComparePage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setLoading(false);
       });
@@ -164,7 +164,7 @@ export default function HealthComparePage() {
         })) as ComparedRow[];
         setCompared(mapped);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[HealthComparePage] fetch failed:', err); })
       .finally(() => setComparing(false));
   }
 
@@ -182,7 +182,7 @@ export default function HealthComparePage() {
         })) as ComparedRow[];
         setCompared(mapped);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[HealthComparePage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setComparing(false);
       });

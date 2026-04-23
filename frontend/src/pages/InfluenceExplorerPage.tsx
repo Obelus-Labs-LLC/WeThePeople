@@ -512,7 +512,7 @@ export default function InfluenceExplorerPage() {
         setTopLobbying(l.leaders);
         setTopContracts(c.leaders);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[InfluenceExplorerPage] fetch failed:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);

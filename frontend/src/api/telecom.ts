@@ -29,7 +29,7 @@ export interface TelecomCompanyListItem {
   enforcement_count: number;
 }
 
-export interface TelecomCompanyListResponse {
+interface TelecomCompanyListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -87,7 +87,7 @@ export interface TelecomFilingItem {
   description: string | null;
 }
 
-export interface TelecomFilingsResponse {
+interface TelecomFilingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -105,7 +105,7 @@ export interface TelecomContractItem {
   contract_type: string | null;
 }
 
-export interface TelecomContractsResponse {
+interface TelecomContractsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -131,7 +131,7 @@ export interface TelecomLobbyingItem {
   government_entities: string | null;
 }
 
-export interface TelecomLobbyingResponse {
+interface TelecomLobbyingResponse {
   total: number;
   limit: number;
   offset: number;
@@ -156,7 +156,7 @@ export interface TelecomEnforcementItem {
   source: string | null;
 }
 
-export interface TelecomEnforcementResponse {
+interface TelecomEnforcementResponse {
   total: number;
   total_penalties: number;
   limit: number;
@@ -174,7 +174,7 @@ export interface TelecomDonationItem {
   party: string | null;
 }
 
-export interface TelecomDonationsResponse {
+interface TelecomDonationsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -200,7 +200,7 @@ export interface TelecomComparisonItem {
   profit_margin: number | null;
 }
 
-export interface TelecomComparisonResponse {
+interface TelecomComparisonResponse {
   companies: TelecomComparisonItem[];
 }
 
@@ -216,7 +216,7 @@ export interface RecentActivityItem {
   meta: Record<string, any>;
 }
 
-export interface RecentActivityResponse {
+interface RecentActivityResponse {
   items: RecentActivityItem[];
 }
 

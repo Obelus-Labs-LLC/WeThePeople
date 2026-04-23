@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom';
  * Fonts and colors are pulled from CSS custom properties so the shell adapts
  * to any theme updates without needing per-page tweaks.
  */
-export interface AuthShellProps {
+interface AuthShellProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
 }
@@ -93,7 +93,7 @@ export default function AuthShell({ children, footer }: AuthShellProps) {
  * uppercase label + focus-gold border treatment. Supports helper/error text
  * below the field.
  */
-export interface AuthFieldProps {
+interface AuthFieldProps {
   label: string;
   type?: string;
   value?: string;

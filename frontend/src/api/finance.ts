@@ -29,7 +29,7 @@ export interface InstitutionListItem {
   complaint_count: number;
 }
 
-export interface InstitutionListResponse {
+interface InstitutionListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -76,7 +76,7 @@ export interface SECFiling {
   description: string | null;
 }
 
-export interface FilingsResponse {
+interface FilingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -98,7 +98,7 @@ export interface FDICFinancial {
   net_charge_off_ratio: number | null;
 }
 
-export interface FinancialsResponse {
+interface FinancialsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -128,7 +128,7 @@ export interface StockSnapshot {
   industry: string | null;
 }
 
-export interface StockResponse {
+interface StockResponse {
   stock: StockSnapshot | null;
 }
 
@@ -151,7 +151,7 @@ export interface CFPBComplaintItem {
   state: string | null;
 }
 
-export interface ComplaintsListResponse {
+interface ComplaintsListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -182,37 +182,11 @@ export interface InsiderTradeItem {
   filing_url: string | null;
 }
 
-export interface InsiderTradesListResponse {
+interface InsiderTradesListResponse {
   total: number;
   limit: number;
   offset: number;
   trades: InsiderTradeItem[];
-}
-
-// ── Macro / News Types ──
-
-export interface MacroIndicator {
-  series_id: string;
-  series_title: string | null;
-  value: number | null;
-  units: string | null;
-  observation_date: string | null;
-}
-
-export interface MacroIndicatorsResponse {
-  indicators: MacroIndicator[];
-}
-
-export interface SectorNewsItem {
-  id: number;
-  title: string | null;
-  release_date: string | null;
-  url: string | null;
-  release_type: string | null;
-}
-
-export interface SectorNewsResponse {
-  news: SectorNewsItem[];
 }
 
 // ── Client ──
@@ -313,7 +287,7 @@ export interface PressRelease {
   summary: string | null;
 }
 
-export interface PressReleasesResponse {
+interface PressReleasesResponse {
   total: number;
   limit: number;
   offset: number;
@@ -340,7 +314,7 @@ export interface FREDObservation {
   value: number | null;
 }
 
-export interface FREDResponse {
+interface FREDResponse {
   total: number;
   limit: number;
   offset: number;
@@ -357,24 +331,6 @@ export async function getInstitutionFRED(
   return fetchJSON<FREDResponse>(`${API_BASE}/finance/institutions/${encodeURIComponent(id)}/fred?${sp}`);
 }
 
-// ── Global Complaints ──
-
-export async function getAllComplaints(params?: {
-  limit?: number;
-  offset?: number;
-  product?: string;
-}): Promise<ComplaintsListResponse> {
-  const sp = new URLSearchParams();
-  if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
-  if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
-  if (params?.product) sp.set('product', params.product);
-  return fetchJSON<ComplaintsListResponse>(`${API_BASE}/finance/complaints?${sp}`);
-}
-
-export async function getComplaintSummary(): Promise<ComplaintSummary> {
-  return fetchJSON<ComplaintSummary>(`${API_BASE}/finance/complaints/summary`);
-}
-
 // ── Global Insider Trades ──
 
 export async function getAllInsiderTrades(params?: {
@@ -387,16 +343,6 @@ export async function getAllInsiderTrades(params?: {
   if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
   if (params?.transaction_type) sp.set('transaction_type', params.transaction_type);
   return fetchJSON<InsiderTradesListResponse>(`${API_BASE}/finance/insider-trades?${sp}`);
-}
-
-// ── Macro & News ──
-
-export async function getMacroIndicators(): Promise<MacroIndicatorsResponse> {
-  return fetchJSON<MacroIndicatorsResponse>(`${API_BASE}/finance/macro-indicators`);
-}
-
-export async function getSectorNews(limit: number = 20): Promise<SectorNewsResponse> {
-  return fetchJSON<SectorNewsResponse>(`${API_BASE}/finance/sector-news?limit=${limit}`);
 }
 
 // ── Comparison ──
@@ -438,7 +384,7 @@ export interface ComparisonInstitution {
   week_52_low: number | null;
 }
 
-export interface ComparisonResponse {
+interface ComparisonResponse {
   institutions: ComparisonInstitution[];
 }
 
@@ -461,18 +407,11 @@ export interface LobbyingFiling {
   government_entities: string | null;
 }
 
-export interface LobbyingResponse {
+interface LobbyingResponse {
   total: number;
   limit: number;
   offset: number;
   filings: LobbyingFiling[];
-}
-
-export interface LobbySummary {
-  total_filings: number;
-  total_income: number;
-  by_year: Record<string, { income: number; filings: number }>;
-  top_firms: Record<string, { income: number; filings: number }>;
 }
 
 export interface GovernmentContractItem {
@@ -486,7 +425,7 @@ export interface GovernmentContractItem {
   contract_type: string | null;
 }
 
-export interface ContractsResponse {
+interface ContractsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -504,7 +443,7 @@ export interface EnforcementAction {
   source: string | null;
 }
 
-export interface EnforcementResponse {
+interface EnforcementResponse {
   total: number;
   total_penalties: number;
   limit: number;
@@ -525,7 +464,7 @@ export interface DonationItem {
   source_url: string | null;
 }
 
-export interface DonationsResponse {
+interface DonationsResponse {
   total: number;
   total_amount: number;
   limit: number;
@@ -539,10 +478,6 @@ export async function getInstitutionLobbying(id: string, params?: { filing_year?
   if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
   if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
   return fetchJSON<LobbyingResponse>(`${API_BASE}/finance/institutions/${id}/lobbying?${sp}`);
-}
-
-export async function getInstitutionLobbySummary(id: string): Promise<LobbySummary> {
-  return fetchJSON<LobbySummary>(`${API_BASE}/finance/institutions/${id}/lobbying/summary`);
 }
 
 export async function getInstitutionContracts(id: string, params?: { limit?: number; offset?: number }): Promise<ContractsResponse> {

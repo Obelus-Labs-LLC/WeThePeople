@@ -16,7 +16,7 @@ import Footer from './Footer';
  * TermsOfUsePage.
  */
 
-export interface LongformCallout {
+interface LongformCallout {
   label: string;
   text: string;
 }
@@ -30,7 +30,7 @@ export interface LongformSection {
   callout?: LongformCallout;
 }
 
-export interface LongformDocProps {
+interface LongformDocProps {
   overline: string;
   title: string;
   lastUpdated: string;

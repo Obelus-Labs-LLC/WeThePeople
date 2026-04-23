@@ -99,7 +99,7 @@ export default function TechCompanyProfilePage() {
     fetch(`${getApiBaseUrl()}/tech/companies/${encodeURIComponent(companyId)}/trends`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (!cancelled && d) setTrends(d); })
-      .catch(() => {});
+      .catch((err) => { console.warn('[TechCompanyProfilePage] fetch failed:', err); });
     return () => { cancelled = true; };
   }, [companyId]);
 
@@ -112,7 +112,7 @@ export default function TechCompanyProfilePage() {
       ]).then(([r, pp]) => {
         setPatents(r.patents || []); setPatentTotal(r.total); setPatentsLoaded(true);
         if (pp) setPatentPolicy(pp);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TechCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'contracts' && !contractsLoaded) {
       Promise.all([
@@ -124,7 +124,7 @@ export default function TechCompanyProfilePage() {
         if (s) setContractSummary(s);
         setContractTrends(t.trends || []);
         setContractsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TechCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'lobbying' && !lobbyingLoaded) {
       Promise.all([
@@ -134,19 +134,19 @@ export default function TechCompanyProfilePage() {
         setLobbying(l.filings || []); setLobbyTotal(l.total);
         if (s) setLobbySummary(s);
         setLobbyingLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TechCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getTechCompanyEnforcement(companyId, { limit: 100 }).then((r) => {
         setEnforcement(r.actions || []); setEnforcementTotal(r.total);
         setTotalPenalties(r.total_penalties || 0);
         setEnforcementLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TechCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getTechCompanyFilings(companyId, { limit: 100 }).then((r) => {
         setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TechCompanyProfilePage] fetch failed:', err); });
     }
   }, [activeTab, companyId, patentsLoaded, contractsLoaded, lobbyingLoaded, enforcementLoaded, filingsLoaded]);
 

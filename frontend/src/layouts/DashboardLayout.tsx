@@ -11,7 +11,7 @@ const NAV_LINKS = [
 
 const API_BASE_URL = getApiBaseUrl();
 
-export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [status, setStatus] = useState<"connecting" | "ok" | "error">("connecting");
 
   useEffect(() => {
@@ -20,7 +20,8 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       .then((res) => {
         if (!cancelled) setStatus(res.ok ? "ok" : "error");
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn('[DashboardLayout] API health check failed:', err);
         if (!cancelled) setStatus("error");
       });
     return () => { cancelled = true; };

@@ -34,9 +34,3 @@ export function fmtMoney(n: number): string {
   if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
   return `$${n.toLocaleString()}`;
 }
-
-/** Format a percentage (0.15 → "15.0%") */
-export function fmtPct(n: number | null | undefined): string {
-  if (n == null) return '\u2014';
-  return `${(n * 100).toFixed(1)}%`;
-}

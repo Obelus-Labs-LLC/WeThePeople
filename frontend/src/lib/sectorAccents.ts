@@ -13,7 +13,7 @@
  * `style={sectorCssVars('finance')}` and the whole subtree will render with
  * the correct accent via the existing `var(--color-accent*)` references.
  */
-export interface SectorAccent {
+interface SectorAccent {
   name: string;
   accent: string;
   text: string;
@@ -105,7 +105,7 @@ export const SECTOR_ACCENTS: Record<string, SectorAccent> = {
 };
 
 /** Resolve a sector key to its accent tokens, falling back to Politics gold. */
-export function getSectorAccent(sector: string | undefined): SectorAccent {
+function getSectorAccent(sector: string | undefined): SectorAccent {
   if (!sector) return SECTOR_ACCENTS.politics;
   return SECTOR_ACCENTS[sector.toLowerCase()] ?? SECTOR_ACCENTS.politics;
 }
