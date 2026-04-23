@@ -173,7 +173,7 @@ export default function ChemicalsDashboardPage() {
   }));
 
   return (
-    <DashboardShellLayout header={<ChemicalsSectorHeader />}>
+    <DashboardShellLayout sector="chemicals" header={<ChemicalsSectorHeader />}>
       <SectorHero
         eyebrow="Chemicals transparency"
         titleLine1="Chemical money in"

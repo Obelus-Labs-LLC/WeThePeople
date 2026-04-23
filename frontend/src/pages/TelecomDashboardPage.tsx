@@ -177,7 +177,7 @@ export default function TelecomDashboardPage() {
   }));
 
   return (
-    <DashboardShellLayout header={<TelecomSectorHeader />}>
+    <DashboardShellLayout sector="telecom" header={<TelecomSectorHeader />}>
       <SectorHero
         eyebrow="Telecom transparency"
         titleLine1="Wiring influence to"

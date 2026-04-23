@@ -1,5 +1,6 @@
 import React from 'react';
 import type { SectorConfig } from './sectorConfig';
+import { sectorCssVars } from '../../lib/sectorAccents';
 
 // ── Shared shell for the 3 per-sector tab pages (Lobbying, Contracts, Enforcement) ──
 
@@ -131,7 +132,7 @@ export default function SectorTabLayout({
   }
 
   return (
-    <main id="main-content" style={pageShell}>
+    <main id="main-content" style={{ ...pageShell, ...sectorCssVars(config.key) }}>
       {/* Background decor — accent-tinted radial gradient from top */}
       <div style={decorWrap} aria-hidden>
         <div

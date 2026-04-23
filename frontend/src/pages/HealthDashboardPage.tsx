@@ -137,7 +137,7 @@ export default function HealthDashboardPage() {
     }));
 
   return (
-    <DashboardShellLayout header={<HealthSectorHeader />}>
+    <DashboardShellLayout sector="health" header={<HealthSectorHeader />}>
       <SectorHero
         eyebrow="Healthcare transparency"
         titleLine1="Pharma's"

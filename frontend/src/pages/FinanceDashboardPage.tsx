@@ -136,7 +136,7 @@ export default function FinanceDashboardPage() {
   ];
 
   return (
-    <DashboardShellLayout header={<FinanceSectorHeader />}>
+    <DashboardShellLayout sector="finance" header={<FinanceSectorHeader />}>
       <SectorHero
         eyebrow="Financial transparency"
         titleLine1="Wall Street's"

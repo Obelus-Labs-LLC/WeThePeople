@@ -12,6 +12,7 @@ import WatchlistButton from '../WatchlistButton';
 import TrendChart from '../TrendChart';
 import { fmtDollar } from '../../utils/format';
 import type { SectorConfig } from './sectorConfig';
+import { sectorCssVars } from '../../lib/sectorAccents';
 
 // ── Public types ──
 
@@ -757,7 +758,7 @@ export function SectorProfileLayout({
 
   if (loading) {
     return (
-      <main style={{ ...pageShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <main style={{ ...pageShell, ...sectorCssVars(config.key), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div
           style={{
             width: '32px',
@@ -775,7 +776,7 @@ export function SectorProfileLayout({
 
   if (error || !detail) {
     return (
-      <main style={pageShell}>
+      <main style={{ ...pageShell, ...sectorCssVars(config.key) }}>
         <Header />
         <div
           style={{
@@ -839,7 +840,7 @@ export function SectorProfileLayout({
   const currentTab = tabs.find((t) => t.key === activeTab) || tabs[0];
 
   return (
-    <main id="main-content" style={pageShell}>
+    <main id="main-content" style={{ ...pageShell, ...sectorCssVars(config.key) }}>
       {/* Background */}
       <div style={decorWrap} aria-hidden>
         <div

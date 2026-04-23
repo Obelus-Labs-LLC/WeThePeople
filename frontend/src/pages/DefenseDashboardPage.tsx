@@ -179,7 +179,7 @@ export default function DefenseDashboardPage() {
   }));
 
   return (
-    <DashboardShellLayout header={<DefenseSectorHeader />}>
+    <DashboardShellLayout sector="defense" header={<DefenseSectorHeader />}>
       <SectorHero
         eyebrow="Defense transparency"
         titleLine1="Pentagon money and"

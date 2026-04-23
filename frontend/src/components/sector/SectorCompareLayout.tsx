@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { ChevronDown, GitCompareArrows, Building2, type LucideIcon } from 'lucide-react';
 import type { SectorConfig } from './sectorConfig';
+import { sectorCssVars } from '../../lib/sectorAccents';
 
 // ── Generic types ──
 
@@ -503,7 +504,7 @@ export function SectorCompareLayout<
 
   if (loading) {
     return (
-      <div style={{ ...pageShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ ...pageShell, ...sectorCssVars(config.key), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div
           role="status"
           style={{
@@ -521,7 +522,7 @@ export function SectorCompareLayout<
   }
 
   return (
-    <main id="main-content" style={pageShell}>
+    <main id="main-content" style={{ ...pageShell, ...sectorCssVars(config.key) }}>
       {/* Background decor */}
       <div style={decorWrap} aria-hidden>
         <div

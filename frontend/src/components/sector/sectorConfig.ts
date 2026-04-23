@@ -13,16 +13,24 @@ import {
   EducationSectorHeader,
 } from '../SectorHeader';
 import { getApiBaseUrl } from '../../api/client';
+import { SECTOR_ACCENTS } from '../../lib/sectorAccents';
 
 const API_BASE = getApiBaseUrl();
 
 // ── Shared sector config ──
-// Accent hex values are aligned to design tokens from base.css:
-//   green   #3DB87A → var(--color-green)
-//   red     #E63946 → var(--color-red)
-//   ind     #B06FD8 → var(--color-ind)
-//   dem     #4A7FDE → var(--color-dem)
-//   accent  #C5A028 → var(--color-accent)
+// Accent hex values are sourced from `lib/sectorAccents.ts`, which mirrors
+// the per-sector palette from the Claude-generated design handoff
+// (`WTP Design - Sector Pages.html`). Update `SECTOR_ACCENTS` to change
+// accents globally.
+
+/** Convert a `#rrggbb` hex to "r,g,b" for use inside `rgba(...)`. */
+function hexToRgbTriplet(hex: string): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `${r},${g},${b}`;
+}
 
 export interface SectorConfig {
   key: string;
@@ -47,20 +55,21 @@ export interface SectorConfig {
 function build(
   key: string,
   label: string,
-  accent: string,
-  accentToken: string,
-  accentRGB: string,
   Header: React.FC,
   entityKey: 'companies' | 'institutions',
   apiSlug: string,
   profileSlug: string,
 ): SectorConfig {
+  // Pull the accent from the design-handoff palette. Every sector in this
+  // map also lives in SECTOR_ACCENTS, so this lookup is always defined.
+  const palette = SECTOR_ACCENTS[key] ?? SECTOR_ACCENTS.politics;
+  const accent = palette.accent;
   return {
     key,
     label,
     accent,
-    accentToken,
-    accentRGB,
+    accentToken: accent, // literal hex; the CSS-variable indirection was redundant
+    accentRGB: hexToRgbTriplet(accent),
     Header,
     entityKey,
     profilePath: (id) => `/${profileSlug}/${id}`,
@@ -73,52 +82,27 @@ function build(
 }
 
 export const SECTOR_MAP: Record<string, SectorConfig> = {
-  finance: build(
-    'finance', 'Finance', '#3DB87A', 'var(--color-green)', '61,184,122',
-    FinanceSectorHeader, 'institutions', 'finance', 'finance',
-  ),
-  health: build(
-    'health', 'Health', '#E63946', 'var(--color-red)', '230,57,70',
-    HealthSectorHeader, 'companies', 'health', 'health',
-  ),
-  technology: build(
-    'technology', 'Technology', '#B06FD8', 'var(--color-ind)', '176,111,216',
-    TechSectorHeader, 'companies', 'tech', 'technology',
-  ),
-  energy: build(
-    'energy', 'Energy', '#C5A028', 'var(--color-accent-text)', '197,160,40',
-    EnergySectorHeader, 'companies', 'energy', 'energy',
-  ),
+  finance:        build('finance',        'Finance',            FinanceSectorHeader,        'institutions', 'finance',        'finance'),
+  health:         build('health',         'Health',             HealthSectorHeader,         'companies',    'health',         'health'),
+  technology:     build('technology',     'Technology',         TechSectorHeader,           'companies',    'tech',           'technology'),
+  energy:         build('energy',         'Energy',             EnergySectorHeader,         'companies',    'energy',         'energy'),
+  transportation: build('transportation', 'Transportation',     TransportationSectorHeader, 'companies',    'transportation', 'transportation'),
+  defense:        build('defense',        'Defense',            DefenseSectorHeader,        'companies',    'defense',        'defense'),
+  chemicals:      build('chemicals',      'Chemicals',          ChemicalsSectorHeader,      'companies',    'chemicals',      'chemicals'),
+  agriculture:    build('agriculture',    'Agriculture',        AgricultureSectorHeader,    'companies',    'agriculture',    'agriculture'),
+  telecom:        build('telecom',        'Telecommunications', TelecomSectorHeader,        'companies',    'telecom',        'telecom'),
+  education:      build('education',      'Education',          EducationSectorHeader,      'companies',    'education',      'education'),
   politics: {
-    key: 'politics', label: 'Politics', accent: '#4A7FDE', accentToken: 'var(--color-dem)', accentRGB: '74,127,222',
-    Header: PoliticsSectorHeader, entityKey: 'companies',
+    key: 'politics',
+    label: 'Politics',
+    accent: SECTOR_ACCENTS.politics.accent,
+    accentToken: SECTOR_ACCENTS.politics.accent,
+    accentRGB: hexToRgbTriplet(SECTOR_ACCENTS.politics.accent),
+    Header: PoliticsSectorHeader,
+    entityKey: 'companies',
     profilePath: () => '/politics',
     endpoints: { lobbying: '', contracts: '', enforcement: '' },
   },
-  transportation: build(
-    'transportation', 'Transportation', '#4A7FDE', 'var(--color-dem)', '74,127,222',
-    TransportationSectorHeader, 'companies', 'transportation', 'transportation',
-  ),
-  defense: build(
-    'defense', 'Defense', '#E63946', 'var(--color-red)', '230,57,70',
-    DefenseSectorHeader, 'companies', 'defense', 'defense',
-  ),
-  chemicals: build(
-    'chemicals', 'Chemicals', '#B06FD8', 'var(--color-ind)', '176,111,216',
-    ChemicalsSectorHeader, 'companies', 'chemicals', 'chemicals',
-  ),
-  agriculture: build(
-    'agriculture', 'Agriculture', '#3DB87A', 'var(--color-green)', '61,184,122',
-    AgricultureSectorHeader, 'companies', 'agriculture', 'agriculture',
-  ),
-  telecom: build(
-    'telecom', 'Telecommunications', '#4A7FDE', 'var(--color-dem)', '74,127,222',
-    TelecomSectorHeader, 'companies', 'telecom', 'telecom',
-  ),
-  education: build(
-    'education', 'Education', '#B06FD8', 'var(--color-ind)', '176,111,216',
-    EducationSectorHeader, 'companies', 'education', 'education',
-  ),
 };
 
 /** Extract sector key from a url pathname like `/finance/lobbying`. Falls back to 'technology'. */

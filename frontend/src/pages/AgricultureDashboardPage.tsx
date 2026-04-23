@@ -187,7 +187,7 @@ export default function AgricultureDashboardPage() {
   }));
 
   return (
-    <DashboardShellLayout header={<AgricultureSectorHeader />}>
+    <DashboardShellLayout sector="agriculture" header={<AgricultureSectorHeader />}>
       <SectorHero
         eyebrow="Agriculture transparency"
         titleLine1="Big Ag's political"
