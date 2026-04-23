@@ -390,7 +390,6 @@ export default function StoryPage() {
             className="mb-4"
             style={{
               fontFamily: 'var(--font-display)',
-              fontStyle: 'italic',
               fontWeight: 900,
               fontSize: 'clamp(32px, 5vw, 48px)',
               color: 'var(--color-text-1)',
@@ -633,7 +632,6 @@ export default function StoryPage() {
           className="mb-5"
           style={{
             fontFamily: 'var(--font-display)',
-            fontStyle: 'italic',
             fontWeight: 900,
             fontSize: 'clamp(36px, 5.5vw, 56px)',
             letterSpacing: '-0.025em',
@@ -1303,7 +1301,6 @@ export default function StoryPage() {
               className="mb-5"
               style={{
                 fontFamily: 'var(--font-display)',
-                fontStyle: 'italic',
                 fontWeight: 900,
                 fontSize: '28px',
                 letterSpacing: '-0.015em',

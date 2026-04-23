@@ -36,7 +36,6 @@ export default function CategoryPage() {
             className="mb-4"
             style={{
               fontFamily: 'var(--font-display)',
-              fontStyle: 'italic',
               fontWeight: 900,
               fontSize: 'clamp(32px, 5vw, 48px)',
               color: 'var(--color-text-1)',
@@ -116,7 +115,6 @@ export default function CategoryPage() {
             className="mb-3"
             style={{
               fontFamily: 'var(--font-display)',
-              fontStyle: 'italic',
               fontWeight: 900,
               fontSize: 'clamp(40px, 6vw, 64px)',
               letterSpacing: '-0.025em',

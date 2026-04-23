@@ -25,7 +25,6 @@ export function EmptyState({ message }: EmptyStateProps) {
         className="mb-3"
         style={{
           fontFamily: 'var(--font-display)',
-          fontStyle: 'italic',
           fontWeight: 900,
           fontSize: '26px',
           letterSpacing: '-0.01em',

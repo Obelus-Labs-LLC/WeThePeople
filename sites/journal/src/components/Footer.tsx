@@ -63,7 +63,6 @@ export function Footer() {
             <p
               style={{
                 fontFamily: 'var(--font-display)',
-                fontStyle: 'italic',
                 fontWeight: 900,
                 fontSize: '22px',
                 letterSpacing: '-0.02em',

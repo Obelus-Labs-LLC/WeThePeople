@@ -75,7 +75,6 @@ export function StoryCard({ story, featured = false }: StoryCardProps) {
                 className="mb-3 leading-[1.08]"
                 style={{
                   fontFamily: 'var(--font-display)',
-                  fontStyle: 'italic',
                   fontWeight: 900,
                   fontSize: 'clamp(28px, 4vw, 44px)',
                   letterSpacing: '-0.02em',
@@ -151,7 +150,6 @@ export function StoryCard({ story, featured = false }: StoryCardProps) {
           className="mb-2 leading-snug"
           style={{
             fontFamily: 'var(--font-display)',
-            fontStyle: 'italic',
             fontWeight: 900,
             fontSize: '22px',
             letterSpacing: '-0.01em',

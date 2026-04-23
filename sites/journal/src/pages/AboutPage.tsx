@@ -22,7 +22,6 @@ const eyebrowStyle: React.CSSProperties = {
 };
 const h1Style: React.CSSProperties = {
   fontFamily: 'var(--font-display)',
-  fontStyle: 'italic',
   fontWeight: 900,
   fontSize: 'clamp(36px, 5.5vw, 56px)',
   letterSpacing: '-0.025em',
@@ -31,7 +30,6 @@ const h1Style: React.CSSProperties = {
 };
 const h2Style: React.CSSProperties = {
   fontFamily: 'var(--font-display)',
-  fontStyle: 'italic',
   fontWeight: 900,
   fontSize: '26px',
   letterSpacing: '-0.015em',
