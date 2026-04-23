@@ -174,7 +174,7 @@ export default function TechDashboardPage() {
   }));
 
   return (
-    <DashboardShellLayout header={<TechSectorHeader />}>
+    <DashboardShellLayout sector="technology" header={<TechSectorHeader />}>
       <SectorHero
         eyebrow="Technology transparency"
         titleLine1="Big Tech's"

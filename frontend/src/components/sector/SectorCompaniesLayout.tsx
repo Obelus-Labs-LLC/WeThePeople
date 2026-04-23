@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Search, SearchX, MapPin, Building2 } from 'lucide-react';
 import CompanyLogo from '../CompanyLogo';
 import type { SectorConfig } from './sectorConfig';
+import { sectorCssVars } from '../../lib/sectorAccents';
 
 // ── Public types ──
 
@@ -445,7 +446,7 @@ export function SectorCompaniesLayout<E extends CompanyEntity>({
   }, [entities, activeSector, search]);
 
   return (
-    <main id="main-content" style={pageShell}>
+    <main id="main-content" style={{ ...pageShell, ...sectorCssVars(config.key) }}>
       {/* Background decor */}
       <div style={decorWrap} aria-hidden>
         <div

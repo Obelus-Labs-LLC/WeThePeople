@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import SpotlightCard from '../SpotlightCard';
+import { sectorCssVars } from '../../lib/sectorAccents';
 
 /**
  * Shared building blocks for sector dashboards — redesign (Apr 2026).
@@ -769,12 +770,27 @@ export function DashboardLoadingSpinner() {
 export function DashboardShellLayout({
   header,
   children,
+  sector,
 }: {
   header: React.ReactNode;
   children: React.ReactNode;
+  /**
+   * Sector key (e.g. 'finance', 'health', 'technology'). When provided,
+   * re-points the --color-accent* CSS variables at the sector palette from
+   * the design handoff so every nested `var(--color-accent)` reference
+   * (SectorHero eyebrow, StatCard hover bar, SubNavTile active, primary
+   * CTAs, SectorHeader underline) renders in the sector color automatically.
+   */
+  sector?: string;
 }) {
   return (
-    <div className="min-h-screen" style={{ background: 'var(--color-bg)' }}>
+    <div
+      className="min-h-screen"
+      style={{
+        background: 'var(--color-bg)',
+        ...(sector ? sectorCssVars(sector) : {}),
+      }}
+    >
       {header}
       <div className="mx-auto" style={{ maxWidth: 1280, padding: '40px 40px 80px' }}>
         {children}

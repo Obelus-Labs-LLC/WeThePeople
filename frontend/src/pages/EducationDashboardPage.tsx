@@ -177,7 +177,7 @@ export default function EducationDashboardPage() {
   }));
 
   return (
-    <DashboardShellLayout header={<EducationSectorHeader />}>
+    <DashboardShellLayout sector="education" header={<EducationSectorHeader />}>
       <SectorHero
         eyebrow="Education transparency"
         titleLine1="Textbooks and tax"

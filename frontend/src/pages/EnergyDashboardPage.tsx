@@ -173,7 +173,7 @@ export default function EnergyDashboardPage() {
   }));
 
   return (
-    <DashboardShellLayout header={<EnergySectorHeader />}>
+    <DashboardShellLayout sector="energy" header={<EnergySectorHeader />}>
       <SectorHero
         eyebrow="Energy transparency"
         titleLine1="Oil money in"
