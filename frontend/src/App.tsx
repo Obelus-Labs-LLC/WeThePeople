@@ -33,25 +33,24 @@ const VoteDetailPage = React.lazy(() => import("./pages/VoteDetailPage"));
 const ComparePageNew = React.lazy(() => import("./pages/ComparePageNew"));
 const PressToolsPage = React.lazy(() => import("./pages/PressToolsPage"));
 const ActivityFeedPage = React.lazy(() => import("./pages/ActivityFeedPage"));
-// Balance of Power merged into PoliticsDashboardPage — kept for reference
-// const BalanceOfPowerPage = React.lazy(() => import("./pages/BalanceOfPowerPage"));
+// Balance of Power is rendered inline in PoliticsDashboardPage — the standalone
+// page has been removed.
 const LegislationTrackerPage = React.lazy(() => import("./pages/LegislationTrackerPage"));
 const CommitteesPage = React.lazy(() => import("./pages/CommitteesPage"));
 const RepresentativeLookupPage = React.lazy(() => import("./pages/RepresentativeLookupPage"));
 const ComingSoonPage = React.lazy(() => import("./pages/ComingSoonPage"));
 const FinanceDashboardPage = React.lazy(() => import("./pages/FinanceDashboardPage"));
 const InstitutionPage = React.lazy(() => import("./pages/InstitutionPage"));
-// Moved to WTP Research site — routes redirect via MovedToResearchPage
-// const NewsRegulatoryPage = React.lazy(() => import("./pages/NewsRegulatoryPage"));
-// const InsiderTradesDashboardPage = React.lazy(() => import("./pages/InsiderTradesDashboardPage"));
+// News / Insider Trades / Market Movers all live on wtp-research now; routes
+// below redirect via MovedToResearchPage.
 const FinanceComparePage = React.lazy(() => import("./pages/FinanceComparePage"));
 const InstitutionDirectoryPage = React.lazy(() => import("./pages/InstitutionDirectoryPage"));
-// const MarketMoversPage = React.lazy(() => import("./pages/MarketMoversPage"));
 const TechDashboardPage = React.lazy(() => import("./pages/TechDashboardPage"));
 const TechCompaniesPage = React.lazy(() => import("./pages/TechCompaniesPage"));
 const TechComparePage = React.lazy(() => import("./pages/TechComparePage"));
 const TechCompanyProfilePage = React.lazy(() => import("./pages/TechCompanyProfilePage"));
-// const PatentSearchPage = React.lazy(() => import("./pages/PatentSearchPage"));
+// PatentSearchPage moved to wtp-research; /technology/patents redirects via
+// MovedToResearchPage.
 const LobbyingBreakdownPage = React.lazy(() => import("./pages/LobbyingBreakdownPage"));
 const ContractTimelinePage = React.lazy(() => import("./pages/ContractTimelinePage"));
 const EnforcementTrackerPage = React.lazy(() => import("./pages/EnforcementTrackerPage"));
@@ -59,10 +58,9 @@ const HealthDashboardPage = React.lazy(() => import("./pages/HealthDashboardPage
 const HealthCompaniesPage = React.lazy(() => import("./pages/HealthCompaniesPage"));
 const HealthComparePage = React.lazy(() => import("./pages/HealthComparePage"));
 const HealthCompanyProfilePage = React.lazy(() => import("./pages/HealthCompanyProfilePage"));
-// DrugLookupPage hidden from UI (data kept in backend)
-// const DrugLookupPage = React.lazy(() => import("./pages/DrugLookupPage"));
-// const ClinicalTrialPipelinePage = React.lazy(() => import("./pages/ClinicalTrialPipelinePage"));
-// const FDAApprovalsPage = React.lazy(() => import("./pages/FDAApprovalsPage"));
+// Drug lookup is deliberately not exposed in the UI; the underlying endpoints
+// stay live. Pipeline + FDA Approvals moved to wtp-research and redirect via
+// MovedToResearchPage.
 const EnergyDashboardPage = React.lazy(() => import("./pages/EnergyDashboardPage"));
 const EnergyCompaniesPage = React.lazy(() => import("./pages/EnergyCompaniesPage"));
 const EnergyCompanyProfilePage = React.lazy(() => import("./pages/EnergyCompanyProfilePage"));
@@ -100,7 +98,8 @@ const InfluenceNetworkPage = React.lazy(() => import("./pages/InfluenceNetworkPa
 const SectorLobbyingPage = React.lazy(() => import("./pages/SectorLobbyingPage"));
 const SectorContractsPage = React.lazy(() => import("./pages/SectorContractsPage"));
 const SectorEnforcementPage = React.lazy(() => import("./pages/SectorEnforcementPage"));
-// const ComplaintsDashboardPage = React.lazy(() => import("./pages/ComplaintsDashboardPage"));
+// ComplaintsDashboardPage moved to wtp-research; /finance/complaints redirects
+// via MovedToResearchPage.
 const ClosedLoopPage = React.lazy(() => import("./pages/ClosedLoopPage"));
 const MoneyFlowPage = React.lazy(() => import("./pages/MoneyFlowPage"));
 const DataExplorerPage = React.lazy(() => import("./pages/DataExplorerPage"));
@@ -175,8 +174,8 @@ const App: React.FC = () => (
           <Route path="/politics" element={<PoliticsLayout><PoliticsDashboardPage /></PoliticsLayout>} />
           <Route path="/politics/people" element={<PoliticsLayout><PeoplePage /></PoliticsLayout>} />
           <Route path="/politics/activity" element={<PoliticsLayout><ActivityFeedPage /></PoliticsLayout>} />
-          {/* Balance of Power merged into dashboard — route kept for reference */}
-          {/* <Route path="/politics/power" element={<PoliticsLayout><BalanceOfPowerPage /></PoliticsLayout>} /> */}
+          {/* Balance of Power is merged into the dashboard above; /politics/power
+              is no longer a valid route and falls through to NotFoundPage. */}
           <Route path="/politics/people/:person_id" element={<PoliticsLayout><PersonProfilePage /></PoliticsLayout>} />
           <Route path="/politics/claim/:claim_id" element={<PoliticsLayout><ClaimDetailPage /></PoliticsLayout>} />
           <Route path="/politics/bill/:bill_id" element={<PoliticsLayout><BillDetailPage /></PoliticsLayout>} />
@@ -233,8 +232,8 @@ const App: React.FC = () => (
           <Route path="/health" element={<HealthLayout><HealthDashboardPage /></HealthLayout>} />
           <Route path="/health/companies" element={<HealthLayout><HealthCompaniesPage /></HealthLayout>} />
           <Route path="/health/compare" element={<HealthLayout><HealthComparePage /></HealthLayout>} />
-          {/* Drug Lookup hidden from UI (data kept in backend) */}
-          {/* Pipeline + FDA Approvals moved to WTP Research */}
+          {/* Pipeline + FDA Approvals moved to WTP Research. Drug Lookup is
+              deliberately not exposed here — the data stays in the backend. */}
           <Route path="/health/pipeline" element={<MovedToResearchPage />} />
           <Route path="/health/fda-approvals" element={<MovedToResearchPage />} />
           <Route path="/health/lobbying" element={<HealthLayout><SectorLobbyingPage /></HealthLayout>} />

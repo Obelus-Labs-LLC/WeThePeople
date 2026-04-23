@@ -32,7 +32,7 @@ export interface TransportationCompanyListItem {
   lobbying_count: number;
 }
 
-export interface TransportationCompanyListResponse {
+interface TransportationCompanyListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -90,7 +90,7 @@ export interface TransportationFilingItem {
   description: string | null;
 }
 
-export interface TransportationFilingsResponse {
+interface TransportationFilingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -109,7 +109,7 @@ export interface TransportationContractItem {
   ai_summary: string | null;
 }
 
-export interface TransportationContractsResponse {
+interface TransportationContractsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -136,7 +136,7 @@ export interface TransportationLobbyingItem {
   ai_summary: string | null;
 }
 
-export interface TransportationLobbyingResponse {
+interface TransportationLobbyingResponse {
   total: number;
   limit: number;
   offset: number;
@@ -162,7 +162,7 @@ export interface TransportationEnforcementItem {
   ai_summary: string | null;
 }
 
-export interface TransportationEnforcementResponse {
+interface TransportationEnforcementResponse {
   total: number;
   total_penalties: number;
   limit: number;
@@ -189,7 +189,7 @@ export interface TransportationComparisonItem {
   profit_margin: number | null;
 }
 
-export interface TransportationComparisonResponse {
+interface TransportationComparisonResponse {
   companies: TransportationComparisonItem[];
 }
 
@@ -205,7 +205,7 @@ export interface RecentActivityItem {
   meta: Record<string, any>;
 }
 
-export interface RecentActivityResponse {
+interface RecentActivityResponse {
   items: RecentActivityItem[];
 }
 
@@ -320,7 +320,7 @@ export interface TransportationRecallItem {
   manufacturer: string | null;
 }
 
-export interface TransportationRecallsResponse {
+interface TransportationRecallsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -354,7 +354,7 @@ export interface TransportationComplaintItem {
   summary: string | null;
 }
 
-export interface TransportationComplaintsResponse {
+interface TransportationComplaintsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -385,7 +385,7 @@ export interface TransportationSafetyRatingItem {
   rollover_rating: number | null;
 }
 
-export interface TransportationSafetyRatingsResponse {
+interface TransportationSafetyRatingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -404,41 +404,6 @@ export async function getTransportationCompanySafetyRatings(
   return fetchJSON<TransportationSafetyRatingsResponse>(`${API_BASE}/transportation/companies/${encodeURIComponent(id)}/safety-ratings?${sp}`);
 }
 
-// ── Fuel Economy ──
-
-export interface TransportationFuelEconomyItem {
-  id: number;
-  vehicle_id: string | null;
-  year: number | null;
-  make: string | null;
-  model: string | null;
-  mpg_city: number | null;
-  mpg_highway: number | null;
-  mpg_combined: number | null;
-  co2_tailpipe: number | null;
-  fuel_type: string | null;
-  vehicle_class: string | null;
-  ghg_score: number | null;
-  smog_rating: number | null;
-}
-
-export interface TransportationFuelEconomyResponse {
-  total: number;
-  limit: number;
-  offset: number;
-  vehicles: TransportationFuelEconomyItem[];
-}
-
-export async function getTransportationCompanyFuelEconomy(
-  id: string,
-  params?: { limit?: number; offset?: number }
-): Promise<TransportationFuelEconomyResponse> {
-  const sp = new URLSearchParams();
-  if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
-  if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
-  return fetchJSON<TransportationFuelEconomyResponse>(`${API_BASE}/transportation/companies/${encodeURIComponent(id)}/fuel-economy?${sp}`);
-}
-
 // ── Donations ──
 
 export interface TransportationDonationItem {
@@ -454,7 +419,7 @@ export interface TransportationDonationItem {
   source_url: string | null;
 }
 
-export interface TransportationDonationsResponse {
+interface TransportationDonationsResponse {
   total: number;
   total_amount: number;
   limit: number;
@@ -481,7 +446,7 @@ export interface TransportationNewsItem {
   published: string;
 }
 
-export interface TransportationNewsResponse {
+interface TransportationNewsResponse {
   query: string;
   articles: TransportationNewsItem[];
 }

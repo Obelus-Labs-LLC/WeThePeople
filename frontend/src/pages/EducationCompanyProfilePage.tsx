@@ -97,7 +97,7 @@ export default function EducationCompanyProfilePage() {
     fetch(`${getApiBaseUrl()}/education/companies/${encodeURIComponent(companyId)}/trends`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (!cancelled && d) setTrends(d); })
-      .catch(() => {});
+      .catch((err) => { console.warn('[EducationCompanyProfilePage] fetch failed:', err); });
     return () => { cancelled = true; };
   }, [companyId]);
 
@@ -111,7 +111,7 @@ export default function EducationCompanyProfilePage() {
         setContracts(c.contracts || []); setContractTotal(c.total);
         if (s) setContractSummary(s);
         setContractsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[EducationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'lobbying' && !lobbyingLoaded) {
       Promise.all([
@@ -121,25 +121,25 @@ export default function EducationCompanyProfilePage() {
         setLobbying(l.filings || []); setLobbyTotal(l.total);
         if (s) setLobbySummary(s);
         setLobbyingLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[EducationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getEducationCompanyEnforcement(companyId, { limit: 100 }).then((r) => {
         setEnforcement(r.actions || []); setEnforcementTotal(r.total);
         setTotalPenalties(r.total_penalties || 0);
         setEnforcementLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[EducationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'donations' && !donationsLoaded) {
       getEducationCompanyDonations(companyId, { limit: 100 }).then((r) => {
         setDonations(r.donations || []); setDonationTotal(r.total);
         setDonationsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[EducationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getEducationCompanyFilings(companyId, { limit: 100 }).then((r) => {
         setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[EducationCompanyProfilePage] fetch failed:', err); });
     }
   }, [activeTab, companyId, contractsLoaded, lobbyingLoaded, enforcementLoaded, donationsLoaded, filingsLoaded]);
 

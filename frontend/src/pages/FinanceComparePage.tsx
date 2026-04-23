@@ -174,7 +174,7 @@ export default function FinanceComparePage() {
           setIdB(list[1].institution_id);
         }
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[FinanceComparePage] fetch failed:', err); })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -195,7 +195,7 @@ export default function FinanceComparePage() {
         })) as ComparedRow[];
         setCompared(mapped);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[FinanceComparePage] fetch failed:', err); })
       .finally(() => setComparing(false));
   }
 

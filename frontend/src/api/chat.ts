@@ -20,7 +20,7 @@ export interface ChatResponse {
   cached: boolean;
 }
 
-export interface RemainingResponse {
+interface RemainingResponse {
   remaining: number;
   limit: number;
 }

@@ -88,7 +88,7 @@ export default function ChemicalsComparePage() {
           setIdB(list[1].company_id);
         }
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[ChemicalsComparePage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setLoading(false);
       });
@@ -109,7 +109,7 @@ export default function ChemicalsComparePage() {
         })) as ComparedRow[];
         setCompared(mapped);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[ChemicalsComparePage] fetch failed:', err); })
       .finally(() => setComparing(false));
   }
 
@@ -127,7 +127,7 @@ export default function ChemicalsComparePage() {
         })) as ComparedRow[];
         setCompared(mapped);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[ChemicalsComparePage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setComparing(false);
       });

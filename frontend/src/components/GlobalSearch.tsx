@@ -99,7 +99,8 @@ export default function GlobalSearch() {
         const data = await globalSearch(q.trim());
         setResults(data);
         setActiveIndex(-1);
-      } catch {
+      } catch (err) {
+        console.warn('[GlobalSearch] search failed:', err);
         setResults(null);
       } finally {
         setLoading(false);
@@ -142,10 +143,13 @@ export default function GlobalSearch() {
     }
   }
 
-  const hasResults = results && (results.politicians.length > 0 || results.companies.length > 0);
   const noResults = results && results.politicians.length === 0 && results.companies.length === 0 && query.trim().length > 0;
 
-  let itemIdx = -1; // running index for keyboard nav highlighting
+  // Keyboard nav indices are derived from flatItems ordering:
+  //   politicians: 0..politicians.length-1
+  //   companies:   politicians.length..politicians.length+companies.length-1
+  // Computed at render time per-item — no render-scope mutation.
+  const politicianCount = results?.politicians.length ?? 0;
 
   return (
     <>
@@ -220,9 +224,8 @@ export default function GlobalSearch() {
                     <div className="px-2 pb-1.5 font-mono text-[10px] text-white/40 uppercase tracking-widest">
                       Politicians
                     </div>
-                    {results.politicians.map((p) => {
-                      itemIdx++;
-                      const idx = itemIdx;
+                    {results.politicians.map((p, i) => {
+                      const idx = i;
                       return (
                         <button
                           key={p.person_id}
@@ -263,9 +266,8 @@ export default function GlobalSearch() {
                     <div className="px-2 pb-1.5 font-mono text-[10px] text-white/40 uppercase tracking-widest">
                       Companies
                     </div>
-                    {results.companies.map((c) => {
-                      itemIdx++;
-                      const idx = itemIdx;
+                    {results.companies.map((c, i) => {
+                      const idx = politicianCount + i;
                       return (
                         <button
                           key={`${c.sector}-${c.entity_id}`}

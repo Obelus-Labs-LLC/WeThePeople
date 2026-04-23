@@ -88,7 +88,7 @@ export default function TelecomComparePage() {
           setIdB(list[1].company_id);
         }
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[TelecomComparePage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setLoading(false);
       });
@@ -109,7 +109,7 @@ export default function TelecomComparePage() {
         })) as ComparedRow[];
         setCompared(mapped);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[TelecomComparePage] fetch failed:', err); })
       .finally(() => setComparing(false));
   }
 
@@ -127,7 +127,7 @@ export default function TelecomComparePage() {
         })) as ComparedRow[];
         setCompared(mapped);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[TelecomComparePage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setComparing(false);
       });

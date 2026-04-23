@@ -42,7 +42,7 @@ export default function EnergyCompaniesPage() {
         if (stale) return;
         setCompanies(Array.isArray(res.companies) ? res.companies : []);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[EnergyCompaniesPage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setLoading(false);
       });

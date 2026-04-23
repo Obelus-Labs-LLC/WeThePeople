@@ -102,7 +102,7 @@ export default function HealthDashboardPage() {
         setStats(statsRes);
         setCompanies(compRes.companies || []);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[HealthDashboardPage] fetch failed:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);

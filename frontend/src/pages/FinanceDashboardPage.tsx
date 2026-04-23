@@ -114,7 +114,7 @@ export default function FinanceDashboardPage() {
         setInstitutions(instRes.institutions || []);
         setTrades(tradesRes.trades || []);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[FinanceDashboardPage] fetch failed:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);

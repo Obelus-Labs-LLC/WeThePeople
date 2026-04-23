@@ -7,7 +7,7 @@
  */
 
 /** IDs that have local high-quality logo files in /public/logos/{id}.png */
-export const LOCAL_LOGOS = new Set([
+const LOCAL_LOGOS = new Set([
   'apple', 'adobe', 'amd', 'amazon', 'broadcom', 'airbnb', 'bentley-systems',
   'cyberark', 'datadog', 'dell', 'electronic-arts', 'alphabet', 'intel',
   'microsoft', 'cloudflare', 'nvidia', 'spotify', 'trimble', 'uber', 'workday',

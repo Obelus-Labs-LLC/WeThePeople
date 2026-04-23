@@ -234,7 +234,7 @@ export default function PressToolsPage() {
         if (cancelled || !data) return;
         setRuntimeInfo(data);
       })
-      .catch(() => {});
+      .catch((err) => { console.warn('[PressToolsPage] fetch failed:', err); });
     return () => {
       cancelled = true;
     };

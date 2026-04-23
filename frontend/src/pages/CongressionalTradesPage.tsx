@@ -187,7 +187,7 @@ export default function CongressionalTradesPage() {
         setTrades(data.trades || []);
         setTotal(data.total || 0);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[CongressionalTradesPage] fetch failed:', err); })
       .finally(() => setLoading(false));
     return () => { cancelled = true; };
   }, [filter, search]);

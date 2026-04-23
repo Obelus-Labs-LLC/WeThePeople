@@ -29,7 +29,7 @@ export interface AgricultureCompanyListItem {
   enforcement_count: number;
 }
 
-export interface AgricultureCompanyListResponse {
+interface AgricultureCompanyListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -87,7 +87,7 @@ export interface AgricultureFilingItem {
   description: string | null;
 }
 
-export interface AgricultureFilingsResponse {
+interface AgricultureFilingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -105,7 +105,7 @@ export interface AgricultureContractItem {
   contract_type: string | null;
 }
 
-export interface AgricultureContractsResponse {
+interface AgricultureContractsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -131,7 +131,7 @@ export interface AgricultureLobbyingItem {
   government_entities: string | null;
 }
 
-export interface AgricultureLobbyingResponse {
+interface AgricultureLobbyingResponse {
   total: number;
   limit: number;
   offset: number;
@@ -156,7 +156,7 @@ export interface AgricultureEnforcementItem {
   source: string | null;
 }
 
-export interface AgricultureEnforcementResponse {
+interface AgricultureEnforcementResponse {
   total: number;
   total_penalties: number;
   limit: number;
@@ -183,7 +183,7 @@ export interface AgricultureComparisonItem {
   profit_margin: number | null;
 }
 
-export interface AgricultureComparisonResponse {
+interface AgricultureComparisonResponse {
   companies: AgricultureComparisonItem[];
 }
 
@@ -199,7 +199,7 @@ export interface RecentActivityItem {
   meta: Record<string, any>;
 }
 
-export interface RecentActivityResponse {
+interface RecentActivityResponse {
   items: RecentActivityItem[];
 }
 

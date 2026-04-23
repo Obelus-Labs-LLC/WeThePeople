@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiBaseUrl } from '../api/client';
+
+const API_BASE = getApiBaseUrl();
 
 interface Props {
   entityType: string;
@@ -21,12 +24,14 @@ export default function WatchlistButton({ entityType, entityId, entityName, sect
   useEffect(() => {
     if (!isAuthenticated) return;
     const token = localStorage.getItem('wtp_access_token');
-    fetch(`/api/auth/watchlist/check?entity_type=${entityType}&entity_id=${entityId}`, {
+    fetch(`${API_BASE}/auth/watchlist/check?entity_type=${entityType}&entity_id=${entityId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
       .then((d) => { setWatching(d.watching); setItemId(d.item_id); })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn('[WatchlistButton] check failed:', err);
+      });
   }, [isAuthenticated, entityType, entityId]);
 
   const toggle = async () => {
@@ -36,20 +41,24 @@ export default function WatchlistButton({ entityType, entityId, entityName, sect
     const token = localStorage.getItem('wtp_access_token');
     try {
       if (watching && itemId) {
-        await fetch(`/api/auth/watchlist/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+        const r = await fetch(`${API_BASE}/auth/watchlist/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) throw new Error(`DELETE watchlist failed: HTTP ${r.status}`);
         setWatching(false);
         setItemId(null);
       } else {
-        const r = await fetch('/api/auth/watchlist', {
+        const r = await fetch(`${API_BASE}/auth/watchlist`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ entity_type: entityType, entity_id: entityId, entity_name: entityName, sector: sector || '' }),
         });
+        if (!r.ok) throw new Error(`POST watchlist failed: HTTP ${r.status}`);
         const d = await r.json();
         setWatching(true);
         setItemId(d.id);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.warn('[WatchlistButton] toggle failed:', err);
+    }
     setBusy(false);
   };
 

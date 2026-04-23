@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 
 // ── Public types ──
 
-export interface ResearchStat {
+interface ResearchStat {
   label: string;
   value: string;
   icon?: LucideIcon;
@@ -29,7 +29,7 @@ export const researchItemVariants = {
 
 // ── Layout shell ──
 
-export interface ResearchToolLayoutProps {
+interface ResearchToolLayoutProps {
   /** Section header component (e.g. <TechSectorHeader />). */
   sectorHeader?: React.ReactNode;
   /** Eyebrow pulse color token, e.g. 'var(--color-dem)'. Defaults to accent. */

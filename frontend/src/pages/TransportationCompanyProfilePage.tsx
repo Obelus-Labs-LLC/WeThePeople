@@ -112,14 +112,14 @@ export default function TransportationCompanyProfilePage() {
         setStock(s.latest_stock || null);
         getTransportationCompanyNews(d.display_name, 5)
           .then((r) => { if (!cancelled) setNews(r.articles || []); })
-          .catch(() => {});
+          .catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
       })
       .catch((e) => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     fetch(`${getApiBaseUrl()}/transportation/companies/${encodeURIComponent(companyId)}/trends`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d && !cancelled) setTrends(d); })
-      .catch(() => {});
+      .catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     return () => { cancelled = true; };
   }, [companyId]);
 
@@ -133,7 +133,7 @@ export default function TransportationCompanyProfilePage() {
         setContracts(c.contracts || []); setContractTotal(c.total);
         if (s) setContractSummary(s);
         setContractsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'lobbying' && !lobbyingLoaded) {
       Promise.all([
@@ -143,42 +143,42 @@ export default function TransportationCompanyProfilePage() {
         setLobbying(l.filings || []); setLobbyTotal(l.total);
         if (s) setLobbySummary(s);
         setLobbyingLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getTransportationCompanyEnforcement(companyId, { limit: 100 }).then((r) => {
         setEnforcement(r.actions || []); setEnforcementTotal(r.total);
         setTotalPenalties(r.total_penalties || 0);
         setEnforcementLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'recalls' && !recallsLoaded) {
       getTransportationCompanyRecalls(companyId, { limit: 100 }).then((r) => {
         setRecalls(r.recalls || []); setRecallTotal(r.total); setRecallsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'complaints' && !complaintsLoaded) {
       getTransportationCompanyComplaints(companyId, { limit: 100 }).then((r) => {
         setComplaints(r.complaints || []); setComplaintTotal(r.total); setComplaintsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'safety_ratings' && !safetyRatingsLoaded) {
       getTransportationCompanySafetyRatings(companyId, { limit: 100 }).then((r) => {
         setSafetyRatings(r.ratings || []); setSafetyRatingsTotal(r.total);
         setAvgOverallRating(r.avg_overall_rating);
         setSafetyRatingsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'donations' && !donationsLoaded) {
       getTransportationCompanyDonations(companyId, { limit: 100 }).then((r) => {
         setDonations(r.donations || []); setDonationTotal(r.total);
         setDonationTotalAmount(r.total_amount || 0); setDonationsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getTransportationCompanyFilings(companyId, { limit: 100 }).then((r) => {
         setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
   }, [activeTab, companyId, contractsLoaded, lobbyingLoaded, enforcementLoaded, recallsLoaded, complaintsLoaded, safetyRatingsLoaded, donationsLoaded, filingsLoaded]);
 

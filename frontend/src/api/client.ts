@@ -26,6 +26,7 @@ import type {
   ActionSearchResponse,
   DashboardStats,
   BalanceOfPower,
+  ChamberPartyBreakdown,
   PersonCommitteesResponse,
   RecentAction,
   LedgerSummary,
@@ -214,6 +215,17 @@ export class WTPClient {
   async getBalanceOfPower(): Promise<BalanceOfPower> {
     const url = `${this.baseUrl}/balance-of-power`;
     return this.fetchJSON<BalanceOfPower>(url);
+  }
+
+  /**
+   * GET /people/aggregate/chamber-party
+   *
+   * Returns House/Senate party counts without fetching hundreds of individual
+   * member rows. Used by the Politics dashboard's Balance of Power panel.
+   */
+  async getChamberPartyBreakdown(activeOnly: boolean = true): Promise<ChamberPartyBreakdown> {
+    const url = `${this.baseUrl}/people/aggregate/chamber-party?active_only=${activeOnly ? 'true' : 'false'}`;
+    return this.fetchJSON<ChamberPartyBreakdown>(url);
   }
 
   /** GET /actions/recent */

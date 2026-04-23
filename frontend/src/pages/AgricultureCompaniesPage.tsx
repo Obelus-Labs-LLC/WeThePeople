@@ -37,7 +37,7 @@ export default function AgricultureCompaniesPage() {
         if (stale) return;
         setCompanies(Array.isArray(res.companies) ? res.companies : []);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[AgricultureCompaniesPage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setLoading(false);
       });

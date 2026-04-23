@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import type { DashboardStats, Person, RecentAction } from '../api/types';
+import type { ChamberPartyBreakdown, DashboardStats, Person, RecentAction } from '../api/types';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 import { fmtNum } from '../utils/format';
 
@@ -35,28 +35,12 @@ interface ChamberBreakdown {
   independent: number;
 }
 
-function computeBreakdown(
-  people: Person[],
-  chamber: 'house' | 'senate',
-): ChamberBreakdown {
-  const filtered = people.filter((p) =>
-    chamber === 'house'
-      ? p.chamber.toLowerCase().includes('house') ||
-        p.chamber.toLowerCase() === 'lower'
-      : p.chamber.toLowerCase().includes('senate') ||
-        p.chamber.toLowerCase() === 'upper',
-  );
-  let democrat = 0,
-    republican = 0,
-    independent = 0;
-  filtered.forEach((p) => {
-    const party = p.party?.charAt(0);
-    if (party === 'D') democrat++;
-    else if (party === 'R') republican++;
-    else independent++;
-  });
-  return { total: filtered.length, democrat, republican, independent };
-}
+const EMPTY_BREAKDOWN: ChamberBreakdown = {
+  total: 0,
+  democrat: 0,
+  republican: 0,
+  independent: 0,
+};
 
 function chamberPct(n: number, total: number): number {
   return total > 0 ? (n / total) * 100 : 0;
@@ -546,7 +530,7 @@ function ActivityItem({ action }: { action: RecentAction }) {
 export default function PoliticsDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
-  const [allPeople, setAllPeople] = useState<Person[]>([]);
+  const [breakdown, setBreakdown] = useState<ChamberPartyBreakdown | null>(null);
   const [actions, setActions] = useState<RecentAction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -556,17 +540,21 @@ export default function PoliticsDashboardPage() {
       apiClient.getDashboardStats(),
       apiClient.getPeople({ limit: 6, has_ledger: true }),
       apiClient.getRecentActions(5),
-      // TODO: Use aggregate endpoint for party counts instead of fetching all people
-      apiClient.getPeople({ limit: 600 }),
+      // Server-side aggregate — replaces the previous "fetch 600 people to
+      // compute party counts in the browser" pattern (routers/politics_people.py:
+      // get_chamber_party_breakdown).
+      apiClient.getChamberPartyBreakdown(true),
     ])
-      .then(([s, p, a, all]) => {
+      .then(([s, p, a, bp]) => {
         if (cancelled) return;
         setStats(s);
         setPeople(p.people || []);
         setActions(a || []);
-        setAllPeople(all.people || []);
+        setBreakdown(bp);
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.warn('[PoliticsDashboardPage] load failed:', err);
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -575,10 +563,13 @@ export default function PoliticsDashboardPage() {
     };
   }, []);
 
-  const house = useMemo(() => computeBreakdown(allPeople, 'house'), [allPeople]);
-  const senate = useMemo(
-    () => computeBreakdown(allPeople, 'senate'),
-    [allPeople],
+  const house = useMemo<ChamberBreakdown>(
+    () => breakdown?.house ?? EMPTY_BREAKDOWN,
+    [breakdown],
+  );
+  const senate = useMemo<ChamberBreakdown>(
+    () => breakdown?.senate ?? EMPTY_BREAKDOWN,
+    [breakdown],
   );
 
   if (loading) {
@@ -745,7 +736,7 @@ export default function PoliticsDashboardPage() {
         </div>
 
         {/* ── BALANCE OF POWER ── */}
-        {allPeople.length > 0 && (
+        {people.length > 0 && (
           <div
             style={{
               background: 'var(--color-surface)',

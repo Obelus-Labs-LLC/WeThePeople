@@ -81,10 +81,12 @@ function formatValue(value: number, metric: string): string {
   return `$${value.toLocaleString()}`;
 }
 
-// ── GeoJSON CDN URL ──
-
-const GEOJSON_URL =
-  'https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json';
+// ── GeoJSON source ──
+// Vendored from https://github.com/PublicaMundi/MappingAPI (public domain) to
+// eliminate dependency on raw.githubusercontent.com — which has no uptime SLA,
+// gets rate-limited, and ships with Content-Type: text/plain (not application/json).
+// Lives in /public/us-states.geo.json (served at site root, CDN-cached by Vercel).
+const GEOJSON_URL = '/us-states.geo.json';
 
 // ── Component ──
 
@@ -103,7 +105,10 @@ const ChoroplethMap: React.FC<ChoroplethMapProps> = ({ data, metric, onStateClic
         return res.json();
       })
       .then((json) => setGeoData(json as GeoJSONCollection))
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+        console.warn('[ChoroplethMap] geojson load failed:', err);
+        setError(err.message);
+      })
       .finally(() => setLoading(false));
   }, []);
 

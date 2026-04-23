@@ -121,7 +121,7 @@ export default function StateExplorerPage() {
         }
         setStateData(map);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[StateExplorerPage] fetch failed:', err); })
       .finally(() => setLoading(false));
     return () => { cancelled = true; };
   }, []);

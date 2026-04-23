@@ -31,7 +31,7 @@ export interface EnergyCompanyListItem {
   enforcement_count: number;
 }
 
-export interface EnergyCompanyListResponse {
+interface EnergyCompanyListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -90,7 +90,7 @@ export interface EnergyFilingItem {
   description: string | null;
 }
 
-export interface EnergyFilingsResponse {
+interface EnergyFilingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -110,7 +110,7 @@ export interface EnergyEmissionItem {
   source_url: string | null;
 }
 
-export interface EnergyEmissionsResponse {
+interface EnergyEmissionsResponse {
   total: number;
   total_co2e: number;
   limit: number;
@@ -139,7 +139,7 @@ export interface EnergyContractItem {
   contract_type: string | null;
 }
 
-export interface EnergyContractsResponse {
+interface EnergyContractsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -165,7 +165,7 @@ export interface EnergyLobbyingItem {
   government_entities: string | null;
 }
 
-export interface EnergyLobbyingResponse {
+interface EnergyLobbyingResponse {
   total: number;
   limit: number;
   offset: number;
@@ -190,7 +190,7 @@ export interface EnergyEnforcementItem {
   source: string | null;
 }
 
-export interface EnergyEnforcementResponse {
+interface EnergyEnforcementResponse {
   total: number;
   total_penalties: number;
   limit: number;
@@ -219,7 +219,7 @@ export interface EnergyComparisonItem {
   profit_margin: number | null;
 }
 
-export interface EnergyComparisonResponse {
+interface EnergyComparisonResponse {
   companies: EnergyComparisonItem[];
 }
 
@@ -235,7 +235,7 @@ export interface RecentActivityItem {
   meta: Record<string, any>;
 }
 
-export interface RecentActivityResponse {
+interface RecentActivityResponse {
   items: RecentActivityItem[];
 }
 

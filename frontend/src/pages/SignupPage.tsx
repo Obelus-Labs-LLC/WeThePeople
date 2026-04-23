@@ -35,10 +35,14 @@ export default function SignupPage() {
     }
     setLoading(true);
     try {
-      await register(email, password);
-      // TODO: backend support for zip_code + notification preferences.
-      // When those endpoints exist, send {zipCode, digestOptIn, alertOptIn}
-      // in a follow-up /api/auth/preferences call.
+      // zip_code + notification preferences are now persisted by the backend
+      // on /auth/register (see routers/auth.py RegisterRequest). They can also
+      // be updated afterwards via POST /auth/preferences.
+      await register(email, password, {
+        zipCode: zipCode || undefined,
+        digestOptIn,
+        alertOptIn,
+      });
       navigate('/');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed');

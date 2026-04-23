@@ -636,13 +636,13 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    fetchInfluenceStats().then((s) => { if (!cancelled) setStats(s); }).catch(() => {});
+    fetchInfluenceStats().then((s) => { if (!cancelled) setStats(s); }).catch((err) => { console.warn('[HomePage] fetch failed:', err); });
     fetchTopLobbying(5)
       .then((r) => { if (!cancelled) setTopLobbying(r.leaders); })
-      .catch(() => {});
+      .catch((err) => { console.warn('[HomePage] fetch failed:', err); });
     fetchTopContracts(5)
       .then((r) => { if (!cancelled) setTopContracts(r.leaders); })
-      .catch(() => {});
+      .catch((err) => { console.warn('[HomePage] fetch failed:', err); });
     return () => { cancelled = true; };
   }, []);
 

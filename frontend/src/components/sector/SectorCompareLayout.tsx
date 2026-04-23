@@ -85,7 +85,7 @@ const fieldLabel: React.CSSProperties = {
 
 // ── Entity Dropdown ──
 
-export function EntityDropdown({
+function EntityDropdown({
   label,
   value,
   onChange,

@@ -101,7 +101,7 @@ export default function EnergyCompanyProfilePage() {
     fetch(`${getApiBaseUrl()}/energy/companies/${encodeURIComponent(companyId)}/trends`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (!cancelled && d) setTrends(d); })
-      .catch(() => {});
+      .catch((err) => { console.warn('[EnergyCompanyProfilePage] fetch failed:', err); });
     return () => { cancelled = true; };
   }, [companyId]);
 
@@ -115,7 +115,7 @@ export default function EnergyCompanyProfilePage() {
         setEmissions(e.emissions || []); setEmissionTotal(e.total);
         if (s) setEmissionSummary(s);
         setEmissionsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[EnergyCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'contracts' && !contractsLoaded) {
       Promise.all([
@@ -125,7 +125,7 @@ export default function EnergyCompanyProfilePage() {
         setContracts(c.contracts || []); setContractTotal(c.total);
         if (s) setContractSummary(s);
         setContractsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[EnergyCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'lobbying' && !lobbyingLoaded) {
       Promise.all([
@@ -135,19 +135,19 @@ export default function EnergyCompanyProfilePage() {
         setLobbying(l.filings || []); setLobbyTotal(l.total);
         if (s) setLobbySummary(s);
         setLobbyingLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[EnergyCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getEnergyCompanyEnforcement(companyId, { limit: 100 }).then((r) => {
         setEnforcement(r.actions || []); setEnforcementTotal(r.total);
         setTotalPenalties(r.total_penalties || 0);
         setEnforcementLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[EnergyCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getEnergyCompanyFilings(companyId, { limit: 100 }).then((r) => {
         setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true);
-      }).catch(() => {});
+      }).catch((err) => { console.warn('[EnergyCompanyProfilePage] fetch failed:', err); });
     }
   }, [activeTab, companyId, emissionsLoaded, contractsLoaded, lobbyingLoaded, enforcementLoaded, filingsLoaded]);
 

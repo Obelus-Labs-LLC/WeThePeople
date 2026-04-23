@@ -7,7 +7,7 @@ import { sectorCssVars } from '../../lib/sectorAccents';
 
 // ── Public types ──
 
-export interface CompanyEntity {
+interface CompanyEntity {
   company_id: string;
   display_name: string;
   ticker?: string | null;
@@ -27,7 +27,7 @@ export interface CompanyStat {
   accent?: string;
 }
 
-export interface SubSectorMeta {
+interface SubSectorMeta {
   key: string;
   label: string;
   color: string;

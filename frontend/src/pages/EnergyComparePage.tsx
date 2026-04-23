@@ -104,7 +104,7 @@ export default function EnergyComparePage() {
           setIdB(list[1].company_id);
         }
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[EnergyComparePage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setLoading(false);
       });
@@ -125,7 +125,7 @@ export default function EnergyComparePage() {
         })) as ComparedRow[];
         setCompared(mapped);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[EnergyComparePage] fetch failed:', err); })
       .finally(() => setComparing(false));
   }
 
@@ -143,7 +143,7 @@ export default function EnergyComparePage() {
         })) as ComparedRow[];
         setCompared(mapped);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[EnergyComparePage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setComparing(false);
       });

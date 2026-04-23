@@ -34,7 +34,7 @@ export interface CompanyListItem {
   payment_count?: number;
 }
 
-export interface CompanyListResponse {
+interface CompanyListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -90,23 +90,6 @@ export interface CompanyDetail {
   ai_profile_summary?: string;
 }
 
-export interface AdverseEventItem {
-  id: number;
-  report_id: string | null;
-  receive_date: string | null;
-  serious: number;
-  drug_name: string | null;
-  reaction: string | null;
-  outcome: string | null;
-}
-
-export interface AdverseEventsResponse {
-  total: number;
-  limit: number;
-  offset: number;
-  adverse_events: AdverseEventItem[];
-}
-
 export interface RecallItem {
   id: number;
   recall_number: string | null;
@@ -117,7 +100,7 @@ export interface RecallItem {
   status: string | null;
 }
 
-export interface RecallsResponse {
+interface RecallsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -136,7 +119,7 @@ export interface ClinicalTrialItem {
   enrollment: number | null;
 }
 
-export interface TrialsResponse {
+interface TrialsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -154,7 +137,7 @@ export interface PaymentItem {
   state: string | null;
 }
 
-export interface PaymentsResponse {
+interface PaymentsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -178,7 +161,7 @@ export interface HealthFiling {
   description: string | null;
 }
 
-export interface FilingsResponse {
+interface FilingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -208,7 +191,7 @@ export interface HealthStockSnapshot {
   industry: string | null;
 }
 
-export interface HealthStockResponse {
+interface HealthStockResponse {
   stock: HealthStockSnapshot | null;
 }
 
@@ -243,16 +226,6 @@ export async function getHealthCompanies(params?: {
 
 export async function getHealthCompanyDetail(companyId: string): Promise<CompanyDetail> {
   return fetchJSON<CompanyDetail>(`${API_BASE}/health/companies/${encodeURIComponent(companyId)}`);
-}
-
-export async function getHealthCompanyAdverseEvents(
-  companyId: string,
-  params?: { limit?: number; offset?: number }
-): Promise<AdverseEventsResponse> {
-  const sp = new URLSearchParams();
-  if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
-  if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
-  return fetchJSON<AdverseEventsResponse>(`${API_BASE}/health/companies/${encodeURIComponent(companyId)}/adverse-events?${sp}`);
 }
 
 export async function getHealthCompanyRecalls(
@@ -322,7 +295,7 @@ export interface HealthLobbyingFiling {
   government_entities: string | null;
 }
 
-export interface HealthLobbyingResponse {
+interface HealthLobbyingResponse {
   total: number;
   limit: number;
   offset: number;
@@ -347,7 +320,7 @@ export interface HealthContractItem {
   contract_type: string | null;
 }
 
-export interface HealthContractsResponse {
+interface HealthContractsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -365,7 +338,7 @@ export interface HealthEnforcementAction {
   source: string | null;
 }
 
-export interface HealthEnforcementResponse {
+interface HealthEnforcementResponse {
   total: number;
   total_penalties: number;
   limit: number;

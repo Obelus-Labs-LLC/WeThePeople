@@ -1,4 +1,4 @@
-export interface Sector {
+interface Sector {
   slug: string;
   name: string;
   tagline: string;

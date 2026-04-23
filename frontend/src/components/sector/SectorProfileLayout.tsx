@@ -16,7 +16,7 @@ import { sectorCssVars } from '../../lib/sectorAccents';
 
 // ── Public types ──
 
-export interface ProfileDetail {
+interface ProfileDetail {
   company_id: string;
   display_name: string;
   ticker: string | null;
@@ -32,7 +32,7 @@ export interface ProfileDetail {
   filing_count?: number;
 }
 
-export interface ProfileStock {
+interface ProfileStock {
   market_cap?: number | null;
   pe_ratio?: number | null;
   profit_margin?: number | null;
@@ -40,13 +40,7 @@ export interface ProfileStock {
   last_price?: number | null;
 }
 
-export interface ProfileStatRow {
-  label: string;
-  value: string;
-  accent?: string;
-}
-
-export interface ProfileTab {
+interface ProfileTab {
   key: string;
   label: string;
   icon?: LucideIcon;

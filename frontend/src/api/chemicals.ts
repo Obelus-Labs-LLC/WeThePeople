@@ -29,7 +29,7 @@ export interface ChemicalCompanyListItem {
   enforcement_count: number;
 }
 
-export interface ChemicalCompanyListResponse {
+interface ChemicalCompanyListResponse {
   total: number;
   limit: number;
   offset: number;
@@ -87,7 +87,7 @@ export interface ChemicalFilingItem {
   description: string | null;
 }
 
-export interface ChemicalFilingsResponse {
+interface ChemicalFilingsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -105,7 +105,7 @@ export interface ChemicalContractItem {
   contract_type: string | null;
 }
 
-export interface ChemicalContractsResponse {
+interface ChemicalContractsResponse {
   total: number;
   limit: number;
   offset: number;
@@ -131,7 +131,7 @@ export interface ChemicalLobbyingItem {
   government_entities: string | null;
 }
 
-export interface ChemicalLobbyingResponse {
+interface ChemicalLobbyingResponse {
   total: number;
   limit: number;
   offset: number;
@@ -156,7 +156,7 @@ export interface ChemicalEnforcementItem {
   source: string | null;
 }
 
-export interface ChemicalEnforcementResponse {
+interface ChemicalEnforcementResponse {
   total: number;
   total_penalties: number;
   limit: number;
@@ -183,7 +183,7 @@ export interface ChemicalComparisonItem {
   profit_margin: number | null;
 }
 
-export interface ChemicalComparisonResponse {
+interface ChemicalComparisonResponse {
   companies: ChemicalComparisonItem[];
 }
 
@@ -199,7 +199,7 @@ export interface RecentActivityItem {
   meta: Record<string, any>;
 }
 
-export interface RecentActivityResponse {
+interface RecentActivityResponse {
   items: RecentActivityItem[];
 }
 

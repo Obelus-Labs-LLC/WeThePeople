@@ -36,7 +36,7 @@ export interface StateListEntry {
   bills: number;
 }
 
-export interface StatesListResponse {
+interface StatesListResponse {
   states: StateListEntry[];
 }
 
@@ -51,14 +51,14 @@ export interface StateDashboardData {
   recent_bills: StateBill[];
 }
 
-export interface StateLegislatorsResponse {
+interface StateLegislatorsResponse {
   total: number;
   limit: number;
   offset: number;
   legislators: StateLegislator[];
 }
 
-export interface StateBillsResponse {
+interface StateBillsResponse {
   total: number;
   limit: number;
   offset: number;

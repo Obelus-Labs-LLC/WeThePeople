@@ -103,7 +103,7 @@ export default function DataStoryPage() {
         ];
         setSteps(storySteps);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[DataStoryPage] fetch failed:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);

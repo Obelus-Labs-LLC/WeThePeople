@@ -41,7 +41,7 @@ export default function ChemicalsCompaniesPage() {
         if (stale) return;
         setCompanies(Array.isArray(res.companies) ? res.companies : []);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[ChemicalsCompaniesPage] fetch failed:', err); })
       .finally(() => {
         if (!stale) setLoading(false);
       });

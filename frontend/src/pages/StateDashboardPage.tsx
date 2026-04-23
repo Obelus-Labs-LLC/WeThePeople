@@ -128,7 +128,7 @@ export default function StateDashboardPage() {
         setLegislators(legs.legislators);
         setLegTotal(legs.total);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[StateDashboardPage] fetch failed:', err); })
       .finally(() => { setLoading(false); initialLoadedRef.current = true; });
     return () => { cancelled = true; };
   }, [code]);
@@ -149,7 +149,7 @@ export default function StateDashboardPage() {
         setLegislators(data.legislators);
         setLegTotal(data.total);
       })
-      .catch(() => {});
+      .catch((err) => { console.warn('[StateDashboardPage] fetch failed:', err); });
     return () => { cancelled = true; };
   }, [code, chamberFilter, partyFilter, legSearch, legOffset]);
 
@@ -985,7 +985,7 @@ function BillsTab({
         setBills(data.bills);
         setTotal(data.total);
       })
-      .catch(() => {})
+      .catch((err) => { console.warn('[StateDashboardPage] fetch failed:', err); })
       .finally(() => setSearching(false));
     return () => { cancelled = true; };
   }, [stateCode, search, offset]);

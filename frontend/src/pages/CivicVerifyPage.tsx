@@ -88,7 +88,7 @@ export default function CivicVerifyPage() {
         setVerifiedState(data.verified_state);
         setVerifiedZip(data.verified_zip);
       })
-      .catch(() => {});
+      .catch((err) => { console.warn('[CivicVerifyPage] fetch failed:', err); });
     return () => { cancelled = true; };
   }, [isAuthenticated]);
 

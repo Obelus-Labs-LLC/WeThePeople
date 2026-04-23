@@ -38,7 +38,7 @@ export default function DataFreshness() {
     fetch(`${base}/influence/data-freshness`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setData(d))
-      .catch(() => {});
+      .catch((err) => { console.warn('[DataFreshness] fetch failed:', err); });
   }, []);
 
   if (!data) return null;

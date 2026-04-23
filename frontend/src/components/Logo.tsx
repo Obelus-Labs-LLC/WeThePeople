@@ -11,7 +11,7 @@ import React from 'react';
  * ("VFY", "RSH", etc.).
  */
 
-export type LogoSize = 'sm' | 'md' | 'lg';
+type LogoSize = 'sm' | 'md' | 'lg';
 
 interface LogoProps {
   size?: LogoSize;

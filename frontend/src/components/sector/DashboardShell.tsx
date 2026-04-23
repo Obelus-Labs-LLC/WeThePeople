@@ -108,7 +108,7 @@ export function StatCard({ label, value, icon: Icon, color, to, subLabel }: Stat
 // SectorHero — eyebrow + italic Playfair headline + italic sub + two CTAs
 // ─────────────────────────────────────────────────────────────────────
 
-export interface SectorHeroCTA {
+interface SectorHeroCTA {
   label: string;
   to: string;
   primary?: boolean;
@@ -116,7 +116,7 @@ export interface SectorHeroCTA {
   badge?: string;
 }
 
-export interface SectorHeroProps {
+interface SectorHeroProps {
   eyebrow: string;
   titleLine1: string;
   titleLine2?: string;
@@ -282,7 +282,7 @@ export function SectorHero({
 // SectorDistribution — stacked hairline bar + legend cards
 // ─────────────────────────────────────────────────────────────────────
 
-export interface SectorDistributionProps {
+interface SectorDistributionProps {
   title?: string;
   description?: string;
   bySector: Record<string, number>;
@@ -306,7 +306,7 @@ const distroItemV = {
   },
 };
 
-export function SectorDistribution({
+function SectorDistribution({
   title = 'Sector distribution',
   description = 'Breakdown of tracked companies by industry segment',
   bySector, total, getColor, getLabel, linkPrefix,
@@ -803,7 +803,7 @@ export function DashboardShellLayout({
 // FeaturedCompanyRow — logo + name/ticker + sector chip
 // ─────────────────────────────────────────────────────────────────────
 
-export interface FeaturedCompanyItem {
+interface FeaturedCompanyItem {
   id: string;
   displayName: string;
   ticker?: string;
@@ -903,7 +903,7 @@ export interface ActivityItemShape {
   } & Record<string, any>;
 }
 
-export interface RecentActivityListProps {
+interface RecentActivityListProps {
   items: ActivityItemShape[];
   typeBadges: Record<string, { bg: string; color: string }>;
   viewCompanyPathPrefix: string; // e.g. "/technology/" → `${prefix}${company_id}`
