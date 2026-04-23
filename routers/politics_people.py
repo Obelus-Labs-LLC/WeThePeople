@@ -266,6 +266,56 @@ def get_ledger_claim(claim_id: int):
 
 # ── People Directory ──
 
+@router.get("/people/aggregate/chamber-party")
+def get_chamber_party_breakdown(active_only: bool = Query(True)):
+    """
+    Aggregate party counts grouped by chamber.
+
+    Replaces the pattern where the frontend fetched ~600 people rows just to
+    compute a House/Senate × D/R/I breakdown client-side. Returns one row per
+    (chamber, party_letter) with a count, which the frontend sums into the
+    totals displayed on the Politics dashboard.
+    """
+    db = SessionLocal()
+    try:
+        q = db.query(
+            TrackedMember.chamber,
+            func.substr(TrackedMember.party, 1, 1).label("party_letter"),
+            func.count(TrackedMember.id).label("count"),
+        )
+        if active_only:
+            q = q.filter(TrackedMember.is_active == 1)
+        q = q.group_by(TrackedMember.chamber, "party_letter")
+
+        # Initialize deterministic shape so the frontend doesn't have to handle
+        # missing keys (e.g., zero independents in a chamber).
+        result = {
+            "house":  {"democrat": 0, "republican": 0, "independent": 0, "total": 0},
+            "senate": {"democrat": 0, "republican": 0, "independent": 0, "total": 0},
+        }
+        for chamber, party_letter, count in q.all():
+            if not chamber:
+                continue
+            lower = chamber.lower()
+            if "house" in lower or lower == "lower":
+                bucket = result["house"]
+            elif "senate" in lower or lower == "upper":
+                bucket = result["senate"]
+            else:
+                continue  # unknown chamber — skip rather than guess
+            if party_letter == "D":
+                bucket["democrat"] += count
+            elif party_letter == "R":
+                bucket["republican"] += count
+            else:
+                bucket["independent"] += count
+            bucket["total"] += count
+
+        return result
+    finally:
+        db.close()
+
+
 @router.get("/people", response_model=PeopleListResponse)
 def get_people(
     active_only: bool = Query(True),
