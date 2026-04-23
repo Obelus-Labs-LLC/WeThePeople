@@ -47,6 +47,12 @@ class User(Base):
     verified_at = Column(DateTime(timezone=True), nullable=True)
     verification_method = Column(String(50), nullable=True)  # sms, letter, document
 
+    # Signup preferences (distinct from verified_zip which requires a proof step)
+    # zip_code is self-reported at signup; used for "show my reps" lookup only.
+    zip_code = Column(String(10), nullable=True)
+    digest_opt_in = Column(Integer, nullable=False, server_default="1")  # SQLite compat: 0/1
+    alert_opt_in = Column(Integer, nullable=False, server_default="1")   # SQLite compat: 0/1
+
     # Relationships
     api_keys = relationship("APIKeyRecord", back_populates="user", cascade="all, delete-orphan")
 

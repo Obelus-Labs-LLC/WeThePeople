@@ -70,6 +70,21 @@ class RegisterRequest(BaseModel):
     email: EmailStr = Field(..., description="User email")
     password: str = Field(..., min_length=8, max_length=128, description="Password (min 8 chars)")
     display_name: Optional[str] = Field(None, max_length=255)
+    zip_code: Optional[str] = Field(None, max_length=10, description="Optional ZIP code for rep lookup")
+    digest_opt_in: bool = Field(True, description="Receive Weekly Digest emails")
+    alert_opt_in: bool = Field(True, description="Receive anomaly alert emails")
+
+
+class PreferencesRequest(BaseModel):
+    zip_code: Optional[str] = Field(None, max_length=10)
+    digest_opt_in: Optional[bool] = None
+    alert_opt_in: Optional[bool] = None
+
+
+class PreferencesResponse(BaseModel):
+    zip_code: Optional[str] = None
+    digest_opt_in: bool
+    alert_opt_in: bool
 
 
 class RegisterResponse(BaseModel):
@@ -145,11 +160,23 @@ def register(body: RegisterRequest, request: Request, db: Session = Depends(get_
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
 
+    # Validate ZIP (5 digits only, optional). Reject anything else rather than
+    # silently trimming — the frontend already enforces this shape.
+    zip_clean: Optional[str] = None
+    if body.zip_code:
+        zip_digits = "".join(ch for ch in body.zip_code if ch.isdigit())
+        if len(zip_digits) != 5:
+            raise HTTPException(status_code=422, detail="ZIP code must be exactly 5 digits")
+        zip_clean = zip_digits
+
     user = User(
         email=body.email.lower().strip(),
         hashed_password=pwd_context.hash(body.password),
         role="free",
         display_name=body.display_name,
+        zip_code=zip_clean,
+        digest_opt_in=1 if body.digest_opt_in else 0,
+        alert_opt_in=1 if body.alert_opt_in else 0,
     )
     db.add(user)
     try:
@@ -246,6 +273,65 @@ def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)
         created_at=user.created_at.isoformat() if user.created_at else "",
         last_login=user.last_login.isoformat() if user.last_login else None,
         api_key_count=key_count,
+    )
+
+
+@router.get("/preferences", response_model=PreferencesResponse)
+def get_preferences(user: User = Depends(get_current_user)):
+    """Return the authenticated user's signup preferences."""
+    return PreferencesResponse(
+        zip_code=user.zip_code,
+        digest_opt_in=bool(user.digest_opt_in),
+        alert_opt_in=bool(user.alert_opt_in),
+    )
+
+
+@router.post("/preferences", response_model=PreferencesResponse)
+@limiter.limit("20/minute")
+def update_preferences(
+    body: PreferencesRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update signup/notification preferences. Only provided fields are updated."""
+    changed: dict = {}
+
+    if body.zip_code is not None:
+        if body.zip_code == "":
+            user.zip_code = None
+            changed["zip_code"] = None
+        else:
+            zip_digits = "".join(ch for ch in body.zip_code if ch.isdigit())
+            if len(zip_digits) != 5:
+                raise HTTPException(status_code=422, detail="ZIP code must be exactly 5 digits")
+            user.zip_code = zip_digits
+            changed["zip_code"] = zip_digits
+
+    if body.digest_opt_in is not None:
+        user.digest_opt_in = 1 if body.digest_opt_in else 0
+        changed["digest_opt_in"] = bool(body.digest_opt_in)
+
+    if body.alert_opt_in is not None:
+        user.alert_opt_in = 1 if body.alert_opt_in else 0
+        changed["alert_opt_in"] = bool(body.alert_opt_in)
+
+    db.commit()
+    db.refresh(user)
+
+    log_from_request(
+        db, request,
+        action="preferences_update",
+        user_id=user.id,
+        resource="users",
+        resource_id=str(user.id),
+        details=changed,
+    )
+
+    return PreferencesResponse(
+        zip_code=user.zip_code,
+        digest_opt_in=bool(user.digest_opt_in),
+        alert_opt_in=bool(user.alert_opt_in),
     )
 
 
