@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Search, SearchX, MapPin, Building2 } from 'lucide-react';
+import { Search, SearchX, Building2, LayoutGrid, Rows } from 'lucide-react';
 import CompanyLogo from '../CompanyLogo';
 import type { SectorConfig } from './sectorConfig';
 import { sectorCssVars } from '../../lib/sectorAccents';
@@ -18,21 +17,48 @@ export interface CompanyEntity {
 }
 
 export interface CompanyStat {
+  /** Short uppercase column header, e.g. "Lobbying" */
   label: string;
+  /** Numeric value used for sort comparisons */
   value: number;
+  /** Optional pre-formatted display string (e.g. "$52.4M"). Falls back to value.toLocaleString() */
+  display?: string;
+  /** Semantic hex override for this cell — if omitted, column position picks a default */
   accent?: string;
 }
 
 export interface SubSectorMeta {
-  /** Raw sector_type key (lowercased). */
   key: string;
-  /** Human-readable label for the pill. */
   label: string;
-  /** Hex color for the pill/tag. */
   color: string;
 }
 
-// ── Shared styles ──
+// ── Design tokens (matches design HTML: Inner/Sector Pages) ──
+// DBL blue / DRD red / T1 cream etc. Used only for opacity-suffix combos
+// where CSS custom props can't carry alpha.
+const DBL = '#4A7FDE';
+const DRD = '#E05555';
+const AMB = '#C5A028';
+const T3 = 'rgba(235,229,213,0.22)';
+const SURF = 'var(--color-surface)';
+const SURF2 = 'var(--color-surface-2)';
+const B = 'rgba(235,229,213,0.08)';
+
+/** Position-based default colors for stat columns — matches the design HTML
+ *  semantic palette (sector accent · blue · red/amber/muted). */
+function defaultStatColor(index: number, value: number, sectorAccent: string): string {
+  if (index === 0) return sectorAccent; // primary metric (usually lobbying/emissions)
+  if (index === 1) return DBL;          // secondary metric (usually contracts)
+  if (index === 2) {
+    // enforcement-style: red when heavy, amber when moderate, muted otherwise
+    if (value > 100) return DRD;
+    if (value > 20) return AMB;
+    return 'var(--color-text-2)';
+  }
+  return 'var(--color-text-2)';
+}
+
+// ── Styles ──
 
 const pageShell: React.CSSProperties = {
   minHeight: '100vh',
@@ -41,275 +67,190 @@ const pageShell: React.CSSProperties = {
   position: 'relative',
 };
 
-const decorWrap: React.CSSProperties = {
-  pointerEvents: 'none',
-  position: 'fixed',
-  inset: 0,
-  zIndex: 0,
-};
-
 const contentWrap: React.CSSProperties = {
   position: 'relative',
   zIndex: 1,
-  maxWidth: '1400px',
+  maxWidth: '1280px',
   margin: '0 auto',
-  padding: '40px 32px 96px',
+  padding: '28px 40px 96px',
 };
 
 const titleStyle: React.CSSProperties = {
   fontFamily: 'var(--font-display)',
   fontStyle: 'italic',
-  fontWeight: 900,
-  fontSize: 'clamp(36px, 5.5vw, 60px)',
-  lineHeight: 1.02,
-  letterSpacing: '-0.02em',
-  margin: '14px 0 14px',
+  fontWeight: 700,
+  fontSize: 'clamp(24px, 3.2vw, 32px)',
+  lineHeight: 1.1,
+  letterSpacing: '-0.01em',
+  margin: '0 0 4px',
   color: 'var(--color-text-1)',
 };
 
-const subtitleStyle: React.CSSProperties = {
+const trackedStyle: React.CSSProperties = {
   fontFamily: 'var(--font-body)',
-  fontSize: '15px',
-  lineHeight: 1.65,
-  color: 'var(--color-text-2)',
+  fontSize: '13px',
+  color: 'var(--color-text-3)',
   margin: 0,
-  maxWidth: '640px',
 };
 
-// ── Filter pill ──
+// ── Inline toggle group ──
 
-function FilterPill({
-  label,
-  count,
-  active,
-  color,
-  onClick,
+function ToggleGroup<T extends string>({
+  options,
+  value,
+  onChange,
+  accent,
 }: {
-  label: string;
-  count: number;
-  active: boolean;
-  color: string;
-  onClick: () => void;
+  options: Array<{ key: T; label: React.ReactNode; title?: string }>;
+  value: T;
+  onChange: (v: T) => void;
+  accent: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
+    <div
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '8px',
-        whiteSpace: 'nowrap',
-        padding: '8px 14px',
-        borderRadius: '999px',
-        border: `1px solid ${active ? color : 'rgba(235,229,213,0.08)'}`,
-        background: active ? `${color}18` : 'transparent',
-        color: active ? color : 'var(--color-text-3)',
-        fontFamily: 'var(--font-mono)',
-        fontSize: '11px',
-        fontWeight: 700,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-      }}
-      onMouseEnter={(e) => {
-        if (!active) {
-          e.currentTarget.style.borderColor = `${color}55`;
-          e.currentTarget.style.color = color;
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!active) {
-          e.currentTarget.style.borderColor = 'rgba(235,229,213,0.08)';
-          e.currentTarget.style.color = 'var(--color-text-3)';
-        }
+        display: 'flex',
+        border: `1px solid ${B}`,
+        borderRadius: 8,
+        overflow: 'hidden',
       }}
     >
-      {label}
-      <span
-        style={{
-          padding: '2px 8px',
-          borderRadius: '999px',
-          background: active ? `${color}30` : 'rgba(235,229,213,0.06)',
-          color: active ? color : 'var(--color-text-3)',
-          fontSize: '10px',
-          fontWeight: 700,
-        }}
-      >
-        {count}
-      </span>
-    </button>
+      {options.map((opt) => {
+        const active = value === opt.key;
+        return (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => onChange(opt.key)}
+            title={opt.title}
+            style={{
+              padding: '7px 12px',
+              border: 'none',
+              cursor: 'pointer',
+              background: active ? `${accent}1F` : 'transparent',
+              color: active ? accent : 'var(--color-text-3)',
+              fontFamily: 'var(--font-body)',
+              fontSize: 12,
+              fontWeight: active ? 600 : 400,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'background 0.15s, color 0.15s',
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
-// ── Company card ──
+// ── Table row ──
 
-function CompanyCard<E extends CompanyEntity>({
+function TableRow<E extends CompanyEntity>({
   company,
-  index,
-  subMeta,
   stats,
+  subMeta,
   profilePath,
   accent,
-  accentRGB,
+  isLast,
+  gridTemplate,
 }: {
   company: E;
-  index: number;
-  subMeta: SubSectorMeta;
   stats: CompanyStat[];
+  subMeta: SubSectorMeta;
   profilePath: (id: string) => string;
   accent: string;
-  accentRGB: string;
+  isLast: boolean;
+  gridTemplate: string;
 }) {
-  const [hovered, setHovered] = useState(false);
+  const [hover, setHover] = useState(false);
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: Math.min(index, 18) * 0.02 }}
+    <Link
+      to={profilePath(company.company_id)}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: gridTemplate,
+        padding: '14px 20px',
+        borderBottom: isLast ? 'none' : `1px solid ${B}`,
+        gap: 12,
+        alignItems: 'center',
+        cursor: 'pointer',
+        textDecoration: 'none',
+        color: 'var(--color-text-1)',
+        background: hover ? SURF2 : 'transparent',
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
-      <Link
-        to={profilePath(company.company_id)}
-        style={{
-          display: 'block',
-          textDecoration: 'none',
-          height: '100%',
-        }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
+      {/* Company: logo + name + ticker */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <div
           style={{
-            position: 'relative',
-            height: '100%',
-            padding: '22px',
-            borderRadius: '16px',
-            border: `1px solid ${hovered ? `${accent}44` : 'rgba(235,229,213,0.08)'}`,
-            background: 'var(--color-surface)',
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: `${accent}14`,
+            border: `1px solid ${accent}22`,
             display: 'flex',
-            flexDirection: 'column',
-            transition: 'border-color 0.2s, transform 0.2s, box-shadow 0.2s',
-            transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
-            boxShadow: hovered
-              ? `0 16px 40px rgba(${accentRGB},0.12)`
-              : '0 2px 12px rgba(0,0,0,0.22)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
             overflow: 'hidden',
           }}
         >
-          {/* Accent halo */}
-          <div
-            aria-hidden
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: `radial-gradient(circle at 80% -20%, rgba(${accentRGB},0.10), transparent 50%)`,
-              opacity: hovered ? 1 : 0.5,
-              transition: 'opacity 0.2s',
-              pointerEvents: 'none',
-            }}
+          <CompanyLogo
+            id={company.company_id}
+            name={company.display_name}
+            logoUrl={company.logo_url ?? null}
+            size={28}
+            iconFallback
           />
-
-          {/* Top row: logo + sub-sector tag */}
+        </div>
+        <div style={{ minWidth: 0 }}>
           <div
-            style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              marginBottom: '16px',
-              gap: '12px',
-            }}
-          >
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '10px',
-                background: `rgba(${accentRGB},0.06)`,
-                border: `1px solid ${accent}22`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <CompanyLogo
-                id={company.company_id}
-                name={company.display_name}
-                logoUrl={company.logo_url ?? null}
-                size={40}
-                iconFallback
-              />
-            </div>
-            <span
-              style={{
-                padding: '4px 10px',
-                borderRadius: '6px',
-                border: `1px solid ${subMeta.color}40`,
-                background: `${subMeta.color}15`,
-                color: subMeta.color,
-                fontFamily: 'var(--font-mono)',
-                fontSize: '10px',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {subMeta.label}
-            </span>
-          </div>
-
-          {/* Name + ticker */}
-          <h3
             style={{
               fontFamily: 'var(--font-body)',
-              fontSize: '18px',
-              fontWeight: 700,
+              fontSize: 13,
+              fontWeight: 600,
               color: 'var(--color-text-1)',
-              margin: '0 0 4px',
-              lineHeight: 1.2,
+              whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              position: 'relative',
             }}
           >
             {company.display_name}
-          </h3>
-          {company.ticker && (
-            <p
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '12px',
-                color: accent,
-                margin: '0 0 10px',
-                fontWeight: 600,
-                letterSpacing: '0.06em',
-                position: 'relative',
-              }}
-            >
-              {company.ticker}
-            </p>
-          )}
-
-          {/* HQ */}
-          {company.headquarters && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                marginBottom: '18px',
-                position: 'relative',
-              }}
-            >
-              <MapPin size={12} color="var(--color-text-3)" style={{ flexShrink: 0 }} />
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+              marginTop: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              minWidth: 0,
+            }}
+          >
+            {company.ticker && (
               <span
                 style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '12px',
-                  color: 'var(--color-text-3)',
+                  fontFamily: 'var(--font-mono)',
+                  color: accent,
+                  fontWeight: 600,
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {company.ticker}
+              </span>
+            )}
+            {company.ticker && company.headquarters && <span>·</span>}
+            {company.headquarters && (
+              <span
+                style={{
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -317,55 +258,224 @@ function CompanyCard<E extends CompanyEntity>({
               >
                 {company.headquarters}
               </span>
-            </div>
-          )}
-
-          {/* Flex spacer */}
-          <div style={{ flex: 1 }} />
-
-          {/* Stats */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${stats.length}, 1fr)`,
-              gap: '10px',
-              paddingTop: '14px',
-              borderTop: '1px solid rgba(235,229,213,0.06)',
-              position: 'relative',
-            }}
-          >
-            {stats.map((stat) => (
-              <div key={stat.label}>
-                <p
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '9px',
-                    fontWeight: 700,
-                    letterSpacing: '0.14em',
-                    textTransform: 'uppercase',
-                    color: 'var(--color-text-3)',
-                    margin: '0 0 4px',
-                  }}
-                >
-                  {stat.label}
-                </p>
-                <p
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    color: stat.accent ?? 'var(--color-text-1)',
-                    margin: 0,
-                  }}
-                >
-                  {stat.value.toLocaleString()}
-                </p>
-              </div>
-            ))}
+            )}
           </div>
         </div>
-      </Link>
-    </motion.div>
+      </div>
+
+      {/* Metric cells */}
+      {stats.map((s, i) => {
+        const v = s.value ?? 0;
+        return (
+          <span
+            key={s.label}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              fontWeight: 700,
+              color: s.accent ?? defaultStatColor(i, v, accent),
+              whiteSpace: 'nowrap',
+              textAlign: 'right',
+            }}
+          >
+            {s.display ?? v.toLocaleString()}
+          </span>
+        );
+      })}
+
+      {/* Sub-sector tag — rightmost cell */}
+      <span
+        style={{
+          justifySelf: 'end',
+          padding: '3px 8px',
+          borderRadius: 5,
+          background: `${subMeta.color}18`,
+          color: subMeta.color,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {subMeta.label}
+      </span>
+    </Link>
+  );
+}
+
+// ── Grid card ──
+
+function GridCard<E extends CompanyEntity>({
+  company,
+  stats,
+  subMeta,
+  profilePath,
+  accent,
+}: {
+  company: E;
+  stats: CompanyStat[];
+  subMeta: SubSectorMeta;
+  profilePath: (id: string) => string;
+  accent: string;
+}) {
+  const [hover, setHover] = useState(false);
+
+  return (
+    <Link
+      to={profilePath(company.company_id)}
+      style={{
+        display: 'block',
+        padding: 18,
+        borderRadius: 12,
+        border: `1px solid ${hover ? 'rgba(235,229,213,0.14)' : B}`,
+        background: hover ? SURF2 : SURF,
+        textDecoration: 'none',
+        color: 'var(--color-text-1)',
+        transition: 'background 0.15s, border-color 0.15s',
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          marginBottom: 10,
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            background: `${accent}18`,
+            border: `1px solid ${accent}22`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'var(--font-body)',
+            fontSize: 12,
+            fontWeight: 700,
+            color: accent,
+            overflow: 'hidden',
+            flexShrink: 0,
+          }}
+        >
+          <CompanyLogo
+            id={company.company_id}
+            name={company.display_name}
+            logoUrl={company.logo_url ?? null}
+            size={30}
+            iconFallback
+          />
+        </div>
+        <span
+          style={{
+            padding: '3px 8px',
+            borderRadius: 5,
+            background: `${subMeta.color}18`,
+            color: subMeta.color,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {subMeta.label}
+        </span>
+      </div>
+      <div
+        style={{
+          fontFamily: 'var(--font-body)',
+          fontSize: 14,
+          fontWeight: 600,
+          color: 'var(--color-text-1)',
+          marginBottom: 4,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {company.display_name}
+      </div>
+      <div
+        style={{
+          fontFamily: 'var(--font-body)',
+          fontSize: 11,
+          color: 'var(--color-text-3)',
+          marginBottom: 12,
+          display: 'flex',
+          gap: 6,
+          alignItems: 'center',
+        }}
+      >
+        {company.ticker && (
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              color: accent,
+              fontWeight: 600,
+            }}
+          >
+            {company.ticker}
+          </span>
+        )}
+        {company.ticker && company.headquarters && <span>·</span>}
+        {company.headquarters && (
+          <span
+            style={{
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {company.headquarters}
+          </span>
+        )}
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${stats.length}, 1fr)`,
+          gap: 10,
+        }}
+      >
+        {stats.map((s, i) => {
+          const v = s.value ?? 0;
+          return (
+            <div key={s.label}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: s.accent ?? defaultStatColor(i, v, accent),
+                  lineHeight: 1,
+                }}
+              >
+                {s.display ?? v.toLocaleString()}
+              </div>
+              <div
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 10,
+                  color: 'var(--color-text-3)',
+                  marginTop: 4,
+                }}
+              >
+                {s.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Link>
   );
 }
 
@@ -373,61 +483,57 @@ function CompanyCard<E extends CompanyEntity>({
 
 interface SectorCompaniesLayoutProps<E extends CompanyEntity> {
   config: SectorConfig;
+  /** Page title. Falls back to `{SectorLabel} Companies`. */
   title?: string;
   subtitle?: string;
   dataCredit?: string;
   entities: E[];
   loading: boolean;
-  /** Map of sector_type (lowercased) -> { label, color } */
   subSectors: Record<string, { label: string; color: string }>;
-  /** Render the 3 footer stats for a card */
   renderStats: (entity: E) => CompanyStat[];
-  /** Used as the eyebrow verb, e.g. "Directory", "Explorer" */
+  /** Legacy prop, no longer rendered but kept so existing call sites compile. */
   eyebrowVerb?: string;
 }
 
 export function SectorCompaniesLayout<E extends CompanyEntity>({
   config,
-  title = 'Company Explorer',
+  title,
   subtitle,
   dataCredit,
   entities,
   loading,
   subSectors,
   renderStats,
-  eyebrowVerb = 'Directory',
 }: SectorCompaniesLayoutProps<E>) {
   const Header = config.Header;
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialSector = searchParams.get('sector')?.toLowerCase() || null;
   const [search, setSearch] = useState('');
   const [activeSector, setActiveSector] = useState<string | null>(initialSector);
+  const [view, setView] = useState<'table' | 'grid'>('table');
+  const [sortIndex, setSortIndex] = useState(0);
   const [searchFocused, setSearchFocused] = useState(false);
 
-  const subSectorCounts = useMemo(() => {
+  const resolvedTitle = title ?? `${config.label} Companies`;
+
+  // Sub-sector counts for pill dropdown
+  const subSectorRows = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const co of entities) {
       const key = (co.sector_type || '').toLowerCase();
       counts[key] = (counts[key] || 0) + 1;
     }
-    return counts;
-  }, [entities]);
+    return Object.entries(counts)
+      .sort(([, a], [, b]) => b - a)
+      .map(([key, count]) => ({
+        key,
+        count,
+        label: subSectors[key]?.label || key.toUpperCase().replace(/_/g, ' '),
+        color: subSectors[key]?.color || config.accent,
+      }));
+  }, [entities, subSectors, config.accent]);
 
-  const subSectorRows = useMemo(
-    () =>
-      Object.entries(subSectorCounts)
-        .sort(([, a], [, b]) => b - a)
-        .map(([key, count]) => ({
-          key,
-          count,
-          label:
-            subSectors[key]?.label ||
-            key.toUpperCase().replace(/_/g, ' '),
-          color: subSectors[key]?.color || config.accent,
-        })),
-    [subSectorCounts, subSectors, config.accent],
-  );
-
+  // Filter
   const filtered = useMemo(() => {
     let list = entities;
     if (activeSector) {
@@ -445,343 +551,267 @@ export function SectorCompaniesLayout<E extends CompanyEntity>({
     return list;
   }, [entities, activeSector, search]);
 
+  // Sort: precompute stats once and sort by chosen index
+  const sorted = useMemo(() => {
+    const withStats = filtered.map((c) => ({ c, stats: renderStats(c) }));
+    const clampIdx = Math.min(sortIndex, (withStats[0]?.stats.length ?? 1) - 1);
+    withStats.sort((a, b) => {
+      const av = a.stats[clampIdx]?.value ?? 0;
+      const bv = b.stats[clampIdx]?.value ?? 0;
+      return bv - av;
+    });
+    return withStats;
+  }, [filtered, renderStats, sortIndex]);
+
+  // Table grid template: company (1fr) + N metric cols (100px each) + tag (100px)
+  const sampleStats = useMemo(() => (entities[0] ? renderStats(entities[0]) : []), [entities, renderStats]);
+  const gridTemplate = useMemo(() => {
+    const metricCols = sampleStats.map(() => '100px').join(' ');
+    return `1fr ${metricCols} 100px`;
+  }, [sampleStats]);
+
+  const handleSectorChange = (key: string | null) => {
+    setActiveSector(key);
+    const sp = new URLSearchParams(searchParams);
+    if (key) sp.set('sector', key);
+    else sp.delete('sector');
+    setSearchParams(sp, { replace: true });
+  };
+
   return (
     <main id="main-content" style={{ ...pageShell, ...sectorCssVars(config.key) }}>
-      {/* Background decor */}
-      <div style={decorWrap} aria-hidden>
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: `radial-gradient(ellipse at 50% -10%, ${config.accent} 0%, transparent 55%)`,
-            opacity: 0.07,
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background:
-              'radial-gradient(ellipse at 50% 120%, var(--color-surface) 0%, transparent 70%)',
-            opacity: 0.5,
-          }}
-        />
-      </div>
-
       <Header />
 
       <div style={contentWrap}>
-        {/* Eyebrow */}
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '10px',
-            marginTop: '24px',
-          }}
-        >
-          <span
-            style={{
-              position: 'relative',
-              display: 'inline-flex',
-              width: '8px',
-              height: '8px',
-            }}
-          >
-            <span
-              style={{
-                position: 'absolute',
-                inset: 0,
-                borderRadius: '999px',
-                background: config.accent,
-                opacity: 0.5,
-                animation: 'tab-ping 1.4s ease-out infinite',
-              }}
-            />
-            <span
-              style={{
-                position: 'relative',
-                width: '8px',
-                height: '8px',
-                borderRadius: '999px',
-                background: config.accent,
-                boxShadow: `0 0 10px rgba(${config.accentRGB},0.55)`,
-              }}
-            />
-          </span>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '11px',
-              fontWeight: 700,
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              color: config.accent,
-            }}
-          >
-            {config.label} · {eyebrowVerb}
-          </span>
-        </div>
-
-        {/* Title row */}
+        {/* Header row: title + toolbar */}
         <div
           style={{
             display: 'flex',
             alignItems: 'flex-end',
             justifyContent: 'space-between',
+            gap: 20,
             flexWrap: 'wrap',
-            gap: '16px',
-            marginBottom: '12px',
+            marginBottom: 16,
           }}
         >
           <div>
-            <h1 style={titleStyle}>{title}</h1>
-            {subtitle && <p style={subtitleStyle}>{subtitle}</p>}
+            <h1 style={titleStyle}>{resolvedTitle}</h1>
+            <p style={trackedStyle}>
+              {filtered.length.toLocaleString()} of {entities.length.toLocaleString()} entities tracked
+              {dataCredit ? ` · ${dataCredit}` : ''}
+            </p>
+            {subtitle && (
+              <p
+                style={{
+                  ...trackedStyle,
+                  marginTop: 8,
+                  maxWidth: 640,
+                  lineHeight: 1.5,
+                  color: 'var(--color-text-2)',
+                }}
+              >
+                {subtitle}
+              </p>
+            )}
           </div>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-end',
-              gap: '6px',
-            }}
-          >
-            <span
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* Search */}
+            <div
               style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '11px',
-                fontWeight: 700,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'var(--color-text-3)',
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                background: SURF,
+                border: `1px solid ${searchFocused ? `${config.accent}55` : B}`,
+                borderRadius: 8,
+                padding: '5px 10px',
+                width: 200,
+                transition: 'border-color 0.15s',
               }}
             >
-              Showing
-            </span>
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '24px',
-                fontWeight: 700,
-                color: config.accent,
-                lineHeight: 1,
-              }}
-            >
-              {filtered.length}
-              <span
+              <Search
+                size={12}
                 style={{
-                  fontSize: '14px',
-                  color: 'var(--color-text-3)',
-                  marginLeft: '6px',
+                  color: searchFocused ? config.accent : 'var(--color-text-3)',
+                  marginRight: 6,
+                  flexShrink: 0,
                 }}
-              >
-                / {entities.length}
-              </span>
-            </span>
-            {dataCredit && (
-              <span
+              />
+              <input
+                type="text"
+                placeholder="Search…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
                 style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '10px',
-                  color: 'var(--color-text-3)',
-                  marginTop: '4px',
+                  width: '100%',
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: 'var(--color-text-1)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 12,
                 }}
-              >
-                DATA: {dataCredit}
-              </span>
+              />
+            </div>
+
+            {/* View toggle */}
+            <ToggleGroup<'table' | 'grid'>
+              options={[
+                { key: 'table', label: <Rows size={14} />, title: 'Table view' },
+                { key: 'grid', label: <LayoutGrid size={14} />, title: 'Grid view' },
+              ]}
+              value={view}
+              onChange={setView}
+              accent={config.accent}
+            />
+
+            {/* Sort toggle (only if we have stats) */}
+            {sampleStats.length > 0 && (
+              <ToggleGroup<string>
+                options={sampleStats.map((s, i) => ({ key: String(i), label: s.label }))}
+                value={String(sortIndex)}
+                onChange={(v) => setSortIndex(Number(v))}
+                accent={config.accent}
+              />
             )}
           </div>
         </div>
 
-        {/* Search + filters */}
-        <div style={{ margin: '28px 0 24px' }}>
-          <div
-            style={{
-              position: 'relative',
-              maxWidth: '480px',
-              marginBottom: '16px',
-            }}
-          >
-            <Search
-              size={18}
-              style={{
-                position: 'absolute',
-                left: '14px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: searchFocused ? config.accent : 'var(--color-text-3)',
-                transition: 'color 0.2s',
-                pointerEvents: 'none',
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Search by name or ticker…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              style={{
-                width: '100%',
-                padding: '12px 14px 12px 42px',
-                borderRadius: '10px',
-                border: `1px solid ${searchFocused ? `${config.accent}55` : 'rgba(235,229,213,0.08)'}`,
-                background: 'var(--color-surface)',
-                color: 'var(--color-text-1)',
-                fontFamily: 'var(--font-body)',
-                fontSize: '14px',
-                outline: 'none',
-                transition: 'border-color 0.2s',
-              }}
-            />
-          </div>
-
+        {/* Sub-sector filter pills (kept for usability — design HTML doesn't show them) */}
+        {subSectorRows.length > 0 && (
           <div
             style={{
               display: 'flex',
-              gap: '8px',
+              gap: 6,
               overflowX: 'auto',
-              paddingBottom: '4px',
+              paddingBottom: 8,
+              marginBottom: 18,
             }}
           >
-            <FilterPill
-              label="All"
-              count={entities.length}
-              active={activeSector === null}
-              color={config.accent}
-              onClick={() => setActiveSector(null)}
-            />
-            {subSectorRows.map(({ key, count, label, color }) => (
-              <FilterPill
-                key={key}
-                label={label}
-                count={count}
-                active={activeSector === key}
-                color={color}
-                onClick={() => setActiveSector(activeSector === key ? null : key)}
-              />
-            ))}
+            <button
+              type="button"
+              onClick={() => handleSectorChange(null)}
+              style={pillStyle(activeSector === null, config.accent)}
+            >
+              All <span style={pillCountStyle(activeSector === null, config.accent)}>{entities.length}</span>
+            </button>
+            {subSectorRows.map((r) => {
+              const active = activeSector === r.key;
+              return (
+                <button
+                  key={r.key}
+                  type="button"
+                  onClick={() => handleSectorChange(active ? null : r.key)}
+                  style={pillStyle(active, r.color)}
+                >
+                  {r.label}
+                  <span style={pillCountStyle(active, r.color)}>{r.count}</span>
+                </button>
+              );
+            })}
           </div>
-        </div>
+        )}
 
         {/* Content */}
         {loading ? (
+          <LoadingBlock accent={config.accent} />
+        ) : sorted.length === 0 ? (
+          <EmptyBlock
+            hasAny={entities.length > 0}
+            sectorLabel={config.label}
+            accent={config.accent}
+            onClear={() => {
+              setSearch('');
+              handleSectorChange(null);
+            }}
+            showClear={Boolean(search || activeSector)}
+          />
+        ) : view === 'table' ? (
           <div
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '96px 24px',
-              gap: '14px',
+              background: SURF,
+              border: `1px solid ${B}`,
+              borderRadius: 12,
+              overflow: 'hidden',
             }}
           >
+            {/* Header row */}
             <div
               style={{
-                width: '32px',
-                height: '32px',
-                border: `2px solid ${config.accent}`,
-                borderTopColor: 'transparent',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite',
-              }}
-            />
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '11px',
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'var(--color-text-3)',
+                display: 'grid',
+                gridTemplateColumns: gridTemplate,
+                padding: '10px 20px',
+                borderBottom: `1px solid ${B}`,
+                gap: 12,
               }}
             >
-              Loading companies…
-            </span>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '80px 24px',
-              gap: '12px',
-              borderRadius: '16px',
-              border: '1px solid rgba(235,229,213,0.06)',
-              background: 'var(--color-surface)',
-            }}
-          >
-            {entities.length === 0 ? (
-              <Building2 size={40} color="var(--color-text-3)" />
-            ) : (
-              <SearchX size={40} color="var(--color-text-3)" />
-            )}
-            <p
-              style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: '14px',
-                color: 'var(--color-text-3)',
-                margin: 0,
-              }}
-            >
-              {entities.length === 0
-                ? `${config.label} sector data is not yet available.`
-                : 'No companies match your filters.'}
-            </p>
-            {entities.length > 0 && (search || activeSector) && (
-              <button
-                onClick={() => {
-                  setSearch('');
-                  setActiveSector(null);
-                }}
-                style={{
-                  marginTop: '8px',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: `1px solid ${config.accent}55`,
-                  background: `rgba(${config.accentRGB},0.12)`,
-                  color: config.accent,
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  letterSpacing: '0.14em',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                }}
-              >
-                Clear filters
-              </button>
-            )}
+              <span style={headerCellStyle(false, config.accent)}>Company</span>
+              {sampleStats.map((s, i) => {
+                const active = sortIndex === i;
+                return (
+                  <span
+                    key={s.label}
+                    onClick={() => setSortIndex(i)}
+                    style={{
+                      ...headerCellStyle(active, config.accent),
+                      textAlign: 'right',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {s.label}
+                  </span>
+                );
+              })}
+              <span style={{ ...headerCellStyle(false, config.accent), justifySelf: 'end' }}>Type</span>
+            </div>
+            {/* Rows */}
+            {sorted.map(({ c, stats }, i) => {
+              const key = (c.sector_type || '').toLowerCase();
+              const subMeta: SubSectorMeta = {
+                key,
+                label: subSectors[key]?.label || key.toUpperCase().replace(/_/g, ' ') || '—',
+                color: subSectors[key]?.color || config.accent,
+              };
+              return (
+                <TableRow
+                  key={c.company_id}
+                  company={c}
+                  stats={stats}
+                  subMeta={subMeta}
+                  profilePath={config.profilePath}
+                  accent={config.accent}
+                  isLast={i === sorted.length - 1}
+                  gridTemplate={gridTemplate}
+                />
+              );
+            })}
           </div>
         ) : (
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: '16px',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+              gap: 12,
             }}
           >
-            {filtered.map((co, idx) => {
-              const key = (co.sector_type || '').toLowerCase();
+            {sorted.map(({ c, stats }) => {
+              const key = (c.sector_type || '').toLowerCase();
               const subMeta: SubSectorMeta = {
                 key,
-                label:
-                  subSectors[key]?.label ||
-                  key.toUpperCase().replace(/_/g, ' '),
+                label: subSectors[key]?.label || key.toUpperCase().replace(/_/g, ' ') || '—',
                 color: subSectors[key]?.color || config.accent,
               };
               return (
-                <CompanyCard
-                  key={co.company_id}
-                  company={co}
-                  index={idx}
+                <GridCard
+                  key={c.company_id}
+                  company={c}
+                  stats={stats}
                   subMeta={subMeta}
-                  stats={renderStats(co)}
                   profilePath={config.profilePath}
                   accent={config.accent}
-                  accentRGB={config.accentRGB}
                 />
               );
             })}
@@ -789,5 +819,158 @@ export function SectorCompaniesLayout<E extends CompanyEntity>({
         )}
       </div>
     </main>
+  );
+}
+
+// ── Helper styles ──
+
+function pillStyle(active: boolean, color: string): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    whiteSpace: 'nowrap',
+    padding: '5px 10px',
+    borderRadius: 999,
+    border: `1px solid ${active ? color : B}`,
+    background: active ? `${color}1F` : 'transparent',
+    color: active ? color : 'var(--color-text-3)',
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  };
+}
+
+function pillCountStyle(active: boolean, color: string): React.CSSProperties {
+  return {
+    padding: '1px 6px',
+    borderRadius: 999,
+    background: active ? `${color}33` : 'rgba(235,229,213,0.06)',
+    color: active ? color : 'var(--color-text-3)',
+    fontSize: 9,
+    fontWeight: 700,
+  };
+}
+
+function headerCellStyle(active: boolean, accent: string): React.CSSProperties {
+  return {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: active ? accent : T3,
+  };
+}
+
+// ── Loading / empty blocks ──
+
+function LoadingBlock({ accent }: { accent: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 14,
+        padding: '96px 24px',
+      }}
+    >
+      <div
+        style={{
+          width: 28,
+          height: 28,
+          border: `2px solid ${accent}`,
+          borderTopColor: 'transparent',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+        }}
+      />
+      <span
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          color: 'var(--color-text-3)',
+        }}
+      >
+        Loading companies…
+      </span>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+function EmptyBlock({
+  hasAny,
+  sectorLabel,
+  accent,
+  onClear,
+  showClear,
+}: {
+  hasAny: boolean;
+  sectorLabel: string;
+  accent: string;
+  onClear: () => void;
+  showClear: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        padding: '80px 24px',
+        borderRadius: 16,
+        border: `1px solid ${B}`,
+        background: SURF,
+      }}
+    >
+      {hasAny ? (
+        <SearchX size={36} color="var(--color-text-3)" />
+      ) : (
+        <Building2 size={36} color="var(--color-text-3)" />
+      )}
+      <p
+        style={{
+          fontFamily: 'var(--font-body)',
+          fontSize: 14,
+          color: 'var(--color-text-3)',
+          margin: 0,
+        }}
+      >
+        {hasAny
+          ? 'No companies match your filters.'
+          : `${sectorLabel} sector data is not yet available.`}
+      </p>
+      {showClear && hasAny && (
+        <button
+          onClick={onClear}
+          style={{
+            marginTop: 4,
+            padding: '7px 14px',
+            borderRadius: 8,
+            border: `1px solid ${accent}55`,
+            background: `${accent}1F`,
+            color: accent,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Clear filters
+        </button>
+      )}
+    </div>
   );
 }
