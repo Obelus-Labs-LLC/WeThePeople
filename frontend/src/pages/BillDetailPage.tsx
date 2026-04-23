@@ -1,23 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, ExternalLink, Check } from 'lucide-react';
 import { apiClient } from '../api/client';
-import type { BillResponse, ActionSearchResponse, ActionSearchResult } from '../api/types';
-import BackButton from '../components/BackButton';
+import type { BillResponse, ActionSearchResult } from '../api/types';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 
-// ── Status color map ──
+// ── Status token map (design system aligned) ──
 
-const STATUS_COLORS: Record<string, string> = {
-  introduced: '#6B7280',
-  in_committee: '#F59E0B',
-  passed_house: '#3B82F6',
-  passed_one: '#3B82F6',
-  passed_senate: '#3B82F6',
-  passed_both: '#8B5CF6',
-  enacted: '#10B981',
-  became_law: '#10B981',
-  vetoed: '#EF4444',
-  failed: '#EF4444',
+const STATUS_TOKEN: Record<string, { color: string; hex: string }> = {
+  introduced: { color: 'var(--color-text-2)', hex: '#7F8593' },
+  in_committee: { color: 'var(--color-accent-text)', hex: '#D4AE35' },
+  passed_house: { color: 'var(--color-dem)', hex: '#4A7FDE' },
+  passed_one: { color: 'var(--color-dem)', hex: '#4A7FDE' },
+  passed_senate: { color: 'var(--color-dem)', hex: '#4A7FDE' },
+  passed_both: { color: 'var(--color-ind)', hex: '#B06FD8' },
+  enacted: { color: 'var(--color-green)', hex: '#3DB87A' },
+  became_law: { color: 'var(--color-green)', hex: '#3DB87A' },
+  vetoed: { color: 'var(--color-red)', hex: '#E63946' },
+  failed: { color: 'var(--color-red)', hex: '#E63946' },
 };
 
 // ── Pipeline stages ──
@@ -43,7 +43,7 @@ function statusToStageIndex(status: string | null): number {
     enacted: 5,
     became_law: 5,
     vetoed: 4,
-    failed: 0, // could be at any stage; default to 0
+    failed: 0,
   };
   return map[status] ?? 0;
 }
@@ -76,15 +76,26 @@ function getCongressOrdinal(n: number): string {
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 }
 
-const PARTY_COLORS: Record<string, string> = {
-  D: '#3B82F6',
-  R: '#EF4444',
-  I: '#A855F7',
+const PARTY_HEX: Record<string, string> = {
+  D: '#4A7FDE',
+  R: '#E05555',
+  I: '#B06FD8',
 };
 
-function partyColor(party: string | null): string {
-  if (!party) return '#6B7280';
-  return PARTY_COLORS[party.charAt(0).toUpperCase()] || '#6B7280';
+const PARTY_TOKEN: Record<string, string> = {
+  D: 'var(--color-dem)',
+  R: 'var(--color-rep)',
+  I: 'var(--color-ind)',
+};
+
+function partyHex(party: string | null): string {
+  if (!party) return '#7F8593';
+  return PARTY_HEX[party.charAt(0).toUpperCase()] || '#7F8593';
+}
+
+function partyToken(party: string | null): string {
+  if (!party) return 'var(--color-text-3)';
+  return PARTY_TOKEN[party.charAt(0).toUpperCase()] || 'var(--color-text-3)';
 }
 
 function partyLabel(party: string | null): string {
@@ -106,6 +117,57 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
+// ── Styles ──
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text-1)',
+};
+
+const contentWrap: React.CSSProperties = {
+  maxWidth: 1400,
+  margin: '0 auto',
+  padding: '40px 32px 80px',
+};
+
+const backLinkStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 13,
+  color: 'var(--color-text-2)',
+  textDecoration: 'none',
+  transition: 'color 150ms',
+};
+
+const titleStyle: React.CSSProperties = {
+  fontFamily: "'Playfair Display', Georgia, serif",
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: 'clamp(30px, 4vw, 44px)',
+  lineHeight: 1.15,
+  color: 'var(--color-text-1)',
+  marginBottom: 16,
+};
+
+const sectionCard: React.CSSProperties = {
+  borderRadius: 16,
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  padding: 28,
+};
+
+const sectionHeading: React.CSSProperties = {
+  fontFamily: "'Playfair Display', Georgia, serif",
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: 22,
+  color: 'var(--color-text-1)',
+  marginBottom: 20,
+};
+
 // ── Component ──
 
 export default function BillDetailPage() {
@@ -126,7 +188,6 @@ export default function BillDetailPage() {
       .then((billRes) => {
         if (cancelled) return;
         setBill(billRes);
-        // Fetch related actions after we have the bill data
         return apiClient
           .searchActions({
             bill_congress: billRes.congress,
@@ -136,37 +197,79 @@ export default function BillDetailPage() {
             limit: 10,
           })
           .then((actionsRes) => setRelatedActions(actionsRes.actions || []))
-          .catch(() => {
-            // Non-critical — don't fail the page
-          });
+          .catch(() => {});
       })
       .catch((err) => { if (!cancelled) setError(err.message || 'Failed to load bill'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [bill_id]);
 
-  // ── Loading ──
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center" style={{ backgroundColor: '#020617' }}>
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-          <span className="font-body text-sm text-slate-400">Loading bill details...</span>
+      <div style={{ ...pageShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              border: '2px solid var(--color-border)',
+              borderTopColor: 'var(--color-accent)',
+              animation: 'spin 1s linear infinite',
+            }}
+          />
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-2)' }}>
+            Loading bill details...
+          </span>
         </div>
       </div>
     );
   }
 
-  // ── Error ──
   if (error) {
     return (
-      <div className="flex h-screen items-center justify-center" style={{ backgroundColor: '#020617' }}>
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-8 text-center">
-          <p className="font-heading text-xl font-bold uppercase text-red-400">Error</p>
-          <p className="mt-2 font-body text-sm text-red-300/70">{error}</p>
-          <div className="mt-4">
-            <BackButton to="/politics/activity" label="Activity" />
-          </div>
+      <div style={{ ...pageShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div
+          style={{
+            borderRadius: 16,
+            border: '1px solid rgba(230,57,70,0.3)',
+            background: 'rgba(230,57,70,0.08)',
+            padding: 32,
+            textAlign: 'center',
+            maxWidth: 480,
+          }}
+        >
+          <p
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 20,
+              color: 'var(--color-red)',
+            }}
+          >
+            Error
+          </p>
+          <p
+            style={{
+              marginTop: 8,
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--color-text-2)',
+              marginBottom: 20,
+            }}
+          >
+            {error}
+          </p>
+          <Link
+            to="/politics/activity"
+            style={{ ...backLinkStyle, justifyContent: 'center' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+          >
+            <ArrowLeft size={12} />
+            Activity
+          </Link>
         </div>
       </div>
     );
@@ -174,23 +277,21 @@ export default function BillDetailPage() {
 
   if (!bill) {
     return (
-      <div className="flex h-screen items-center justify-center" style={{ backgroundColor: '#020617' }}>
-        <p className="font-body text-slate-500">Bill not found.</p>
+      <div style={{ ...pageShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: 'var(--color-text-2)', fontSize: 14 }}>Bill not found.</p>
       </div>
     );
   }
 
-  const statusColor = STATUS_COLORS[bill.status_bucket || ''] || '#6B7280';
+  const statusToken = STATUS_TOKEN[bill.status_bucket || ''] || { color: 'var(--color-text-2)', hex: '#7F8593' };
   const currentStage = statusToStageIndex(bill.status_bucket);
   const primarySponsor = bill.sponsors.find((s) => s.role === 'sponsor');
   const cosponsors = bill.sponsors.filter((s) => s.role === 'cosponsor');
 
-  // Sort timeline descending (most recent first)
   const sortedTimeline = [...bill.timeline].sort(
-    (a, b) => new Date(b.action_date || '').getTime() - new Date(a.action_date || '').getTime()
+    (a, b) => new Date(b.action_date || '').getTime() - new Date(a.action_date || '').getTime(),
   );
 
-  // Meta items for the header row
   const metaItems: string[] = [];
   metaItems.push(`${getCongressOrdinal(bill.congress)} Congress`);
   if (bill.policy_area) metaItems.push(bill.policy_area);
@@ -198,34 +299,67 @@ export default function BillDetailPage() {
   if (bill.latest_action_date) metaItems.push(`Latest ${formatDate(bill.latest_action_date)}`);
 
   return (
-    <div
-      className="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden"
-    >
-      {/* ── Header (non-scrolling) ── */}
-      <div className="flex-shrink-0 px-8 pt-8 pb-0">
-        <PoliticsSectorHeader />
-        <div className="mb-2">
-          <BackButton to="/politics/activity" label="Activity" />
+    <div style={pageShell}>
+      <div style={contentWrap}>
+        <div style={{ marginBottom: 24 }}>
+          <PoliticsSectorHeader />
         </div>
-        <div className="flex items-center justify-end mb-6">
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            marginBottom: 24,
+          }}
+        >
+          <Link
+            to="/politics/activity"
+            style={backLinkStyle}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+          >
+            <ArrowLeft size={12} />
+            Activity
+          </Link>
           <a
             href={bill.congress_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-body text-sm text-blue-400 transition-colors hover:text-blue-300 no-underline"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--color-accent-text)',
+              textDecoration: 'none',
+              transition: 'opacity 150ms',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
           >
-            View on Congress.gov &rarr;
+            View on Congress.gov
+            <ExternalLink size={12} />
           </a>
         </div>
 
         {/* Bill ID tag */}
-        <div className="mb-4">
+        <div style={{ marginBottom: 16 }}>
           <span
-            className="inline-block font-mono text-xl font-bold px-4 py-1.5 rounded-full"
             style={{
-              backgroundColor: 'rgba(59,130,246,0.2)',
-              border: '1px solid rgba(59,130,246,0.3)',
-              color: '#60A5FA',
+              display: 'inline-block',
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 16,
+              fontWeight: 700,
+              padding: '6px 16px',
+              borderRadius: 999,
+              background: 'var(--color-accent-dim)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-accent-text)',
+              letterSpacing: '0.02em',
             }}
           >
             {formatBillType(bill.bill_type)} {bill.bill_number}
@@ -233,62 +367,103 @@ export default function BillDetailPage() {
         </div>
 
         {/* Title */}
-        <h1 className="font-heading text-4xl font-bold uppercase leading-tight text-white 2xl:text-6xl">
-          {bill.title}
-        </h1>
+        <h1 style={titleStyle}>{bill.title}</h1>
 
-        {/* Status badge + Meta row */}
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          {/* Status badge */}
+        {/* Status + Meta row */}
+        <div
+          style={{
+            marginTop: 16,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 32,
+          }}
+        >
           {bill.status_bucket && (
             <span
-              className="inline-block rounded-full px-3 py-1 text-sm font-bold uppercase"
               style={{
-                backgroundColor: `${statusColor}33`,
-                color: statusColor,
-                border: `1px solid ${statusColor}4D`,
+                display: 'inline-block',
+                padding: '5px 12px',
+                borderRadius: 999,
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                background: `${statusToken.hex}1F`,
+                color: statusToken.color,
+                border: `1px solid ${statusToken.hex}33`,
               }}
             >
               {bill.status_bucket.replace(/_/g, ' ')}
             </span>
           )}
 
-          {/* Meta items separated by dots */}
           {metaItems.map((item, i) => (
             <React.Fragment key={i}>
               {(i > 0 || bill.status_bucket) && (
-                <span className="text-slate-600 text-sm select-none">&middot;</span>
+                <span style={{ color: 'var(--color-border-hover)', fontSize: 12, userSelect: 'none' }}>·</span>
               )}
-              <span className="font-body text-sm text-slate-400">{item}</span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-2)' }}>
+                {item}
+              </span>
             </React.Fragment>
           ))}
         </div>
 
-        {/* ── Progress Pipeline ── */}
-        <div className="relative mt-8 mb-10">
-          <div className="flex items-start justify-between">
+        {/* Progress Pipeline */}
+        <div style={{ position: 'relative', marginBottom: 40 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             {PIPELINE_STAGES.map((stage, idx) => {
               const isCompleted = idx < currentStage;
               const isCurrent = idx === currentStage;
+              const background = isCompleted
+                ? 'var(--color-accent)'
+                : isCurrent
+                  ? 'var(--color-accent-text)'
+                  : 'var(--color-surface)';
+              const border = isCompleted
+                ? '3px solid var(--color-accent-dim)'
+                : isCurrent
+                  ? '3px solid var(--color-accent)'
+                  : '2px solid var(--color-border)';
               return (
-                <div key={stage} className="relative z-10 flex flex-col items-center" style={{ flex: 1 }}>
-                  {/* Node */}
+                <div
+                  key={stage}
+                  style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+                >
                   <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                      isCurrent ? 'ring-4 ring-blue-500/20' : ''
-                    }`}
-                    style={
-                      isCompleted
-                        ? { backgroundColor: '#3B82F6', border: '4px solid #1E3A5F' }
-                        : isCurrent
-                          ? { backgroundColor: '#60A5FA', border: '4px solid #60A5FA' }
-                          : { backgroundColor: '#0F172A', border: '2px solid #334155' }
-                    }
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      background,
+                      border,
+                      boxShadow: isCurrent ? '0 0 0 6px var(--color-accent-dim)' : 'none',
+                    }}
                   >
-                    {isCompleted && <div className="h-2 w-2 rounded-full bg-white" />}
+                    {isCompleted && <Check size={14} strokeWidth={3} style={{ color: '#07090C' }} />}
                   </div>
-                  {/* Label */}
-                  <span className="mt-3 text-center font-body text-xs uppercase text-slate-400">
+                  <span
+                    style={{
+                      marginTop: 12,
+                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: isCurrent
+                        ? 'var(--color-accent-text)'
+                        : isCompleted
+                          ? 'var(--color-text-1)'
+                          : 'var(--color-text-3)',
+                      textAlign: 'center',
+                    }}
+                  >
                     {stage}
                   </span>
                 </div>
@@ -297,37 +472,69 @@ export default function BillDetailPage() {
           </div>
           {/* Connecting line */}
           <div
-            className="absolute top-4 left-0 right-0 h-1 -translate-y-1/2"
-            style={{ backgroundColor: '#1E293B', zIndex: 0, marginLeft: '8.33%', marginRight: '8.33%' }}
+            style={{
+              position: 'absolute',
+              top: 16,
+              left: '8.33%',
+              right: '8.33%',
+              height: 2,
+              background: 'var(--color-border)',
+              zIndex: 0,
+            }}
           />
         </div>
-      </div>
 
-      {/* ── Main Content (scrollable on desktop, natural flow on mobile) ── */}
-      <div className="flex-1 lg:min-h-0 lg:overflow-y-auto px-8 pb-8">
-        <div className="grid grid-cols-1 gap-8 2xl:grid-cols-3">
-          {/* ── Left / Center (col-span-2) ── */}
-          <div className="2xl:col-span-2 space-y-8">
+        {/* Main grid */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+            gap: 24,
+          }}
+        >
+          {/* Left column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Summary Card */}
-            <div
-              className="rounded-2xl border p-8"
-              style={{ backgroundColor: '#0F172A', borderColor: '#1E293B' }}
-            >
-              <h2 className="font-heading text-2xl font-bold uppercase text-white mb-4">Summary</h2>
+            <div style={sectionCard}>
+              <h2 style={sectionHeading}>Summary</h2>
               {bill.summary_text ? (
-                <p className="font-body text-xl leading-relaxed text-white/70">{bill.summary_text}</p>
+                <p
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 15,
+                    lineHeight: 1.65,
+                    color: 'var(--color-text-2)',
+                  }}
+                >
+                  {bill.summary_text}
+                </p>
               ) : (
-                <p className="font-body text-base text-slate-500">No summary available.</p>
+                <p
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    color: 'var(--color-text-3)',
+                  }}
+                >
+                  No summary available.
+                </p>
               )}
 
               {/* Subjects */}
               {bill.subjects_json && bill.subjects_json.length > 0 && (
-                <div className="mt-6 flex flex-wrap gap-2">
+                <div style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {bill.subjects_json.map((subject) => (
                     <span
                       key={subject}
-                      className="rounded-lg border px-3 py-1 font-body text-sm text-slate-300"
-                      style={{ backgroundColor: '#1E293B', borderColor: '#334155' }}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: 8,
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-surface-2)',
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-text-2)',
+                      }}
                     >
                       {subject}
                     </span>
@@ -337,72 +544,128 @@ export default function BillDetailPage() {
             </div>
 
             {/* Sponsors Card */}
-            <div
-              className="rounded-2xl border p-8"
-              style={{ backgroundColor: '#0F172A', borderColor: '#1E293B' }}
-            >
-              <h2 className="font-heading text-2xl font-bold uppercase text-white mb-6">Sponsors</h2>
+            <div style={sectionCard}>
+              <h2 style={sectionHeading}>Sponsors</h2>
 
               {/* Primary sponsor */}
               {primarySponsor && (
-                <div className="mb-6">
-                  <div className="flex items-center gap-5">
-                    {/* Avatar */}
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
                     {primarySponsor.photo_url ? (
                       <img
                         src={primarySponsor.photo_url}
                         alt={primarySponsor.display_name}
-                        className="h-20 w-20 rounded-full border-2 object-cover"
-                        style={{ borderColor: '#334155' }}
+                        style={{
+                          height: 72,
+                          width: 72,
+                          borderRadius: '50%',
+                          border: `2px solid ${partyHex(primarySponsor.party)}33`,
+                          objectFit: 'cover',
+                        }}
                       />
                     ) : (
                       <div
-                        className="flex h-20 w-20 items-center justify-center rounded-full font-heading text-2xl font-bold text-white"
-                        style={{ backgroundColor: `${partyColor(primarySponsor.party)}33` }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: 72,
+                          width: 72,
+                          borderRadius: '50%',
+                          background: `${partyHex(primarySponsor.party)}26`,
+                          color: partyToken(primarySponsor.party),
+                          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                          fontSize: 22,
+                          fontWeight: 700,
+                        }}
                       >
                         {getInitials(primarySponsor.display_name)}
                       </div>
                     )}
 
-                    <div className="min-w-0 flex-1">
-                      {/* Name */}
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       {primarySponsor.person_id ? (
                         <Link
                           to={`/politics/people/${primarySponsor.person_id}`}
-                          className="font-body text-xl font-bold text-white transition-colors hover:text-blue-400 no-underline"
+                          style={{
+                            fontFamily: "'Playfair Display', Georgia, serif",
+                            fontStyle: 'italic',
+                            fontWeight: 900,
+                            fontSize: 22,
+                            color: 'var(--color-text-1)',
+                            textDecoration: 'none',
+                            transition: 'color 150ms',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
                         >
                           {primarySponsor.display_name}
                         </Link>
                       ) : (
-                        <span className="font-body text-xl font-bold text-white">
+                        <span
+                          style={{
+                            fontFamily: "'Playfair Display', Georgia, serif",
+                            fontStyle: 'italic',
+                            fontWeight: 900,
+                            fontSize: 22,
+                            color: 'var(--color-text-1)',
+                          }}
+                        >
                           {primarySponsor.display_name}
                         </span>
                       )}
 
-                      {/* Party + State + Role */}
-                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <div
+                        style={{
+                          marginTop: 8,
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
                         {primarySponsor.party && (
                           <span
-                            className="rounded-full px-2.5 py-0.5 font-mono text-xs font-bold"
                             style={{
-                              backgroundColor: `${partyColor(primarySponsor.party)}22`,
-                              color: partyColor(primarySponsor.party),
+                              padding: '3px 10px',
+                              borderRadius: 999,
+                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              background: `${partyHex(primarySponsor.party)}1F`,
+                              color: partyToken(primarySponsor.party),
                             }}
                           >
                             {partyLabel(primarySponsor.party)}
                           </span>
                         )}
                         {primarySponsor.state && (
-                          <span className="font-mono text-sm text-slate-400">{primarySponsor.state}</span>
+                          <span
+                            style={{
+                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                              fontSize: 12,
+                              color: 'var(--color-text-3)',
+                            }}
+                          >
+                            {primarySponsor.state}
+                          </span>
                         )}
                         <span
-                          className="rounded-full px-2 py-0.5 font-heading text-xs font-bold uppercase tracking-wider"
                           style={{
-                            backgroundColor: 'rgba(59,130,246,0.1)',
-                            color: '#60A5FA',
+                            padding: '3px 8px',
+                            borderRadius: 999,
+                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            background: 'var(--color-accent-dim)',
+                            color: 'var(--color-accent-text)',
                           }}
                         >
-                          Primary Sponsor
+                          Primary sponsor
                         </span>
                       </div>
                     </div>
@@ -412,129 +675,208 @@ export default function BillDetailPage() {
 
               {/* Cosponsors */}
               {cosponsors.length > 0 && (
-                <div className="space-y-3">
+                <>
                   {primarySponsor && (
-                    <div className="border-t pt-4 mb-2" style={{ borderColor: '#1E293B' }}>
-                      <span className="font-heading text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <div
+                      style={{
+                        borderTop: '1px solid var(--color-border)',
+                        paddingTop: 16,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: '0.1em',
+                          textTransform: 'uppercase',
+                          color: 'var(--color-text-3)',
+                        }}
+                      >
                         Cosponsors ({cosponsors.length})
                       </span>
                     </div>
                   )}
-                  {cosponsors.map((cs) => (
-                    <div key={cs.bioguide_id} className="flex items-center gap-3">
-                      {/* Avatar */}
-                      {cs.photo_url ? (
-                        <img
-                          src={cs.photo_url}
-                          alt={cs.display_name}
-                          className="h-10 w-10 rounded-full border-2 object-cover"
-                          style={{ borderColor: '#334155' }}
-                        />
-                      ) : (
-                        <div
-                          className="flex h-10 w-10 items-center justify-center rounded-full font-heading text-sm font-bold text-white"
-                          style={{ backgroundColor: `${partyColor(cs.party)}33` }}
-                        >
-                          {getInitials(cs.display_name)}
-                        </div>
-                      )}
-
-                      <div className="min-w-0 flex-1">
-                        {cs.person_id ? (
-                          <Link
-                            to={`/politics/people/${cs.person_id}`}
-                            className="font-body text-sm font-semibold text-white transition-colors hover:text-blue-400 no-underline"
-                          >
-                            {cs.display_name}
-                          </Link>
-                        ) : (
-                          <span className="font-body text-sm font-semibold text-white">
-                            {cs.display_name}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {/* Party dot */}
-                        {cs.party && (
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: partyColor(cs.party) }}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {cosponsors.map((cs) => (
+                      <div key={cs.bioguide_id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {cs.photo_url ? (
+                          <img
+                            src={cs.photo_url}
+                            alt={cs.display_name}
+                            style={{
+                              height: 36,
+                              width: 36,
+                              borderRadius: '50%',
+                              border: `2px solid ${partyHex(cs.party)}33`,
+                              objectFit: 'cover',
+                              flexShrink: 0,
+                            }}
                           />
+                        ) : (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              height: 36,
+                              width: 36,
+                              borderRadius: '50%',
+                              background: `${partyHex(cs.party)}26`,
+                              color: partyToken(cs.party),
+                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {getInitials(cs.display_name)}
+                          </div>
                         )}
-                        {cs.state && (
-                          <span className="font-mono text-xs text-slate-500">{cs.state}</span>
-                        )}
-                        <span
-                          className="rounded-full px-2 py-0.5 font-heading text-[10px] font-bold uppercase tracking-wider"
-                          style={{
-                            backgroundColor: 'rgba(148,163,184,0.1)',
-                            color: '#94A3B8',
-                          }}
-                        >
-                          Co-Sponsor
-                        </span>
+
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          {cs.person_id ? (
+                            <Link
+                              to={`/politics/people/${cs.person_id}`}
+                              style={{
+                                fontFamily: "'Inter', sans-serif",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: 'var(--color-text-1)',
+                                textDecoration: 'none',
+                                transition: 'color 150ms',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+                            >
+                              {cs.display_name}
+                            </Link>
+                          ) : (
+                            <span
+                              style={{
+                                fontFamily: "'Inter', sans-serif",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: 'var(--color-text-1)',
+                              }}
+                            >
+                              {cs.display_name}
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {cs.party && (
+                            <span
+                              style={{
+                                height: 8,
+                                width: 8,
+                                borderRadius: '50%',
+                                background: partyToken(cs.party),
+                              }}
+                            />
+                          )}
+                          {cs.state && (
+                            <span
+                              style={{
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 11,
+                                color: 'var(--color-text-3)',
+                              }}
+                            >
+                              {cs.state}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </>
               )}
 
               {bill.sponsors.length === 0 && (
-                <p className="font-body text-sm text-slate-500">No sponsor information available.</p>
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)' }}>
+                  No sponsor information available.
+                </p>
               )}
             </div>
           </div>
 
-          {/* ── Right Column ── */}
-          <div className="space-y-8">
+          {/* Right column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Timeline Card */}
-            <div
-              className="rounded-2xl border p-8 max-h-[600px] overflow-y-auto"
-              style={{ backgroundColor: '#0F172A', borderColor: '#1E293B' }}
-            >
-              <h2 className="font-heading text-2xl font-bold uppercase text-white mb-6">Timeline</h2>
+            <div style={{ ...sectionCard, maxHeight: 640, overflowY: 'auto' }}>
+              <h2 style={sectionHeading}>Timeline</h2>
 
               {sortedTimeline.length === 0 ? (
-                <p className="font-body text-sm text-slate-500">No timeline data available.</p>
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)' }}>
+                  No timeline data available.
+                </p>
               ) : (
-                <div className="relative pl-6">
-                  {/* Vertical line */}
+                <div style={{ position: 'relative', paddingLeft: 20 }}>
                   <div
-                    className="absolute w-px top-0 bottom-0"
-                    style={{ left: '7px', backgroundColor: 'rgba(255,255,255,0.05)' }}
+                    style={{
+                      position: 'absolute',
+                      width: 1,
+                      top: 4,
+                      bottom: 4,
+                      left: 7,
+                      background: 'var(--color-border)',
+                    }}
                   />
-
-                  <div className="space-y-5">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                     {sortedTimeline.map((entry, idx) => (
-                      <div key={idx} className="relative flex gap-4">
-                        {/* Dot */}
+                      <div key={idx} style={{ position: 'relative', display: 'flex', gap: 12 }}>
                         <div
-                          className="absolute rounded-full"
                           style={{
-                            width: '16px',
-                            height: '16px',
-                            left: '-17px',
-                            top: '2px',
-                            backgroundColor: idx === 0 ? '#60A5FA' : 'rgba(255,255,255,0.1)',
-                            border: '2px solid #0F172A',
+                            position: 'absolute',
+                            width: 14,
+                            height: 14,
+                            left: -17,
+                            top: 2,
+                            borderRadius: '50%',
+                            background: idx === 0 ? 'var(--color-accent-text)' : 'var(--color-surface-2)',
+                            border: '2px solid var(--color-surface)',
                           }}
                         />
-
-                        {/* Content */}
-                        <div className="min-w-0 flex-1">
+                        <div style={{ minWidth: 0, flex: 1 }}>
                           {entry.action_date && (
-                            <span className="font-mono text-sm text-slate-400">
+                            <span
+                              style={{
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 11,
+                                color: 'var(--color-text-3)',
+                              }}
+                            >
                               {formatDate(entry.action_date)}
                             </span>
                           )}
-                          <p className="mt-0.5 font-body text-sm text-white/70 leading-relaxed">
+                          <p
+                            style={{
+                              marginTop: 2,
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 13,
+                              lineHeight: 1.55,
+                              color: 'var(--color-text-2)',
+                            }}
+                          >
                             {entry.action_text}
                           </p>
                           {entry.action_type && (
                             <span
-                              className="mt-1 inline-block rounded px-1.5 py-0.5 font-heading uppercase text-slate-500"
-                              style={{ fontSize: '10px' }}
+                              style={{
+                                marginTop: 6,
+                                display: 'inline-block',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 10,
+                                letterSpacing: '0.06em',
+                                textTransform: 'uppercase',
+                                color: 'var(--color-text-3)',
+                                background: 'var(--color-surface-2)',
+                              }}
                             >
                               {entry.action_type}
                             </span>
@@ -549,25 +891,41 @@ export default function BillDetailPage() {
 
             {/* Related Actions Card */}
             {relatedActions.length > 0 && (
-              <div
-                className="rounded-2xl border p-8"
-                style={{ backgroundColor: '#0F172A', borderColor: '#1E293B' }}
-              >
-                <h2 className="font-heading text-2xl font-bold uppercase text-white mb-4">
-                  Related Actions
-                </h2>
-
-                <div className="space-y-3">
+              <div style={sectionCard}>
+                <h2 style={sectionHeading}>Related actions</h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {relatedActions.map((action) => (
                     <div
                       key={action.id}
-                      className="rounded-lg border p-3"
-                      style={{ borderColor: '#1E293B' }}
+                      style={{
+                        borderRadius: 10,
+                        border: '1px solid var(--color-border)',
+                        padding: 12,
+                        background: 'var(--color-surface-2)',
+                      }}
                     >
-                      <p className="font-body text-sm text-white/80 line-clamp-2">{action.title}</p>
-                      <div className="mt-1.5 flex items-center gap-2">
+                      <p
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 13,
+                          color: 'var(--color-text-1)',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {action.title}
+                      </p>
+                      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
                         {action.date && (
-                          <span className="font-mono text-xs text-slate-500">
+                          <span
+                            style={{
+                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                              fontSize: 11,
+                              color: 'var(--color-text-3)',
+                            }}
+                          >
                             {formatDate(action.date)}
                           </span>
                         )}
@@ -576,9 +934,18 @@ export default function BillDetailPage() {
                             href={action.source_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-body text-xs text-blue-400 transition-colors hover:text-blue-300 no-underline"
+                            style={{
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 12,
+                              color: 'var(--color-accent-text)',
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                            }}
                           >
-                            Source &rarr;
+                            Source
+                            <ExternalLink size={10} />
                           </a>
                         )}
                       </div>

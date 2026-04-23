@@ -1,7 +1,20 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Trophy, ShieldCheck, Target, BookOpen, Megaphone, Vote, CheckCheck, FileText, ScrollText } from 'lucide-react';
+import {
+  ArrowLeft,
+  Trophy,
+  ShieldCheck,
+  Target,
+  BookOpen,
+  Megaphone,
+  Vote,
+  CheckCheck,
+  FileText,
+  ScrollText,
+} from 'lucide-react';
 import { fetchBadges, fetchMyBadges, BadgeItem, UserBadgeItem } from '../api/civic';
+
+// ── Icon / category config ──
 
 const ICON_MAP: Record<string, typeof Trophy> = {
   vote: Vote,
@@ -15,14 +28,65 @@ const ICON_MAP: Record<string, typeof Trophy> = {
   'shield-check': ShieldCheck,
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  engagement: 'text-amber-400 border-amber-500/20',
-  research: 'text-emerald-400 border-emerald-500/20',
-  community: 'text-blue-400 border-blue-500/20',
-  verification: 'text-cyan-400 border-cyan-500/20',
+const CATEGORY_TOKEN: Record<string, { token: string; hex: string; label: string }> = {
+  engagement: { token: 'var(--color-accent-text)', hex: '#C5A028', label: 'Engagement' },
+  research: { token: 'var(--color-green)', hex: '#3DB87A', label: 'Research' },
+  community: { token: 'var(--color-dem)', hex: '#4A7FDE', label: 'Community' },
+  verification: { token: 'var(--color-ind)', hex: '#B06FD8', label: 'Verification' },
 };
 
 const LEVEL_LABELS = ['', 'Bronze', 'Silver', 'Gold'];
+
+function categoryInfo(cat: string) {
+  return (
+    CATEGORY_TOKEN[cat] || {
+      token: 'var(--color-text-2)',
+      hex: '#6E7A85',
+      label: cat.charAt(0).toUpperCase() + cat.slice(1),
+    }
+  );
+}
+
+// ── Shared styles ──
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text-1)',
+};
+
+const contentWrap: React.CSSProperties = {
+  maxWidth: '960px',
+  margin: '0 auto',
+  padding: '64px 24px 96px',
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '6px 12px',
+  borderRadius: '999px',
+  background: 'var(--color-accent-dim)',
+  color: 'var(--color-accent-text)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  marginBottom: '20px',
+};
+
+const backLink: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '12px',
+  color: 'var(--color-text-2)',
+  textDecoration: 'none',
+  marginBottom: '24px',
+  transition: 'color 0.2s',
+};
+
+// ── Page ──
 
 export default function BadgesPage() {
   const [badges, setBadges] = useState<BadgeItem[]>([]);
@@ -31,13 +95,12 @@ export default function BadgesPage() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.allSettled([fetchBadges(), fetchMyBadges()])
-      .then(([b, e]) => {
-        if (cancelled) return;
-        if (b.status === 'fulfilled') setBadges(b.value.items);
-        if (e.status === 'fulfilled') setEarned(e.value.items);
-        setLoading(false);
-      });
+    Promise.allSettled([fetchBadges(), fetchMyBadges()]).then(([b, e]) => {
+      if (cancelled) return;
+      if (b.status === 'fulfilled') setBadges(b.value.items);
+      if (e.status === 'fulfilled') setEarned(e.value.items);
+      setLoading(false);
+    });
     return () => { cancelled = true; };
   }, []);
 
@@ -49,85 +112,242 @@ export default function BadgesPage() {
   }, {});
 
   return (
-    <main id="main-content" className="min-h-screen bg-slate-950 text-white">
-      <div className="max-w-4xl mx-auto px-4 py-10 sm:py-14">
-        <Link to="/civic" className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-amber-400 transition-colors mb-6">
+    <main id="main-content" style={pageShell}>
+      <div style={contentWrap}>
+        <Link
+          to="/civic"
+          style={backLink}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+        >
           <ArrowLeft size={14} /> Civic Hub
         </Link>
 
-        <div className="flex items-center gap-3 mb-2">
-          <Trophy size={28} className="text-amber-400" />
-          <h1 className="text-2xl sm:text-3xl font-bold" style={{ fontFamily: 'Oswald, sans-serif' }}>
-            <span className="text-amber-400">Civic</span> Badges
-          </h1>
-        </div>
-        <p className="text-zinc-500 text-sm mb-8">
+        <span style={eyebrowStyle}>Civic / Badges</span>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontStyle: 'italic',
+            fontWeight: 900,
+            fontSize: 'clamp(44px, 7vw, 72px)',
+            lineHeight: 1.02,
+            letterSpacing: '-0.02em',
+            margin: '0 0 12px',
+            color: 'var(--color-text-1)',
+          }}
+        >
+          Civic <span style={{ color: 'var(--color-accent-text)' }}>badges</span>
+        </h1>
+        <p
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '16px',
+            lineHeight: 1.55,
+            color: 'var(--color-text-2)',
+            margin: '0 0 32px',
+          }}
+        >
           Earn badges through civic participation. Vote on promises, annotate bills, submit proposals, and verify your identity.
         </p>
 
         {/* Summary */}
-        <div className="flex items-center gap-6 mb-8 text-sm">
-          <div className="bg-zinc-900/60 border border-white/10 rounded-lg px-4 py-3">
-            <div className="text-2xl font-bold text-amber-400" style={{ fontFamily: 'Oswald, sans-serif' }}>{earned.length}</div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Earned</div>
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '40px', flexWrap: 'wrap' }}>
+          <div
+            style={{
+              padding: '14px 20px',
+              background: 'var(--color-surface)',
+              border: '1px solid rgba(235,229,213,0.08)',
+              borderRadius: '12px',
+            }}
+          >
+            <div
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontStyle: 'italic',
+                fontWeight: 900,
+                fontSize: '28px',
+                color: 'var(--color-accent-text)',
+                lineHeight: 1,
+              }}
+            >
+              {earned.length}
+            </div>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                color: 'var(--color-text-3)',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                marginTop: '6px',
+              }}
+            >
+              Earned
+            </div>
           </div>
-          <div className="bg-zinc-900/60 border border-white/10 rounded-lg px-4 py-3">
-            <div className="text-2xl font-bold text-zinc-500" style={{ fontFamily: 'Oswald, sans-serif' }}>{badges.length - earned.length}</div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Remaining</div>
+          <div
+            style={{
+              padding: '14px 20px',
+              background: 'var(--color-surface)',
+              border: '1px solid rgba(235,229,213,0.08)',
+              borderRadius: '12px',
+            }}
+          >
+            <div
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontStyle: 'italic',
+                fontWeight: 900,
+                fontSize: '28px',
+                color: 'var(--color-text-2)',
+                lineHeight: 1,
+              }}
+            >
+              {badges.length - earned.length}
+            </div>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                color: 'var(--color-text-3)',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                marginTop: '6px',
+              }}
+            >
+              Remaining
+            </div>
           </div>
         </div>
 
         {loading && (
-          <div className="flex justify-center py-20" aria-busy="true">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" role="status">
-              <span className="sr-only">Loading badges...</span>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }} aria-busy="true">
+            <div
+              role="status"
+              style={{
+                width: '32px',
+                height: '32px',
+                border: '2px solid var(--color-accent)',
+                borderTopColor: 'transparent',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+              }}
+            >
+              <span style={{ position: 'absolute', left: '-9999px' }}>Loading badges…</span>
             </div>
           </div>
         )}
 
-        {!loading && Object.entries(grouped).map(([category, items]) => {
-          const cc = CATEGORY_COLORS[category] || 'text-zinc-400 border-zinc-700';
-          return (
-            <section key={category} className="mb-8">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mb-3" style={{ fontFamily: 'Oswald, sans-serif' }}>
-                {category}
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {items.map((b) => {
-                  const isEarned = earnedSlugs.has(b.slug);
-                  const Icon = ICON_MAP[b.icon] || Trophy;
-                  return (
-                    <div
-                      key={b.slug}
-                      className={`relative rounded-xl p-4 border transition-all ${
-                        isEarned
-                          ? `bg-zinc-900/80 ${cc}`
-                          : 'bg-zinc-900/30 border-white/5 opacity-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        <Icon size={20} className={isEarned ? cc.split(' ')[0] : 'text-zinc-700'} />
-                        <div>
-                          <div className="text-sm font-semibold text-zinc-200">{b.name}</div>
-                          {b.level > 1 && (
-                            <span className="text-[10px] text-zinc-600">{LEVEL_LABELS[b.level] || `Level ${b.level}`}</span>
-                          )}
+        {!loading &&
+          Object.entries(grouped).map(([category, items]) => {
+            const info = categoryInfo(category);
+            return (
+              <section key={category} style={{ marginBottom: '40px' }}>
+                <h2
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: info.token,
+                    margin: '0 0 16px',
+                  }}
+                >
+                  {info.label}
+                </h2>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                    gap: '12px',
+                  }}
+                >
+                  {items.map((b) => {
+                    const isEarned = earnedSlugs.has(b.slug);
+                    const Icon = ICON_MAP[b.icon] || Trophy;
+                    return (
+                      <div
+                        key={b.slug}
+                        style={{
+                          position: 'relative',
+                          padding: '16px',
+                          borderRadius: '14px',
+                          border: `1px solid ${isEarned ? `${info.hex}33` : 'rgba(235,229,213,0.06)'}`,
+                          background: isEarned ? `${info.hex}10` : 'var(--color-surface)',
+                          opacity: isEarned ? 1 : 0.45,
+                          transition: 'all 0.25s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                          <div
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '10px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: isEarned ? `${info.hex}1F` : 'var(--color-surface-2)',
+                              color: isEarned ? info.token : 'var(--color-text-3)',
+                            }}
+                          >
+                            <Icon size={18} />
+                          </div>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div
+                              style={{
+                                fontFamily: 'var(--font-body)',
+                                fontSize: '14px',
+                                fontWeight: 600,
+                                color: 'var(--color-text-1)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {b.name}
+                            </div>
+                            {b.level > 1 && (
+                              <span
+                                style={{
+                                  fontFamily: 'var(--font-mono)',
+                                  fontSize: '10px',
+                                  color: 'var(--color-text-3)',
+                                  letterSpacing: '0.08em',
+                                }}
+                              >
+                                {LEVEL_LABELS[b.level] || `Level ${b.level}`}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        <p
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '12px',
+                            color: 'var(--color-text-2)',
+                            margin: 0,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {b.description}
+                        </p>
+                        {isEarned && (
+                          <div style={{ position: 'absolute', top: '12px', right: '12px' }}>
+                            <ShieldCheck size={14} style={{ color: 'var(--color-green)' }} />
+                          </div>
+                        )}
                       </div>
-                      <p className="text-xs text-zinc-500">{b.description}</p>
-                      {isEarned && (
-                        <div className="absolute top-3 right-3">
-                          <ShieldCheck size={14} className="text-emerald-400" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </main>
   );
 }

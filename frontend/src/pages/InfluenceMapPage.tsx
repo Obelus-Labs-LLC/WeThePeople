@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Map, DollarSign, Users, Briefcase } from 'lucide-react';
+import { ArrowLeft, DollarSign, Users, Briefcase } from 'lucide-react';
 import ChoroplethMap from '../components/ChoroplethMap';
 import {
   fetchSpendingByState,
@@ -20,18 +19,46 @@ function formatTotal(value: number, metric: SpendingMetric): string {
 
 // ── Metric / Sector configs ──
 
-const METRICS: { key: SpendingMetric; label: string; icon: typeof DollarSign; description: string }[] = [
-  { key: 'donations', label: 'Donations', icon: DollarSign, description: 'PAC & corporate donations flowing to politicians by state' },
-  { key: 'lobbying', label: 'Lobbying', icon: Briefcase, description: 'Lobbying spend attributed to each state via political donations' },
-  { key: 'members', label: 'Members', icon: Users, description: 'Tracked members of Congress per state' },
+const METRICS: {
+  key: SpendingMetric;
+  label: string;
+  icon: typeof DollarSign;
+  description: string;
+  token: string;
+  hex: string;
+}[] = [
+  {
+    key: 'donations',
+    label: 'Donations',
+    icon: DollarSign,
+    description: 'PAC & corporate donations flowing to politicians by state',
+    token: 'var(--color-accent-text)',
+    hex: '#C5A028',
+  },
+  {
+    key: 'lobbying',
+    label: 'Lobbying',
+    icon: Briefcase,
+    description: 'Lobbying spend attributed to each state via political donations',
+    token: 'var(--color-green)',
+    hex: '#3DB87A',
+  },
+  {
+    key: 'members',
+    label: 'Members',
+    icon: Users,
+    description: 'Tracked members of Congress per state',
+    token: 'var(--color-dem)',
+    hex: '#4A7FDE',
+  },
 ];
 
-const SECTORS: { key: SectorFilter | 'all'; label: string; color: string }[] = [
-  { key: 'all', label: 'All Sectors', color: 'bg-blue-500' },
-  { key: 'finance', label: 'Finance', color: 'bg-emerald-500' },
-  { key: 'health', label: 'Health', color: 'bg-rose-500' },
-  { key: 'tech', label: 'Tech', color: 'bg-violet-500' },
-  { key: 'energy', label: 'Energy', color: 'bg-orange-500' },
+const SECTORS: { key: SectorFilter | 'all'; label: string; hex: string }[] = [
+  { key: 'all', label: 'All Sectors', hex: '#C5A028' },
+  { key: 'finance', label: 'Finance', hex: '#3DB87A' },
+  { key: 'health', label: 'Health', hex: '#E63946' },
+  { key: 'tech', label: 'Tech', hex: '#B06FD8' },
+  { key: 'energy', label: 'Energy', hex: '#D48B3A' },
 ];
 
 // ── State name lookup ──
@@ -51,7 +78,81 @@ const STATE_NAMES: Record<string, string> = {
   WY: 'Wyoming', DC: 'District of Columbia',
 };
 
-// ── Page Component ──
+// ── Shared styles ──
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text-1)',
+};
+
+const contentWrap: React.CSSProperties = {
+  maxWidth: '1200px',
+  margin: '0 auto',
+  padding: '56px 24px 96px',
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '6px 12px',
+  borderRadius: '999px',
+  background: 'var(--color-accent-dim)',
+  color: 'var(--color-accent-text)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  marginBottom: '20px',
+};
+
+const backLink: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '12px',
+  color: 'var(--color-text-2)',
+  textDecoration: 'none',
+  marginBottom: '20px',
+  transition: 'color 0.2s',
+};
+
+const fieldLabel: React.CSSProperties = {
+  display: 'block',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '10px',
+  fontWeight: 700,
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+  marginBottom: '8px',
+};
+
+const statCard: React.CSSProperties = {
+  padding: '20px',
+  background: 'var(--color-surface)',
+  border: '1px solid rgba(235,229,213,0.08)',
+  borderRadius: '14px',
+};
+
+const statLabel: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '10px',
+  fontWeight: 700,
+  color: 'var(--color-text-3)',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  marginBottom: '8px',
+};
+
+const statNumber: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '26px',
+  fontWeight: 700,
+  lineHeight: 1,
+};
+
+// ── Page ──
 
 export default function InfluenceMapPage() {
   const navigate = useNavigate();
@@ -61,229 +162,392 @@ export default function InfluenceMapPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch data when metric or sector changes
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     const sectorParam = sector === 'all' ? undefined : sector;
     fetchSpendingByState(metric, sectorParam)
-      .then((res) => setStateData(res.states))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .then((res) => { if (!cancelled) setStateData(res.states); })
+      .catch((err) => { if (!cancelled) setError(err.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [metric, sector]);
 
-  // Compute totals
   const totalValue = Object.values(stateData).reduce((sum, d) => sum + d.value, 0);
   const totalRecords = Object.values(stateData).reduce((sum, d) => sum + d.count, 0);
   const statesWithData = Object.keys(stateData).length;
 
-  // Top states ranking
   const topStates = Object.entries(stateData)
     .sort(([, a], [, b]) => b.value - a.value)
     .slice(0, 10);
 
-  const handleStateClick = useCallback((abbr: string, _name: string) => {
-    navigate(`/politics/states/${abbr}`);
-  }, [navigate]);
+  const handleStateClick = useCallback(
+    (abbr: string, _name: string) => {
+      navigate(`/politics/states/${abbr}`);
+    },
+    [navigate],
+  );
 
   const currentMetric = METRICS.find((m) => m.key === metric)!;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-[1400px] px-6 py-10 lg:px-12 lg:py-14">
-        {/* Navigation */}
+    <main id="main-content" style={pageShell}>
+      <div style={contentWrap}>
         <Link
           to="/influence"
-          className="text-white/40 hover:text-white/70 text-sm mb-6 inline-block no-underline"
+          style={backLink}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
         >
-          &larr; Back to Influence Explorer
+          <ArrowLeft size={14} /> Influence Explorer
         </Link>
 
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8"
+        <span style={eyebrowStyle}>Influence / Geographic Map</span>
+
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontStyle: 'italic',
+            fontWeight: 900,
+            fontSize: 'clamp(40px, 6vw, 64px)',
+            lineHeight: 1.02,
+            letterSpacing: '-0.02em',
+            margin: '0 0 14px',
+            color: 'var(--color-text-1)',
+          }}
         >
-          <div className="flex items-center gap-3 mb-3">
-            <Map className="w-8 h-8 text-blue-400" />
-            <h1 className="text-4xl font-bold text-white">Influence Map</h1>
-          </div>
-          <p className="text-white/50 max-w-2xl">
-            Geographic view of political influence across the United States. See which
-            states attract the most lobbying spend, corporate donations, and political
-            attention from industry.
-          </p>
-        </motion.div>
+          Influence <span style={{ color: 'var(--color-accent-text)' }}>map</span>
+        </h1>
+
+        <p
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '15px',
+            lineHeight: 1.65,
+            color: 'var(--color-text-2)',
+            margin: '0 0 40px',
+            maxWidth: '640px',
+          }}
+        >
+          Geographic view of political influence across the United States. See which states
+          attract the most lobbying spend, corporate donations, and political attention from
+          industry.
+        </p>
 
         {/* Controls */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="flex flex-wrap gap-6 mb-8"
-        >
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '32px', marginBottom: '24px' }}>
           {/* Metric selector */}
           <div>
-            <label className="text-xs text-white/40 uppercase tracking-wider font-mono mb-2 block">
-              Metric
-            </label>
-            <div className="flex gap-1 bg-white/[0.03] border border-white/10 rounded-lg p-1">
-              {METRICS.map((m) => (
-                <button
-                  key={m.key}
-                  onClick={() => setMetric(m.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    metric === m.key
-                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                      : 'text-white/50 hover:text-white/70 border border-transparent'
-                  }`}
-                >
-                  <m.icon className="w-3.5 h-3.5" />
-                  {m.label}
-                </button>
-              ))}
+            <span style={fieldLabel}>Metric</span>
+            <div
+              style={{
+                display: 'inline-flex',
+                gap: '4px',
+                padding: '4px',
+                background: 'var(--color-surface)',
+                border: '1px solid rgba(235,229,213,0.08)',
+                borderRadius: '10px',
+              }}
+            >
+              {METRICS.map((m) => {
+                const active = metric === m.key;
+                const Icon = m.icon;
+                return (
+                  <button
+                    key={m.key}
+                    onClick={() => setMetric(m.key)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '7px 14px',
+                      borderRadius: '8px',
+                      border: active ? `1px solid ${m.hex}33` : '1px solid transparent',
+                      background: active ? `${m.hex}1F` : 'transparent',
+                      color: active ? m.token : 'var(--color-text-2)',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <Icon size={13} />
+                    {m.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Sector filter */}
           <div>
-            <label className="text-xs text-white/40 uppercase tracking-wider font-mono mb-2 block">
-              Sector
-            </label>
-            <div className="flex gap-1 bg-white/[0.03] border border-white/10 rounded-lg p-1">
-              {SECTORS.map((s) => (
-                <button
-                  key={s.key}
-                  onClick={() => setSector(s.key)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    sector === s.key
-                      ? 'bg-white/10 text-white border border-white/20'
-                      : 'text-white/50 hover:text-white/70 border border-transparent'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
+            <span style={fieldLabel}>Sector</span>
+            <div
+              style={{
+                display: 'inline-flex',
+                gap: '4px',
+                padding: '4px',
+                background: 'var(--color-surface)',
+                border: '1px solid rgba(235,229,213,0.08)',
+                borderRadius: '10px',
+              }}
+            >
+              {SECTORS.map((s) => {
+                const active = sector === s.key;
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => setSector(s.key)}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: '8px',
+                      border: active ? `1px solid ${s.hex}33` : '1px solid transparent',
+                      background: active ? `${s.hex}1F` : 'transparent',
+                      color: active ? 'var(--color-text-1)' : 'var(--color-text-2)',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </motion.div>
-
-        {/* Description */}
-        <div className="text-white/30 text-sm mb-6 italic">
-          {currentMetric.description}
-          {sector !== 'all' && ` (${SECTORS.find((s) => s.key === sector)?.label} sector only)`}
         </div>
 
-        {/* Map */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-10"
+        {/* Description */}
+        <p
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontStyle: 'italic',
+            fontSize: '13px',
+            color: 'var(--color-text-3)',
+            margin: '0 0 28px',
+          }}
         >
+          {currentMetric.description}
+          {sector !== 'all' && ` (${SECTORS.find((s) => s.key === sector)?.label} sector only)`}
+        </p>
+
+        {/* Map */}
+        <div style={{ marginBottom: '40px' }}>
           {loading ? (
-            <div className="flex items-center justify-center h-[500px] rounded-xl border border-white/10 bg-slate-900/50">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '500px',
+                borderRadius: '16px',
+                border: '1px solid rgba(235,229,213,0.08)',
+                background: 'var(--color-surface)',
+              }}
+            >
+              <div
+                role="status"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  border: '2px solid var(--color-accent)',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                }}
+              >
+                <span style={{ position: 'absolute', left: '-9999px' }}>Loading map…</span>
+              </div>
             </div>
           ) : error ? (
-            <div className="flex items-center justify-center h-[500px] rounded-xl border border-white/10 bg-slate-900/50">
-              <p className="text-white/40 text-sm">Error loading data: {error}</p>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '500px',
+                borderRadius: '16px',
+                border: '1px solid rgba(230,57,70,0.28)',
+                background: 'rgba(230,57,70,0.06)',
+              }}
+            >
+              <p
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '14px',
+                  color: 'var(--color-red)',
+                }}
+              >
+                Error loading data: {error}
+              </p>
             </div>
           ) : (
-            <ChoroplethMap
-              data={stateData}
-              metric={metric}
-              onStateClick={handleStateClick}
-            />
+            <ChoroplethMap data={stateData} metric={metric} onStateClick={handleStateClick} />
           )}
-        </motion.div>
+        </div>
 
         {/* Summary stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.3 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10"
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '12px',
+            marginBottom: '40px',
+          }}
         >
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
-            <div className="text-xs text-white/40 uppercase tracking-wider font-mono mb-2">
-              Total Across All States
-            </div>
-            <div className="text-2xl font-bold font-mono text-blue-400">
+          <div style={statCard}>
+            <div style={statLabel}>Total Across All States</div>
+            <div style={{ ...statNumber, color: currentMetric.token }}>
               {formatTotal(totalValue, metric)}
             </div>
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
-            <div className="text-xs text-white/40 uppercase tracking-wider font-mono mb-2">
-              Total Records
-            </div>
-            <div className="text-2xl font-bold font-mono text-emerald-400">
+          <div style={statCard}>
+            <div style={statLabel}>Total Records</div>
+            <div style={{ ...statNumber, color: 'var(--color-text-1)' }}>
               {totalRecords.toLocaleString()}
             </div>
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
-            <div className="text-xs text-white/40 uppercase tracking-wider font-mono mb-2">
-              States with Data
-            </div>
-            <div className="text-2xl font-bold font-mono text-amber-400">
-              {statesWithData} / 51
+          <div style={statCard}>
+            <div style={statLabel}>States with Data</div>
+            <div style={{ ...statNumber, color: 'var(--color-accent-text)' }}>
+              {statesWithData}
+              <span
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  color: 'var(--color-text-3)',
+                  marginLeft: '4px',
+                }}
+              >
+                / 51
+              </span>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Top States ranking */}
         {topStates.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.4 }}
-          >
-            <h2 className="text-lg font-bold text-white mb-4">Top 10 States</h2>
-            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
+          <div>
+            <h2
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: 'var(--color-text-2)',
+                margin: '0 0 16px',
+              }}
+            >
+              Top 10 States
+            </h2>
+            <div
+              style={{
+                padding: '8px',
+                background: 'var(--color-surface)',
+                border: '1px solid rgba(235,229,213,0.08)',
+                borderRadius: '14px',
+              }}
+            >
               {topStates.map(([abbr, d], i) => {
                 const barWidth = topStates[0] ? (d.value / topStates[0][1].value) * 100 : 0;
                 return (
                   <div
                     key={abbr}
-                    className="flex items-center gap-4 py-2.5 px-3 hover:bg-white/5 rounded-lg transition-colors"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      transition: 'background 0.15s',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(235,229,213,0.03)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                    onClick={() => navigate(`/politics/states/${abbr}`)}
                   >
-                    <span className="text-white/30 font-mono text-sm w-6 text-right">
-                      {i + 1}.
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '12px',
+                        color: 'var(--color-text-3)',
+                        width: '24px',
+                        textAlign: 'right',
+                      }}
+                    >
+                      {i + 1}
                     </span>
-                    <span className="text-white font-medium text-sm w-32">
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        color: 'var(--color-text-1)',
+                        width: '140px',
+                      }}
+                    >
                       {STATE_NAMES[abbr] || abbr}
                     </span>
-                    <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      style={{
+                        flex: 1,
+                        height: '6px',
+                        background: 'var(--color-surface-2)',
+                        borderRadius: '999px',
+                        overflow: 'hidden',
+                      }}
+                    >
                       <div
-                        className="h-full rounded-full transition-all duration-500"
                         style={{
+                          height: '100%',
                           width: `${barWidth}%`,
-                          backgroundColor:
-                            metric === 'donations'
-                              ? '#3b82f6'
-                              : metric === 'lobbying'
-                              ? '#10b981'
-                              : '#f59e0b',
+                          background: currentMetric.hex,
+                          borderRadius: '999px',
+                          transition: 'width 0.5s ease',
                         }}
                       />
                     </div>
-                    <span className="text-sm font-mono font-semibold text-white/70 w-28 text-right">
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: 'var(--color-text-1)',
+                        width: '112px',
+                        textAlign: 'right',
+                      }}
+                    >
                       {formatTotal(d.value, metric)}
                     </span>
-                    <span className="text-xs font-mono text-white/30 w-20 text-right">
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '11px',
+                        color: 'var(--color-text-3)',
+                        width: '80px',
+                        textAlign: 'right',
+                      }}
+                    >
                       {d.count.toLocaleString()} rec
                     </span>
                   </div>
                 );
               })}
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
-    </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </main>
   );
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ExternalLink, ArrowLeft } from 'lucide-react';
+import { ExternalLink, ArrowLeft, ArrowUpRight } from 'lucide-react';
 
 const RESEARCH_BASE = 'https://research.wethepeopleforus.com';
 
@@ -71,6 +71,16 @@ const PATH_TO_TOOL: Record<string, string> = {
   '/finance/complaints': 'complaints',
 };
 
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text-1)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 24,
+};
+
 export default function MovedToResearchPage() {
   const { pathname } = useLocation();
   const toolKey = PATH_TO_TOOL[pathname] || '';
@@ -78,10 +88,34 @@ export default function MovedToResearchPage() {
 
   if (!info) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-        <div className="max-w-md text-center">
-          <h1 className="font-heading text-2xl font-bold text-white mb-4">Page Not Found</h1>
-          <Link to="/" className="text-blue-400 hover:text-blue-300 no-underline">Back to Home</Link>
+      <div style={pageShell}>
+        <div style={{ maxWidth: 460, textAlign: 'center' }}>
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(28px, 4vw, 36px)',
+              color: 'var(--color-text-1)',
+              marginBottom: 12,
+            }}
+          >
+            Page not found
+          </h1>
+          <Link
+            to="/"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--color-accent-text)',
+              textDecoration: 'none',
+              fontWeight: 500,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
+          >
+            ← Back to Home
+          </Link>
         </div>
       </div>
     );
@@ -90,26 +124,76 @@ export default function MovedToResearchPage() {
   const researchUrl = `${RESEARCH_BASE}${info.researchPath}`;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-      <div className="max-w-lg w-full">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 sm:p-10 text-center">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-3 py-1 mb-6">
-            <span className="font-mono text-[11px] font-semibold text-blue-400 uppercase tracking-wider">
+    <div style={pageShell}>
+      <div style={{ maxWidth: 560, width: '100%' }}>
+        <div
+          style={{
+            borderRadius: 16,
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+            padding: '44px 36px',
+            textAlign: 'center',
+          }}
+        >
+          {/* Pill badge */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'var(--color-accent-dim)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 999,
+              padding: '6px 14px',
+              marginBottom: 24,
+            }}
+          >
+            <ArrowUpRight size={12} style={{ color: 'var(--color-accent-text)' }} />
+            <span
+              style={{
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--color-accent-text)',
+              }}
+            >
               Moved to WTP Research
             </span>
           </div>
 
           {/* Title */}
-          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-white mb-3">
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(28px, 4vw, 40px)',
+              lineHeight: 1.05,
+              color: 'var(--color-text-1)',
+              marginBottom: 12,
+            }}
+          >
             {info.title}
           </h1>
 
           {/* Description */}
-          <p className="font-body text-sm text-white/50 leading-relaxed mb-8">
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 14,
+              color: 'var(--color-text-2)',
+              lineHeight: 1.65,
+              marginBottom: 28,
+              maxWidth: 420,
+              marginLeft: 'auto',
+              marginRight: 'auto',
+            }}
+          >
             {info.description} This tool is now part of{' '}
-            <span className="text-white/70 font-medium">WTP Research</span>, our dedicated
-            research and analysis platform.
+            <span style={{ color: 'var(--color-text-1)', fontWeight: 500 }}>WTP Research</span>
+            , our dedicated research and analysis platform.
           </p>
 
           {/* CTA */}
@@ -117,33 +201,84 @@ export default function MovedToResearchPage() {
             href={researchUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-body text-sm font-semibold text-white transition-colors hover:bg-blue-500 no-underline"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'var(--color-accent)',
+              color: '#07090C',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              padding: '12px 20px',
+              borderRadius: 10,
+              textDecoration: 'none',
+              transition: 'opacity 150ms',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
           >
             Open in WTP Research
-            <ExternalLink size={15} />
+            <ExternalLink size={14} />
           </a>
 
-          {/* Back link */}
-          <div className="mt-6 flex items-center justify-center gap-4">
+          {/* Navigation links */}
+          <div
+            style={{
+              marginTop: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 16,
+            }}
+          >
             <Link
               to={info.sectorPath}
-              className="inline-flex items-center gap-1.5 font-body text-xs text-white/40 hover:text-white/60 transition-colors no-underline"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                color: 'var(--color-text-3)',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-3)'; }}
             >
               <ArrowLeft size={12} />
               Back to {info.sector}
             </Link>
-            <span className="text-white/10">|</span>
+            <span style={{ color: 'var(--color-border-hover)' }}>|</span>
             <Link
               to="/"
-              className="font-body text-xs text-white/40 hover:text-white/60 transition-colors no-underline"
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                color: 'var(--color-text-3)',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-3)'; }}
             >
-              All Sectors
+              All sectors
             </Link>
           </div>
         </div>
 
-        {/* Subtle note */}
-        <p className="mt-6 text-center font-mono text-[10px] text-white/20">
+        {/* Footnote */}
+        <p
+          style={{
+            marginTop: 20,
+            textAlign: 'center',
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: 10,
+            color: 'var(--color-text-3)',
+            letterSpacing: '0.04em',
+          }}
+        >
           research.wethepeopleforus.com
         </p>
       </div>

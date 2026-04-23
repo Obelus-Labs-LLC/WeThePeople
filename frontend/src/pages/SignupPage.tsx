@@ -15,7 +15,10 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
     setLoading(true);
     try {
       await register(email, password, displayName || undefined);
@@ -27,76 +30,199 @@ export default function SignupPage() {
     }
   };
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: 'var(--color-surface-2)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 10,
+    padding: '10px 14px',
+    color: 'var(--color-text-1)',
+    fontFamily: "'Inter', sans-serif",
+    fontSize: 14,
+    outline: 'none',
+    transition: 'border-color 150ms',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontFamily: "'Inter', sans-serif",
+    fontSize: 12,
+    fontWeight: 500,
+    color: 'var(--color-text-2)',
+    marginBottom: 6,
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#0A0F1A' }}>
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500/20 mb-4">
-            <UserPlus className="w-6 h-6 text-amber-400" />
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text-1)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div style={{ width: '100%', maxWidth: 420 }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 48,
+              height: 48,
+              borderRadius: 12,
+              background: 'var(--color-accent-dim)',
+              marginBottom: 16,
+            }}
+          >
+            <UserPlus size={22} style={{ color: 'var(--color-accent-text)' }} />
           </div>
-          <h1 className="text-2xl font-bold text-white">Create your account</h1>
-          <p className="text-zinc-400 mt-2">Free. Track what matters to you.</p>
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(28px, 4vw, 36px)',
+              lineHeight: 1.05,
+              color: 'var(--color-text-1)',
+              marginBottom: 6,
+            }}
+          >
+            Create your account
+          </h1>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: 'var(--color-text-2)' }}>
+            Free. Track what matters to you.
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="rounded-xl border border-zinc-800 bg-white/[0.03] p-6 space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            borderRadius: 12,
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}
+        >
           {error && (
-            <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">
+            <div
+              style={{
+                borderRadius: 8,
+                background: 'rgba(230,57,70,0.08)',
+                border: '1px solid rgba(230,57,70,0.25)',
+                padding: '10px 14px',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                color: 'var(--color-red)',
+              }}
+            >
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-1">Display name (optional)</label>
+            <label style={labelStyle}>Display name (optional)</label>
             <input
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-white placeholder-zinc-500 outline-none focus:border-amber-500/50 transition-colors"
               placeholder="Your name"
+              style={inputStyle}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-1">Email</label>
+            <label style={labelStyle}>Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-white placeholder-zinc-500 outline-none focus:border-amber-500/50 transition-colors"
               placeholder="you@example.com"
+              style={inputStyle}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-1">Password</label>
+            <label style={labelStyle}>Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-white placeholder-zinc-500 outline-none focus:border-amber-500/50 transition-colors"
               placeholder="At least 8 characters"
+              style={inputStyle}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-amber-500 px-4 py-2.5 font-semibold text-black hover:bg-amber-400 transition-colors disabled:opacity-50"
+            style={{
+              width: '100%',
+              borderRadius: 10,
+              background: 'var(--color-accent)',
+              color: '#07090C',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              padding: '12px 16px',
+              border: 'none',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.6 : 1,
+              transition: 'opacity 150ms',
+              marginTop: 4,
+            }}
           >
-            {loading ? 'Creating account...' : 'Create account'}
+            {loading ? 'Creating account…' : 'Create account'}
           </button>
 
-          <p className="text-xs text-zinc-500 text-center">
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+              textAlign: 'center',
+              lineHeight: 1.5,
+            }}
+          >
             Free tier includes watchlist, weekly digest, and full platform access.
           </p>
         </form>
 
-        <p className="text-center text-sm text-zinc-500 mt-6">
+        <p
+          style={{
+            textAlign: 'center',
+            marginTop: 24,
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            color: 'var(--color-text-3)',
+          }}
+        >
           Already have an account?{' '}
-          <Link to="/login" className="text-amber-400 hover:text-amber-300">
+          <Link
+            to="/login"
+            style={{
+              color: 'var(--color-accent-text)',
+              textDecoration: 'none',
+              fontWeight: 500,
+            }}
+          >
             Log in
           </Link>
         </p>

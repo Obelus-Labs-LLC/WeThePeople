@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Play, Pause, SkipForward, SkipBack } from 'lucide-react';
 import { getApiBaseUrl } from '../api/client';
@@ -12,11 +12,16 @@ interface StoryStep {
   data: { label: string; value: number; color: string }[];
 }
 
+// Sector accent hexes align with --color-dem / --color-green / --color-ind / --color-accent / --color-red
 const SECTOR_COLORS: Record<string, string> = {
-  finance: '#34D399',
-  health: '#F472B6',
-  tech: '#A78BFA',
-  energy: '#FB923C',
+  politics: '#4A7FDE',
+  finance: '#3DB87A',
+  health: '#E63946',
+  tech: '#B06FD8',
+  technology: '#B06FD8',
+  energy: '#C5A028',
+  transportation: '#4A7FDE',
+  defense: '#E05555',
 };
 
 function formatMoney(n: number): string {
@@ -52,7 +57,7 @@ export default function DataStoryPage() {
             data: Object.entries(bySector as Record<string, Record<string, number>>).map(([sector, data]) => ({
               label: sector.charAt(0).toUpperCase() + sector.slice(1),
               value: data.lobbying || 0,
-              color: SECTOR_COLORS[sector] || '#6B7280',
+              color: SECTOR_COLORS[sector] || '#C5A028',
             })),
           },
           {
@@ -62,7 +67,7 @@ export default function DataStoryPage() {
             data: (lobbyLeaders.leaders || []).slice(0, 8).map((l: { display_name: string; total_lobbying?: number; sector?: string }) => ({
               label: l.display_name,
               value: l.total_lobbying || 0,
-              color: SECTOR_COLORS[l.sector || ''] || '#6B7280',
+              color: SECTOR_COLORS[l.sector || ''] || '#C5A028',
             })),
           },
           {
@@ -72,7 +77,7 @@ export default function DataStoryPage() {
             data: (contractLeaders.leaders || []).slice(0, 8).map((l: { display_name: string; total_contracts?: number; sector?: string }) => ({
               label: l.display_name,
               value: l.total_contracts || 0,
-              color: SECTOR_COLORS[l.sector || ''] || '#6B7280',
+              color: SECTOR_COLORS[l.sector || ''] || '#C5A028',
             })),
           },
           {
@@ -82,7 +87,7 @@ export default function DataStoryPage() {
             data: Object.entries(bySector as Record<string, Record<string, number>>).map(([sector, data]) => ({
               label: sector.charAt(0).toUpperCase() + sector.slice(1),
               value: data.contracts || 0,
-              color: SECTOR_COLORS[sector] || '#6B7280',
+              color: SECTOR_COLORS[sector] || '#C5A028',
             })),
           },
           {
@@ -92,7 +97,7 @@ export default function DataStoryPage() {
             data: Object.entries(bySector as Record<string, Record<string, number>>).map(([sector, data]) => ({
               label: sector.charAt(0).toUpperCase() + sector.slice(1),
               value: data.enforcement || 0,
-              color: SECTOR_COLORS[sector] || '#6B7280',
+              color: SECTOR_COLORS[sector] || '#C5A028',
             })),
           },
         ];
@@ -130,63 +135,215 @@ export default function DataStoryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'var(--color-bg)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            border: '2px solid var(--color-accent)',
+            borderTopColor: 'transparent',
+            animation: 'spin 1s linear infinite',
+          }}
+        />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <div className="mx-auto max-w-[900px] px-4 py-6 lg:px-16 lg:py-14">
-        <Link to="/influence" className="inline-flex items-center gap-2 text-white/40 hover:text-white/70 text-sm mb-6 no-underline">
-          <ArrowLeft className="w-4 h-4" /> Influence Explorer
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text-1)',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 900,
+          margin: '0 auto',
+          padding: '48px 24px 80px',
+        }}
+      >
+        {/* Back link */}
+        <Link
+          to="/influence"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            color: 'var(--color-text-2)',
+            textDecoration: 'none',
+            marginBottom: 32,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+        >
+          <ArrowLeft size={14} /> Influence Explorer
         </Link>
 
-        <div className="mb-10 text-center">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Follow the Money</h1>
-          <p className="text-white/50">An animated data story about corporate influence in American politics.</p>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 44 }}>
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(36px, 5vw, 56px)',
+              lineHeight: 1.02,
+              color: 'var(--color-text-1)',
+              marginBottom: 10,
+            }}
+          >
+            Follow the money
+          </h1>
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 15,
+              color: 'var(--color-text-2)',
+              lineHeight: 1.55,
+              maxWidth: 540,
+              margin: '0 auto',
+            }}
+          >
+            An animated data story about corporate influence in American politics.
+          </p>
         </div>
 
         {step && (
-          <div className="mb-8">
+          <div style={{ marginBottom: 32 }}>
             {/* Step content */}
-            <div className="text-center mb-8">
-              <div className="inline-block rounded-full bg-blue-500/20 px-4 py-1 text-xs font-mono text-blue-400 mb-4">
-                {currentStep + 1} / {steps.length}
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div
+                style={{
+                  display: 'inline-block',
+                  borderRadius: 999,
+                  background: 'var(--color-accent-dim)',
+                  border: '1px solid var(--color-border)',
+                  padding: '4px 14px',
+                  marginBottom: 14,
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-accent-text)',
+                }}
+              >
+                Step {currentStep + 1} / {steps.length}
               </div>
-              <h2 className="text-2xl font-bold text-white mb-3 transition-all duration-500">
+              <h2
+                style={{
+                  fontFamily: "'Playfair Display', Georgia, serif",
+                  fontStyle: 'italic',
+                  fontWeight: 900,
+                  fontSize: 'clamp(24px, 3.5vw, 32px)',
+                  lineHeight: 1.1,
+                  color: 'var(--color-text-1)',
+                  marginBottom: 10,
+                  transition: 'all 500ms',
+                }}
+              >
                 {step.title}
               </h2>
-              <p className="text-white/60 max-w-[600px] mx-auto leading-relaxed transition-all duration-500">
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 15,
+                  color: 'var(--color-text-2)',
+                  maxWidth: 620,
+                  margin: '0 auto',
+                  lineHeight: 1.6,
+                  transition: 'all 500ms',
+                }}
+              >
                 {step.description}
               </p>
             </div>
 
             {/* Animated chart */}
-            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 min-h-[300px]">
-              <div className="space-y-3">
+            <div
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 12,
+                padding: 24,
+                minHeight: 300,
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {step.data.map((d, i) => (
-                  <div key={d.label} className="flex items-center gap-3">
-                    <span className="text-sm text-white/70 truncate w-[180px] text-right">{d.label}</span>
-                    <div className="flex-1 h-8 bg-white/5 rounded-lg overflow-hidden">
+                  <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 13,
+                        color: 'var(--color-text-1)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        width: 180,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {d.label}
+                    </span>
+                    <div
+                      style={{
+                        flex: 1,
+                        height: 32,
+                        background: 'var(--color-surface-2)',
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        border: '1px solid var(--color-border)',
+                      }}
+                    >
                       <div
-                        className="h-full rounded-lg flex items-center px-3 transition-all ease-out"
                         style={{
+                          height: '100%',
+                          borderRadius: 8,
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '0 12px',
                           width: animatingBars ? `${Math.max((d.value / maxVal) * 100, 2)}%` : '0%',
                           backgroundColor: d.color,
-                          transitionDuration: `${800 + i * 150}ms`,
-                          transitionDelay: `${i * 100}ms`,
+                          transition: `width ${800 + i * 150}ms ease-out ${i * 100}ms`,
                         }}
                       >
-                        <span className="text-xs font-mono text-white font-bold whitespace-nowrap">
+                        <span
+                          style={{
+                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#07090C',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
                           {step.chartType === 'bar' && d.value > maxVal * 0.15
                             ? formatMoney(d.value)
                             : ''}
                         </span>
                       </div>
                     </div>
-                    <span className="text-xs font-mono text-white/40 w-[80px]">
+                    <span
+                      style={{
+                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                        fontSize: 11,
+                        color: 'var(--color-text-3)',
+                        width: 80,
+                      }}
+                    >
                       {formatMoney(d.value)}
                     </span>
                   </div>
@@ -197,40 +354,97 @@ export default function DataStoryPage() {
         )}
 
         {/* Playback controls */}
-        <div className="flex items-center justify-center gap-4">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
           <button
             onClick={() => setCurrentStep((p) => Math.max(p - 1, 0))}
             disabled={currentStep === 0}
-            className="p-2 rounded-full bg-white/5 text-white/40 hover:text-white/70 disabled:opacity-20 transition-colors"
+            style={{
+              padding: 10,
+              borderRadius: '50%',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-2)',
+              cursor: currentStep === 0 ? 'not-allowed' : 'pointer',
+              opacity: currentStep === 0 ? 0.3 : 1,
+              transition: 'all 150ms',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={(e) => { if (currentStep !== 0) e.currentTarget.style.color = 'var(--color-text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
           >
-            <SkipBack className="w-5 h-5" />
+            <SkipBack size={18} />
           </button>
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className="p-3 rounded-full bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
+            style={{
+              padding: 14,
+              borderRadius: '50%',
+              background: 'var(--color-accent-dim)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-accent-text)',
+              cursor: 'pointer',
+              transition: 'all 150ms',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(197,160,40,0.2)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--color-accent-dim)'; }}
           >
-            {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+            {isPlaying ? <Pause size={22} /> : <Play size={22} />}
           </button>
           <button
             onClick={() => setCurrentStep((p) => Math.min(p + 1, steps.length - 1))}
             disabled={currentStep >= steps.length - 1}
-            className="p-2 rounded-full bg-white/5 text-white/40 hover:text-white/70 disabled:opacity-20 transition-colors"
+            style={{
+              padding: 10,
+              borderRadius: '50%',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-2)',
+              cursor: currentStep >= steps.length - 1 ? 'not-allowed' : 'pointer',
+              opacity: currentStep >= steps.length - 1 ? 0.3 : 1,
+              transition: 'all 150ms',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={(e) => { if (currentStep < steps.length - 1) e.currentTarget.style.color = 'var(--color-text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
           >
-            <SkipForward className="w-5 h-5" />
+            <SkipForward size={18} />
           </button>
         </div>
 
         {/* Step dots */}
-        <div className="flex justify-center gap-2 mt-4">
-          {steps.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => { setCurrentStep(i); setIsPlaying(false); }}
-              className={`w-2.5 h-2.5 rounded-full transition-all ${
-                i === currentStep ? 'bg-blue-400 scale-125' : i < currentStep ? 'bg-blue-400/40' : 'bg-white/10'
-              }`}
-            />
-          ))}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 18 }}>
+          {steps.map((_, i) => {
+            const isActive = i === currentStep;
+            const isPast = i < currentStep;
+            return (
+              <button
+                key={i}
+                onClick={() => { setCurrentStep(i); setIsPlaying(false); }}
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: isActive
+                    ? 'var(--color-accent)'
+                    : isPast
+                    ? 'var(--color-accent-dim)'
+                    : 'var(--color-border-hover)',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  transform: isActive ? 'scale(1.25)' : 'scale(1)',
+                  transition: 'all 200ms',
+                }}
+              />
+            );
+          })}
         </div>
       </div>
     </div>

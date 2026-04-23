@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { User, Star, Shield, LogOut, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,11 +13,12 @@ interface WatchlistItem {
   created_at: string;
 }
 
-const ROLE_BADGE: Record<string, { label: string; color: string; bg: string }> = {
-  free: { label: 'Free', color: 'text-zinc-400', bg: 'bg-zinc-800' },
-  pro: { label: 'Pro', color: 'text-blue-400', bg: 'bg-blue-500/20' },
-  enterprise: { label: 'Enterprise', color: 'text-amber-400', bg: 'bg-amber-500/20' },
-  admin: { label: 'Admin', color: 'text-red-400', bg: 'bg-red-500/20' },
+// Role badge tokens: label + color token
+const ROLE_BADGE: Record<string, { label: string; token: string; bgHex: string }> = {
+  free:       { label: 'Free',       token: 'var(--color-text-2)',   bgHex: 'rgba(235,229,213,0.08)' },
+  pro:        { label: 'Pro',        token: 'var(--color-dem)',      bgHex: 'rgba(74,127,222,0.15)' },
+  enterprise: { label: 'Enterprise', token: 'var(--color-accent-text)', bgHex: 'rgba(197,160,40,0.15)' },
+  admin:      { label: 'Admin',      token: 'var(--color-red)',      bgHex: 'rgba(230,57,70,0.15)' },
 };
 
 export default function AccountPage() {
@@ -40,7 +41,10 @@ export default function AccountPage() {
   const removeItem = async (id: number) => {
     const token = localStorage.getItem('wtp_access_token');
     try {
-      const res = await fetch(`/api/auth/watchlist/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/auth/watchlist/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error(res.statusText);
       setWatchlist((prev) => prev.filter((i) => i.id !== id));
     } catch {
@@ -48,61 +52,244 @@ export default function AccountPage() {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1A' }}><div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-amber-400" /></div>;
+  if (loading) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'var(--color-bg)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div
+          style={{
+            height: 32,
+            width: 32,
+            borderRadius: '50%',
+            border: '2px solid var(--color-border)',
+            borderTopColor: 'var(--color-accent)',
+            animation: 'spin 1s linear infinite',
+          }}
+        />
+      </div>
+    );
+  }
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   const badge = ROLE_BADGE[user?.role || 'free'] || ROLE_BADGE.free;
 
+  const cardBox: React.CSSProperties = {
+    borderRadius: 12,
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface)',
+    padding: 20,
+  };
+
   return (
-    <div className="min-h-screen px-4 py-12" style={{ background: '#0A0F1A' }}>
-      <div className="max-w-3xl mx-auto space-y-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-white">Your Account</h1>
-          <Link to="/" className="text-sm text-zinc-400 hover:text-white transition-colors">Back to home</Link>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text-1)',
+        padding: '48px 16px 64px',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 800,
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 24,
+        }}
+      >
+        {/* Page header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(32px, 5vw, 44px)',
+              lineHeight: 1.05,
+              color: 'var(--color-text-1)',
+            }}
+          >
+            Your account
+          </h1>
+          <Link
+            to="/"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--color-text-2)',
+              textDecoration: 'none',
+              transition: 'color 150ms',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+          >
+            Back to home
+          </Link>
         </div>
 
         {/* Profile */}
-        <div className="rounded-xl border border-zinc-800 bg-white/[0.03] p-6">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-zinc-800">
-              <User className="w-7 h-7 text-zinc-400" />
+        <div style={cardBox}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                background: 'var(--color-surface-2)',
+              }}
+            >
+              <User size={26} style={{ color: 'var(--color-text-2)' }} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold text-white">{user?.display_name || user?.email}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.color} ${badge.bg}`}>{badge.label}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: 'var(--color-text-1)',
+                  }}
+                >
+                  {user?.display_name || user?.email}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    color: badge.token,
+                    background: badge.bgHex,
+                  }}
+                >
+                  {badge.label}
+                </span>
               </div>
-              <p className="text-sm text-zinc-500">{user?.email}</p>
+              <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)' }}>
+                {user?.email}
+              </p>
             </div>
           </div>
         </div>
 
         {/* Watchlist */}
-        <div className="rounded-xl border border-zinc-800 bg-white/[0.03] p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Star className="w-5 h-5 text-amber-400" />
-            <h2 className="text-lg font-semibold text-white">Your Watchlist</h2>
-            <span className="text-xs text-zinc-500">({watchlist.length})</span>
+        <div style={cardBox}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <Star size={18} style={{ color: 'var(--color-accent-text)' }} />
+            <h2
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 15,
+                fontWeight: 600,
+                color: 'var(--color-text-1)',
+              }}
+            >
+              Your watchlist
+            </h2>
+            <span style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: 12, color: 'var(--color-text-3)' }}>
+              ({watchlist.length})
+            </span>
           </div>
           {wlLoading ? (
-            <p className="text-zinc-500 text-sm">Loading...</p>
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)' }}>
+              Loading…
+            </p>
           ) : watchlist.length === 0 ? (
-            <p className="text-zinc-500 text-sm">No items tracked yet. Browse politicians and companies and click the star icon to add them.</p>
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)', lineHeight: 1.6 }}>
+              No items tracked yet. Browse politicians and companies and click the star icon to add them.
+            </p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: 10,
+              }}
+            >
               {watchlist.map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
-                  <div>
-                    <Link to={item.entity_type === 'politician' ? `/politics/people/${item.entity_id}` : `/${item.sector || 'tech'}/companies/${item.entity_id}`} className="text-sm font-medium text-white hover:text-amber-400 transition-colors">
+                <div
+                  key={item.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderRadius: 10,
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface-2)',
+                    padding: '12px 14px',
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <Link
+                      to={item.entity_type === 'politician'
+                        ? `/politics/people/${item.entity_id}`
+                        : `/${item.sector || 'tech'}/companies/${item.entity_id}`}
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: 'var(--color-text-1)',
+                        textDecoration: 'none',
+                        transition: 'color 150ms',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+                    >
                       {item.entity_name || item.entity_id}
                     </Link>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-zinc-500 capitalize">{item.entity_type}</span>
-                      {item.sector && <span className="text-xs text-zinc-600">{item.sector}</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                      <span
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 11,
+                          color: 'var(--color-text-3)',
+                          textTransform: 'capitalize',
+                        }}
+                      >
+                        {item.entity_type}
+                      </span>
+                      {item.sector && (
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: 'var(--color-text-3)' }}>
+                          {item.sector}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <button onClick={() => removeItem(item.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition-colors">
-                    <Trash2 className="w-4 h-4" />
+                  <button
+                    onClick={() => removeItem(item.id)}
+                    style={{
+                      padding: 6,
+                      borderRadius: 8,
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--color-text-3)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'all 150ms',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(230,57,70,0.10)';
+                      e.currentTarget.style.color = 'var(--color-red)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = 'var(--color-text-3)';
+                    }}
+                  >
+                    <Trash2 size={14} />
                   </button>
                 </div>
               ))}
@@ -110,14 +297,40 @@ export default function AccountPage() {
           )}
         </div>
 
-        {/* Tier info */}
+        {/* Upgrade tier */}
         {user?.role === 'free' && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Shield className="w-5 h-5 text-amber-400" />
-              <h2 className="text-lg font-semibold text-amber-400">Upgrade to Enterprise</h2>
+          <div
+            style={{
+              borderRadius: 12,
+              border: '1px solid rgba(197,160,40,0.30)',
+              background: 'var(--color-accent-dim)',
+              padding: 20,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Shield size={18} style={{ color: 'var(--color-accent-text)' }} />
+              <h2
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: 'var(--color-accent-text)',
+                }}
+              >
+                Upgrade to Enterprise
+              </h2>
             </div>
-            <p className="text-sm text-zinc-400 mb-4">Get full API access, the verification pipeline, and bulk data exports.</p>
+            <p
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                color: 'var(--color-text-2)',
+                marginBottom: 14,
+                lineHeight: 1.55,
+              }}
+            >
+              Get full API access, the verification pipeline, and bulk data exports.
+            </p>
             <button
               onClick={async () => {
                 const token = localStorage.getItem('wtp_access_token');
@@ -129,18 +342,57 @@ export default function AccountPage() {
                   const d = await r.json();
                   if (d.checkout_url) window.location.href = d.checkout_url;
                   else alert(d.detail || 'Checkout unavailable');
-                } catch { alert('Checkout unavailable'); }
+                } catch {
+                  alert('Checkout unavailable');
+                }
               }}
-              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400 transition-colors"
+              style={{
+                borderRadius: 10,
+                background: 'var(--color-accent)',
+                color: '#07090C',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                padding: '10px 16px',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
-              Upgrade - {PRESS_TIER_PRICE} (7-day free trial)
+              Upgrade — {PRESS_TIER_PRICE} (7-day free trial)
             </button>
           </div>
         )}
 
         {/* Logout */}
-        <button onClick={logout} className="flex items-center gap-2 rounded-lg border border-zinc-800 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors">
-          <LogOut className="w-4 h-4" />
+        <button
+          onClick={logout}
+          style={{
+            alignSelf: 'flex-start',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            borderRadius: 10,
+            border: '1px solid var(--color-border)',
+            background: 'transparent',
+            padding: '10px 16px',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            color: 'var(--color-text-2)',
+            cursor: 'pointer',
+            transition: 'all 150ms',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--color-text-1)';
+            e.currentTarget.style.borderColor = 'var(--color-border-hover)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--color-text-2)';
+            e.currentTarget.style.borderColor = 'var(--color-border)';
+          }}
+        >
+          <LogOut size={14} />
           Log out
         </button>
       </div>

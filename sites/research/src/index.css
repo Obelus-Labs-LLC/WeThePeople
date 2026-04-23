@@ -2,25 +2,25 @@
 
 @theme {
   /* ── Background layers ────────────────────────────────────────── */
-  --color-bg:           #07090C;
-  --color-surface:      #0D1117;
-  --color-surface-2:    #141C25;
+  --color-bg:           #07090C;   /* page background */
+  --color-surface:      #0D1117;   /* card / panel background */
+  --color-surface-2:    #141C25;   /* elevated surface, hover state */
 
   /* ── Borders ──────────────────────────────────────────────────── */
-  --color-border:       rgba(235, 229, 213, 0.08);
-  --color-border-hover: rgba(235, 229, 213, 0.14);
+  --color-border:       rgba(255, 255, 255, 0.06);
+  --color-border-hover: rgba(255, 255, 255, 0.11);
 
   /* ── Text ─────────────────────────────────────────────────────── */
-  --color-text-1: #EBE5D5;
-  --color-text-2: rgba(235, 229, 213, 0.50);
-  --color-text-3: rgba(235, 229, 213, 0.22);
+  --color-text-1: #EBE5D5;                    /* primary — warm off-white */
+  --color-text-2: rgba(235, 229, 213, 0.50);  /* secondary */
+  --color-text-3: rgba(235, 229, 213, 0.22);  /* muted / labels */
 
-  /* ── Accent — Gold (shared) ───────────────────────────────────── */
-  --color-accent:      #C5A028;
-  --color-accent-dim:  rgba(197, 160, 40, 0.12);
-  --color-accent-text: #D4AE35;
+  /* ── Accent — Research = Violet ───────────────────────────────── */
+  --color-accent:      #8B5CF6;
+  --color-accent-dim:  rgba(139, 92, 246, 0.12);
+  --color-accent-text: #A78BFA;
 
-  /* ── Data colors ──────────────────────────────────────────────── */
+  /* ── Data colors — shared across sites ────────────────────────── */
   --color-dem:   #4A7FDE;
   --color-rep:   #E05555;
   --color-ind:   #B06FD8;
@@ -28,18 +28,30 @@
   --color-red:   #E63946;
   --color-amber: #C5A028;
 
-  /* ── Site accents ─────────────────────────────────────────────── */
-  --color-journal:  #E63946;
+  /* ── Sibling site accents (for cross-links) ───────────────────── */
   --color-verify:   #10B981;
   --color-research: #8B5CF6;
+  --color-journal:  #E63946;
 
   /* ── Fonts ────────────────────────────────────────────────────── */
-  --font-display:   'Playfair Display', serif;
-  --font-editorial: 'Oswald', sans-serif;
-  --font-body:      'Inter', sans-serif;
-  --font-mono:      'JetBrains Mono', monospace;
+  --font-display: 'Playfair Display', serif;   /* editorial italic headlines */
+  --font-body:    'Inter', sans-serif;          /* all UI text */
+  --font-mono:    'JetBrains Mono', monospace;  /* all numbers, codes, IDs */
+
+  /* ── Spacing ──────────────────────────────────────────────────── */
+  --spacing-page:    40px;
+  --spacing-section: 32px;
+  --spacing-card:    20px;
+  --spacing-card-sm: 14px;
+
+  /* ── Border radius ────────────────────────────────────────────── */
+  --radius-card: 10px;
+  --radius-lg:   12px;
+  --radius-pill: 20px;
+  --radius-sm:   6px;
 }
 
+/* ── Global base ───────────────────────────────────────────────── */
 html, body, #root {
   margin: 0;
   padding: 0;
@@ -51,21 +63,27 @@ html, body, #root {
   min-height: 100vh;
 }
 
+/* ── Scrollbar ─────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(235, 229, 213, 0.08);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(235, 229, 213, 0.14);
+  background: rgba(255, 255, 255, 0.14);
 }
 
-.font-oswald  { font-family: 'Oswald', sans-serif; }
+/* Utility: hide scrollbar but keep scroll behaviour */
+.scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+/* ── Typography utilities ──────────────────────────────────────── */
 .font-display { font-family: 'Playfair Display', serif; }
 .font-mono    { font-family: 'JetBrains Mono', monospace; }
 .font-body    { font-family: 'Inter', sans-serif; }
 
+/* Line clamp utilities */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -79,9 +97,35 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* Smooth scroll */
 html { scroll-behavior: smooth; }
 
+/* Selection color — site accent (violet) */
 ::selection {
   background-color: rgba(139, 92, 246, 0.28);
   color: #EBE5D5;
 }
+
+/* ── Animations ────────────────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes research-ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+.animate-fade-up      { animation: fade-up 0.5s ease both; }
+.animate-fade-up-2    { animation: fade-up 0.5s 0.1s ease both; }
+.animate-fade-up-3    { animation: fade-up 0.5s 0.2s ease both; }
+.animate-pulse-dot    { animation: pulse 2s ease-in-out infinite; }
+.animate-ticker       { animation: ticker 28s linear infinite; }
+.animate-ticker:hover { animation-play-state: paused; }

@@ -100,8 +100,8 @@ export default function SectorHeader({
                   style={{
                     position: 'absolute',
                     bottom: -1,
-                    left: 12,
-                    right: 12,
+                    left: 0,
+                    right: 0,
                     height: 1.5,
                     backgroundColor: accent,
                   }}

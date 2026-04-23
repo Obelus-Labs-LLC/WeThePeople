@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Users, Scale, Activity, FileText } from 'lucide-react';
+import { Users, Scale, Activity, FileText, ArrowLeft } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import { apiClient } from '../api/client';
-import type { DashboardStats, BalanceOfPower } from '../api/types';
-import SpotlightCard from '../components/SpotlightCard';
+import type { DashboardStats } from '../api/types';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 
 // ── Helpers ──
@@ -20,6 +19,86 @@ function pct(n: number, total: number): number {
   return total > 0 ? (n / total) * 100 : 0;
 }
 
+// Design-system party hexes (parallel to tokens; needed for alpha interpolation)
+const PARTY_HEX = {
+  dem: '#4A7FDE',
+  rep: '#E05555',
+  ind: '#B06FD8',
+} as const;
+
+const PARTY_TOKEN = {
+  dem: 'var(--color-dem)',
+  rep: 'var(--color-rep)',
+  ind: 'var(--color-ind)',
+} as const;
+
+// ── Styles ──
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text-1)',
+};
+
+const contentWrap: React.CSSProperties = {
+  maxWidth: 1200,
+  margin: '0 auto',
+  padding: '40px 32px 80px',
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  background: 'var(--color-accent-dim)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 999,
+  padding: '6px 14px',
+  marginBottom: 20,
+  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent-text)',
+};
+
+const titleStyle: React.CSSProperties = {
+  fontFamily: "'Playfair Display', Georgia, serif",
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: 'clamp(36px, 5vw, 56px)',
+  lineHeight: 1.05,
+  color: 'var(--color-text-1)',
+  marginBottom: 12,
+};
+
+const leadStyle: React.CSSProperties = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 15,
+  color: 'var(--color-text-2)',
+  lineHeight: 1.65,
+  maxWidth: 680,
+};
+
+const statLabelStyle: React.CSSProperties = {
+  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+};
+
+const statValueStyle: React.CSSProperties = {
+  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+  fontSize: 28,
+  fontWeight: 700,
+  color: 'var(--color-text-1)',
+  letterSpacing: '-0.01em',
+  marginTop: 6,
+};
+
 // ── Bar Chart Component ──
 
 function PartyBar({ label, breakdown }: { label: string; breakdown: ChamberBreakdown }) {
@@ -27,118 +106,305 @@ function PartyBar({ label, breakdown }: { label: string; breakdown: ChamberBreak
   const dPct = pct(breakdown.democrat, breakdown.total);
   const rPct = pct(breakdown.republican, breakdown.total);
   const iPct = pct(breakdown.independent, breakdown.total);
-  const leading = breakdown.democrat > breakdown.republican ? 'D' : breakdown.republican > breakdown.democrat ? 'R' : 'Tied';
+  const leading =
+    breakdown.democrat > breakdown.republican
+      ? 'D'
+      : breakdown.republican > breakdown.democrat
+        ? 'R'
+        : 'Tied';
 
   return (
-    <SpotlightCard
-      className="rounded-xl border border-white/10 bg-white/[0.03]"
-      spotlightColor="rgba(59, 130, 246, 0.10)"
+    <div
+      style={{
+        borderRadius: 16,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
+        padding: 28,
+      }}
     >
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-heading text-lg font-bold uppercase tracking-wider text-white">
-            {label}
-          </h3>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-white/30">{breakdown.total} seats</span>
-            <span className="font-mono text-xs text-white/20">|</span>
-            <span className="font-mono text-xs text-white/30">{majority} for majority</span>
-          </div>
-        </div>
-
-        {/* Stacked horizontal bar */}
-        <div className="flex h-12 overflow-hidden rounded-lg mb-4">
-          {breakdown.democrat > 0 && (
-            <div
-              className="flex items-center justify-center transition-all duration-500"
-              style={{ width: `${dPct}%`, backgroundColor: '#3B82F6' }}
-            >
-              {dPct > 12 && (
-                <span className="font-mono text-sm font-bold text-white">{breakdown.democrat}</span>
-              )}
-            </div>
-          )}
-          {breakdown.independent > 0 && (
-            <div
-              className="flex items-center justify-center transition-all duration-500"
-              style={{ width: `${iPct}%`, backgroundColor: '#A855F7' }}
-            >
-              {iPct > 5 && (
-                <span className="font-mono text-sm font-bold text-white">{breakdown.independent}</span>
-              )}
-            </div>
-          )}
-          {breakdown.republican > 0 && (
-            <div
-              className="flex items-center justify-center transition-all duration-500"
-              style={{ width: `${rPct}%`, backgroundColor: '#EF4444' }}
-            >
-              {rPct > 12 && (
-                <span className="font-mono text-sm font-bold text-white">{breakdown.republican}</span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Majority line indicator */}
-        <div className="relative h-1 rounded-full bg-white/5 mb-4">
-          <div
-            className="absolute top-[-4px] h-[12px] w-px bg-white/40"
-            style={{ left: '50%' }}
-          />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 20,
+        }}
+      >
+        <h3
+          style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontStyle: 'italic',
+            fontWeight: 900,
+            fontSize: 22,
+            color: 'var(--color-text-1)',
+          }}
+        >
+          {label}
+        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span
-            className="absolute top-3 font-mono text-[9px] text-white/20 -translate-x-1/2"
-            style={{ left: '50%' }}
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+            }}
           >
-            MAJORITY
+            {breakdown.total} seats
           </span>
-        </div>
-
-        {/* Legend */}
-        <div className="flex items-center gap-6 mt-6">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded" style={{ backgroundColor: '#3B82F6' }} />
-            <span className="font-body text-xs text-white/50">Democrat</span>
-            <span className="font-mono text-xs font-bold text-white">{breakdown.democrat}</span>
-            <span className="font-mono text-[10px] text-white/20">({dPct.toFixed(1)}%)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded" style={{ backgroundColor: '#EF4444' }} />
-            <span className="font-body text-xs text-white/50">Republican</span>
-            <span className="font-mono text-xs font-bold text-white">{breakdown.republican}</span>
-            <span className="font-mono text-[10px] text-white/20">({rPct.toFixed(1)}%)</span>
-          </div>
-          {breakdown.independent > 0 && (
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded" style={{ backgroundColor: '#A855F7' }} />
-              <span className="font-body text-xs text-white/50">Independent</span>
-              <span className="font-mono text-xs font-bold text-white">{breakdown.independent}</span>
-            </div>
-          )}
+          <span style={{ color: 'var(--color-border-hover)' }}>|</span>
           <span
-            className={`ml-auto rounded-full px-3 py-1 font-mono text-xs font-bold ${
-              leading === 'D'
-                ? 'bg-blue-500/15 text-blue-400'
-                : leading === 'R'
-                  ? 'bg-red-500/15 text-red-400'
-                  : 'bg-white/10 text-white/50'
-            }`}
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+            }}
           >
-            {leading === 'D' ? 'DEM MAJORITY' : leading === 'R' ? 'GOP MAJORITY' : 'SPLIT'}
+            {majority} for majority
           </span>
         </div>
       </div>
-    </SpotlightCard>
+
+      {/* Stacked horizontal bar */}
+      <div
+        style={{
+          display: 'flex',
+          height: 48,
+          overflow: 'hidden',
+          borderRadius: 10,
+          marginBottom: 16,
+        }}
+      >
+        {breakdown.democrat > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: `${dPct}%`,
+              background: PARTY_TOKEN.dem,
+              transition: 'width 500ms',
+            }}
+          >
+            {dPct > 12 && (
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: '#fff',
+                }}
+              >
+                {breakdown.democrat}
+              </span>
+            )}
+          </div>
+        )}
+        {breakdown.independent > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: `${iPct}%`,
+              background: PARTY_TOKEN.ind,
+              transition: 'width 500ms',
+            }}
+          >
+            {iPct > 5 && (
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: '#fff',
+                }}
+              >
+                {breakdown.independent}
+              </span>
+            )}
+          </div>
+        )}
+        {breakdown.republican > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: `${rPct}%`,
+              background: PARTY_TOKEN.rep,
+              transition: 'width 500ms',
+            }}
+          >
+            {rPct > 12 && (
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: '#fff',
+                }}
+              >
+                {breakdown.republican}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Majority line indicator */}
+      <div
+        style={{
+          position: 'relative',
+          height: 4,
+          borderRadius: 999,
+          background: 'var(--color-surface-2)',
+          marginBottom: 24,
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: -4,
+            left: '50%',
+            height: 12,
+            width: 1,
+            background: 'var(--color-text-3)',
+          }}
+        />
+        <span
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: 9,
+            color: 'var(--color-text-3)',
+            letterSpacing: '0.1em',
+          }}
+        >
+          MAJORITY
+        </span>
+      </div>
+
+      {/* Legend */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 20,
+          flexWrap: 'wrap',
+          marginTop: 24,
+        }}
+      >
+        <LegendSwatch color={PARTY_TOKEN.dem} label="Democrat" count={breakdown.democrat} pct={dPct} />
+        <LegendSwatch color={PARTY_TOKEN.rep} label="Republican" count={breakdown.republican} pct={rPct} />
+        {breakdown.independent > 0 && (
+          <LegendSwatch
+            color={PARTY_TOKEN.ind}
+            label="Independent"
+            count={breakdown.independent}
+            pct={iPct}
+          />
+        )}
+        <span
+          style={{
+            marginLeft: 'auto',
+            borderRadius: 999,
+            padding: '6px 12px',
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.05em',
+            background:
+              leading === 'D'
+                ? `${PARTY_HEX.dem}26`
+                : leading === 'R'
+                  ? `${PARTY_HEX.rep}26`
+                  : 'var(--color-surface-2)',
+            color:
+              leading === 'D'
+                ? PARTY_TOKEN.dem
+                : leading === 'R'
+                  ? PARTY_TOKEN.rep
+                  : 'var(--color-text-2)',
+          }}
+        >
+          {leading === 'D' ? 'DEM MAJORITY' : leading === 'R' ? 'GOP MAJORITY' : 'SPLIT'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function LegendSwatch({
+  color,
+  label,
+  count,
+  pct,
+}: {
+  color: string;
+  label: string;
+  count: number;
+  pct: number;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ height: 12, width: 12, borderRadius: 3, background: color }} />
+      <span
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 12,
+          color: 'var(--color-text-2)',
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: 12,
+          fontWeight: 700,
+          color: 'var(--color-text-1)',
+        }}
+      >
+        {count}
+      </span>
+      <span
+        style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: 10,
+          color: 'var(--color-text-3)',
+        }}
+      >
+        ({pct.toFixed(1)}%)
+      </span>
+    </div>
   );
 }
 
 // ── Page ──
 
 export default function BalanceOfPowerPage() {
-  const [house, setHouse] = useState<ChamberBreakdown>({ total: 0, democrat: 0, republican: 0, independent: 0 });
-  const [senate, setSenate] = useState<ChamberBreakdown>({ total: 0, democrat: 0, republican: 0, independent: 0 });
-  const [total, setTotal] = useState<ChamberBreakdown>({ total: 0, democrat: 0, republican: 0, independent: 0 });
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [house, setHouse] = useState<ChamberBreakdown>({
+    total: 0,
+    democrat: 0,
+    republican: 0,
+    independent: 0,
+  });
+  const [senate, setSenate] = useState<ChamberBreakdown>({
+    total: 0,
+    democrat: 0,
+    republican: 0,
+    independent: 0,
+  });
+  const [total, setTotal] = useState<ChamberBreakdown>({
+    total: 0,
+    democrat: 0,
+    republican: 0,
+    independent: 0,
+  });
+  const [, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   const navigate = useNavigate();
@@ -147,10 +413,7 @@ export default function BalanceOfPowerPage() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      apiClient.getBalanceOfPower(),
-      apiClient.getDashboardStats(),
-    ])
+    Promise.all([apiClient.getBalanceOfPower(), apiClient.getDashboardStats()])
       .then(([bop, sRes]) => {
         if (cancelled) return;
         setHouse(bop.house);
@@ -160,73 +423,114 @@ export default function BalanceOfPowerPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      <div style={{ ...pageShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            border: '2px solid var(--color-border)',
+            borderTopColor: 'var(--color-accent)',
+            animation: 'spin 1s linear infinite',
+          }}
+        />
       </div>
     );
   }
 
+  const congressNum = Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
+
   return (
-    <div className="min-h-screen">
-      <div className="relative z-10 mx-auto max-w-[1200px] px-8 py-10 lg:px-16 lg:py-14">
+    <div style={pageShell}>
+      <div style={contentWrap}>
         {/* Header */}
         <motion.div
           ref={headerRef}
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="mb-10"
+          style={{ marginBottom: 40 }}
         >
-          <PoliticsSectorHeader />
-          <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
-            Balance of Power
+          <div style={{ marginBottom: 24 }}>
+            <PoliticsSectorHeader />
+          </div>
+          <div style={eyebrowStyle}>
+            <Scale size={12} style={{ color: 'var(--color-accent-text)' }} />
+            {congressNum}th Congress
+          </div>
+          <h1 style={titleStyle}>
+            Balance of <span style={{ color: 'var(--color-accent-text)' }}>power</span>
           </h1>
-          <p className="font-body text-lg text-white/50">
-            Party composition across the {Math.floor((new Date().getFullYear() - 1789) / 2) + 1}th Congress
+          <p style={leadStyle}>
+            Party composition across the {congressNum}th Congress, broken down by chamber.
           </p>
         </motion.div>
 
         {/* Overall stats */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-10">
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 16,
+            marginBottom: 40,
+          }}
+        >
           {[
-            { label: 'Total Members', value: total.total.toString(), icon: Users, color: '#3B82F6', party: null },
-            { label: 'Democrats', value: total.democrat.toString(), icon: Scale, color: '#3B82F6', party: 'Democratic' },
-            { label: 'Republicans', value: total.republican.toString(), icon: Scale, color: '#EF4444', party: 'Republican' },
-            { label: 'Independent', value: total.independent.toString(), icon: Scale, color: '#A855F7', party: 'Independent' },
+            { label: 'Total members', value: total.total.toString(), token: 'var(--color-accent-text)', party: null },
+            { label: 'Democrats', value: total.democrat.toString(), token: PARTY_TOKEN.dem, party: 'Democratic' },
+            { label: 'Republicans', value: total.republican.toString(), token: PARTY_TOKEN.rep, party: 'Republican' },
+            { label: 'Independent', value: total.independent.toString(), token: PARTY_TOKEN.ind, party: 'Independent' },
           ].map((stat, idx) => (
-            <motion.div
+            <motion.button
               key={stat.label}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.4, delay: 0.1 + idx * 0.08 }}
-              onClick={() => navigate(stat.party ? `/politics/people?party=${stat.party}` : '/politics/people')}
-              className="cursor-pointer"
+              onClick={() =>
+                navigate(stat.party ? `/politics/people?party=${stat.party}` : '/politics/people')
+              }
+              style={{
+                textAlign: 'left',
+                borderRadius: 14,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                padding: 20,
+                cursor: 'pointer',
+                transition: 'border-color 150ms, background 150ms',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-accent)';
+                e.currentTarget.style.background = 'var(--color-surface-2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border)';
+                e.currentTarget.style.background = 'var(--color-surface)';
+              }}
             >
-              <SpotlightCard
-                className="rounded-xl border border-white/10 bg-white/[0.03] transition-all hover:border-white/20"
-                spotlightColor="rgba(255, 255, 255, 0.10)"
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
               >
-                <div className="p-5">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-heading text-[10px] font-semibold tracking-wider text-white/30 uppercase">
-                      {stat.label}
-                    </span>
-                    <stat.icon size={16} style={{ color: stat.color }} className="opacity-40" />
-                  </div>
-                  <span className="font-mono text-3xl font-bold text-white">{stat.value}</span>
-                </div>
-              </SpotlightCard>
-            </motion.div>
+                <span style={statLabelStyle}>{stat.label}</span>
+                <Scale size={14} style={{ color: stat.token, opacity: 0.7 }} />
+              </div>
+              <div style={{ ...statValueStyle, color: stat.token }}>{stat.value}</div>
+            </motion.button>
           ))}
         </div>
 
         {/* Chamber breakdowns */}
-        <div className="space-y-6 mb-12">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -248,47 +552,124 @@ export default function BalanceOfPowerPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.7 }}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 16,
+          }}
         >
           {[
-            { to: '/politics/people', label: 'Browse All Members', desc: 'Full directory with search and filters', icon: Users, color: '#3B82F6' },
-            { to: '/politics/activity', label: 'Activity Feed', desc: 'Latest legislative actions and votes', icon: Activity, color: '#F59E0B' },
-            { to: '/politics/compare', label: 'Compare Members', desc: 'Side-by-side accountability analysis', icon: FileText, color: '#A855F7' },
+            { to: '/politics/people', label: 'Browse all members', desc: 'Full directory with search and filters', Icon: Users },
+            { to: '/politics/activity', label: 'Activity feed', desc: 'Latest legislative actions and votes', Icon: Activity },
+            { to: '/politics/compare', label: 'Compare members', desc: 'Side-by-side accountability analysis', Icon: FileText },
           ].map((link) => (
             <Link
               key={link.to}
               to={link.to}
-              className="group no-underline"
+              style={{ textDecoration: 'none' }}
             >
-              <SpotlightCard
-                className="rounded-xl border border-white/10 bg-white/[0.03]"
-                spotlightColor="rgba(255, 255, 255, 0.10)"
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 14,
+                  borderRadius: 14,
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                  padding: 20,
+                  transition: 'border-color 150ms, background 150ms',
+                  height: '100%',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-accent)';
+                  e.currentTarget.style.background = 'var(--color-surface-2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-border)';
+                  e.currentTarget.style.background = 'var(--color-surface)';
+                }}
               >
-                <div className="flex items-start gap-4 p-5">
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    background: 'var(--color-accent-dim)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <link.Icon size={18} style={{ color: 'var(--color-accent-text)' }} />
+                </div>
+                <div>
                   <div
-                    className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0"
-                    style={{ backgroundColor: `${link.color}15` }}
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: 'var(--color-text-1)',
+                      marginBottom: 4,
+                    }}
                   >
-                    <link.icon size={18} style={{ color: link.color }} />
+                    {link.label}
                   </div>
-                  <div>
-                    <p className="font-body text-sm font-semibold text-white group-hover:text-blue-400 transition-colors">
-                      {link.label}
-                    </p>
-                    <p className="mt-0.5 font-body text-xs text-white/30">{link.desc}</p>
+                  <div
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 12,
+                      color: 'var(--color-text-3)',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {link.desc}
                   </div>
                 </div>
-              </SpotlightCard>
+              </div>
             </Link>
           ))}
         </motion.div>
 
         {/* Footer */}
-        <div className="mt-16 border-t border-white/5 pt-6 flex items-center justify-between">
-          <Link to="/politics" className="font-body text-sm text-white/50 hover:text-white transition-colors no-underline">
-            &larr; Dashboard
+        <div
+          style={{
+            marginTop: 64,
+            borderTop: '1px solid var(--color-border)',
+            paddingTop: 24,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Link
+            to="/politics"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--color-text-2)',
+              textDecoration: 'none',
+              transition: 'color 150ms',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+          >
+            <ArrowLeft size={12} />
+            Dashboard
           </Link>
-          <span className="font-mono text-[10px] text-white/15">WeThePeople</span>
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 10,
+              color: 'var(--color-text-3)',
+              letterSpacing: '0.05em',
+            }}
+          >
+            wethepeople
+          </span>
         </div>
       </div>
     </div>
