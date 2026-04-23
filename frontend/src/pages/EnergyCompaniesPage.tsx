@@ -18,14 +18,15 @@ const SUB_SECTORS: Record<string, { label: string; color: string }> = {
 };
 
 function renderStats(c: EnergyCompanyListItem): CompanyStat[] {
+  const emissions = c.emission_count ?? 0;
   return [
     {
       label: 'Emissions',
-      value: c.emission_count,
-      accent: c.emission_count > 0 ? '#E63946' : undefined,
+      value: emissions,
+      accent: emissions > 0 ? '#E63946' : undefined,
     },
-    { label: 'Contracts', value: c.contract_count },
-    { label: 'Filings', value: c.filing_count },
+    { label: 'Contracts', value: c.contract_count ?? 0 },
+    { label: 'Filings', value: c.filing_count ?? 0 },
   ];
 }
 
