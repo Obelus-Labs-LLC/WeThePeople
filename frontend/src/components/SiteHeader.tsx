@@ -19,7 +19,7 @@ export default function SiteHeader() {
 
   return (
     <header
-      className="sticky top-0 z-40 flex items-center justify-between w-full"
+      className="sticky top-[52px] z-40 flex items-center justify-between w-full"
       style={{
         height: 64,
         padding: '0 32px',

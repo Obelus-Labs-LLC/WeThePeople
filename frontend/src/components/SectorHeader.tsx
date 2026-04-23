@@ -1,11 +1,38 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import Logo from './Logo';
+import { SECTOR_ACCENTS } from '../lib/sectorAccents';
 
 interface NavLink {
   label: string;
   to: string;
 }
+
+// ── Sector switcher data ──────────────────────────────────────────────
+// One row per sector that appears in the switcher dropdown. Route is the
+// sector dashboard; accent is pulled from the canonical SECTOR_ACCENTS
+// palette so the color dot matches each sector's header/tint everywhere
+// else in the app.
+interface SectorEntry {
+  key: string; // matches the `sector` prop passed to <SectorHeader />
+  label: string;
+  route: string;
+}
+
+const SECTOR_SWITCHER: SectorEntry[] = [
+  { key: 'politics',       label: 'Politics',           route: '/politics' },
+  { key: 'finance',        label: 'Finance',            route: '/finance' },
+  { key: 'health',         label: 'Health',             route: '/health' },
+  { key: 'technology',     label: 'Technology',         route: '/technology' },
+  { key: 'energy',         label: 'Energy',             route: '/energy' },
+  { key: 'transportation', label: 'Transportation',     route: '/transportation' },
+  { key: 'defense',        label: 'Defense',            route: '/defense' },
+  { key: 'chemicals',      label: 'Chemicals',          route: '/chemicals' },
+  { key: 'agriculture',    label: 'Agriculture',        route: '/agriculture' },
+  { key: 'telecom',        label: 'Telecommunications', route: '/telecom' },
+  { key: 'education',      label: 'Education',          route: '/education' },
+];
 
 interface SectorHeaderProps {
   sector: string;
@@ -19,10 +46,12 @@ interface SectorHeaderProps {
 /**
  * Sticky sector navigation bar — redesign (Apr 2026).
  *
- * 52px bar with backdrop-blur and a thin bottom border. Left cluster is the
- * new Logo (WTP mark only) paired with the uppercase sector name; right
- * cluster is underline-style nav tabs. Replaces the legacy filled-"WP"
- * square + colored pill active state with a single-accent system.
+ * 52px bar with backdrop-blur, pinned at `top-[52px]` so it sits directly
+ * under the global <EcosystemNav /> (which owns `top-0`). Left cluster is
+ * the Logo + a *sector switcher button* — hover/click opens a dropdown
+ * listing all 11 sectors so the user can jump from e.g. Finance → Defense
+ * without a trip back to the landing grid. Right cluster is the familiar
+ * underline-style nav tabs.
  *
  * Sibling sites (Verify / Research / Journal) re-skin by passing `accent`
  * + `mark`; the component itself stays sector-agnostic.
@@ -35,9 +64,47 @@ export default function SectorHeader({
 }: SectorHeaderProps) {
   const { pathname } = useLocation();
 
+  // ── Sector switcher dropdown state ────────────────────────────────
+  // Open on hover (desktop) OR click (touch). A 120ms close delay on
+  // mouseleave prevents the menu from snapping shut when the cursor
+  // traverses the 2px gap between button and menu.
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const cancelClose = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), 120);
+  };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      cancelClose();
+    };
+  }, []);
+
+  // Close the menu on route change (otherwise it lingers after the user
+  // picks a sector and the new page mounts with the menu still open).
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   return (
     <nav
-      className="sticky top-0 z-50 flex items-center justify-between overflow-x-auto scrollbar-hide mb-8"
+      className="sticky top-[52px] z-50 flex items-center justify-between overflow-visible mb-8"
       style={{
         height: 52,
         padding: '0 32px',
@@ -47,29 +114,155 @@ export default function SectorHeader({
         WebkitBackdropFilter: 'blur(12px)',
       }}
     >
-      {/* Left: WTP mark + uppercase sector name — links back to landing */}
-      <Link
-        to="/"
-        className="flex items-center no-underline shrink-0"
+      {/* Left cluster — Logo + sector-switcher dropdown.
+          The dropdown wrapper owns the hover intent so both the button
+          and the menu share the same onMouseEnter/Leave boundary. */}
+      <div
+        ref={wrapperRef}
+        className="flex items-center shrink-0 relative"
         style={{ gap: 12 }}
+        onMouseEnter={() => {
+          cancelClose();
+          setOpen(true);
+        }}
+        onMouseLeave={scheduleClose}
       >
-        <Logo size="sm" accent={accent} mark={mark} wordmark={null} />
-        <span
+        <Link
+          to="/"
+          className="flex items-center no-underline shrink-0"
+          style={{ gap: 12 }}
+          aria-label="WeThePeople home"
+        >
+          <Logo size="sm" accent={accent} mark={mark} wordmark={null} />
+        </Link>
+
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="flex items-center no-underline shrink-0 transition-colors"
           style={{
+            gap: 6,
+            padding: '6px 10px',
+            background: open ? 'rgba(235,229,213,0.06)' : 'transparent',
+            border: '1px solid transparent',
+            borderRadius: 6,
+            cursor: 'pointer',
+            color: 'var(--color-text-1)',
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             fontWeight: 600,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
-            color: 'var(--color-text-1)',
           }}
         >
           {sector}
-        </span>
-      </Link>
+          <ChevronDown
+            size={12}
+            style={{
+              transition: 'transform 0.15s',
+              transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+              color: 'var(--color-text-3)',
+            }}
+          />
+        </button>
+
+        {/* Dropdown menu — shows all 11 sectors with their accent dot */}
+        {open && (
+          <div
+            role="menu"
+            aria-label="Switch sector"
+            style={{
+              position: 'absolute',
+              top: 48,
+              left: 0,
+              minWidth: 220,
+              background: 'rgba(13, 17, 23, 0.98)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 10,
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              padding: 6,
+              boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+              zIndex: 55,
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--color-text-3)',
+                padding: '8px 10px 6px',
+              }}
+            >
+              Switch sector
+            </div>
+            {SECTOR_SWITCHER.map((entry) => {
+              const isCurrent = entry.key === sector;
+              const dot = SECTOR_ACCENTS[entry.key]?.accent || accent;
+              return (
+                <Link
+                  key={entry.key}
+                  to={entry.route}
+                  role="menuitem"
+                  onClick={() => setOpen(false)}
+                  className="no-underline flex items-center transition-colors"
+                  style={{
+                    gap: 10,
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: isCurrent ? 600 : 500,
+                    color: isCurrent ? 'var(--color-text-1)' : 'var(--color-text-2)',
+                    background: isCurrent ? 'rgba(235,229,213,0.06)' : 'transparent',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isCurrent) e.currentTarget.style.background = 'rgba(235,229,213,0.04)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isCurrent) e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: dot,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ flex: 1 }}>{entry.label}</span>
+                  {isCurrent && (
+                    <span
+                      aria-hidden
+                      style={{
+                        fontSize: 9,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: '0.14em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-text-3)',
+                      }}
+                    >
+                      Current
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Right: underline-style nav tabs */}
       <div
-        className="flex items-center flex-nowrap shrink-0"
+        className="flex items-center flex-nowrap shrink-0 overflow-x-auto scrollbar-hide"
         style={{ gap: 4 }}
       >
         {links.map((link) => {

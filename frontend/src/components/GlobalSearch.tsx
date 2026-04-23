@@ -152,7 +152,7 @@ export default function GlobalSearch() {
       {/* Search trigger button — opens ChatAgent */}
       <button
         onClick={() => openChatAgent()}
-        className="fixed top-4 right-4 z-[9998] flex items-center gap-2 px-3 py-2 rounded-xl
+        className="fixed top-[68px] right-4 z-[9998] flex items-center gap-2 px-3 py-2 rounded-xl
                    bg-white/[0.07] border border-white/10 text-white/60 hover:text-white hover:bg-white/[0.12]
                    backdrop-blur-sm transition-all text-sm cursor-pointer"
         aria-label="Open chat assistant"

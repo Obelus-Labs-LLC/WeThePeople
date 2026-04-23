@@ -19,6 +19,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import GlobalSearch from "./components/GlobalSearch";
 import ChatAgent from "./components/ChatAgent";
 import UserMenu from "./components/UserMenu";
+import EcosystemNav from "./components/EcosystemNav";
 
 // ── Lazy-loaded pages ──
 
@@ -128,6 +129,10 @@ const MethodologyPage = React.lazy(() => import("./pages/MethodologyPage"));
 
 // Landing page has its own SiteHeader with search + Log in/Sign up.
 // All other pages rely on the global floating overlays.
+//
+// The EcosystemNav is a 52px sticky bar pinned at top:0 on every page, so
+// the floating overlays are offset to top-[68px] (= 52 + 16) to sit just
+// below it without hiding the ecosystem switcher.
 const GlobalOverlays: React.FC = () => {
   const { pathname } = useLocation();
   const isLanding = pathname === "/";
@@ -136,11 +141,11 @@ const GlobalOverlays: React.FC = () => {
     <>
       <GlobalSearch />
       <ChatAgent />
-      {/* Sits at same top as GlobalSearch (top-4) and just below its
-          z-index (9998) so the search modal always opens above. Kept at
-          right-32 (128px) so it clears the ~80px-wide search pill anchored
-          at right-4 with a ~30px visual gap. */}
-      <div className="fixed top-4 right-32 z-[9997]">
+      {/* User pill sits level with the GlobalSearch button (both at top-[68px])
+          and one z-layer below (9997 vs 9998) so the search modal can still
+          open above it. right-32 gives ~30px of breathing room between the
+          user pill and the search pill. */}
+      <div className="fixed top-[68px] right-32 z-[9997]">
         <UserMenu />
       </div>
     </>
@@ -151,6 +156,11 @@ const App: React.FC = () => (
   <ErrorBoundary>
     <AuthProvider>
     <BrowserRouter>
+      {/* Cross-site switcher — renders on every page so users can jump to
+          Verify / Research / Journal without hunting for a link. Sticky at
+          top:0 with z-[60]; the per-page SiteHeader / SectorHeader stick
+          right below it (top-[52px], z-50). */}
+      <EcosystemNav active="core" />
       <GlobalOverlays />
       <Suspense fallback={
         <div className="flex h-screen items-center justify-center bg-slate-950">
