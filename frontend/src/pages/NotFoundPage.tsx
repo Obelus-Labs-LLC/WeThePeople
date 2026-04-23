@@ -1,60 +1,167 @@
-import React from "react";
-import { Link, useLocation } from "react-router-dom";
-import { Search, Home, ArrowRight } from "lucide-react";
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { Search, Home, ArrowRight } from 'lucide-react';
 
-const SECTOR_LINKS = [
-  { name: "Politics", route: "/politics", icon: "\u{1F3DB}\uFE0F", color: "text-blue-400" },
-  { name: "Finance", route: "/finance", icon: "\u{1F4B0}", color: "text-emerald-400" },
-  { name: "Health", route: "/health", icon: "\u{1F3E5}", color: "text-rose-400" },
-  { name: "Technology", route: "/technology", icon: "\u{1F4BB}", color: "text-violet-400" },
-  { name: "Oil, Gas & Energy", route: "/energy", icon: "\u{1F6E2}\uFE0F", color: "text-orange-400" },
+// Primary sector destinations surfaced on the 404 page
+const SECTOR_LINKS: Array<{ name: string; route: string; token: string }> = [
+  { name: 'Politics', route: '/politics', token: 'var(--color-dem)' },
+  { name: 'Finance', route: '/finance', token: 'var(--color-green)' },
+  { name: 'Health', route: '/health', token: 'var(--color-red)' },
+  { name: 'Technology', route: '/technology', token: 'var(--color-ind)' },
+  { name: 'Energy', route: '/energy', token: 'var(--color-accent)' },
 ];
 
 const NotFoundPage: React.FC = () => {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4">
-      <div className="max-w-lg w-full text-center">
-        {/* 404 badge */}
-        <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 mb-6">
-          <Search className="w-4 h-4 text-blue-400" />
-          <span className="font-mono text-sm text-white/60">404 — PAGE NOT FOUND</span>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text-1)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div style={{ maxWidth: 520, width: '100%', textAlign: 'center' }}>
+        {/* 404 pill */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'var(--color-accent-dim)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 999,
+            padding: '6px 14px',
+            marginBottom: 24,
+          }}
+        >
+          <Search size={14} style={{ color: 'var(--color-accent-text)' }} />
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 12,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: 'var(--color-accent-text)',
+            }}
+          >
+            404 — page not found
+          </span>
         </div>
 
-        <h1 className="font-heading text-4xl font-bold mb-3">
+        <h1
+          style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontStyle: 'italic',
+            fontWeight: 900,
+            fontSize: 'clamp(36px, 6vw, 56px)',
+            lineHeight: 1.02,
+            color: 'var(--color-text-1)',
+            marginBottom: 12,
+          }}
+        >
           Nothing here
         </h1>
-        <p className="font-body text-white/50 mb-2">
-          <span className="font-mono text-white/30 text-sm">{location.pathname}</span>
+        <p
+          style={{
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: 12,
+            color: 'var(--color-text-3)',
+            marginBottom: 8,
+            wordBreak: 'break-all',
+          }}
+        >
+          {location.pathname}
         </p>
-        <p className="font-body text-white/50 mb-8">
+        <p
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            color: 'var(--color-text-2)',
+            marginBottom: 32,
+            lineHeight: 1.6,
+          }}
+        >
           This page doesn't exist or may have been moved. Try one of the sectors below.
         </p>
 
-        {/* Sector links */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+        {/* Sector grid */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: 10,
+            marginBottom: 28,
+          }}
+        >
           {SECTOR_LINKS.map((s) => (
             <Link
               key={s.route}
               to={s.route}
-              className="flex items-center gap-3 bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 hover:bg-white/[0.08] hover:border-white/20 transition-all group"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                textDecoration: 'none',
+                transition: 'all 150ms',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border)';
+              }}
             >
-              <span className="text-xl">{s.icon}</span>
-              <span className={`font-body font-medium text-white group-hover:${s.color} transition-colors`}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: s.token,
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: 'var(--color-text-1)',
+                }}
+              >
                 {s.name}
               </span>
-              <ArrowRight className="w-4 h-4 text-white/20 group-hover:text-white/50 ml-auto transition-colors" />
+              <ArrowRight size={14} style={{ color: 'var(--color-text-3)', marginLeft: 'auto' }} />
             </Link>
           ))}
         </div>
 
-        {/* Home link */}
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-body text-sm transition-colors"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--color-accent-text)',
+            textDecoration: 'none',
+            transition: 'color 150ms',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
         >
-          <Home className="w-4 h-4" />
+          <Home size={14} />
           Back to home
         </Link>
       </div>

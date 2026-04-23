@@ -1,62 +1,131 @@
 @import "tailwindcss";
 
-body {
+@theme {
+  /* ── Background layers ────────────────────────────────────────── */
+  --color-bg:           #07090C;   /* page background */
+  --color-surface:      #0D1117;   /* card / panel background */
+  --color-surface-2:    #141C25;   /* elevated surface, hover state */
+
+  /* ── Borders ──────────────────────────────────────────────────── */
+  --color-border:       rgba(255, 255, 255, 0.06);
+  --color-border-hover: rgba(255, 255, 255, 0.11);
+
+  /* ── Text ─────────────────────────────────────────────────────── */
+  --color-text-1: #EBE5D5;                    /* primary — warm off-white */
+  --color-text-2: rgba(235, 229, 213, 0.50);  /* secondary */
+  --color-text-3: rgba(235, 229, 213, 0.22);  /* muted / labels */
+
+  /* ── Accent — Verify = Emerald ────────────────────────────────── */
+  --color-accent:      #10B981;
+  --color-accent-dim:  rgba(16, 185, 129, 0.12);
+  --color-accent-text: #3DD5C7;
+
+  /* ── Data colors — shared across sites ────────────────────────── */
+  --color-dem:   #4A7FDE;
+  --color-rep:   #E05555;
+  --color-ind:   #B06FD8;
+  --color-green: #3DB87A;
+  --color-red:   #E63946;
+  --color-amber: #C5A028;
+
+  /* ── Sibling site accents (for cross-links) ───────────────────── */
+  --color-verify:   #10B981;
+  --color-research: #8B5CF6;
+  --color-journal:  #E63946;
+
+  /* ── Fonts ────────────────────────────────────────────────────── */
+  --font-display: 'Playfair Display', serif;   /* editorial italic headlines */
+  --font-body:    'Inter', sans-serif;          /* all UI text */
+  --font-mono:    'JetBrains Mono', monospace;  /* all numbers, codes, IDs */
+
+  /* ── Spacing ──────────────────────────────────────────────────── */
+  --spacing-page:    40px;
+  --spacing-section: 32px;
+  --spacing-card:    20px;
+  --spacing-card-sm: 14px;
+
+  /* ── Border radius ────────────────────────────────────────────── */
+  --radius-card: 10px;
+  --radius-lg:   12px;
+  --radius-pill: 20px;
+  --radius-sm:   6px;
+}
+
+/* ── Global base ───────────────────────────────────────────────── */
+html, body, #root {
   margin: 0;
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
-  background-color: #0a0a0f;
-  color: #fafafa;
+  padding: 0;
+  background-color: #07090C;
+  color: #EBE5D5;
+  font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
 }
 
-/* Oswald headings utility */
-.font-oswald {
-  font-family: 'Oswald', sans-serif;
+/* ── Scrollbar ─────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
 }
 
-/* Monospace data readout */
-.font-mono {
-  font-family: 'Fira Code', ui-monospace, monospace;
-}
+/* Utility: hide scrollbar but keep scroll behaviour */
+.scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
-/* Smooth scroll */
-html {
-  scroll-behavior: smooth;
-}
+/* ── Typography utilities ──────────────────────────────────────── */
+.font-display { font-family: 'Playfair Display', serif; }
+.font-mono    { font-family: 'JetBrains Mono', monospace; }
+.font-body    { font-family: 'Inter', sans-serif; }
 
-/* Selection color */
+html { scroll-behavior: smooth; }
+
+/* Selection color — site accent (emerald) */
 ::selection {
-  background-color: rgba(251, 191, 36, 0.25);
-  color: #fafafa;
+  background-color: rgba(16, 185, 129, 0.28);
+  color: #EBE5D5;
 }
 
-/* Pulse animation for loading */
-@keyframes pulse-amber {
+/* ── Animations ────────────────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Verify-specific: verdict badge pulse during scoring */
+@keyframes pulse-verify {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
 
-.animate-pulse-amber {
-  animation: pulse-amber 1.5s ease-in-out infinite;
-}
-
-/* Verdict banner shimmer */
+/* Verify-specific: skeleton shimmer for loading claim cards */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
 
-.shimmer {
-  background-size: 200% 100%;
-  animation: shimmer 2s linear infinite;
-}
+.animate-fade-up      { animation: fade-up 0.5s ease both; }
+.animate-fade-up-2    { animation: fade-up 0.5s 0.1s ease both; }
+.animate-fade-up-3    { animation: fade-up 0.5s 0.2s ease both; }
+.animate-pulse-dot    { animation: pulse 2s ease-in-out infinite; }
+.animate-ticker       { animation: ticker 28s linear infinite; }
+.animate-ticker:hover { animation-play-state: paused; }
+.animate-pulse-verify { animation: pulse-verify 1.5s ease-in-out infinite; }
+.shimmer              { background-size: 200% 100%; animation: shimmer 2s linear infinite; }
 
-/* Card hover lift */
-.card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-}
+/* Generic card hover lift */
+.card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
+.card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }

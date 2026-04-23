@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, ChevronRight, Building2, Search } from 'lucide-react';
+import { Users, ChevronRight, Building2, Search, ArrowLeft, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getApiBaseUrl } from '../api/client';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
@@ -54,27 +54,89 @@ const CHAMBER_OPTIONS = [
   { key: 'joint', label: 'Joint' },
 ];
 
-const PARTY_COLORS: Record<string, string> = { D: '#3B82F6', R: '#EF4444', I: '#A855F7' };
+const PARTY_HEX: Record<string, string> = {
+  D: '#4A7FDE',
+  R: '#E05555',
+  I: '#B06FD8',
+};
+
+const PARTY_TOKEN: Record<string, string> = {
+  D: 'var(--color-dem)',
+  R: 'var(--color-rep)',
+  I: 'var(--color-ind)',
+};
 
 // ── Helpers ──
 
-function partyColor(party: string | null): string {
-  return PARTY_COLORS[party?.charAt(0) || ''] || '#6B7280';
+function partyToken(party: string | null): string {
+  return PARTY_TOKEN[party?.charAt(0)?.toUpperCase() || ''] || 'var(--color-text-3)';
 }
 
-function chamberColor(chamber: string): string {
-  const c = chamber.toLowerCase();
-  if (c.includes('senate') || c === 'upper') return '#8B5CF6';
-  if (c.includes('joint')) return '#F59E0B';
-  return '#3B82F6';
+function partyHex(party: string | null): string {
+  return PARTY_HEX[party?.charAt(0)?.toUpperCase() || ''] || '#7F8593';
 }
+
+function chamberToken(chamber: string): { color: string; hex: string } {
+  const c = chamber.toLowerCase();
+  if (c.includes('senate') || c === 'upper') return { color: 'var(--color-ind)', hex: '#B06FD8' };
+  if (c.includes('joint')) return { color: 'var(--color-accent-text)', hex: '#D4AE35' };
+  return { color: 'var(--color-dem)', hex: '#4A7FDE' };
+}
+
+// ── Styles ──
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text-1)',
+};
+
+const contentWrap: React.CSSProperties = {
+  maxWidth: 1400,
+  margin: '0 auto',
+  padding: '40px 32px 80px',
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  background: 'var(--color-accent-dim)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 999,
+  padding: '6px 14px',
+  marginBottom: 20,
+  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent-text)',
+};
+
+const titleStyle: React.CSSProperties = {
+  fontFamily: "'Playfair Display', Georgia, serif",
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: 'clamp(36px, 5vw, 56px)',
+  lineHeight: 1.05,
+  color: 'var(--color-text-1)',
+  marginBottom: 12,
+};
+
+const leadStyle: React.CSSProperties = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 15,
+  color: 'var(--color-text-2)',
+  lineHeight: 1.65,
+  maxWidth: 680,
+};
 
 // ── Page ──
 
 export default function CommitteesPage() {
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [dataUnavailable, setDataUnavailable] = useState(false);
   const [chamberFilter, setChamberFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -84,7 +146,6 @@ export default function CommitteesPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
 
     fetch(`${getApiBaseUrl()}/committees`)
       .then((res) => {
@@ -98,15 +159,17 @@ export default function CommitteesPage() {
       })
       .then((data: CommitteesResponse | null) => {
         if (cancelled) return;
-        if (data) {
-          setCommittees(data.committees || []);
-        }
+        if (data) setCommittees(data.committees || []);
       })
       .catch(() => {
         if (!cancelled) setDataUnavailable(true);
       })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const toggleExpand = async (committee: Committee) => {
@@ -116,7 +179,6 @@ export default function CommitteesPage() {
     }
     setExpandedId(committee.thomas_id);
 
-    // Fetch members if not already loaded
     if (!committee.members) {
       setLoadingMembers(committee.thomas_id);
       try {
@@ -125,14 +187,12 @@ export default function CommitteesPage() {
           const data = await res.json();
           setCommittees((prev) =>
             prev.map((c) =>
-              c.thomas_id === committee.thomas_id
-                ? { ...c, members: data.members || [] }
-                : c
-            )
+              c.thomas_id === committee.thomas_id ? { ...c, members: data.members || [] } : c,
+            ),
           );
         }
       } catch {
-        // Members endpoint may not exist, that's fine
+        // ignore
       } finally {
         setLoadingMembers(null);
       }
@@ -154,14 +214,14 @@ export default function CommitteesPage() {
   });
 
   return (
-    <div className="min-h-screen">
-      <div className="relative z-10 mx-auto max-w-[1400px] px-8 py-10 lg:px-16 lg:py-14">
+    <div style={pageShell}>
+      <div style={contentWrap}>
         {/* Nav */}
         <motion.nav
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="mb-10"
+          style={{ marginBottom: 40 }}
         >
           <PoliticsSectorHeader />
         </motion.nav>
@@ -171,94 +231,145 @@ export default function CommitteesPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="mb-8"
+          style={{ marginBottom: 32 }}
         >
-          <p className="font-heading text-xs font-semibold tracking-[0.3em] text-blue-400 uppercase mb-3">
-            Congressional Committees
-          </p>
-          <h1 className="font-heading text-4xl font-bold tracking-tight text-white lg:text-5xl">
-            Committees
+          <div style={eyebrowStyle}>
+            <Building2 size={12} style={{ color: 'var(--color-accent-text)' }} />
+            Congressional committees
+          </div>
+          <h1 style={titleStyle}>
+            Where bills go to <span style={{ color: 'var(--color-accent-text)' }}>live or die</span>
           </h1>
-          <p className="mt-3 max-w-2xl font-body text-base text-white/40 leading-relaxed">
-            Explore the committees that shape legislation in Congress. View members, chairs, and committee jurisdiction.
+          <p style={leadStyle}>
+            Explore the committees that shape legislation. View members, chairs, and jurisdiction.
           </p>
         </motion.div>
 
         {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 0' }}>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                border: '2px solid var(--color-border)',
+                borderTopColor: 'var(--color-accent)',
+                animation: 'spin 1s linear infinite',
+              }}
+            />
           </div>
         )}
 
-        {/* Data coming soon state */}
+        {/* Data unavailable state */}
         {!loading && dataUnavailable && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <div className="rounded-xl border border-white/10 bg-white/[0.02] py-16 text-center mb-8">
-              <Building2 size={48} className="mx-auto mb-5 text-blue-500/30" />
-              <h2 className="font-heading text-2xl font-bold text-white mb-3">
+            <div
+              style={{
+                borderRadius: 16,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                padding: '64px 32px',
+                textAlign: 'center',
+                marginBottom: 32,
+              }}
+            >
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 56,
+                  height: 56,
+                  borderRadius: 14,
+                  background: 'var(--color-accent-dim)',
+                  marginBottom: 20,
+                }}
+              >
+                <Building2 size={24} style={{ color: 'var(--color-accent-text)' }} />
+              </div>
+              <h2
+                style={{
+                  fontFamily: "'Playfair Display', Georgia, serif",
+                  fontStyle: 'italic',
+                  fontWeight: 900,
+                  fontSize: 28,
+                  color: 'var(--color-text-1)',
+                  marginBottom: 12,
+                }}
+              >
                 Unable to load committee data
               </h2>
-              <p className="max-w-md mx-auto font-body text-sm text-white/40 leading-relaxed">
+              <p
+                style={{
+                  maxWidth: 440,
+                  margin: '0 auto 28px',
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 14,
+                  color: 'var(--color-text-2)',
+                  lineHeight: 1.6,
+                }}
+              >
                 Committee data couldn't be loaded. Please try again later.
               </p>
-              <div className="mt-8 flex justify-center gap-3">
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
                 <Link
                   to="/politics/people"
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-5 py-2.5 font-body text-sm font-semibold text-white transition-colors hover:bg-blue-600 no-underline"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    borderRadius: 10,
+                    background: 'var(--color-accent)',
+                    color: '#07090C',
+                    padding: '10px 20px',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    textDecoration: 'none',
+                    transition: 'opacity 150ms',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
                 >
-                  <Users size={16} />
-                  Browse Members
+                  <Users size={14} />
+                  Browse members
                 </Link>
                 <Link
                   to="/politics"
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 font-body text-sm font-semibold text-white/70 transition-colors hover:border-white/20 hover:text-white no-underline"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    borderRadius: 10,
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-text-2)',
+                    padding: '10px 20px',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    transition: 'border-color 150ms, color 150ms',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-accent)';
+                    e.currentTarget.style.color = 'var(--color-text-1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-border)';
+                    e.currentTarget.style.color = 'var(--color-text-2)';
+                  }}
                 >
                   Dashboard
                 </Link>
               </div>
-            </div>
-
-            {/* Placeholder preview of what committees will look like */}
-            <div className="mb-4 flex items-center gap-2">
-              <span className="font-mono text-xs text-white/20 uppercase tracking-wider">Preview</span>
-              <div className="flex-1 h-px bg-white/5" />
-            </div>
-            <div className="flex flex-col gap-3 opacity-50 pointer-events-none">
-              {[
-                { name: 'Committee on Appropriations', chamber: 'House', members: 53 },
-                { name: 'Committee on Armed Services', chamber: 'Senate', members: 27 },
-                { name: 'Committee on the Judiciary', chamber: 'House', members: 40 },
-              ].map((placeholder) => (
-                <div
-                  key={placeholder.name}
-                  className="rounded-xl border border-white/5 p-5 flex items-center gap-4"
-                  style={{ backgroundColor: '#0F172A' }}
-                >
-                  <div
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
-                    style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}
-                  >
-                    <Building2 size={18} className="text-blue-500/50" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-body text-base font-medium text-white/60 truncate">
-                      {placeholder.name}
-                    </h3>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-white/20">
-                      <span className="rounded-full bg-blue-500/10 px-2 py-0.5 font-body text-[10px] font-bold uppercase text-blue-400/40">
-                        {placeholder.chamber}
-                      </span>
-                      <span className="font-mono">{placeholder.members} members</span>
-                    </div>
-                  </div>
-                  <ChevronRight size={18} className="flex-shrink-0 text-white/10" />
-                </div>
-              ))}
             </div>
           </motion.div>
         )}
@@ -271,158 +382,393 @@ export default function CommitteesPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="mb-6 flex flex-col sm:flex-row gap-4"
+              style={{
+                marginBottom: 24,
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 12,
+                alignItems: 'center',
+              }}
             >
-              <div className="relative flex-1">
-                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
+              <div style={{ position: 'relative', flex: '1 1 280px', minWidth: 260 }}>
+                <Search
+                  size={16}
+                  style={{
+                    position: 'absolute',
+                    left: 16,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--color-text-3)',
+                  }}
+                />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search committees..."
-                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-12 py-3 font-body text-sm text-white placeholder:text-white/20 focus:border-blue-500/50 focus:outline-none transition-colors"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px 12px 44px',
+                    borderRadius: 12,
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-text-1)',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 14,
+                    outline: 'none',
+                    transition: 'border-color 150ms, box-shadow 150ms',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-accent)';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px var(--color-accent-dim)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-border)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                 />
               </div>
-              <div className="flex gap-2">
-                {CHAMBER_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.key}
-                    onClick={() => setChamberFilter(opt.key)}
-                    className={`rounded-full px-4 py-2 font-body text-sm transition-all ${
-                      chamberFilter === opt.key
-                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                        : 'bg-white/5 text-white/40 border border-white/5 hover:text-white/60'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {CHAMBER_OPTIONS.map((opt) => {
+                  const active = chamberFilter === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      onClick={() => setChamberFilter(opt.key)}
+                      style={{
+                        borderRadius: 999,
+                        padding: '8px 16px',
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                        background: active ? 'var(--color-accent-dim)' : 'var(--color-surface)',
+                        color: active ? 'var(--color-accent-text)' : 'var(--color-text-2)',
+                        transition: 'border-color 150ms, color 150ms',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!active) {
+                          e.currentTarget.style.borderColor = 'var(--color-accent)';
+                          e.currentTarget.style.color = 'var(--color-text-1)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!active) {
+                          e.currentTarget.style.borderColor = 'var(--color-border)';
+                          e.currentTarget.style.color = 'var(--color-text-2)';
+                        }
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
             </motion.div>
 
             {/* Count */}
-            <p className="mb-4 font-mono text-xs text-white/30">
+            <p
+              style={{
+                marginBottom: 16,
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 11,
+                color: 'var(--color-text-3)',
+                letterSpacing: '0.05em',
+              }}
+            >
               {filtered.length} committee{filtered.length !== 1 ? 's' : ''}
             </p>
 
             {/* Empty */}
             {filtered.length === 0 && (
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] py-16 text-center">
-                <Users size={40} className="mx-auto mb-4 text-white/10" />
-                <p className="font-body text-sm text-white/40">
+              <div
+                style={{
+                  borderRadius: 14,
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                  padding: '64px 0',
+                  textAlign: 'center',
+                }}
+              >
+                <Users
+                  size={36}
+                  style={{ margin: '0 auto 12px', color: 'var(--color-text-3)', opacity: 0.5 }}
+                />
+                <p
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 14,
+                    color: 'var(--color-text-3)',
+                  }}
+                >
                   No committees match your search.
                 </p>
               </div>
             )}
 
             {/* List */}
-            <div className="flex flex-col gap-3">
-              {filtered.map((committee, idx) => (
-                <motion.div
-                  key={committee.thomas_id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: Math.min(idx * 0.03, 0.5) }}
-                >
-                  <div
-                    className="rounded-xl border border-white/5 transition-all duration-300 hover:border-white/10 overflow-hidden"
-                    style={{ backgroundColor: '#0F172A' }}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {filtered.map((committee, idx) => {
+                const token = chamberToken(committee.chamber);
+                const isExpanded = expandedId === committee.thomas_id;
+                return (
+                  <motion.div
+                    key={committee.thomas_id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: Math.min(idx * 0.02, 0.4) }}
                   >
-                    {/* Committee header */}
-                    <button
-                      onClick={() => toggleExpand(committee)}
-                      className="w-full p-5 flex items-center gap-4 text-left cursor-pointer"
+                    <div
+                      style={{
+                        borderRadius: 14,
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-surface)',
+                        overflow: 'hidden',
+                        transition: 'border-color 150ms',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
                     >
-                      <div
-                        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
-                        style={{ backgroundColor: `${chamberColor(committee.chamber)}20` }}
+                      {/* Committee header */}
+                      <button
+                        onClick={() => toggleExpand(committee)}
+                        style={{
+                          width: '100%',
+                          padding: 20,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 16,
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'inherit',
+                        }}
                       >
-                        <Building2 size={18} style={{ color: chamberColor(committee.chamber) }} />
-                      </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexShrink: 0,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: 40,
+                            width: 40,
+                            borderRadius: 10,
+                            background: `${token.hex}1F`,
+                          }}
+                        >
+                          <Building2 size={18} style={{ color: token.color }} />
+                        </div>
 
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-body text-base font-medium text-white truncate">
-                          {committee.name}
-                        </h3>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/30">
-                          <span
-                            className="rounded-full px-2 py-0.5 font-body text-[10px] font-bold uppercase"
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <h3
                             style={{
-                              backgroundColor: `${chamberColor(committee.chamber)}20`,
-                              color: chamberColor(committee.chamber),
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 15,
+                              fontWeight: 600,
+                              color: 'var(--color-text-1)',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
                             }}
                           >
-                            {committee.chamber}
-                          </span>
-                          <span className="font-mono">{committee.member_count} members</span>
-                          {committee.subcommittees && committee.subcommittees.length > 0 && (
-                            <span className="font-mono">{committee.subcommittees.length} subcommittees</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <ChevronRight
-                        size={18}
-                        className={`flex-shrink-0 text-white/20 transition-transform ${
-                          expandedId === committee.thomas_id ? 'rotate-90' : ''
-                        }`}
-                      />
-                    </button>
-
-                    {/* Expanded: members */}
-                    <AnimatePresence>
-                      {expandedId === committee.thomas_id && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="border-t border-white/5 px-5 py-4">
-                            {loadingMembers === committee.thomas_id ? (
-                              <div className="flex items-center justify-center py-6">
-                                <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                              </div>
-                            ) : committee.members && committee.members.length > 0 ? (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                {committee.members.map((member, i) => (
-                                  <MemberCard key={`${member.person_id || i}`} member={member} />
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="py-4 text-center font-body text-xs text-white/30">
-                                Member data not yet available for this committee.
-                              </p>
-                            )}
-
-                            {committee.url && (
-                              <a
-                                href={committee.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-3 inline-block font-body text-xs text-blue-400 hover:text-blue-300 transition-colors no-underline"
+                            {committee.name}
+                          </h3>
+                          <div
+                            style={{
+                              marginTop: 6,
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              alignItems: 'center',
+                              gap: 8,
+                            }}
+                          >
+                            <span
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: 999,
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 10,
+                                fontWeight: 700,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                background: `${token.hex}1F`,
+                                color: token.color,
+                              }}
+                            >
+                              {committee.chamber}
+                            </span>
+                            <span
+                              style={{
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 11,
+                                color: 'var(--color-text-3)',
+                              }}
+                            >
+                              {committee.member_count} members
+                            </span>
+                            {committee.subcommittees && committee.subcommittees.length > 0 && (
+                              <span
+                                style={{
+                                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                  fontSize: 11,
+                                  color: 'var(--color-text-3)',
+                                }}
                               >
-                                View on Congress.gov &rarr;
-                              </a>
+                                {committee.subcommittees.length} subcommittees
+                              </span>
                             )}
                           </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </motion.div>
-              ))}
+                        </div>
+
+                        <ChevronRight
+                          size={18}
+                          style={{
+                            flexShrink: 0,
+                            color: 'var(--color-text-3)',
+                            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                            transition: 'transform 200ms',
+                          }}
+                        />
+                      </button>
+
+                      {/* Expanded: members */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            style={{ overflow: 'hidden' }}
+                          >
+                            <div
+                              style={{
+                                borderTop: '1px solid var(--color-border)',
+                                padding: '16px 20px',
+                              }}
+                            >
+                              {loadingMembers === committee.thomas_id ? (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '24px 0',
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: 20,
+                                      height: 20,
+                                      borderRadius: '50%',
+                                      border: '2px solid var(--color-border)',
+                                      borderTopColor: 'var(--color-accent)',
+                                      animation: 'spin 1s linear infinite',
+                                    }}
+                                  />
+                                </div>
+                              ) : committee.members && committee.members.length > 0 ? (
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                                    gap: 8,
+                                  }}
+                                >
+                                  {committee.members.map((member, i) => (
+                                    <MemberCard key={`${member.person_id || i}`} member={member} />
+                                  ))}
+                                </div>
+                              ) : (
+                                <p
+                                  style={{
+                                    padding: '16px 0',
+                                    textAlign: 'center',
+                                    fontFamily: "'Inter', sans-serif",
+                                    fontSize: 12,
+                                    color: 'var(--color-text-3)',
+                                  }}
+                                >
+                                  Member data not yet available for this committee.
+                                </p>
+                              )}
+
+                              {committee.url && (
+                                <a
+                                  href={committee.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    marginTop: 12,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    fontFamily: "'Inter', sans-serif",
+                                    fontSize: 12,
+                                    color: 'var(--color-accent-text)',
+                                    textDecoration: 'none',
+                                    transition: 'opacity 150ms',
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                                >
+                                  View on Congress.gov
+                                  <ExternalLink size={10} />
+                                </a>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </>
         )}
 
         {/* Footer */}
-        <div className="mt-16 border-t border-white/5 pt-6 flex items-center justify-between">
-          <Link to="/politics" className="font-body text-sm text-white/50 hover:text-white transition-colors no-underline">
-            &larr; Politics Dashboard
+        <div
+          style={{
+            marginTop: 64,
+            borderTop: '1px solid var(--color-border)',
+            paddingTop: 24,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Link
+            to="/politics"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--color-text-2)',
+              textDecoration: 'none',
+              transition: 'color 150ms',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+          >
+            <ArrowLeft size={12} />
+            Politics dashboard
           </Link>
-          <span className="font-mono text-[10px] text-white/15">WeThePeople</span>
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 10,
+              color: 'var(--color-text-3)',
+              letterSpacing: '0.05em',
+            }}
+          >
+            wethepeople
+          </span>
         </div>
       </div>
     </div>
@@ -434,42 +780,110 @@ export default function CommitteesPage() {
 function MemberCard({ member }: { member: CommitteeMember }) {
   const displayName = member.display_name || member.member_name || 'Unknown';
   const displayParty = member.member_party || member.party;
-  const color = partyColor(displayParty);
+  const token = partyToken(displayParty);
+  const hex = partyHex(displayParty);
 
   const roleLabel = member.role?.replace(/_/g, ' ');
+  const isLeadership = roleLabel && roleLabel.toLowerCase() !== 'member';
 
   const content = (
-    <div className="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] p-3 transition-colors hover:border-white/10">
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        borderRadius: 10,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface-2)',
+        padding: 10,
+        transition: 'border-color 150ms',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
+    >
       {member.photo_url ? (
         <img
           src={member.photo_url}
           alt={displayName}
-          className="h-8 w-8 rounded-full object-cover ring-1 ring-white/10"
+          style={{
+            height: 32,
+            width: 32,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            border: '1px solid var(--color-border)',
+            flexShrink: 0,
+          }}
         />
       ) : (
         <div
-          className="flex h-8 w-8 items-center justify-center rounded-full font-heading text-xs font-bold text-white ring-1 ring-white/10"
-          style={{ backgroundColor: `${color}33` }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: 32,
+            width: 32,
+            borderRadius: '50%',
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: 12,
+            fontWeight: 700,
+            color: token,
+            background: `${hex}26`,
+            border: '1px solid var(--color-border)',
+            flexShrink: 0,
+          }}
         >
           {displayName.charAt(0)}
         </div>
       )}
-      <div className="min-w-0 flex-1">
-        <p className="font-body text-sm text-white truncate">{displayName}</p>
-        <div className="flex items-center gap-1.5">
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <p
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            color: 'var(--color-text-1)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {displayName}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
           {displayParty && (
             <span
-              className="font-mono text-[10px] font-bold"
-              style={{ color }}
+              style={{
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 10,
+                fontWeight: 700,
+                color: token,
+              }}
             >
               {displayParty}
             </span>
           )}
           {member.state && (
-            <span className="font-mono text-[10px] text-white/25">{member.state}</span>
+            <span
+              style={{
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 10,
+                color: 'var(--color-text-3)',
+              }}
+            >
+              {member.state}
+            </span>
           )}
-          {roleLabel && roleLabel.toLowerCase() !== 'member' && (
-            <span className="rounded bg-blue-500/10 px-1 py-0.5 font-mono text-[9px] text-blue-400 capitalize">
+          {isLeadership && (
+            <span
+              style={{
+                padding: '1px 5px',
+                borderRadius: 3,
+                background: 'var(--color-accent-dim)',
+                color: 'var(--color-accent-text)',
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 9,
+                textTransform: 'capitalize',
+              }}
+            >
               {roleLabel}
             </span>
           )}
@@ -480,11 +894,10 @@ function MemberCard({ member }: { member: CommitteeMember }) {
 
   if (member.person_id) {
     return (
-      <Link to={`/politics/people/${member.person_id}`} className="no-underline block">
+      <Link to={`/politics/people/${member.person_id}`} style={{ textDecoration: 'none', display: 'block' }}>
         {content}
       </Link>
     );
   }
-
   return content;
 }

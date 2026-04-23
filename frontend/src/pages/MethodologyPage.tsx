@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import Footer from '../components/Footer';
 
 const DATA_SOURCES = [
@@ -21,75 +22,186 @@ const LIMITATIONS = [
   'Stock fundamental data (Alpha Vantage) is limited to 25 requests per day on the free tier, so coverage may be incomplete.',
 ];
 
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text-1)',
+};
+
+const contentWrap: React.CSSProperties = {
+  maxWidth: 820,
+  margin: '0 auto',
+  padding: '48px 24px 80px',
+};
+
+const backLink: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 13,
+  color: 'var(--color-text-2)',
+  textDecoration: 'none',
+  marginBottom: 32,
+};
+
+const titleStyle: React.CSSProperties = {
+  fontFamily: "'Playfair Display', Georgia, serif",
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: 'clamp(40px, 6vw, 56px)',
+  lineHeight: 1.02,
+  color: 'var(--color-text-1)',
+  marginBottom: 12,
+};
+
+const leadStyle: React.CSSProperties = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 16,
+  color: 'var(--color-text-2)',
+  lineHeight: 1.6,
+  marginBottom: 48,
+  maxWidth: 620,
+};
+
+const sectionHeading: React.CSSProperties = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 16,
+  fontWeight: 600,
+  color: 'var(--color-text-1)',
+  marginBottom: 14,
+};
+
+const bodyText: React.CSSProperties = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 14,
+  color: 'var(--color-text-2)',
+  lineHeight: 1.65,
+  marginBottom: 12,
+};
+
+const mutedNote: React.CSSProperties = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 13,
+  color: 'var(--color-text-3)',
+  marginBottom: 16,
+};
+
+const tableHeaderStyle: React.CSSProperties = {
+  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+  textAlign: 'left',
+  padding: '12px 14px',
+  borderBottom: '1px solid var(--color-border)',
+};
+
+const tableCellMono: React.CSSProperties = {
+  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+  fontSize: 12,
+  color: 'var(--color-text-1)',
+  padding: '12px 14px',
+  whiteSpace: 'nowrap',
+};
+
+const tableCell: React.CSSProperties = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 13,
+  color: 'var(--color-text-2)',
+  padding: '12px 14px',
+  lineHeight: 1.45,
+};
+
 export default function MethodologyPage() {
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-4xl px-6 py-16 lg:px-8 lg:py-20">
-        {/* Back link */}
+    <div style={pageShell}>
+      <div style={contentWrap}>
         <Link
           to="/"
-          className="inline-flex items-center gap-1 font-body text-sm text-white/40 hover:text-white/70 transition-colors no-underline mb-10"
+          style={backLink}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
         >
-          &larr; Back to Home
+          <ArrowLeft size={14} /> Back to Home
         </Link>
 
-        {/* Title */}
-        <h1 className="font-heading text-4xl font-bold tracking-tight text-white lg:text-5xl mb-4">
-          Methodology
-        </h1>
-        <p className="font-body text-lg text-white/50 leading-relaxed max-w-2xl mb-12">
-          How WeThePeople collects, processes, and presents public accountability data across five sectors.
+        <h1 style={titleStyle}>Methodology</h1>
+        <p style={leadStyle}>
+          How WeThePeople collects, processes, and presents public accountability data across eleven sectors.
         </p>
 
         {/* Overview */}
-        <section className="mb-14">
-          <h2 className="font-heading text-xl font-bold tracking-tight text-white mb-4">
-            Overview
-          </h2>
-          <div className="space-y-3 font-body text-sm text-white/60 leading-relaxed">
-            <p>
-              WeThePeople aggregates publicly available government data to illuminate the connections between industry and politics. The platform tracks lobbying expenditures, government contracts, enforcement actions, insider trading, and other data across five sectors: Politics, Finance, Health, Technology, and Energy.
-            </p>
-            <p>
-              Every sector is recontextualized through a political influence lens. Rather than duplicating financial data portals, the platform focuses on answering: who is spending money to influence government, who is receiving government money, and who is being held accountable.
-            </p>
-            <p>
-              All data is sourced from official government APIs and public records. No data is behind paywalls, and no proprietary analysis or scoring is applied. The raw records are linked to their original sources so users can verify every data point.
-            </p>
-          </div>
+        <section style={{ marginBottom: 40 }}>
+          <h2 style={sectionHeading}>Overview</h2>
+          <p style={bodyText}>
+            WeThePeople aggregates publicly available government data to illuminate the connections between industry and politics. The platform tracks lobbying expenditures, government contracts, enforcement actions, insider trading, and other data across eleven sectors: Politics, Finance, Health, Technology, Energy, Transportation, Defense, Chemicals, Agriculture, Telecommunications, and Education.
+          </p>
+          <p style={bodyText}>
+            Every sector is recontextualized through a political influence lens. Rather than duplicating financial data portals, the platform focuses on answering: who is spending money to influence government, who is receiving government money, and who is being held accountable.
+          </p>
+          <p style={bodyText}>
+            All data is sourced from official government APIs and public records. No data is behind paywalls, and no proprietary analysis or scoring is applied. The raw records are linked to their original sources so users can verify every data point.
+          </p>
         </section>
 
         {/* Data Sources Table */}
-        <section className="mb-14">
-          <h2 className="font-heading text-xl font-bold tracking-tight text-white mb-4">
-            Data Sources
-          </h2>
-          <p className="font-body text-sm text-white/40 mb-6">
+        <section style={{ marginBottom: 40 }}>
+          <h2 style={sectionHeading}>Data sources</h2>
+          <p style={mutedNote}>
             All data is sourced from official U.S. government APIs and public databases.
           </p>
-          <div className="overflow-x-auto rounded-xl border border-white/10">
-            <table className="w-full text-left">
+          <div
+            style={{
+              overflowX: 'auto',
+              borderRadius: 12,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+            }}
+          >
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="border-b border-white/10 bg-white/[0.03]">
-                  <th className="px-4 py-3 font-heading text-[11px] font-bold tracking-wider uppercase text-white/50">Source</th>
-                  <th className="px-4 py-3 font-heading text-[11px] font-bold tracking-wider uppercase text-white/50">Data Type</th>
-                  <th className="px-4 py-3 font-heading text-[11px] font-bold tracking-wider uppercase text-white/50">Sectors</th>
-                  <th className="px-4 py-3 font-heading text-[11px] font-bold tracking-wider uppercase text-white/50">Frequency</th>
-                  <th className="px-4 py-3 font-heading text-[11px] font-bold tracking-wider uppercase text-white/50">Notes</th>
+                <tr style={{ background: 'var(--color-surface-2)' }}>
+                  <th style={tableHeaderStyle}>Source</th>
+                  <th style={tableHeaderStyle}>Data type</th>
+                  <th style={tableHeaderStyle}>Sectors</th>
+                  <th style={tableHeaderStyle}>Frequency</th>
+                  <th style={tableHeaderStyle}>Notes</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
-                {DATA_SOURCES.map((row) => (
-                  <tr key={row.source} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs font-semibold text-white/80 whitespace-nowrap">{row.source}</td>
-                    <td className="px-4 py-3 font-body text-xs text-white/60">{row.dataType}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-white/50">
+              <tbody>
+                {DATA_SOURCES.map((row, idx) => (
+                  <tr
+                    key={row.source}
+                    style={{
+                      borderTop: idx === 0 ? 'none' : '1px solid var(--color-border)',
+                    }}
+                  >
+                    <td style={tableCellMono}>{row.source}</td>
+                    <td style={tableCell}>{row.dataType}</td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                          fontSize: 10,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          color: 'var(--color-accent-text)',
+                          background: 'var(--color-accent-dim)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 999,
+                          padding: '3px 10px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {row.sectors}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-white/40">{row.frequency}</td>
-                    <td className="px-4 py-3 font-body text-xs text-white/40 max-w-[250px]">{row.notes}</td>
+                    <td style={{ ...tableCellMono, color: 'var(--color-text-3)' }}>{row.frequency}</td>
+                    <td style={{ ...tableCell, color: 'var(--color-text-3)', maxWidth: 260 }}>{row.notes}</td>
                   </tr>
                 ))}
               </tbody>
@@ -98,44 +210,85 @@ export default function MethodologyPage() {
         </section>
 
         {/* Known Limitations */}
-        <section className="mb-14">
-          <h2 className="font-heading text-xl font-bold tracking-tight text-white mb-4">
-            Known Limitations
-          </h2>
-          <ul className="space-y-3">
+        <section style={{ marginBottom: 40 }}>
+          <h2 style={sectionHeading}>Known limitations</h2>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
             {LIMITATIONS.map((item, idx) => (
-              <li key={idx} className="flex gap-3">
-                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-white/20 shrink-0" />
-                <span className="font-body text-sm text-white/50 leading-relaxed">{item}</span>
+              <li
+                key={idx}
+                style={{
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                  marginBottom: 10,
+                }}
+              >
+                <span
+                  style={{
+                    marginTop: 8,
+                    width: 4,
+                    height: 4,
+                    borderRadius: '50%',
+                    background: 'var(--color-accent)',
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 14,
+                    color: 'var(--color-text-2)',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {item}
+                </span>
               </li>
             ))}
           </ul>
         </section>
 
         {/* Disclaimer */}
-        <section className="mb-14">
-          <h2 className="font-heading text-xl font-bold tracking-tight text-white mb-4">
-            Disclaimer
-          </h2>
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6">
-            <p className="font-body text-sm text-white/50 leading-relaxed">
+        <section style={{ marginBottom: 40 }}>
+          <h2 style={sectionHeading}>Disclaimer</h2>
+          <div
+            style={{
+              padding: 20,
+              borderRadius: 12,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                color: 'var(--color-text-2)',
+                lineHeight: 1.65,
+                margin: 0,
+              }}
+            >
               This platform aggregates publicly available data from U.S. government sources. We do not create or verify the underlying records. Data accuracy depends on the originating agencies. This platform is for informational purposes only and does not constitute financial, legal, or investment advice. Use of this site does not create any professional relationship.
             </p>
           </div>
         </section>
 
         {/* Contact */}
-        <section className="mb-16">
-          <h2 className="font-heading text-xl font-bold tracking-tight text-white mb-4">
-            Questions or Corrections
-          </h2>
-          <p className="font-body text-sm text-white/50 leading-relaxed">
+        <section>
+          <h2 style={sectionHeading}>Questions or corrections</h2>
+          <p style={bodyText}>
             If you find data discrepancies or have questions about our methodology, please open an issue on our{' '}
             <a
               href="https://github.com/Obelus-Labs-LLC/WeThePeople"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 transition-colors"
+              style={{
+                color: 'var(--color-accent-text)',
+                textDecoration: 'none',
+                fontWeight: 500,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
             >
               GitHub repository
             </a>

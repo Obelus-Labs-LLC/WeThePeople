@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, MapPin, Check, ArrowRight, AlertTriangle, Vote, TrendingUp, Scale, Loader2 } from 'lucide-react';
+import { Mail, MapPin, Check, ArrowRight, AlertTriangle, Vote, TrendingUp, Loader2 } from 'lucide-react';
 import { getApiBaseUrl } from '../api/client';
 import Footer from '../components/Footer';
 
@@ -14,6 +14,18 @@ const SECTOR_OPTIONS = [
   { value: 'energy', label: 'Energy', checked: true },
   { value: 'transportation', label: 'Transportation', checked: true },
 ];
+
+// Party token colors — parallel hex for opacity variants
+const PARTY_HEX: Record<string, string> = {
+  D: '#4A7FDE',
+  R: '#E05555',
+  I: '#B06FD8',
+};
+const PARTY_TOKEN: Record<string, string> = {
+  D: 'var(--color-dem)',
+  R: 'var(--color-rep)',
+  I: 'var(--color-ind)',
+};
 
 interface DigestPreviewRep {
   name: string;
@@ -49,6 +61,28 @@ interface DigestPreview {
   generated_at: string;
   message?: string;
 }
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  background: 'var(--color-surface-2)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 10,
+  padding: '10px 14px 10px 40px',
+  color: 'var(--color-text-1)',
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 14,
+  outline: 'none',
+  transition: 'border-color 150ms',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 12,
+  fontWeight: 500,
+  color: 'var(--color-text-2)',
+  marginBottom: 6,
+};
 
 export default function DigestSignupPage() {
   const [email, setEmail] = useState('');
@@ -109,65 +143,184 @@ export default function DigestSignupPage() {
     }
   };
 
-  const partyColor = (p: string) => {
-    if (p === 'D') return 'text-blue-400';
-    if (p === 'R') return 'text-red-400';
-    return 'text-slate-400';
-  };
-
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="max-w-3xl mx-auto px-4 py-16">
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text-1)',
+      }}
+    >
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '48px 24px 80px' }}>
         {/* Hero */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 mb-6 shadow-lg shadow-blue-600/30">
-            <Mail className="w-8 h-8 text-white" />
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 56,
+              height: 56,
+              borderRadius: 14,
+              background: 'var(--color-accent-dim)',
+              marginBottom: 20,
+            }}
+          >
+            <Mail size={24} style={{ color: 'var(--color-accent-text)' }} />
           </div>
-          <h1 className="text-3xl sm:text-5xl font-bold mb-4">Your Weekly Influence Report</h1>
-          <p className="text-lg text-slate-400 max-w-xl mx-auto">
-            Get a personalized email about what your representatives did this week
-            — trades, votes, lobbying, and more.
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(32px, 5vw, 48px)',
+              lineHeight: 1.05,
+              color: 'var(--color-text-1)',
+              marginBottom: 12,
+            }}
+          >
+            Your weekly influence report
+          </h1>
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 15,
+              color: 'var(--color-text-2)',
+              maxWidth: 520,
+              margin: '0 auto',
+              lineHeight: 1.55,
+            }}
+          >
+            A personalized email about what your representatives did this week &mdash; trades, votes, lobbying, and more.
           </p>
         </div>
 
-        {/* Success state */}
         {submitted ? (
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-8 text-center">
-            <Check className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">You're subscribed!</h2>
-            <p className="text-slate-400">
+          <div
+            style={{
+              borderRadius: 12,
+              border: '1px solid rgba(61,184,122,0.25)',
+              background: 'rgba(61,184,122,0.08)',
+              padding: '32px 24px',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                background: 'rgba(61,184,122,0.15)',
+                marginBottom: 16,
+              }}
+            >
+              <Check size={22} style={{ color: 'var(--color-green)' }} />
+            </div>
+            <h2
+              style={{
+                fontFamily: "'Playfair Display', Georgia, serif",
+                fontStyle: 'italic',
+                fontWeight: 900,
+                fontSize: 24,
+                color: 'var(--color-text-1)',
+                marginBottom: 8,
+              }}
+            >
+              You're subscribed
+            </h2>
+            <p
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 14,
+                color: 'var(--color-text-2)',
+                lineHeight: 1.6,
+                marginBottom: 20,
+              }}
+            >
               Check your email to verify your subscription. Once verified, you'll receive your first weekly digest.
             </p>
             <Link
               to="/"
-              className="inline-flex items-center gap-2 mt-6 text-blue-400 hover:text-blue-300 transition-colors no-underline"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--color-accent-text)',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
             >
-              <ArrowRight className="w-4 h-4" /> Back to home
+              <ArrowRight size={14} /> Back to home
             </Link>
           </div>
         ) : (
           <>
             {/* Subscription form */}
-            <form onSubmit={handleSubmit} className="rounded-xl border border-white/10 bg-white/[0.03] p-8 mb-8">
-              <div className="grid sm:grid-cols-2 gap-6 mb-6">
+            <form
+              onSubmit={handleSubmit}
+              style={{
+                borderRadius: 12,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                padding: 24,
+                marginBottom: 24,
+              }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                  gap: 16,
+                  marginBottom: 20,
+                }}
+              >
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-2">Email address</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <label style={labelStyle}>Email address</label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail
+                      size={15}
+                      style={{
+                        position: 'absolute',
+                        left: 14,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--color-text-3)',
+                        pointerEvents: 'none',
+                      }}
+                    />
                     <input
                       type="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@example.com"
-                      className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-all"
+                      style={inputStyle}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-2">Zip code</label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <label style={labelStyle}>Zip code</label>
+                  <div style={{ position: 'relative' }}>
+                    <MapPin
+                      size={15}
+                      style={{
+                        position: 'absolute',
+                        left: 14,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--color-text-3)',
+                        pointerEvents: 'none',
+                      }}
+                    />
                     <input
                       type="text"
                       required
@@ -177,46 +330,91 @@ export default function DigestSignupPage() {
                       value={zipCode}
                       onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
                       placeholder="90210"
-                      className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-all"
+                      style={inputStyle}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
                     />
                   </div>
                 </div>
               </div>
 
               {/* Sector checkboxes */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-slate-400 mb-3">Sectors to track</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {SECTOR_OPTIONS.map((s) => (
-                    <label
-                      key={s.value}
-                      className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 cursor-pointer transition-colors ${
-                        sectors[s.value]
-                          ? 'border-blue-500/30 bg-blue-500/10 text-white'
-                          : 'border-white/10 bg-white/[0.02] text-white/40'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={sectors[s.value]}
-                        onChange={(e) => setSectors({ ...sectors, [s.value]: e.target.checked })}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                          sectors[s.value] ? 'bg-blue-500 border-blue-500' : 'border-white/20'
-                        }`}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ ...labelStyle, marginBottom: 10 }}>Sectors to track</label>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                    gap: 8,
+                  }}
+                >
+                  {SECTOR_OPTIONS.map((s) => {
+                    const isChecked = sectors[s.value];
+                    return (
+                      <label
+                        key={s.value}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          borderRadius: 10,
+                          border: `1px solid ${isChecked ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                          background: isChecked ? 'var(--color-accent-dim)' : 'var(--color-surface-2)',
+                          padding: '10px 12px',
+                          cursor: 'pointer',
+                          transition: 'all 150ms',
+                        }}
                       >
-                        {sectors[s.value] && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                      <span className="text-sm font-medium">{s.label}</span>
-                    </label>
-                  ))}
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => setSectors({ ...sectors, [s.value]: e.target.checked })}
+                          style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+                        />
+                        <div
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: `1px solid ${isChecked ? 'var(--color-accent)' : 'var(--color-border-hover)'}`,
+                            background: isChecked ? 'var(--color-accent)' : 'transparent',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {isChecked && <Check size={11} strokeWidth={3} style={{ color: '#07090C' }} />}
+                        </div>
+                        <span
+                          style={{
+                            fontFamily: "'Inter', sans-serif",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: isChecked ? 'var(--color-text-1)' : 'var(--color-text-2)',
+                          }}
+                        >
+                          {s.label}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 
               {submitError && (
-                <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 p-3 text-sm text-red-400">
+                <div
+                  style={{
+                    marginBottom: 16,
+                    borderRadius: 8,
+                    background: 'rgba(230,57,70,0.08)',
+                    border: '1px solid rgba(230,57,70,0.25)',
+                    padding: '10px 14px',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    color: 'var(--color-red)',
+                  }}
+                >
                   {submitError}
                 </div>
               )}
@@ -224,133 +422,453 @@ export default function DigestSignupPage() {
               <button
                 type="submit"
                 disabled={submitting || !email || zipCode.length !== 5}
-                className="w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                style={{
+                  width: '100%',
+                  borderRadius: 10,
+                  background: 'var(--color-accent)',
+                  color: '#07090C',
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  padding: '12px 16px',
+                  border: 'none',
+                  cursor: submitting || !email || zipCode.length !== 5 ? 'not-allowed' : 'pointer',
+                  opacity: submitting || !email || zipCode.length !== 5 ? 0.4 : 1,
+                  transition: 'opacity 150ms',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
               >
                 {submitting ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" /> Subscribing...</>
+                  <>
+                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                    Subscribing...
+                  </>
                 ) : (
-                  <><Mail className="w-5 h-5" /> Subscribe to Weekly Digest</>
+                  <>
+                    <Mail size={16} />
+                    Subscribe to weekly digest
+                  </>
                 )}
               </button>
             </form>
 
             {/* Preview section */}
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-8">
-              <h3 className="text-lg font-bold text-white mb-2">Preview your digest</h3>
-              <p className="text-sm text-slate-400 mb-4">
+            <div
+              style={{
+                borderRadius: 12,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                padding: 24,
+              }}
+            >
+              <h3
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: 'var(--color-text-1)',
+                  marginBottom: 6,
+                }}
+              >
+                Preview your digest
+              </h3>
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  color: 'var(--color-text-2)',
+                  marginBottom: 14,
+                  lineHeight: 1.5,
+                }}
+              >
                 Enter your zip code above, then click below to see a sample of what you'll receive.
               </p>
               <button
                 onClick={loadPreview}
                 disabled={previewLoading || zipCode.length !== 5}
-                className="rounded-lg border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                style={{
+                  borderRadius: 10,
+                  border: '1px solid var(--color-border-hover)',
+                  background: 'var(--color-surface-2)',
+                  color: 'var(--color-text-1)',
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  padding: '10px 18px',
+                  cursor: previewLoading || zipCode.length !== 5 ? 'not-allowed' : 'pointer',
+                  opacity: previewLoading || zipCode.length !== 5 ? 0.4 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  transition: 'background 150ms',
+                }}
               >
                 {previewLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Loading preview...</>
+                  <>
+                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                    Loading preview...
+                  </>
                 ) : (
-                  <>Preview for {zipCode || '?????'}</>
+                  <>
+                    Preview for{' '}
+                    <span
+                      style={{
+                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                        fontSize: 12,
+                        color: 'var(--color-accent-text)',
+                      }}
+                    >
+                      {zipCode || '?????'}
+                    </span>
+                  </>
                 )}
               </button>
 
               {previewError && (
-                <div className="mt-4 rounded-lg bg-red-500/10 border border-red-500/30 p-3 text-sm text-red-400">
+                <div
+                  style={{
+                    marginTop: 14,
+                    borderRadius: 8,
+                    background: 'rgba(230,57,70,0.08)',
+                    border: '1px solid rgba(230,57,70,0.25)',
+                    padding: '10px 14px',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    color: 'var(--color-red)',
+                  }}
+                >
                   {previewError}
                 </div>
               )}
 
               {preview && (
-                <div className="mt-6 space-y-6">
-                  <div className="flex items-center gap-2 text-sm text-slate-400">
-                    <MapPin className="w-4 h-4" />
-                    <span>Zip: {preview.zip_code}</span>
-                    <span className="text-white/20">|</span>
-                    <span>State: {preview.state}</span>
-                    <span className="text-white/20">|</span>
-                    <span>{preview.representatives.length} representative{preview.representatives.length !== 1 ? 's' : ''}</span>
+                <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Preview meta */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: 10,
+                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                      fontSize: 11,
+                      color: 'var(--color-text-3)',
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <MapPin size={12} /> Zip {preview.zip_code}
+                    </span>
+                    <span style={{ color: 'var(--color-border-hover)' }}>|</span>
+                    <span>State {preview.state}</span>
+                    <span style={{ color: 'var(--color-border-hover)' }}>|</span>
+                    <span>
+                      {preview.representatives.length} representative{preview.representatives.length !== 1 ? 's' : ''}
+                    </span>
                   </div>
 
-                  {preview.representatives.map((rep) => (
-                    <div key={rep.person_id} className="rounded-lg border border-white/5 bg-white/[0.02] p-5">
-                      <div className="flex items-center gap-3 mb-4">
-                        <Link
-                          to={`/politics/people/${rep.person_id}`}
-                          className="font-bold text-white hover:text-blue-400 transition-colors no-underline"
+                  {preview.representatives.map((rep) => {
+                    const partyToken = PARTY_TOKEN[rep.party] || 'var(--color-text-2)';
+                    const partyHex = PARTY_HEX[rep.party] || 'rgba(235,229,213,0.5)';
+                    return (
+                      <div
+                        key={rep.person_id}
+                        style={{
+                          borderRadius: 10,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface-2)',
+                          padding: 16,
+                        }}
+                      >
+                        {/* Rep header */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            marginBottom: 14,
+                            flexWrap: 'wrap',
+                          }}
                         >
-                          {rep.name}
-                        </Link>
-                        <span className={`text-xs font-bold ${partyColor(rep.party)}`}>
-                          ({rep.party})
-                        </span>
-                        <span className="rounded bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-white/40">
-                          {rep.chamber}
-                        </span>
+                          <Link
+                            to={`/politics/people/${rep.person_id}`}
+                            style={{
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: 'var(--color-text-1)',
+                              textDecoration: 'none',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+                          >
+                            {rep.name}
+                          </Link>
+                          <span
+                            style={{
+                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: partyToken,
+                              background: `${partyHex}1F`,
+                              border: `1px solid ${partyHex}30`,
+                              padding: '2px 8px',
+                              borderRadius: 999,
+                            }}
+                          >
+                            {rep.party}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                              fontSize: 10,
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              color: 'var(--color-text-3)',
+                              background: 'var(--color-bg)',
+                              padding: '3px 8px',
+                              borderRadius: 4,
+                            }}
+                          >
+                            {rep.chamber}
+                          </span>
+                        </div>
+
+                        {/* Trades */}
+                        {rep.trades.length > 0 && (
+                          <div style={{ marginBottom: 12 }}>
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                marginBottom: 8,
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 10,
+                                fontWeight: 600,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                color: 'var(--color-green)',
+                              }}
+                            >
+                              <TrendingUp size={12} /> Trades ({rep.trades.length})
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {rep.trades.slice(0, 5).map((t, i) => (
+                                <div
+                                  key={i}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    fontFamily: "'Inter', sans-serif",
+                                    fontSize: 12,
+                                    color: 'var(--color-text-2)',
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      letterSpacing: '0.04em',
+                                      color: t.transaction_type === 'purchase' ? 'var(--color-green)' : 'var(--color-red)',
+                                    }}
+                                  >
+                                    {t.transaction_type === 'purchase' ? 'BUY' : 'SELL'}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                      fontSize: 12,
+                                      color: 'var(--color-text-1)',
+                                    }}
+                                  >
+                                    {t.ticker || t.asset_name}
+                                  </span>
+                                  <span style={{ color: 'var(--color-text-3)' }}>{t.amount_range}</span>
+                                  {t.transaction_date && (
+                                    <span
+                                      style={{
+                                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                        fontSize: 11,
+                                        color: 'var(--color-text-3)',
+                                      }}
+                                    >
+                                      {t.transaction_date}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Votes */}
+                        {rep.votes.length > 0 && (
+                          <div style={{ marginBottom: 12 }}>
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                marginBottom: 8,
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 10,
+                                fontWeight: 600,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                color: 'var(--color-dem)',
+                              }}
+                            >
+                              <Vote size={12} /> Votes ({rep.votes.length})
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {rep.votes.slice(0, 5).map((v, i) => (
+                                <div
+                                  key={i}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    fontFamily: "'Inter', sans-serif",
+                                    fontSize: 12,
+                                    color: 'var(--color-text-2)',
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      letterSpacing: '0.04em',
+                                      color:
+                                        v.position === 'Yea'
+                                          ? 'var(--color-green)'
+                                          : v.position === 'Nay'
+                                          ? 'var(--color-red)'
+                                          : 'var(--color-text-3)',
+                                    }}
+                                  >
+                                    {v.position}
+                                  </span>
+                                  <span
+                                    style={{
+                                      color: 'var(--color-text-1)',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      flex: 1,
+                                      minWidth: 0,
+                                    }}
+                                  >
+                                    {v.question}
+                                  </span>
+                                  {v.related_bill && (
+                                    <span
+                                      style={{
+                                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                        fontSize: 11,
+                                        color: 'var(--color-text-3)',
+                                      }}
+                                    >
+                                      {v.related_bill}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Anomalies */}
+                        {rep.anomalies.length > 0 && (
+                          <div>
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                marginBottom: 8,
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 10,
+                                fontWeight: 600,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                color: 'var(--color-accent-text)',
+                              }}
+                            >
+                              <AlertTriangle size={12} /> Suspicious patterns ({rep.anomalies.length})
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {rep.anomalies.map((a, i) => {
+                                const scoreColor =
+                                  a.score >= 8
+                                    ? 'var(--color-red)'
+                                    : a.score >= 6
+                                    ? '#F59E0B'
+                                    : 'var(--color-accent-text)';
+                                const scoreBg =
+                                  a.score >= 8
+                                    ? 'rgba(230,57,70,0.15)'
+                                    : a.score >= 6
+                                    ? 'rgba(245,158,11,0.15)'
+                                    : 'var(--color-accent-dim)';
+                                return (
+                                  <div
+                                    key={i}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      fontFamily: "'Inter', sans-serif",
+                                      fontSize: 12,
+                                      color: 'var(--color-text-2)',
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        color: scoreColor,
+                                        background: scoreBg,
+                                        padding: '2px 6px',
+                                        borderRadius: 4,
+                                      }}
+                                    >
+                                      {a.score.toFixed(0)}
+                                    </span>
+                                    <span style={{ color: 'var(--color-text-1)' }}>{a.title}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {rep.trades.length === 0 && rep.votes.length === 0 && rep.anomalies.length === 0 && (
+                          <p
+                            style={{
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 12,
+                              color: 'var(--color-text-3)',
+                              fontStyle: 'italic',
+                              margin: 0,
+                            }}
+                          >
+                            No activity in the last 7 days
+                          </p>
+                        )}
                       </div>
-
-                      {/* Trades */}
-                      {rep.trades.length > 0 && (
-                        <div className="mb-3">
-                          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2">
-                            <TrendingUp className="w-3.5 h-3.5" /> Trades ({rep.trades.length})
-                          </div>
-                          <div className="space-y-1">
-                            {rep.trades.slice(0, 5).map((t, i) => (
-                              <div key={i} className="flex items-center gap-2 text-xs text-white/60">
-                                <span className={`font-bold ${t.transaction_type === 'purchase' ? 'text-green-400' : 'text-red-400'}`}>
-                                  {t.transaction_type === 'purchase' ? 'BUY' : 'SELL'}
-                                </span>
-                                <span className="font-mono text-white/80">{t.ticker || t.asset_name}</span>
-                                <span className="text-white/30">{t.amount_range}</span>
-                                {t.transaction_date && <span className="text-white/20">{t.transaction_date}</span>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Votes */}
-                      {rep.votes.length > 0 && (
-                        <div className="mb-3">
-                          <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-400 uppercase tracking-wider mb-2">
-                            <Vote className="w-3.5 h-3.5" /> Votes ({rep.votes.length})
-                          </div>
-                          <div className="space-y-1">
-                            {rep.votes.slice(0, 5).map((v, i) => (
-                              <div key={i} className="flex items-center gap-2 text-xs text-white/60">
-                                <span className={`font-bold ${v.position === 'Yea' ? 'text-green-400' : v.position === 'Nay' ? 'text-red-400' : 'text-white/40'}`}>
-                                  {v.position}
-                                </span>
-                                <span className="text-white/80 truncate">{v.question}</span>
-                                {v.related_bill && <span className="font-mono text-white/30">{v.related_bill}</span>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Anomalies */}
-                      {rep.anomalies.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">
-                            <AlertTriangle className="w-3.5 h-3.5" /> Suspicious Patterns ({rep.anomalies.length})
-                          </div>
-                          <div className="space-y-1">
-                            {rep.anomalies.map((a, i) => (
-                              <div key={i} className="flex items-center gap-2 text-xs text-white/60">
-                                <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                                  a.score >= 8 ? 'bg-red-500/20 text-red-400' : a.score >= 6 ? 'bg-orange-500/20 text-orange-400' : 'bg-amber-500/20 text-amber-400'
-                                }`}>{a.score.toFixed(0)}</span>
-                                <span className="text-white/80">{a.title}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {rep.trades.length === 0 && rep.votes.length === 0 && rep.anomalies.length === 0 && (
-                        <p className="text-xs text-white/30">No activity in the last 7 days</p>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

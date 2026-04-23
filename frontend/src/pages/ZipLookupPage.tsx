@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams, useParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   MapPin, Search, AlertTriangle, TrendingUp, TrendingDown,
   Users, Shield, DollarSign, Clock, ExternalLink, Share2,
-  ChevronDown, ChevronUp, AlertCircle, Building2, Vote,
+  ChevronDown, ChevronUp, AlertCircle, Building2, Vote, ArrowLeft,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getApiBaseUrl } from '../api/client';
@@ -83,10 +83,18 @@ interface LookupResponse {
   generated_at: string;
 }
 
-// ── Constants ──
+// ── Party tokens ──
 
-const PARTY_COLORS: Record<string, string> = { D: '#3B82F6', R: '#EF4444', I: '#A855F7' };
-const PARTY_BG: Record<string, string> = { D: 'rgba(59,130,246,0.12)', R: 'rgba(239,68,68,0.12)', I: 'rgba(168,85,247,0.12)' };
+const PARTY_HEX: Record<string, string> = {
+  D: '#4A7FDE',
+  R: '#E05555',
+  I: '#B06FD8',
+};
+const PARTY_TOKEN: Record<string, string> = {
+  D: 'var(--color-dem)',
+  R: 'var(--color-rep)',
+  I: 'var(--color-ind)',
+};
 
 const STATE_NAMES: Record<string, string> = {
   AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
@@ -105,17 +113,12 @@ const STATE_NAMES: Record<string, string> = {
 
 // ── Helpers ──
 
-function partyColor(party: string): string {
-  return PARTY_COLORS[party?.charAt(0)] || '#6B7280';
+function partyHex(party: string): string {
+  return PARTY_HEX[party?.charAt(0)] || '#7F8590';
 }
 
-function partyBg(party: string): string {
-  return PARTY_BG[party?.charAt(0)] || 'rgba(107,114,128,0.12)';
-}
-
-function partyLabel(party: string): string {
-  const map: Record<string, string> = { D: 'Democrat', R: 'Republican', I: 'Independent' };
-  return map[party?.charAt(0)] || party;
+function partyToken(party: string): string {
+  return PARTY_TOKEN[party?.charAt(0)] || 'var(--color-text-2)';
 }
 
 function chamberLabel(chamber: string): string {
@@ -147,9 +150,10 @@ function formatDate(dateStr: string | null): string {
 
 function tradeIcon(type: string) {
   const t = type?.toLowerCase();
-  if (t === 'purchase' || t === 'buy') return <TrendingUp size={14} className="text-emerald-400" />;
-  if (t === 'sale' || t === 'sell' || t === 'sale (full)' || t === 'sale (partial)') return <TrendingDown size={14} className="text-red-400" />;
-  return <TrendingUp size={14} className="text-white/30" />;
+  if (t === 'purchase' || t === 'buy') return <TrendingUp size={14} style={{ color: 'var(--color-green)' }} />;
+  if (t === 'sale' || t === 'sell' || t === 'sale (full)' || t === 'sale (partial)')
+    return <TrendingDown size={14} style={{ color: 'var(--color-red)' }} />;
+  return <TrendingUp size={14} style={{ color: 'var(--color-text-3)' }} />;
 }
 
 function totalRedFlags(flags: RedFlags): number {
@@ -200,12 +204,12 @@ export default function ZipLookupPage() {
       setZip(urlZip.replace(/\D/g, '').slice(0, 5));
       doSearch(urlZip);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     doSearch(zip);
-    // Update URL without reload
     const url = new URL(window.location.href);
     url.searchParams.set('zip', zip.replace(/\D/g, '').slice(0, 5));
     window.history.replaceState({}, '', url.toString());
@@ -214,30 +218,71 @@ export default function ZipLookupPage() {
   const isValidZip = zip.trim().replace(/\D/g, '').length >= 5;
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      {/* Subtle gradient bg */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-amber-500/[0.03] rounded-full blur-[120px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-amber-600/[0.02] rounded-full blur-[120px]" />
-      </div>
-
-      <div className="relative z-10 mx-auto max-w-6xl px-6 py-10 lg:px-12 lg:py-14">
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text-1)',
+        position: 'relative',
+      }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          maxWidth: 1100,
+          margin: '0 auto',
+          padding: '40px 24px 64px',
+        }}
+      >
         {/* Nav */}
         <motion.nav
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-12 flex items-center justify-between"
+          style={{ marginBottom: 40, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
         >
-          <Link to="/" className="font-heading text-sm font-bold tracking-wider text-white/50 hover:text-white transition-colors no-underline">
+          <Link
+            to="/"
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              color: 'var(--color-text-2)',
+              textDecoration: 'none',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+          >
             WeThePeople
           </Link>
-          <div className="flex items-center gap-4">
-            <Link to="/politics" className="font-body text-xs text-white/40 hover:text-white transition-colors no-underline">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Link
+              to="/politics"
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                color: 'var(--color-text-3)',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-3)'; }}
+            >
               Dashboard
             </Link>
-            <Link to="/politics/people" className="font-body text-xs text-white/40 hover:text-white transition-colors no-underline">
-              All Members
+            <Link
+              to="/politics/people"
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                color: 'var(--color-text-3)',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-3)'; }}
+            >
+              All members
             </Link>
           </div>
         </motion.nav>
@@ -247,19 +292,59 @@ export default function ZipLookupPage() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.1 }}
-          className="mb-12 text-center"
+          style={{ marginBottom: 40, textAlign: 'center' }}
         >
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/5 px-4 py-1.5 mb-6">
-            <Shield size={14} className="text-amber-400" />
-            <span className="font-mono text-xs text-amber-400/80">Accountability Tool</span>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              borderRadius: 999,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-accent-dim)',
+              padding: '6px 14px',
+              marginBottom: 20,
+            }}
+          >
+            <Shield size={13} style={{ color: 'var(--color-accent-text)' }} />
+            <span
+              style={{
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 11,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--color-accent-text)',
+              }}
+            >
+              Accountability tool
+            </span>
           </div>
-          <h1 className="font-heading text-4xl font-bold tracking-tight text-white lg:text-5xl xl:text-6xl">
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(36px, 6vw, 64px)',
+              lineHeight: 1.02,
+              color: 'var(--color-text-1)',
+            }}
+          >
             What are your representatives{' '}
-            <span className="text-amber-400">doing</span>?
+            <span style={{ color: 'var(--color-accent-text)' }}>doing</span>?
           </h1>
-          <p className="mt-4 max-w-2xl mx-auto font-body text-base text-white/40 leading-relaxed">
-            Enter your zip code to see trades, donors, committee conflicts, voting records,
-            and anomalies for every representative in your state.
+          <p
+            style={{
+              marginTop: 16,
+              maxWidth: 620,
+              marginLeft: 'auto',
+              marginRight: 'auto',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 15,
+              color: 'var(--color-text-2)',
+              lineHeight: 1.6,
+            }}
+          >
+            Enter your zip code to see trades, donors, committee conflicts, voting records, and anomalies for every representative in your state.
           </p>
         </motion.div>
 
@@ -268,36 +353,113 @@ export default function ZipLookupPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}
-          className="mb-14"
+          style={{ marginBottom: 48 }}
         >
-          <form onSubmit={handleSubmit} className="flex gap-3 max-w-xl mx-auto">
-            <div className="relative flex-1">
-              <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-400/40" />
+          <form
+            onSubmit={handleSubmit}
+            style={{
+              display: 'flex',
+              gap: 12,
+              maxWidth: 560,
+              margin: '0 auto',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ position: 'relative', flex: 1, minWidth: 240 }}>
+              <MapPin
+                size={17}
+                style={{
+                  position: 'absolute',
+                  left: 16,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--color-accent-text)',
+                  opacity: 0.5,
+                  pointerEvents: 'none',
+                }}
+              />
               <input
                 type="text"
                 value={zip}
                 onChange={(e) => setZip(e.target.value)}
                 placeholder="Enter your zip code"
                 maxLength={10}
-                className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-12 py-4 font-mono text-xl text-white placeholder:text-white/20 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20 transition-all tracking-widest"
+                style={{
+                  width: '100%',
+                  borderRadius: 12,
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                  padding: '16px 18px 16px 46px',
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: 18,
+                  letterSpacing: '0.1em',
+                  color: 'var(--color-text-1)',
+                  outline: 'none',
+                  transition: 'border-color 150ms, box-shadow 150ms',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-accent)';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(197,160,40,0.12)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-border)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
               />
             </div>
             <button
               type="submit"
               disabled={!isValidZip || loading}
-              className="flex items-center gap-2 rounded-xl bg-amber-500 px-8 py-4 font-body text-sm font-bold text-slate-950 transition-all hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                borderRadius: 12,
+                background: 'var(--color-accent)',
+                color: '#07090C',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                padding: '14px 28px',
+                border: 'none',
+                cursor: !isValidZip || loading ? 'not-allowed' : 'pointer',
+                opacity: !isValidZip || loading ? 0.4 : 1,
+                transition: 'opacity 150ms',
+              }}
             >
-              <Search size={16} />
-              Look Up
+              <Search size={15} />
+              Look up
             </button>
           </form>
         </motion.div>
 
         {/* Loading */}
         {loading && (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
-            <p className="font-body text-sm text-white/30">Looking up your representatives...</p>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '60px 0',
+              gap: 14,
+            }}
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                border: '2px solid var(--color-accent)',
+                borderTopColor: 'transparent',
+                animation: 'spin 1s linear infinite',
+              }}
+            />
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)' }}>
+              Looking up your representatives...
+            </p>
           </div>
         )}
 
@@ -306,10 +468,20 @@ export default function ZipLookupPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-red-500/20 bg-red-500/5 py-12 text-center max-w-xl mx-auto"
+            style={{
+              borderRadius: 12,
+              border: '1px solid rgba(230,57,70,0.25)',
+              background: 'rgba(230,57,70,0.08)',
+              padding: '40px 24px',
+              textAlign: 'center',
+              maxWidth: 560,
+              margin: '0 auto',
+            }}
           >
-            <AlertCircle size={40} className="mx-auto mb-4 text-red-400/50" />
-            <p className="font-body text-sm text-red-300">{error}</p>
+            <AlertCircle size={36} style={{ color: 'rgba(230,57,70,0.5)', margin: '0 auto 14px' }} />
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: 'var(--color-red)' }}>
+              {error}
+            </p>
           </motion.div>
         )}
 
@@ -317,32 +489,77 @@ export default function ZipLookupPage() {
         {!loading && data && data.representatives.length > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
             {/* State header */}
-            <div className="mb-8 text-center">
-              <p className="font-mono text-xs text-white/30 mb-1">
+            <div style={{ marginBottom: 28, textAlign: 'center' }}>
+              <p
+                style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: 11,
+                  color: 'var(--color-text-3)',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  marginBottom: 6,
+                }}
+              >
                 {data.representative_count} representative{data.representative_count !== 1 ? 's' : ''} found
               </p>
-              <h2 className="font-heading text-2xl font-bold text-white">
+              <h2
+                style={{
+                  fontFamily: "'Playfair Display', Georgia, serif",
+                  fontStyle: 'italic',
+                  fontWeight: 900,
+                  fontSize: 'clamp(24px, 3.5vw, 36px)',
+                  color: 'var(--color-text-1)',
+                }}
+              >
                 {STATE_NAMES[data.state] || data.state}
               </h2>
-              <p className="font-mono text-xs text-white/20 mt-1">Zip code {data.zip_code}</p>
+              <p
+                style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: 11,
+                  color: 'var(--color-text-3)',
+                  marginTop: 4,
+                }}
+              >
+                Zip code {data.zip_code}
+              </p>
             </div>
 
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 max-w-3xl mx-auto">
-              <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-400/60" />
-              <p className="font-body text-xs text-white/40 leading-relaxed">
-                <span className="font-semibold text-white/50">State-level lookup</span> — Showing all senators and House members for your state.
-                District-level matching is coming soon.
+            <div
+              style={{
+                marginBottom: 20,
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                borderRadius: 10,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-accent-dim)',
+                padding: '12px 16px',
+                maxWidth: 720,
+                margin: '0 auto 20px',
+              }}
+            >
+              <AlertCircle size={15} style={{ marginTop: 2, color: 'var(--color-accent-text)', flexShrink: 0 }} />
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  color: 'var(--color-text-2)',
+                  lineHeight: 1.55,
+                }}
+              >
+                <span style={{ fontWeight: 600, color: 'var(--color-text-1)' }}>State-level lookup</span> — Showing all senators and House members for your state. District-level matching is coming soon.
               </p>
             </div>
 
             {/* Rep cards */}
-            <div className="mt-8 space-y-6">
+            <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {data.representatives.map((rep, idx) => (
                 <motion.div
                   key={rep.person_id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: idx * 0.08 }}
+                  transition={{ duration: 0.4, delay: idx * 0.06 }}
                 >
                   <RepCard rep={rep} zip={data.zip_code} />
                 </motion.div>
@@ -356,45 +573,96 @@ export default function ZipLookupPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-white/10 bg-white/[0.02] py-16 text-center max-w-xl mx-auto"
+            style={{
+              borderRadius: 12,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+              padding: '60px 24px',
+              textAlign: 'center',
+              maxWidth: 560,
+              margin: '0 auto',
+            }}
           >
-            <Users size={40} className="mx-auto mb-4 text-white/10" />
-            <p className="font-body text-sm text-white/40">
+            <Users size={36} style={{ color: 'var(--color-text-3)', margin: '0 auto 14px' }} />
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: 'var(--color-text-2)' }}>
               No tracked representatives found for {STATE_NAMES[data.state] || data.state}.
             </p>
             <Link
               to="/politics/people"
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-5 py-2.5 font-body text-xs font-semibold text-amber-400 hover:bg-amber-500/20 transition-colors no-underline"
+              style={{
+                marginTop: 16,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                borderRadius: 10,
+                background: 'var(--color-accent-dim)',
+                border: '1px solid var(--color-border)',
+                padding: '10px 18px',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--color-accent-text)',
+                textDecoration: 'none',
+              }}
             >
               <Users size={14} />
-              Browse All Members
+              Browse all members
             </Link>
           </motion.div>
         )}
 
         {/* Footer */}
-        <div className="mt-20 border-t border-white/5 pt-6 flex items-center justify-between">
-          <Link to="/politics" className="font-body text-sm text-white/30 hover:text-white transition-colors no-underline">
-            Politics Dashboard
+        <div
+          style={{
+            marginTop: 72,
+            borderTop: '1px solid var(--color-border)',
+            paddingTop: 20,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Link
+            to="/politics"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--color-text-2)',
+              textDecoration: 'none',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+          >
+            <ArrowLeft size={14} /> Politics dashboard
           </Link>
-          <span className="font-mono text-[10px] text-white/10">WeThePeople</span>
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 10,
+              color: 'var(--color-text-3)',
+            }}
+          >
+            WeThePeople
+          </span>
         </div>
       </div>
     </div>
   );
 }
 
-
-// ── Rep Card (expanded, with sections) ──
+// ── Rep Card ──
 
 function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const copyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const color = partyColor(rep.party);
+  const hex = partyHex(rep.party);
+  const token = partyToken(rep.party);
   const flags = totalRedFlags(rep.red_flags);
 
-  // Cleanup copy timer on unmount
   React.useEffect(() => {
     return () => {
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
@@ -410,7 +678,6 @@ function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
       setCopied(true);
       copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
       const input = document.createElement('input');
       input.value = url;
       document.body.appendChild(input);
@@ -423,96 +690,212 @@ function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
   };
 
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-      {/* Header — always visible */}
+    <div
+      style={{
+        borderRadius: 14,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header */}
       <div
-        className="flex items-center gap-5 px-6 py-5 cursor-pointer hover:bg-white/[0.02] transition-colors"
         onClick={() => setExpanded(!expanded)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          padding: '18px 20px',
+          cursor: 'pointer',
+          transition: 'background-color 150ms',
+          flexWrap: 'wrap',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-surface-2)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
       >
         {/* Photo */}
         {rep.photo_url ? (
           <img
             src={rep.photo_url}
             alt={rep.name}
-            className="h-16 w-16 rounded-full object-cover ring-2 ring-white/10 shrink-0"
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '2px solid var(--color-border-hover)',
+              flexShrink: 0,
+            }}
           />
         ) : (
           <div
-            className="flex h-16 w-16 items-center justify-center rounded-full font-heading text-lg font-bold text-white ring-2 ring-white/10 shrink-0"
-            style={{ backgroundColor: `${color}33` }}
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 16,
+              fontWeight: 700,
+              color: 'var(--color-text-1)',
+              background: `${hex}26`,
+              border: '2px solid var(--color-border-hover)',
+              flexShrink: 0,
+            }}
           >
             {initials(rep.name)}
           </div>
         )}
 
         {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h3 className="font-heading text-lg font-bold text-white truncate">
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h3
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 17,
+                fontWeight: 600,
+                color: 'var(--color-text-1)',
+              }}
+            >
               {rep.name}
             </h3>
             <span
-              className="rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
-              style={{ backgroundColor: `${color}20`, color }}
+              style={{
+                borderRadius: 999,
+                padding: '3px 10px',
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                background: `${hex}1F`,
+                color: token,
+              }}
             >
               {rep.party}
             </span>
-            <span className="rounded-full bg-white/5 px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase text-white/40">
+            <span
+              style={{
+                borderRadius: 999,
+                background: 'var(--color-surface-2)',
+                padding: '3px 10px',
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                color: 'var(--color-text-2)',
+              }}
+            >
               {chamberLabel(rep.chamber)}
             </span>
           </div>
-          <p className="mt-1 font-mono text-xs text-white/25">
+          <p
+            style={{
+              marginTop: 4,
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+            }}
+          >
             {rep.state} &middot; {rep.chamber === 'senate' ? 'U.S. Senate' : 'U.S. House'}
           </p>
         </div>
 
         {/* Red flags badge */}
         {flags > 0 && (
-          <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 shrink-0">
-            <AlertTriangle size={14} className="text-amber-400" />
-            <span className="font-mono text-xs font-bold text-amber-400">{flags}</span>
-            <span className="font-body text-[10px] text-amber-400/60 hidden sm:inline">flag{flags !== 1 ? 's' : ''}</span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              borderRadius: 10,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-accent-dim)',
+              padding: '6px 12px',
+              flexShrink: 0,
+            }}
+          >
+            <AlertTriangle size={13} style={{ color: 'var(--color-accent-text)' }} />
+            <span
+              style={{
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 12,
+                fontWeight: 700,
+                color: 'var(--color-accent-text)',
+              }}
+            >
+              {flags}
+            </span>
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 10,
+                color: 'var(--color-accent-text)',
+                opacity: 0.7,
+              }}
+            >
+              flag{flags !== 1 ? 's' : ''}
+            </span>
           </div>
         )}
 
         {/* Quick stats */}
-        <div className="hidden md:flex items-center gap-4 shrink-0">
-          {rep.trades.length > 0 && (
-            <div className="text-center">
-              <p className="font-mono text-sm font-bold text-white">{rep.trades.length}</p>
-              <p className="font-body text-[10px] text-white/25">trades</p>
-            </div>
-          )}
-          {rep.donors.length > 0 && (
-            <div className="text-center">
-              <p className="font-mono text-sm font-bold text-white">{rep.donors.length}</p>
-              <p className="font-body text-[10px] text-white/25">donors</p>
-            </div>
-          )}
-          {rep.committees.length > 0 && (
-            <div className="text-center">
-              <p className="font-mono text-sm font-bold text-white">{rep.committees.length}</p>
-              <p className="font-body text-[10px] text-white/25">committees</p>
-            </div>
-          )}
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}
+          className="hidden md:flex"
+        >
+          {rep.trades.length > 0 && <QuickStat value={rep.trades.length} label="trades" />}
+          {rep.donors.length > 0 && <QuickStat value={rep.donors.length} label="donors" />}
+          {rep.committees.length > 0 && <QuickStat value={rep.committees.length} label="committees" />}
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <button
             onClick={handleShare}
-            className="p-2 rounded-lg border border-white/5 hover:border-white/10 text-white/30 hover:text-white/60 transition-colors"
+            style={{
+              padding: 8,
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'transparent',
+              color: 'var(--color-text-3)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 150ms',
+            }}
             title="Copy share link"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--color-text-1)';
+              e.currentTarget.style.borderColor = 'var(--color-border-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--color-text-3)';
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+            }}
           >
-            <Share2 size={14} />
+            <Share2 size={13} />
           </button>
           {copied && (
-            <span className="font-mono text-[10px] text-amber-400 animate-pulse">Copied!</span>
+            <span
+              style={{
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 10,
+                color: 'var(--color-accent-text)',
+              }}
+            >
+              Copied!
+            </span>
           )}
           {expanded ? (
-            <ChevronUp size={18} className="text-white/20" />
+            <ChevronUp size={18} style={{ color: 'var(--color-text-3)' }} />
           ) : (
-            <ChevronDown size={18} className="text-white/20" />
+            <ChevronDown size={18} style={{ color: 'var(--color-text-3)' }} />
           )}
         </div>
       </div>
@@ -525,13 +908,27 @@ function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="overflow-hidden"
+            style={{ overflow: 'hidden' }}
           >
-            <div className="border-t border-white/5 px-6 py-5 space-y-6">
-              {/* Red Flags section */}
+            <div
+              style={{
+                borderTop: '1px solid var(--color-border)',
+                padding: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 24,
+              }}
+            >
+              {/* Red Flags */}
               {flags > 0 && (
-                <Section title="Red Flags" icon={<AlertTriangle size={14} className="text-amber-400" />} accent="amber">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Section title="Red flags" icon={<AlertTriangle size={14} style={{ color: 'var(--color-accent-text)' }} />}>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: 10,
+                    }}
+                  >
                     {rep.red_flags.anomaly_count > 0 && (
                       <FlagPill label="Anomalies detected" count={rep.red_flags.anomaly_count} />
                     )}
@@ -543,13 +940,43 @@ function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
                     )}
                   </div>
                   {rep.red_flags.top_anomaly && (
-                    <div className="mt-3 rounded-lg border border-amber-500/10 bg-amber-500/5 px-4 py-3">
-                      <p className="font-body text-xs text-amber-300/80">{rep.red_flags.top_anomaly.title}</p>
-                      <div className="mt-1 flex items-center gap-2">
-                        <span className="font-mono text-[10px] text-amber-400/50">
+                    <div
+                      style={{
+                        marginTop: 12,
+                        borderRadius: 10,
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-accent-dim)',
+                        padding: '12px 14px',
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 12,
+                          color: 'var(--color-accent-text)',
+                          lineHeight: 1.55,
+                        }}
+                      >
+                        {rep.red_flags.top_anomaly.title}
+                      </p>
+                      <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span
+                          style={{
+                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            fontSize: 10,
+                            color: 'var(--color-accent-text)',
+                            opacity: 0.7,
+                          }}
+                        >
                           Score: {rep.red_flags.top_anomaly.score.toFixed(1)}/10
                         </span>
-                        <span className="font-mono text-[10px] text-white/20">
+                        <span
+                          style={{
+                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            fontSize: 10,
+                            color: 'var(--color-text-3)',
+                          }}
+                        >
                           {rep.red_flags.top_anomaly.pattern_type.replace(/_/g, ' ')}
                         </span>
                       </div>
@@ -559,68 +986,167 @@ function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
               )}
 
               {/* Recent Trades */}
-              <Section title="Recent Trades" icon={<TrendingUp size={14} className="text-emerald-400" />} accent="emerald">
+              <Section title="Recent trades" icon={<TrendingUp size={14} style={{ color: 'var(--color-green)' }} />}>
                 {rep.trades.length === 0 ? (
                   <EmptyState text="No recent trades in the last 90 days" />
                 ) : (
-                  <div className="space-y-2">
-                    {rep.trades.map((t, i) => (
-                      <div key={i} className="flex items-center gap-3 rounded-lg bg-white/[0.02] px-4 py-2.5">
-                        {tradeIcon(t.transaction_type)}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm font-bold text-white">
-                              {t.ticker || 'N/A'}
-                            </span>
-                            <span className={`font-mono text-[10px] uppercase ${
-                              t.transaction_type?.toLowerCase().includes('purchase') ? 'text-emerald-400' :
-                              t.transaction_type?.toLowerCase().includes('sale') ? 'text-red-400' : 'text-white/30'
-                            }`}>
-                              {t.transaction_type}
-                            </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {rep.trades.map((t, i) => {
+                      const type = t.transaction_type?.toLowerCase() || '';
+                      const isBuy = type.includes('purchase');
+                      const isSell = type.includes('sale');
+                      const typeColor = isBuy
+                        ? 'var(--color-green)'
+                        : isSell
+                        ? 'var(--color-red)'
+                        : 'var(--color-text-3)';
+                      return (
+                        <div
+                          key={i}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            borderRadius: 10,
+                            background: 'var(--color-surface-2)',
+                            padding: '10px 14px',
+                          }}
+                        >
+                          {tradeIcon(t.transaction_type)}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span
+                                style={{
+                                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  color: 'var(--color-text-1)',
+                                }}
+                              >
+                                {t.ticker || 'N/A'}
+                              </span>
+                              <span
+                                style={{
+                                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                  fontSize: 10,
+                                  textTransform: 'uppercase',
+                                  color: typeColor,
+                                }}
+                              >
+                                {t.transaction_type}
+                              </span>
+                            </div>
+                            {t.asset_name && t.asset_name !== t.ticker && (
+                              <p
+                                style={{
+                                  fontFamily: "'Inter', sans-serif",
+                                  fontSize: 10,
+                                  color: 'var(--color-text-3)',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {t.asset_name}
+                              </p>
+                            )}
                           </div>
-                          {t.asset_name && t.asset_name !== t.ticker && (
-                            <p className="font-body text-[10px] text-white/25 truncate">{t.asset_name}</p>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <p
+                              style={{
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 12,
+                                color: 'var(--color-text-2)',
+                              }}
+                            >
+                              {t.amount_range || '--'}
+                            </p>
+                            <p
+                              style={{
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 10,
+                                color: 'var(--color-text-3)',
+                              }}
+                            >
+                              {formatDate(t.transaction_date)}
+                            </p>
+                          </div>
+                          {t.reporting_gap && (
+                            <div
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
+                              title={`Reporting gap: ${t.reporting_gap}`}
+                            >
+                              <Clock size={10} style={{ color: 'var(--color-text-3)' }} />
+                              <span
+                                style={{
+                                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                  fontSize: 10,
+                                  color: parseInt(t.reporting_gap) > 45 ? 'var(--color-accent-text)' : 'var(--color-text-3)',
+                                }}
+                              >
+                                {t.reporting_gap}
+                              </span>
+                            </div>
                           )}
                         </div>
-                        <div className="text-right shrink-0">
-                          <p className="font-mono text-xs text-white/60">{t.amount_range || '--'}</p>
-                          <p className="font-mono text-[10px] text-white/20">{formatDate(t.transaction_date)}</p>
-                        </div>
-                        {t.reporting_gap && (
-                          <div className="shrink-0 flex items-center gap-1" title={`Reporting gap: ${t.reporting_gap}`}>
-                            <Clock size={10} className="text-white/20" />
-                            <span className={`font-mono text-[10px] ${
-                              parseInt(t.reporting_gap) > 45 ? 'text-amber-400' : 'text-white/20'
-                            }`}>
-                              {t.reporting_gap}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Section>
 
               {/* Top Donors */}
-              <Section title="Top Donors" icon={<DollarSign size={14} className="text-blue-400" />} accent="blue">
+              <Section title="Top donors" icon={<DollarSign size={14} style={{ color: 'var(--color-dem)' }} />}>
                 {rep.donors.length === 0 ? (
                   <EmptyState text="No donor data available" />
                 ) : (
-                  <div className="space-y-2">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {rep.donors.map((d, i) => (
-                      <div key={i} className="flex items-center gap-3 rounded-lg bg-white/[0.02] px-4 py-2.5">
-                        <Building2 size={14} className="text-blue-400/40 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-body text-sm font-medium text-white truncate">
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          borderRadius: 10,
+                          background: 'var(--color-surface-2)',
+                          padding: '10px 14px',
+                        }}
+                      >
+                        <Building2 size={14} style={{ color: 'var(--color-dem)', opacity: 0.5, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p
+                            style={{
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 13,
+                              fontWeight: 500,
+                              color: 'var(--color-text-1)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {d.pac_name || d.entity_id}
                           </p>
-                          <p className="font-mono text-[10px] text-white/25">
+                          <p
+                            style={{
+                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                              fontSize: 10,
+                              color: 'var(--color-text-3)',
+                            }}
+                          >
                             {d.entity_type} &middot; {d.donation_count} contribution{d.donation_count !== 1 ? 's' : ''}
                           </p>
                         </div>
-                        <span className="font-mono text-sm font-bold text-blue-400 shrink-0">
+                        <span
+                          style={{
+                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: 'var(--color-dem)',
+                            flexShrink: 0,
+                          }}
+                        >
                           {formatCurrency(d.total_amount)}
                         </span>
                       </div>
@@ -630,19 +1156,40 @@ function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
               </Section>
 
               {/* Committees */}
-              <Section title="Committees" icon={<Users size={14} className="text-purple-400" />} accent="purple">
+              <Section title="Committees" icon={<Users size={14} style={{ color: 'var(--color-ind)' }} />}>
                 {rep.committees.length === 0 ? (
                   <EmptyState text="No committee data available" />
                 ) : (
-                  <div className="flex flex-wrap gap-2">
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {rep.committees.map((c, i) => (
                       <div
                         key={i}
-                        className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2"
+                        style={{
+                          borderRadius: 10,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface-2)',
+                          padding: '10px 14px',
+                        }}
                       >
-                        <p className="font-body text-xs text-white/70">{c.committee_name}</p>
-                        <p className="font-mono text-[10px] text-white/20 mt-0.5">
-                          {c.role !== 'member' ? c.role.replace(/_/g, ' ') + ' \u00b7 ' : ''}{c.committee_chamber}
+                        <p
+                          style={{
+                            fontFamily: "'Inter', sans-serif",
+                            fontSize: 12,
+                            color: 'var(--color-text-1)',
+                          }}
+                        >
+                          {c.committee_name}
+                        </p>
+                        <p
+                          style={{
+                            marginTop: 2,
+                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            fontSize: 10,
+                            color: 'var(--color-text-3)',
+                          }}
+                        >
+                          {c.role !== 'member' ? `${c.role.replace(/_/g, ' ')} · ` : ''}
+                          {c.committee_chamber}
                         </p>
                       </div>
                     ))}
@@ -651,57 +1198,143 @@ function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
               </Section>
 
               {/* Recent Votes */}
-              <Section title="Recent Votes" icon={<Vote size={14} className="text-cyan-400" />} accent="cyan">
+              <Section title="Recent votes" icon={<Vote size={14} style={{ color: 'var(--color-dem)' }} />}>
                 {rep.votes.length === 0 ? (
                   <EmptyState text="No recent votes in the last 90 days" />
                 ) : (
-                  <div className="space-y-2">
-                    {rep.votes.map((v, i) => (
-                      <div key={i} className="flex items-center gap-3 rounded-lg bg-white/[0.02] px-4 py-2.5">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-body text-xs text-white/70 leading-relaxed">
-                            {v.question}
-                          </p>
-                          <div className="mt-1 flex items-center gap-2 flex-wrap">
-                            {v.related_bill && (
-                              <span className="font-mono text-[10px] text-cyan-400/60">{v.related_bill}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {rep.votes.map((v, i) => {
+                      const pos = v.position?.toLowerCase() || '';
+                      const posColor =
+                        pos === 'yea' || pos === 'yes'
+                          ? 'var(--color-green)'
+                          : pos === 'nay' || pos === 'no'
+                          ? 'var(--color-red)'
+                          : 'var(--color-text-3)';
+                      return (
+                        <div
+                          key={i}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            borderRadius: 10,
+                            background: 'var(--color-surface-2)',
+                            padding: '10px 14px',
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p
+                              style={{
+                                fontFamily: "'Inter', sans-serif",
+                                fontSize: 12,
+                                color: 'var(--color-text-1)',
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {v.question}
+                            </p>
+                            <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              {v.related_bill && (
+                                <span
+                                  style={{
+                                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                    fontSize: 10,
+                                    color: 'var(--color-dem)',
+                                  }}
+                                >
+                                  {v.related_bill}
+                                </span>
+                              )}
+                              <span
+                                style={{
+                                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                  fontSize: 10,
+                                  color: 'var(--color-text-3)',
+                                }}
+                              >
+                                {formatDate(v.vote_date)}
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <span
+                              style={{
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: posColor,
+                              }}
+                            >
+                              {v.position || '--'}
+                            </span>
+                            {v.result && (
+                              <p
+                                style={{
+                                  marginTop: 2,
+                                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                  fontSize: 10,
+                                  color: 'var(--color-text-3)',
+                                }}
+                              >
+                                {v.result}
+                              </p>
                             )}
-                            <span className="font-mono text-[10px] text-white/20">{formatDate(v.vote_date)}</span>
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <span className={`font-mono text-xs font-bold ${
-                            v.position?.toLowerCase() === 'yea' || v.position?.toLowerCase() === 'yes' ? 'text-emerald-400' :
-                            v.position?.toLowerCase() === 'nay' || v.position?.toLowerCase() === 'no' ? 'text-red-400' :
-                            'text-white/30'
-                          }`}>
-                            {v.position || '--'}
-                          </span>
-                          {v.result && (
-                            <p className="font-mono text-[10px] text-white/20 mt-0.5">{v.result}</p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Section>
 
               {/* Profile link */}
-              <div className="flex items-center justify-between pt-2">
+              <div
+                style={{
+                  paddingTop: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}
+              >
                 <Link
                   to={`/politics/people/${rep.person_id}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-2 font-body text-xs font-semibold text-amber-400 hover:bg-amber-500/20 transition-colors no-underline"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    borderRadius: 10,
+                    background: 'var(--color-accent-dim)',
+                    border: '1px solid var(--color-border)',
+                    padding: '8px 14px',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--color-accent-text)',
+                    textDecoration: 'none',
+                  }}
                 >
                   <ExternalLink size={12} />
-                  Full Profile
+                  Full profile
                 </Link>
                 <Link
                   to={`/politics/states/${rep.state.toLowerCase()}`}
-                  className="inline-flex items-center gap-2 font-body text-xs text-white/30 hover:text-white/60 transition-colors no-underline"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    color: 'var(--color-text-2)',
+                    textDecoration: 'none',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
                 >
                   <MapPin size={12} />
-                  {rep.state} State Page
+                  {rep.state} state page
                 </Link>
               </div>
             </div>
@@ -712,25 +1345,57 @@ function RepCard({ rep, zip }: { rep: Representative; zip: string }) {
   );
 }
 
-
 // ── Sub-components ──
+
+function QuickStat({ value, label }: { value: number; label: string }) {
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <p
+        style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: 13,
+          fontWeight: 700,
+          color: 'var(--color-text-1)',
+        }}
+      >
+        {value}
+      </p>
+      <p
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 10,
+          color: 'var(--color-text-3)',
+        }}
+      >
+        {label}
+      </p>
+    </div>
+  );
+}
 
 function Section({
   title,
   icon,
-  accent,
   children,
 }: {
   title: string;
   icon: React.ReactNode;
-  accent: string;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <div className="flex items-center gap-2 mb-3">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         {icon}
-        <h4 className="font-heading text-sm font-semibold text-white/70">{title}</h4>
+        <h4
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--color-text-1)',
+          }}
+        >
+          {title}
+        </h4>
       </div>
       {children}
     </div>
@@ -739,17 +1404,61 @@ function Section({
 
 function FlagPill({ label, count }: { label: string; count: number }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2">
-      <span className="font-mono text-sm font-bold text-amber-400">{count}</span>
-      <span className="font-body text-[10px] text-amber-400/60">{label}</span>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        borderRadius: 10,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-accent-dim)',
+        padding: '10px 14px',
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: 14,
+          fontWeight: 700,
+          color: 'var(--color-accent-text)',
+        }}
+      >
+        {count}
+      </span>
+      <span
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 11,
+          color: 'var(--color-accent-text)',
+          opacity: 0.7,
+        }}
+      >
+        {label}
+      </span>
     </div>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-lg border border-white/5 bg-white/[0.01] py-4 text-center">
-      <p className="font-body text-xs text-white/20">{text}</p>
+    <div
+      style={{
+        borderRadius: 10,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface-2)',
+        padding: '16px',
+        textAlign: 'center',
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 12,
+          color: 'var(--color-text-3)',
+        }}
+      >
+        {text}
+      </p>
     </div>
   );
 }

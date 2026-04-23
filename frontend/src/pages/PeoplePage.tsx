@@ -1,61 +1,141 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, SearchX, MapPin } from 'lucide-react';
+import { Search, SearchX, MapPin, Users, X } from 'lucide-react';
 import CSVExport from '../components/CSVExport';
-import { motion, useInView } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { Person } from '../api/types';
-import SpotlightCard from '../components/SpotlightCard';
-import { PoliticsSectorHeader } from '../components/SectorHeader';
 
-// ── Party config ──
+// ── Types ──
 
 type PartyFilter = 'all' | 'D' | 'R' | 'I';
 type ChamberFilter = 'all' | 'house' | 'senate';
 type StateFilter = 'all' | string;
 
-const PARTY_COLORS: Record<string, { solid: string; label: string }> = {
-  D: { solid: '#3B82F6', label: 'Democrat' },
-  R: { solid: '#EF4444', label: 'Republican' },
-  I: { solid: '#A855F7', label: 'Independent' },
+// ── Party config (design tokens + hex for alpha interpolation) ──
+
+const PARTY_TOKEN: Record<string, string> = {
+  D: 'var(--color-dem)',
+  R: 'var(--color-rep)',
+  I: 'var(--color-ind)',
 };
 
-function partyInfo(party: string | null) {
-  return PARTY_COLORS[party?.charAt(0) || ''] || { solid: '#6B7280', label: party || 'Unknown' };
+const PARTY_HEX: Record<string, string> = {
+  D: '#4A7FDE',
+  R: '#E05555',
+  I: '#B06FD8',
+};
+
+const PARTY_LABEL: Record<string, string> = {
+  D: 'Democrat',
+  R: 'Republican',
+  I: 'Independent',
+};
+
+function partyKey(party: string | null | undefined): 'D' | 'R' | 'I' | null {
+  const k = (party || '').charAt(0).toUpperCase();
+  if (k === 'D' || k === 'R' || k === 'I') return k;
+  return null;
 }
 
-// ── Filter Pill (matching finance style) ──
+// ── Shared style constants ──
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text-1)',
+};
+
+const contentWrap: React.CSSProperties = {
+  maxWidth: '1400px',
+  margin: '0 auto',
+  padding: '72px 32px 96px',
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '6px 12px',
+  borderRadius: '999px',
+  background: 'var(--color-accent-dim)',
+  color: 'var(--color-accent-text)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  marginBottom: '20px',
+};
+
+const titleStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-display)',
+  fontStyle: 'italic',
+  fontWeight: 900,
+  fontSize: 'clamp(44px, 7vw, 76px)',
+  lineHeight: 1.02,
+  letterSpacing: '-0.02em',
+  margin: '0 0 16px',
+  color: 'var(--color-text-1)',
+};
+
+const leadStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: '18px',
+  lineHeight: 1.55,
+  color: 'var(--color-text-2)',
+  maxWidth: '720px',
+  margin: '0 0 40px',
+};
+
+// ── FilterPill ──
 
 function FilterPill({
   label,
   count,
   active,
   color,
+  hex,
   onClick,
 }: {
   label: string;
   count: number;
   active: boolean;
   color: string;
+  hex?: string;
   onClick: () => void;
 }) {
+  const activeHex = hex || '#C5A028';
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
-      className="flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 font-body text-sm font-medium transition-all duration-200"
       style={{
-        borderColor: active ? color : 'rgba(255,255,255,0.1)',
-        backgroundColor: active ? `${color}15` : 'transparent',
-        color: active ? color : 'rgba(255,255,255,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        whiteSpace: 'nowrap',
+        borderRadius: '999px',
+        padding: '8px 16px',
+        border: `1px solid ${active ? color : 'rgba(235,229,213,0.12)'}`,
+        background: active ? `${activeHex}1F` : 'transparent',
+        color: active ? color : 'var(--color-text-2)',
+        fontFamily: 'var(--font-body)',
+        fontSize: '13px',
+        fontWeight: 500,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
       }}
     >
       {label}
       <span
-        className="rounded-full px-1.5 py-0.5 font-mono text-[10px]"
         style={{
-          backgroundColor: active ? `${color}33` : 'rgba(255,255,255,0.1)',
-          color: active ? color : 'rgba(255,255,255,0.4)',
+          borderRadius: '999px',
+          padding: '2px 8px',
+          background: active ? `${activeHex}33` : 'rgba(235,229,213,0.08)',
+          color: active ? color : 'var(--color-text-3)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '10px',
+          fontWeight: 600,
         }}
       >
         {count}
@@ -64,95 +144,254 @@ function FilterPill({
   );
 }
 
-// ── Person Card (finance-style with SpotlightCard) ──
+// ── PersonCard ──
 
 function PersonCard({ person, index }: { person: Person; index: number }) {
-  const pi = partyInfo(person.party);
+  const key = partyKey(person.party);
+  const color = key ? PARTY_TOKEN[key] : 'var(--color-text-2)';
+  const hex = key ? PARTY_HEX[key] : '#6B7280';
+  const label = key ? PARTY_LABEL[key] : person.party || 'Unknown';
+  const isSenate = person.chamber?.toLowerCase().includes('senate') || person.chamber?.toLowerCase() === 'upper';
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.03 }}
+      transition={{ duration: 0.35, delay: index * 0.025 }}
     >
       <Link
         to={`/politics/people/${person.person_id}`}
-        className="block no-underline h-full"
+        style={{ textDecoration: 'none', display: 'block', height: '100%' }}
       >
-        <SpotlightCard
-          className="rounded-xl border border-white/10 bg-white/[0.03] h-full"
-          spotlightColor="rgba(255, 255, 255, 0.10)"
+        <div
+          style={{
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            padding: '24px',
+            background: 'var(--color-surface)',
+            border: '1px solid rgba(235,229,213,0.08)',
+            borderRadius: '16px',
+            transition: 'all 0.25s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--color-surface-2)';
+            e.currentTarget.style.borderColor = `${hex}40`;
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--color-surface)';
+            e.currentTarget.style.borderColor = 'rgba(235,229,213,0.08)';
+            e.currentTarget.style.transform = 'translateY(0)';
+          }}
         >
-          <div className="relative flex h-full flex-col p-6 overflow-hidden">
-            {/* Top row: photo + party tag */}
-            <div className="flex items-start justify-between mb-4">
-              {person.photo_url ? (
-                <img
-                  src={person.photo_url}
-                  alt={person.display_name}
-                  className="h-14 w-14 rounded-full object-cover ring-2 ring-white/10"
-                />
-              ) : (
-                <div
-                  className="flex h-14 w-14 items-center justify-center rounded-full font-heading text-lg font-bold text-white ring-2 ring-white/10"
-                  style={{ backgroundColor: `${pi.solid}30` }}
-                >
-                  {person.display_name.charAt(0)}
-                </div>
-              )}
-              <span
-                className="rounded border px-2 py-1 font-mono text-xs"
+          {/* Top: photo + party tag */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+            {person.photo_url ? (
+              <img
+                src={person.photo_url}
+                alt={person.display_name}
                 style={{
-                  borderColor: `${pi.solid}50`,
-                  color: pi.solid,
-                  backgroundColor: `${pi.solid}15`,
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: `2px solid ${hex}40`,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: `${hex}26`,
+                  border: `2px solid ${hex}40`,
+                  color: color,
+                  fontFamily: 'var(--font-display)',
+                  fontStyle: 'italic',
+                  fontWeight: 900,
+                  fontSize: '22px',
                 }}
               >
-                {pi.label.toUpperCase()}
-              </span>
+                {person.display_name.charAt(0)}
+              </div>
+            )}
+            <span
+              style={{
+                padding: '4px 10px',
+                borderRadius: '4px',
+                border: `1px solid ${hex}40`,
+                background: `${hex}1F`,
+                color: color,
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+              }}
+            >
+              {label.toUpperCase()}
+            </span>
+          </div>
+
+          {/* Name */}
+          <h3
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '20px',
+              fontWeight: 600,
+              color: 'var(--color-text-1)',
+              margin: '0 0 6px',
+              lineHeight: 1.2,
+              display: '-webkit-box',
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {person.display_name}
+          </h3>
+
+          {/* State */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '20px' }}>
+            <MapPin size={14} style={{ color: 'var(--color-text-3)', flexShrink: 0 }} />
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-2)' }}>
+              {person.state}
+            </span>
+          </div>
+
+          <div style={{ marginTop: 'auto' }} />
+
+          {/* Footer stats */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '12px',
+              paddingTop: '16px',
+              borderTop: '1px solid rgba(235,229,213,0.08)',
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '9px',
+                  color: 'var(--color-text-3)',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  margin: '0 0 4px',
+                }}
+              >
+                Chamber
+              </p>
+              <p
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '13px',
+                  color: 'var(--color-text-1)',
+                  fontWeight: 500,
+                  margin: 0,
+                }}
+              >
+                {isSenate ? 'Senate' : 'House'}
+              </p>
             </div>
-
-            {/* Name */}
-            <h3 className="font-body text-xl font-bold text-white line-clamp-1 mb-1">
-              {person.display_name}
-            </h3>
-
-            {/* State */}
-            <div className="flex items-center gap-1.5 mb-2">
-              <MapPin size={14} className="text-white/30 flex-shrink-0" />
-              <span className="font-body text-sm text-white/50 truncate">
-                {person.state}
-              </span>
+            <div>
+              <p
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '9px',
+                  color: 'var(--color-text-3)',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  margin: '0 0 4px',
+                }}
+              >
+                Status
+              </p>
+              <p
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '13px',
+                  color: person.is_active ? 'var(--color-green)' : 'var(--color-text-3)',
+                  fontWeight: 500,
+                  margin: 0,
+                }}
+              >
+                {person.is_active ? 'Active' : 'Inactive'}
+              </p>
             </div>
-
-            {/* Spacer pushes footer to bottom */}
-            <div className="mt-auto" />
-
-            {/* Stats footer */}
-            <div className="grid grid-cols-3 gap-3 border-t border-white/10 pt-4">
-              <div>
-                <p className="font-mono text-xs text-white/40 mb-1">CHAMBER</p>
-                <p className="font-mono text-sm text-white font-medium">
-                  {person.chamber?.toLowerCase().includes('senate') ? 'Senate' : 'House'}
-                </p>
-              </div>
-              <div>
-                <p className="font-mono text-xs text-white/40 mb-1">STATUS</p>
-                <p className={`font-mono text-sm font-medium ${person.is_active ? 'text-emerald-400' : 'text-white/30'}`}>
-                  {person.is_active ? 'Active' : 'Inactive'}
-                </p>
-              </div>
-              <div>
-                <p className="font-mono text-xs text-white/40 mb-1">PARTY</p>
-                <p className="font-mono text-sm font-medium" style={{ color: pi.solid }}>
-                  {pi.label}
-                </p>
-              </div>
+            <div>
+              <p
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '9px',
+                  color: 'var(--color-text-3)',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  margin: '0 0 4px',
+                }}
+              >
+                Party
+              </p>
+              <p
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '13px',
+                  color: color,
+                  fontWeight: 500,
+                  margin: 0,
+                }}
+              >
+                {label}
+              </p>
             </div>
           </div>
-        </SpotlightCard>
+        </div>
       </Link>
     </motion.div>
+  );
+}
+
+// ── PageButton (pagination) ──
+
+function PageButton({
+  children,
+  active,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  active?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        minWidth: '38px',
+        padding: '8px 12px',
+        borderRadius: '8px',
+        border: active ? '1px solid var(--color-accent)' : '1px solid rgba(235,229,213,0.1)',
+        background: active ? 'var(--color-accent-dim)' : 'var(--color-surface)',
+        color: active ? 'var(--color-accent-text)' : 'var(--color-text-2)',
+        fontFamily: 'var(--font-mono)',
+        fontSize: '13px',
+        fontWeight: 500,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.3 : 1,
+        transition: 'all 0.2s',
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -169,20 +408,14 @@ export default function PeoplePage() {
   const [zipCode, setZipCode] = useState('');
   const [zipRepIds, setZipRepIds] = useState<string[]>([]);
 
-  const headerRef = React.useRef<HTMLDivElement>(null);
-  useInView(headerRef, { once: true, amount: 0.1 });
-
   useEffect(() => {
-    let cancelled = false;
     apiClient
       .getPeople({ limit: 600 })
       .then((res) => setPeople(res.people || []))
       .catch(() => {})
       .finally(() => setLoading(false));
-    return () => { cancelled = true; };
   }, []);
 
-  // ZIP code lookup
   const handleZipSearch = () => {
     if (zipCode.length < 5) return;
     fetch(`/api/representatives?zip=${zipCode}`)
@@ -202,7 +435,6 @@ export default function PeoplePage() {
     setZipRepIds([]);
   };
 
-  // Reset page on filter change
   useEffect(() => { setCurrentPage(1); }, [search, partyFilter, chamberFilter, stateFilter]);
 
   const PAGE_SIZE = 20;
@@ -237,8 +469,8 @@ export default function PeoplePage() {
   const partyCounts = useMemo(() => {
     const counts = { D: 0, R: 0, I: 0 };
     people.forEach((p) => {
-      const key = p.party?.charAt(0) as 'D' | 'R' | 'I';
-      if (counts[key] !== undefined) counts[key]++;
+      const key = partyKey(p.party);
+      if (key) counts[key]++;
     });
     return counts;
   }, [people]);
@@ -265,68 +497,134 @@ export default function PeoplePage() {
       .map(([state, count]) => ({ state, count }));
   }, [people]);
 
+  const total = people.length || 1;
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+
+  const pageNumbers = (() => {
+    if (totalPages <= 1) return [] as (number | '...')[];
+    const pages: (number | '...')[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  })();
+
   return (
-    <div className="min-h-screen">
-      <div className="px-8 py-8 xl:px-16">
+    <div style={pageShell}>
+      <div style={contentWrap}>
         {/* Header */}
         <motion.div
-          ref={headerRef}
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="shrink-0 mb-6"
+          transition={{ duration: 0.5 }}
+          style={{ marginBottom: '40px' }}
         >
-          <PoliticsSectorHeader />
-          <h1 className="font-heading text-4xl font-bold uppercase tracking-wide text-white xl:text-6xl">
-            Representatives
+          <span style={eyebrowStyle}>Politics / Representatives</span>
+          <h1 style={titleStyle}>
+            Members of{' '}
+            <span style={{ color: 'var(--color-accent-text)' }}>Congress</span>
           </h1>
-          <p className="font-body text-lg text-white/50 mb-4">
-            {people.length} members of Congress tracked
+          <p style={leadStyle}>
+            {people.length.toLocaleString()} current members. Search by name, filter by party, chamber, or state — or enter a ZIP to see your representatives.
           </p>
 
           {/* Search */}
-          <div className="relative w-full max-w-[480px]">
+          <div style={{ position: 'relative', maxWidth: '520px', marginBottom: '24px' }}>
             <Search
-              size={20}
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40"
+              size={18}
+              style={{
+                position: 'absolute',
+                left: '16px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--color-text-3)',
+                pointerEvents: 'none',
+              }}
             />
             <input
               type="text"
               placeholder="Search by name or state…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-[#0A0A0A] bg-[#111111] py-3 pl-12 pr-4 font-body text-lg text-white placeholder:text-white/30 outline-none transition-colors focus:border-blue-500/50"
+              style={{
+                width: '100%',
+                padding: '14px 16px 14px 48px',
+                background: 'var(--color-surface)',
+                border: '1px solid rgba(235,229,213,0.08)',
+                borderRadius: '12px',
+                color: 'var(--color-text-1)',
+                fontFamily: 'var(--font-body)',
+                fontSize: '16px',
+                outline: 'none',
+                transition: 'border-color 0.2s',
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(235,229,213,0.08)'; }}
             />
           </div>
 
           {/* Party distribution bar */}
-          <div className="mt-4 flex items-center gap-3">
-            <div className="flex-1 flex h-2 rounded-full overflow-hidden">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div
+              style={{
+                flex: 1,
+                minWidth: '260px',
+                display: 'flex',
+                height: '8px',
+                borderRadius: '999px',
+                overflow: 'hidden',
+                background: 'rgba(235,229,213,0.06)',
+              }}
+            >
               <div
-                className="h-full transition-all duration-700"
-                style={{ width: `${(partyCounts.D / people.length) * 100}%`, backgroundColor: '#3B82F6' }}
+                style={{
+                  height: '100%',
+                  width: `${(partyCounts.D / total) * 100}%`,
+                  background: 'var(--color-dem)',
+                  transition: 'width 0.7s',
+                }}
               />
               <div
-                className="h-full transition-all duration-700"
-                style={{ width: `${(partyCounts.I / people.length) * 100}%`, backgroundColor: '#A855F7' }}
+                style={{
+                  height: '100%',
+                  width: `${(partyCounts.I / total) * 100}%`,
+                  background: 'var(--color-ind)',
+                  transition: 'width 0.7s',
+                }}
               />
               <div
-                className="h-full transition-all duration-700"
-                style={{ width: `${(partyCounts.R / people.length) * 100}%`, backgroundColor: '#EF4444' }}
+                style={{
+                  height: '100%',
+                  width: `${(partyCounts.R / total) * 100}%`,
+                  background: 'var(--color-rep)',
+                  transition: 'width 0.7s',
+                }}
               />
             </div>
-            <div className="hidden md:flex items-center gap-3">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#3B82F6' }} />
-                <span className="font-mono text-[11px] text-white/40">{partyCounts.D} Dem</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-dem)' }} />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-2)' }}>
+                  {partyCounts.D} Dem
+                </span>
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#A855F7' }} />
-                <span className="font-mono text-[11px] text-white/40">{partyCounts.I} Ind</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-ind)' }} />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-2)' }}>
+                  {partyCounts.I} Ind
+                </span>
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#EF4444' }} />
-                <span className="font-mono text-[11px] text-white/40">{partyCounts.R} Rep</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-rep)' }} />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-2)' }}>
+                  {partyCounts.R} Rep
+                </span>
               </span>
             </div>
           </div>
@@ -336,114 +634,174 @@ export default function PeoplePage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex gap-3 overflow-x-auto pb-4 mb-6 shrink-0"
-          style={{ touchAction: 'pan-x' }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          style={{
+            display: 'flex',
+            gap: '10px',
+            overflowX: 'auto',
+            paddingBottom: '8px',
+            marginBottom: '24px',
+            touchAction: 'pan-x',
+          }}
         >
           <FilterPill
-            label="ALL"
+            label="All"
             count={people.length}
             active={partyFilter === 'all'}
-            color="#FFFFFF"
+            color="var(--color-text-1)"
+            hex="#EBE5D5"
             onClick={() => setPartyFilter('all')}
           />
           <FilterPill
-            label="DEMOCRAT"
+            label="Democrat"
             count={partyCounts.D}
             active={partyFilter === 'D'}
-            color="#3B82F6"
+            color="var(--color-dem)"
+            hex={PARTY_HEX.D}
             onClick={() => setPartyFilter(partyFilter === 'D' ? 'all' : 'D')}
           />
           <FilterPill
-            label="REPUBLICAN"
+            label="Republican"
             count={partyCounts.R}
             active={partyFilter === 'R'}
-            color="#EF4444"
+            color="var(--color-rep)"
+            hex={PARTY_HEX.R}
             onClick={() => setPartyFilter(partyFilter === 'R' ? 'all' : 'R')}
           />
           <FilterPill
-            label="INDEPENDENT"
+            label="Independent"
             count={partyCounts.I}
             active={partyFilter === 'I'}
-            color="#A855F7"
+            color="var(--color-ind)"
+            hex={PARTY_HEX.I}
             onClick={() => setPartyFilter(partyFilter === 'I' ? 'all' : 'I')}
           />
 
-          <div className="w-px bg-white/10 mx-1" />
+          <div style={{ width: '1px', background: 'rgba(235,229,213,0.1)', margin: '0 4px', flexShrink: 0 }} />
 
           <FilterPill
-            label="HOUSE"
+            label="House"
             count={chamberCounts.house}
             active={chamberFilter === 'house'}
-            color="#F59E0B"
+            color="var(--color-accent-text)"
+            hex="#C5A028"
             onClick={() => setChamberFilter(chamberFilter === 'house' ? 'all' : 'house')}
           />
           <FilterPill
-            label="SENATE"
+            label="Senate"
             count={chamberCounts.senate}
             active={chamberFilter === 'senate'}
-            color="#10B981"
+            color="var(--color-accent-text)"
+            hex="#C5A028"
             onClick={() => setChamberFilter(chamberFilter === 'senate' ? 'all' : 'senate')}
           />
 
-          <div className="w-px bg-white/10 mx-1" />
+          <div style={{ width: '1px', background: 'rgba(235,229,213,0.1)', margin: '0 4px', flexShrink: 0 }} />
 
-          {/* State filter dropdown */}
+          {/* State dropdown */}
           <select
             value={stateFilter}
             onChange={(e) => setStateFilter(e.target.value)}
-            className="rounded-full border px-4 py-2 font-body text-sm font-medium transition-all duration-200 appearance-none cursor-pointer pr-8 bg-no-repeat"
             style={{
-              borderColor: stateFilter !== 'all' ? '#F59E0B' : 'rgba(255,255,255,0.1)',
-              backgroundColor: stateFilter !== 'all' ? '#F59E0B15' : 'transparent',
-              color: stateFilter !== 'all' ? '#F59E0B' : 'rgba(255,255,255,0.5)',
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E")`,
+              borderRadius: '999px',
+              padding: '8px 32px 8px 16px',
+              border: `1px solid ${stateFilter !== 'all' ? 'var(--color-accent)' : 'rgba(235,229,213,0.12)'}`,
+              background: stateFilter !== 'all' ? 'var(--color-accent-dim)' : 'transparent',
+              color: stateFilter !== 'all' ? 'var(--color-accent-text)' : 'var(--color-text-2)',
+              fontFamily: 'var(--font-body)',
+              fontSize: '13px',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              appearance: 'none',
+              cursor: 'pointer',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23B8A97A' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat',
               backgroundPosition: 'right 12px center',
+              outline: 'none',
             }}
           >
-            <option value="all" style={{ background: '#111', color: '#fff' }}>
-              STATE ({stateList.length})
+            <option value="all" style={{ background: '#0D1117', color: '#EBE5D5' }}>
+              State ({stateList.length})
             </option>
             {stateList.map(({ state, count }) => (
-              <option key={state} value={state} style={{ background: '#111', color: '#fff' }}>
+              <option key={state} value={state} style={{ background: '#0D1117', color: '#EBE5D5' }}>
                 {state} ({count})
               </option>
             ))}
           </select>
 
-          <div className="w-px bg-white/10 mx-1" />
+          <div style={{ width: '1px', background: 'rgba(235,229,213,0.1)', margin: '0 4px', flexShrink: 0 }} />
 
-          {/* ZIP code filter */}
-          <div className="flex items-center gap-1">
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+          {/* ZIP filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ position: 'relative' }}>
+              <MapPin
+                size={14}
+                style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: zipRepIds.length > 0 ? 'var(--color-green)' : 'var(--color-text-3)',
+                }}
+              />
               <input
                 type="text"
                 value={zipCode}
                 onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
                 onKeyDown={(e) => e.key === 'Enter' && handleZipSearch()}
                 placeholder="ZIP"
-                className="w-[80px] rounded-full border px-3 py-2 pl-8 font-body text-sm font-medium transition-all duration-200 bg-transparent outline-none"
                 style={{
-                  borderColor: zipRepIds.length > 0 ? '#10B981' : 'rgba(255,255,255,0.1)',
-                  backgroundColor: zipRepIds.length > 0 ? '#10B98115' : 'transparent',
-                  color: zipRepIds.length > 0 ? '#10B981' : 'rgba(255,255,255,0.5)',
+                  width: '96px',
+                  borderRadius: '999px',
+                  padding: '8px 12px 8px 32px',
+                  border: `1px solid ${zipRepIds.length > 0 ? 'var(--color-green)' : 'rgba(235,229,213,0.12)'}`,
+                  background: zipRepIds.length > 0 ? 'rgba(61,184,122,0.1)' : 'transparent',
+                  color: zipRepIds.length > 0 ? 'var(--color-green)' : 'var(--color-text-2)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  outline: 'none',
                 }}
               />
             </div>
             {zipRepIds.length > 0 && (
               <button
                 onClick={clearZip}
-                className="rounded-full border border-white/10 p-1.5 text-zinc-400 hover:text-white hover:border-white/30 transition-all"
+                style={{
+                  borderRadius: '999px',
+                  padding: '6px',
+                  border: '1px solid rgba(235,229,213,0.12)',
+                  background: 'transparent',
+                  color: 'var(--color-text-2)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
               >
-                <SearchX className="w-3.5 h-3.5" />
+                <X size={14} />
               </button>
             )}
           </div>
         </motion.div>
 
-        {/* CSV Export */}
-        <div className="flex justify-end mb-2">
+        {/* Result count + CSV */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-text-2)', letterSpacing: '0.04em' }}>
+            {filtered.length} of {people.length} members
+            {(partyFilter !== 'all' || chamberFilter !== 'all' || stateFilter !== 'all' || search || zipRepIds.length > 0) && ' (filtered)'}
+          </span>
           <CSVExport
             data={filtered}
             filename="politicians"
@@ -460,82 +818,110 @@ export default function PeoplePage() {
         {/* Cards grid */}
         <div>
           {loading ? (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                gap: '20px',
+              }}
+            >
               {Array.from({ length: 9 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-56 rounded-xl bg-white/[0.03] border border-white/5 animate-pulse"
+                  style={{
+                    height: '224px',
+                    borderRadius: '16px',
+                    background: 'var(--color-surface)',
+                    border: '1px solid rgba(235,229,213,0.06)',
+                    opacity: 0.5,
+                  }}
                 />
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-4">
-              <SearchX size={48} className="text-white/20" />
-              <p className="font-body text-xl text-white/40">
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '80px 24px',
+                background: 'var(--color-surface)',
+                border: '1px solid rgba(235,229,213,0.08)',
+                borderRadius: '16px',
+                gap: '16px',
+              }}
+            >
+              <Users size={48} style={{ color: 'var(--color-text-3)' }} />
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: '18px', color: 'var(--color-text-2)', margin: 0 }}>
                 No members match your search
               </p>
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 pb-4">
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                  gap: '20px',
+                  paddingBottom: '16px',
+                }}
+              >
                 {filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((person, idx) => (
-                  <PersonCard
-                    key={person.person_id}
-                    person={person}
-                    index={idx}
-                  />
+                  <PersonCard key={person.person_id} person={person} index={idx} />
                 ))}
               </div>
+
               {/* Pagination */}
-              {(() => {
-                const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-                if (totalPages <= 1) return null;
-                const pages: (number | '...')[] = [];
-                if (totalPages <= 7) {
-                  for (let i = 1; i <= totalPages; i++) pages.push(i);
-                } else {
-                  pages.push(1);
-                  if (currentPage > 3) pages.push('...');
-                  for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
-                  if (currentPage < totalPages - 2) pages.push('...');
-                  pages.push(totalPages);
-                }
-                return (
-                  <div className="flex items-center justify-center gap-2 pb-8 pt-4">
-                    <button
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 font-body text-sm text-white/50 transition-all hover:border-white/20 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      &larr;
-                    </button>
-                    {pages.map((page, i) =>
-                      page === '...' ? (
-                        <span key={`dots-${i}`} className="px-2 text-white/20 font-mono text-sm">...</span>
-                      ) : (
-                        <button
-                          key={page}
-                          onClick={() => setCurrentPage(page)}
-                          className={`rounded-lg px-3.5 py-2 font-mono text-sm font-medium transition-all ${
-                            page === currentPage
-                              ? 'bg-blue-500 text-white'
-                              : 'border border-white/10 bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      ),
-                    )}
-                    <button
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 font-body text-sm text-white/50 transition-all hover:border-white/20 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      &rarr;
-                    </button>
-                  </div>
-                );
-              })()}
+              {totalPages > 1 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    paddingTop: '24px',
+                    paddingBottom: '8px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <PageButton
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  >
+                    ←
+                  </PageButton>
+                  {pageNumbers.map((page, i) =>
+                    page === '...' ? (
+                      <span
+                        key={`dots-${i}`}
+                        style={{
+                          padding: '0 4px',
+                          color: 'var(--color-text-3)',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '13px',
+                        }}
+                      >
+                        …
+                      </span>
+                    ) : (
+                      <PageButton
+                        key={page}
+                        active={page === currentPage}
+                        onClick={() => setCurrentPage(page as number)}
+                      >
+                        {page}
+                      </PageButton>
+                    )
+                  )}
+                  <PageButton
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    →
+                  </PageButton>
+                </div>
+              )}
             </>
           )}
         </div>

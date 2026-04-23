@@ -1,25 +1,22 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Search, Share2, ArrowLeft, Play, Pause, RotateCcw } from 'lucide-react';
 import InfluenceGraph from '../components/InfluenceGraph';
 import CanvasErrorBoundary from '../components/CanvasErrorBoundary';
 import {
   fetchInfluenceNetwork,
-  type NetworkNode,
-  type NetworkEdge,
   type InfluenceNetworkResponse,
 } from '../api/influence';
-
-// ── Search ──
-
 import { getApiBaseUrl } from '../api/client';
 
 const API_BASE = getApiBaseUrl();
 
+// ── Search ──
+
 interface SearchResult {
   id: string;
   label: string;
-  type: string;       // 'person' | 'finance' | 'health' | 'tech' | 'energy'
+  type: string; // 'person' | 'finance' | 'health' | 'tech' | 'energy' | ...
   subtitle?: string;
 }
 
@@ -30,9 +27,7 @@ async function searchEntities(q: string): Promise<SearchResult[]> {
     if (!res.ok) return [];
     const data = await res.json();
 
-    // The /search endpoint returns { politicians: [...], companies: [...], query }
     const results: SearchResult[] = [];
-
     if (Array.isArray(data.politicians)) {
       for (const p of data.politicians) {
         results.push({
@@ -43,7 +38,6 @@ async function searchEntities(q: string): Promise<SearchResult[]> {
         });
       }
     }
-
     if (Array.isArray(data.companies)) {
       for (const c of data.companies) {
         results.push({
@@ -54,22 +48,73 @@ async function searchEntities(q: string): Promise<SearchResult[]> {
         });
       }
     }
-
     return results;
   } catch {
     return [];
   }
 }
 
-// ── Edge type labels ──
+// ── Edge type palette (design-token aligned) ──
 
-const EDGE_TYPE_OPTIONS = [
-  { key: 'donation', label: 'Donations', color: '#10B981' },
-  { key: 'lobbying', label: 'Lobbying', color: '#F59E0B' },
-  { key: 'trade', label: 'Trades', color: '#EF4444' },
-  { key: 'legislation', label: 'Bills', color: '#3B82F6' },
-  { key: 'contract', label: 'Contracts', color: '#6366F1' },
+const EDGE_TYPE_OPTIONS: { key: string; label: string; hex: string; token: string }[] = [
+  { key: 'donation', label: 'Donations', hex: '#3DB87A', token: 'var(--color-green)' },
+  { key: 'lobbying', label: 'Lobbying', hex: '#C5A028', token: 'var(--color-accent-text)' },
+  { key: 'trade', label: 'Trades', hex: '#E63946', token: 'var(--color-red)' },
+  { key: 'legislation', label: 'Bills', hex: '#4A7FDE', token: 'var(--color-dem)' },
+  { key: 'contract', label: 'Contracts', hex: '#B06FD8', token: 'var(--color-ind)' },
 ];
+
+const EXAMPLES: { label: string; type: string; id: string }[] = [
+  { label: 'Nancy Pelosi', type: 'person', id: 'nancy_pelosi' },
+  { label: 'Ted Cruz', type: 'person', id: 'ted_cruz' },
+  { label: 'JPMorgan Chase', type: 'finance', id: 'jpmorgan' },
+  { label: 'Pfizer', type: 'health', id: 'pfizer' },
+  { label: 'Alphabet (Google)', type: 'tech', id: 'alphabet' },
+  { label: 'ExxonMobil', type: 'energy', id: 'exxonmobil' },
+];
+
+// ── Shared styles ──
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text-1)',
+  display: 'flex',
+  flexDirection: 'column',
+};
+
+const topBarStyle: React.CSSProperties = {
+  borderBottom: '1px solid rgba(235,229,213,0.08)',
+  background: 'rgba(7,9,12,0.85)',
+  backdropFilter: 'blur(8px)',
+  padding: '14px 24px',
+};
+
+const backLink: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '12px',
+  color: 'var(--color-text-2)',
+  textDecoration: 'none',
+  transition: 'color 0.2s',
+};
+
+const titleBlock: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+};
+
+const fieldLabel: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '10px',
+  fontWeight: 700,
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-3)',
+};
 
 // ── Page ──
 
@@ -77,30 +122,25 @@ export default function InfluenceNetworkPage() {
   const { entityType, entityId } = useParams<{ entityType?: string; entityId?: string }>();
   const navigate = useNavigate();
 
-  // Network data
   const [data, setData] = useState<InfluenceNetworkResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Controls
   const [depth, setDepth] = useState(1);
   const [visibleTypes, setVisibleTypes] = useState<Set<string>>(
     new Set(EDGE_TYPE_OPTIONS.map((o) => o.key)),
   );
 
-  // Search
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Timeline playback
   const [timelineYear, setTimelineYear] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [yearRange, setYearRange] = useState<[number, number]>([2020, new Date().getFullYear()]);
   const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load network
   useEffect(() => {
     let cancelled = false;
     if (!entityType || !entityId) return;
@@ -113,7 +153,6 @@ export default function InfluenceNetworkPage() {
     return () => { cancelled = true; };
   }, [entityType, entityId, depth]);
 
-  // Search debounce
   useEffect(() => {
     let cancelled = false;
     if (!searchQuery || searchQuery.length < 2) {
@@ -126,7 +165,6 @@ export default function InfluenceNetworkPage() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [searchQuery]);
 
-  // Close search dropdown on click outside or Escape
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
@@ -144,7 +182,6 @@ export default function InfluenceNetworkPage() {
     };
   }, []);
 
-  // Compute year range from edge data
   useEffect(() => {
     if (!data?.edges?.length) return;
     let min = Infinity;
@@ -164,12 +201,10 @@ export default function InfluenceNetworkPage() {
     if (min !== Infinity && max !== -Infinity) {
       setYearRange([min, max]);
     }
-    // Reset timeline state when data changes
     setTimelineYear(null);
     setIsPlaying(false);
   }, [data]);
 
-  // Playback interval
   useEffect(() => {
     if (isPlaying) {
       playIntervalRef.current = setInterval(() => {
@@ -192,7 +227,6 @@ export default function InfluenceNetworkPage() {
     if (isPlaying) {
       setIsPlaying(false);
     } else {
-      // If at end or no year selected, start from beginning
       if (timelineYear == null || timelineYear >= yearRange[1]) {
         setTimelineYear(yearRange[0]);
       }
@@ -210,7 +244,6 @@ export default function InfluenceNetworkPage() {
       setSearchQuery('');
       setSearchResults([]);
       setSearchOpen(false);
-      // Map search result types to influence network entity types
       const typeMap: Record<string, string> = { technology: 'tech' };
       const mappedType = typeMap[result.type] || result.type;
       navigate(`/influence/network/${mappedType}/${result.id}`);
@@ -231,56 +264,128 @@ export default function InfluenceNetworkPage() {
   const edges = data?.edges || [];
   const stats = data?.stats;
 
-  // If no entity specified, show search landing
   const showLanding = !entityType || !entityId;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+    <main id="main-content" style={pageShell}>
       {/* Top bar */}
-      <div className="border-b border-white/10 bg-slate-950/80 backdrop-blur-sm px-6 py-4 lg:px-12">
-        <div className="flex items-center gap-4 flex-wrap">
+      <div style={topBarStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <Link
             to="/influence"
-            className="text-white/40 hover:text-white/70 flex items-center gap-1.5 text-sm no-underline"
+            style={backLink}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
           >
-            <ArrowLeft className="w-4 h-4" />
-            Influence Explorer
+            <ArrowLeft size={14} /> Influence Explorer
           </Link>
 
-          <div className="flex items-center gap-2">
-            <Share2 className="w-5 h-5 text-blue-400" />
-            <h1 className="text-lg font-bold text-white">Influence Network</h1>
+          <div style={titleBlock}>
+            <Share2 size={16} style={{ color: 'var(--color-accent-text)' }} />
+            <h1
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '15px',
+                fontWeight: 700,
+                color: 'var(--color-text-1)',
+                margin: 0,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              Influence Network
+            </h1>
           </div>
 
-          {/* Entity search */}
-          <div ref={searchContainerRef} className="relative ml-auto w-72">
-            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-              <Search className="w-4 h-4 text-white/30" />
+          {/* Search */}
+          <div ref={searchContainerRef} style={{ position: 'relative', marginLeft: 'auto', width: '288px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px',
+                borderRadius: '10px',
+                border: '1px solid rgba(235,229,213,0.08)',
+                background: 'var(--color-surface)',
+              }}
+            >
+              <Search size={14} style={{ color: 'var(--color-text-3)' }} />
               <input
                 type="text"
-                placeholder="Search person or company..."
-                className="bg-transparent text-sm text-white placeholder-white/30 outline-none w-full"
+                placeholder="Search person or company…"
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setSearchOpen(true);
                 }}
                 onFocus={() => setSearchOpen(true)}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: 'var(--color-text-1)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '13px',
+                }}
               />
             </div>
             {searchOpen && searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg border border-white/10 bg-slate-900 shadow-xl max-h-64 overflow-y-auto">
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  marginTop: '4px',
+                  zIndex: 50,
+                  borderRadius: '10px',
+                  border: '1px solid rgba(235,229,213,0.08)',
+                  background: 'var(--color-surface-2)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                  maxHeight: '260px',
+                  overflowY: 'auto',
+                }}
+              >
                 {searchResults.map((r) => (
                   <button
                     key={`${r.type}:${r.id}`}
-                    className="w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors flex items-center justify-between"
                     onClick={() => handleSelectEntity(r)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '10px 14px',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(235,229,213,0.04)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                   >
-                    <div>
-                      <div className="text-sm text-white font-medium">{r.label}</div>
-                      <div className="text-xs text-white/40">{r.subtitle}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-1)', fontWeight: 500 }}>
+                        {r.label}
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)' }}>
+                        {r.subtitle}
+                      </div>
                     </div>
-                    <span className="text-[10px] uppercase font-mono text-white/30">{r.type}</span>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '10px',
+                        color: 'var(--color-text-3)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        marginLeft: '12px',
+                      }}
+                    >
+                      {r.type}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -288,54 +393,83 @@ export default function InfluenceNetworkPage() {
           </div>
         </div>
 
-        {/* Controls row */}
         {!showLanding && (
-          <div className="mt-3 flex items-center gap-6 flex-wrap">
+          <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
             {/* Edge type filters */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-white/40 uppercase tracking-wider">Show:</span>
-              {EDGE_TYPE_OPTIONS.map((opt) => (
-                <label
-                  key={opt.key}
-                  className="flex items-center gap-1.5 cursor-pointer select-none"
-                >
-                  <input
-                    type="checkbox"
-                    checked={visibleTypes.has(opt.key)}
-                    onChange={() => toggleEdgeType(opt.key)}
-                    className="accent-blue-500 w-3 h-3"
-                  />
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: visibleTypes.has(opt.key) ? opt.color : 'rgba(255,255,255,0.3)' }}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <span style={fieldLabel}>Show</span>
+              {EDGE_TYPE_OPTIONS.map((opt) => {
+                const active = visibleTypes.has(opt.key);
+                return (
+                  <label
+                    key={opt.key}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                    }}
                   >
-                    {opt.label}
-                  </span>
-                </label>
-              ))}
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => toggleEdgeType(opt.key)}
+                      style={{ accentColor: opt.hex, width: '12px', height: '12px' }}
+                    />
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        color: active ? opt.token : 'var(--color-text-3)',
+                      }}
+                    >
+                      {opt.label}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
 
             {/* Depth toggle */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-white/40 uppercase tracking-wider">Depth:</span>
-              <button
-                className={`px-2.5 py-1 rounded text-xs font-mono ${depth === 1 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'text-white/40 hover:text-white/60'}`}
-                onClick={() => setDepth(1)}
-              >
-                1 hop
-              </button>
-              <button
-                className={`px-2.5 py-1 rounded text-xs font-mono ${depth === 2 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'text-white/40 hover:text-white/60'}`}
-                onClick={() => setDepth(2)}
-              >
-                2 hops
-              </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={fieldLabel}>Depth</span>
+              {[1, 2].map((d) => {
+                const active = depth === d;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => setDepth(d)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      border: active ? '1px solid rgba(197,160,40,0.33)' : '1px solid transparent',
+                      background: active ? 'var(--color-accent-dim)' : 'transparent',
+                      color: active ? 'var(--color-accent-text)' : 'var(--color-text-3)',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {d} hop{d > 1 ? 's' : ''}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Stats */}
             {stats && (
-              <div className="ml-auto text-xs text-white/30 font-mono">
-                {stats.total_nodes} nodes &middot; {stats.total_edges} connections
+              <div
+                style={{
+                  marginLeft: 'auto',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px',
+                  color: 'var(--color-text-3)',
+                }}
+              >
+                {stats.total_nodes} nodes · {stats.total_edges} connections
               </div>
             )}
           </div>
@@ -344,35 +478,54 @@ export default function InfluenceNetworkPage() {
 
       {/* Timeline playback bar */}
       {!showLanding && nodes.length > 0 && (
-        <div className="border-b border-white/10 bg-zinc-900/90 backdrop-blur-sm px-6 py-3 lg:px-12">
-          <div className="flex items-center gap-4">
-            {/* Play/Pause button */}
+        <div
+          style={{
+            borderBottom: '1px solid rgba(235,229,213,0.08)',
+            background: 'var(--color-surface)',
+            padding: '12px 24px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <button
               onClick={handlePlayPause}
-              className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
-                isPlaying
-                  ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                  : 'bg-zinc-700 text-white/70 hover:bg-zinc-600 hover:text-white'
-              }`}
-              title={isPlaying ? 'Pause' : 'Play'}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                border: '1px solid rgba(235,229,213,0.08)',
+                background: isPlaying ? 'rgba(61,184,122,0.12)' : 'var(--color-surface-2)',
+                color: isPlaying ? 'var(--color-green)' : 'var(--color-text-2)',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
             >
-              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+              {isPlaying ? <Pause size={14} /> : <Play size={14} style={{ marginLeft: '2px' }} />}
             </button>
 
-            {/* Year display */}
-            <div className="min-w-[4rem] text-center">
+            <div style={{ minWidth: '72px', textAlign: 'center' }}>
               <span
-                className={`text-2xl font-bold text-white tabular-nums ${
-                  isPlaying ? 'animate-pulse' : ''
-                }`}
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontStyle: 'italic',
+                  fontWeight: 900,
+                  fontSize: '24px',
+                  color: 'var(--color-text-1)',
+                  fontVariantNumeric: 'tabular-nums',
+                  opacity: isPlaying ? 0.85 : 1,
+                }}
               >
                 {timelineYear ?? '—'}
               </span>
             </div>
 
-            {/* Range slider */}
-            <div className="flex-1 flex items-center gap-3">
-              <span className="text-xs text-white/40 font-mono">{yearRange[0]}</span>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)' }}>
+                {yearRange[0]}
+              </span>
               <input
                 type="range"
                 min={yearRange[0]}
@@ -382,55 +535,112 @@ export default function InfluenceNetworkPage() {
                   setTimelineYear(Number(e.target.value));
                   setIsPlaying(false);
                 }}
-                className="flex-1 h-1.5 appearance-none rounded-full bg-zinc-700 cursor-pointer
-                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
-                  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-400
-                  [&::-webkit-slider-thumb]:shadow-[0_0_6px_rgba(16,185,129,0.5)] [&::-webkit-slider-thumb]:cursor-pointer
-                  [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full
-                  [&::-moz-range-thumb]:bg-emerald-400 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+                style={{
+                  flex: 1,
+                  accentColor: 'var(--color-accent)',
+                  cursor: 'pointer',
+                }}
               />
-              <span className="text-xs text-white/40 font-mono">{yearRange[1]}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)' }}>
+                {yearRange[1]}
+              </span>
             </div>
 
-            {/* Show All button */}
             <button
               onClick={handleShowAll}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                timelineYear == null
-                  ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                  : 'text-white/50 hover:text-white/80 border border-zinc-700 hover:border-zinc-500'
-              }`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: timelineYear == null ? '1px solid rgba(197,160,40,0.33)' : '1px solid rgba(235,229,213,0.08)',
+                background: timelineYear == null ? 'var(--color-accent-dim)' : 'transparent',
+                color: timelineYear == null ? 'var(--color-accent-text)' : 'var(--color-text-3)',
+                fontFamily: 'var(--font-body)',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
             >
-              <RotateCcw className="w-3 h-3" />
-              Show All
+              <RotateCcw size={12} /> Show All
             </button>
           </div>
         </div>
       )}
 
       {/* Main content */}
-      <div className="flex-1 relative">
+      <div style={{ flex: 1, position: 'relative' }}>
         {showLanding ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[60vh] gap-6 px-8">
-            <Share2 className="w-16 h-16 text-blue-400/40" />
-            <h2 className="text-2xl font-bold text-white/80">Influence Network Graph</h2>
-            <p className="text-white/40 text-center max-w-lg">
-              Explore the web of connections between politicians, companies, lobbying groups, and legislation.
-              Search for a person or company above, or try one of the examples below.
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '60vh',
+              gap: '20px',
+              padding: '48px 24px',
+            }}
+          >
+            <Share2 size={56} style={{ color: 'var(--color-accent-text)', opacity: 0.4 }} />
+            <h2
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontStyle: 'italic',
+                fontWeight: 900,
+                fontSize: 'clamp(32px, 5vw, 52px)',
+                lineHeight: 1.05,
+                letterSpacing: '-0.02em',
+                margin: 0,
+                color: 'var(--color-text-1)',
+                textAlign: 'center',
+              }}
+            >
+              Influence <span style={{ color: 'var(--color-accent-text)' }}>network</span> graph
+            </h2>
+            <p
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '15px',
+                lineHeight: 1.6,
+                color: 'var(--color-text-2)',
+                textAlign: 'center',
+                maxWidth: '560px',
+                margin: 0,
+              }}
+            >
+              Explore the web of connections between politicians, companies, lobbying groups, and
+              legislation. Search for a person or company above, or try one of the examples below.
             </p>
-            <div className="flex flex-wrap justify-center gap-3 mt-2">
-              {[
-                { label: 'Nancy Pelosi', type: 'person', id: 'nancy_pelosi' },
-                { label: 'Ted Cruz', type: 'person', id: 'ted_cruz' },
-                { label: 'JPMorgan Chase', type: 'finance', id: 'jpmorgan' },
-                { label: 'Pfizer', type: 'health', id: 'pfizer' },
-                { label: 'Alphabet (Google)', type: 'tech', id: 'alphabet' },
-                { label: 'ExxonMobil', type: 'energy', id: 'exxonmobil' },
-              ].map((ex) => (
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px', marginTop: '8px' }}>
+              {EXAMPLES.map((ex) => (
                 <button
                   key={ex.id}
                   onClick={() => navigate(`/influence/network/${ex.type}/${ex.id}`)}
-                  className="px-4 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-sm text-white/60 hover:text-white hover:border-blue-500/40 hover:bg-blue-500/10 transition-all"
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(235,229,213,0.08)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-text-2)',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(197,160,40,0.33)';
+                    e.currentTarget.style.background = 'var(--color-accent-dim)';
+                    e.currentTarget.style.color = 'var(--color-accent-text)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(235,229,213,0.08)';
+                    e.currentTarget.style.background = 'var(--color-surface)';
+                    e.currentTarget.style.color = 'var(--color-text-2)';
+                  }}
                 >
                   {ex.label}
                 </button>
@@ -438,18 +648,40 @@ export default function InfluenceNetworkPage() {
             </div>
           </div>
         ) : loading ? (
-          <div className="flex items-center justify-center h-full min-h-[60vh]">
-            <div className="flex flex-col items-center gap-3">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-              <span className="text-sm text-white/40">Building network graph...</span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '60vh',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <div
+                role="status"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  border: '2px solid var(--color-accent)',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                }}
+              >
+                <span style={{ position: 'absolute', left: '-9999px' }}>Loading…</span>
+              </div>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-text-3)' }}>
+                Building network graph…
+              </span>
             </div>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center h-full min-h-[60vh]">
-            <div className="text-center">
-              <p className="text-red-400 text-sm mb-2">{error}</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-red)', margin: '0 0 8px' }}>
+                {error}
+              </p>
               <button
-                className="text-xs text-blue-400 hover:underline"
                 onClick={() => {
                   setError(null);
                   setLoading(true);
@@ -458,16 +690,27 @@ export default function InfluenceNetworkPage() {
                     .catch((err) => setError(err.message))
                     .finally(() => setLoading(false));
                 }}
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '12px',
+                  color: 'var(--color-accent-text)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                }}
               >
                 Retry
               </button>
             </div>
           </div>
         ) : nodes.length === 0 ? (
-          <div className="flex items-center justify-center h-full min-h-[60vh]">
-            <div className="text-center">
-              <p className="text-white/40 text-sm">No connections found for this entity.</p>
-              <p className="text-white/25 text-xs mt-1">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-2)', margin: 0 }}>
+                No connections found for this entity.
+              </p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-3)', marginTop: '4px' }}>
                 This entity may not have donation, lobbying, or trade data yet.
               </p>
             </div>
@@ -483,6 +726,8 @@ export default function InfluenceNetworkPage() {
           </CanvasErrorBoundary>
         )}
       </div>
-    </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </main>
   );
 }

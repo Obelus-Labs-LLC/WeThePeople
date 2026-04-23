@@ -1,19 +1,31 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Users, FileText, Search, ChevronDown, ChevronUp, ExternalLink, ArrowLeft } from 'lucide-react';
+import {
+  Users,
+  FileText,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  ArrowLeft,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
-import { PoliticsSectorHeader } from '../components/SectorHeader';
-import SpotlightCard from '../components/SpotlightCard';
 import { fetchStateDashboard, fetchStateLegislators, fetchStateBills } from '../api/state';
 import type { StateDashboardData, StateLegislator, StateBill } from '../api/state';
 import { fmtNum } from '../utils/format';
 
-// ── Constants ──
+// ── Party / chamber config (design tokens + hex for alpha interpolation) ──
 
-const PARTY_COLORS: Record<string, string> = {
-  D: '#3B82F6',
-  R: '#EF4444',
-  I: '#A855F7',
+const PARTY_TOKEN: Record<string, string> = {
+  D: 'var(--color-dem)',
+  R: 'var(--color-rep)',
+  I: 'var(--color-ind)',
+};
+
+const PARTY_HEX: Record<string, string> = {
+  D: '#4A7FDE',
+  R: '#E05555',
+  I: '#B06FD8',
 };
 
 const PARTY_LABELS: Record<string, string> = {
@@ -27,6 +39,61 @@ const CHAMBER_LABELS: Record<string, string> = {
   lower: 'House',
 };
 
+// ── Shared styles ──
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text-1)',
+};
+
+const contentWrap: React.CSSProperties = {
+  maxWidth: '1400px',
+  margin: '0 auto',
+  padding: '72px 32px 96px',
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '6px 12px',
+  borderRadius: '999px',
+  background: 'var(--color-accent-dim)',
+  color: 'var(--color-accent-text)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  marginBottom: '20px',
+};
+
+const cardStyle: React.CSSProperties = {
+  background: 'var(--color-surface)',
+  border: '1px solid rgba(235,229,213,0.08)',
+  borderRadius: '16px',
+  padding: '24px',
+};
+
+const cardHeader: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+  color: 'var(--color-text-2)',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  margin: '0 0 20px',
+};
+
+const backLink: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '12px',
+  color: 'var(--color-text-2)',
+  textDecoration: 'none',
+  marginBottom: '20px',
+  transition: 'color 0.2s',
+};
+
 // ── Page ──
 
 export default function StateDashboardPage() {
@@ -37,18 +104,12 @@ export default function StateDashboardPage() {
   const [legislators, setLegislators] = useState<StateLegislator[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Legislator filters
   const [legSearch, setLegSearch] = useState('');
   const [chamberFilter, setChamberFilter] = useState<string>('');
   const [partyFilter, setPartyFilter] = useState<string>('');
   const [legOffset, setLegOffset] = useState(0);
   const [legTotal, setLegTotal] = useState(0);
 
-  // Bill state
-  const [billSearch, setBillSearch] = useState('');
-  const [expandedBill, setExpandedBill] = useState<number | null>(null);
-
-  // Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'legislators' | 'bills'>('overview');
 
   const initialLoadedRef = useRef(false);
@@ -72,7 +133,6 @@ export default function StateDashboardPage() {
     return () => { cancelled = true; };
   }, [code]);
 
-  // Refetch legislators when filters change
   useEffect(() => {
     let cancelled = false;
     if (!code || loading) return;
@@ -95,16 +155,27 @@ export default function StateDashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      <div style={{ ...pageShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div
+          style={{
+            width: '32px',
+            height: '32px',
+            border: '2px solid var(--color-accent)',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }}
+        />
       </div>
     );
   }
 
   if (!dashboard) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="font-body text-sm text-white/40">State not found.</p>
+      <div style={{ ...pageShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-2)' }}>
+          State not found.
+        </p>
       </div>
     );
   }
@@ -116,45 +187,82 @@ export default function StateDashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen">
-      <div className="relative z-10 mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-14">
-        {/* Nav */}
-        <motion.nav
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="mb-10"
-        >
-          <PoliticsSectorHeader />
-        </motion.nav>
-
-        {/* Header */}
+    <div style={pageShell}>
+      <div style={contentWrap}>
+        {/* Back link */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="mb-8"
+          transition={{ duration: 0.5 }}
         >
           <Link
             to="/politics/states"
-            className="inline-flex items-center gap-1.5 font-body text-xs text-white/40 hover:text-white/60 transition-colors no-underline mb-4"
+            style={backLink}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
           >
-            <ArrowLeft size={14} />
-            All States
+            <ArrowLeft size={14} /> All States
           </Link>
-          <div className="flex items-center gap-4">
-            <h1 className="font-heading text-4xl font-bold tracking-tight text-white lg:text-5xl">
+        </motion.div>
+
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.05 }}
+          style={{ marginBottom: '32px' }}
+        >
+          <span style={eyebrowStyle}>Politics / State Dashboard</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '20px', flexWrap: 'wrap', marginBottom: '16px' }}>
+            <h1
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontStyle: 'italic',
+                fontWeight: 900,
+                fontSize: 'clamp(44px, 7vw, 76px)',
+                lineHeight: 1.02,
+                letterSpacing: '-0.02em',
+                margin: 0,
+                color: 'var(--color-text-1)',
+              }}
+            >
               {dashboard.name}
             </h1>
-            <span className="font-mono text-2xl text-blue-400 font-bold">{dashboard.code}</span>
-          </div>
-          <div className="mt-3 flex items-center gap-6">
-            <span className="font-mono text-sm text-white/40">
-              <Users size={14} className="inline mr-1.5" />
-              {fmtNum(dashboard.total_legislators)} legislators
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '28px',
+                fontWeight: 700,
+                color: 'var(--color-accent-text)',
+              }}
+            >
+              {dashboard.code}
             </span>
-            <span className="font-mono text-sm text-white/40">
-              <FileText size={14} className="inline mr-1.5" />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '13px',
+                color: 'var(--color-text-2)',
+              }}
+            >
+              <Users size={14} /> {fmtNum(dashboard.total_legislators)} legislators
+            </span>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '13px',
+                color: 'var(--color-text-2)',
+              }}
+            >
+              <FileText size={14} />
               {dashboard.total_bills > 0 ? `${fmtNum(dashboard.total_bills)} bills` : 'State bill data coming soon'}
             </span>
           </div>
@@ -162,20 +270,33 @@ export default function StateDashboardPage() {
 
         {/* Tabs */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="flex gap-1 mb-8 border-b border-white/10"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, delay: 0.15 }}
+          style={{
+            display: 'flex',
+            gap: '4px',
+            marginBottom: '32px',
+            borderBottom: '1px solid rgba(235,229,213,0.08)',
+          }}
         >
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2.5 font-body text-sm font-medium transition-colors border-b-2 -mb-[1px] cursor-pointer ${
-                activeTab === tab.key
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-white/40 hover:text-white/60'
-              }`}
+              style={{
+                padding: '12px 20px',
+                border: 'none',
+                borderBottom: `2px solid ${activeTab === tab.key ? 'var(--color-accent)' : 'transparent'}`,
+                background: 'transparent',
+                color: activeTab === tab.key ? 'var(--color-accent-text)' : 'var(--color-text-2)',
+                fontFamily: 'var(--font-body)',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                marginBottom: '-1px',
+                transition: 'all 0.2s',
+              }}
             >
               {tab.label}
             </button>
@@ -183,9 +304,7 @@ export default function StateDashboardPage() {
         </motion.div>
 
         {/* Tab Content */}
-        {activeTab === 'overview' && (
-          <OverviewTab dashboard={dashboard} />
-        )}
+        {activeTab === 'overview' && <OverviewTab dashboard={dashboard} />}
         {activeTab === 'legislators' && (
           <LegislatorsTab
             legislators={legislators}
@@ -209,13 +328,44 @@ export default function StateDashboardPage() {
         )}
 
         {/* Footer */}
-        <div className="mt-16 border-t border-white/5 pt-6 flex items-center justify-between">
-          <Link to="/politics/states" className="font-body text-sm text-white/50 hover:text-white transition-colors no-underline">
-            &larr; State Explorer
+        <div
+          style={{
+            marginTop: '64px',
+            borderTop: '1px solid rgba(235,229,213,0.06)',
+            paddingTop: '24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Link
+            to="/politics/states"
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '13px',
+              color: 'var(--color-text-2)',
+              textDecoration: 'none',
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
+          >
+            ← State Explorer
           </Link>
-          <span className="font-mono text-[10px] text-white/15">WeThePeople</span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '10px',
+              color: 'var(--color-text-3)',
+              letterSpacing: '0.12em',
+            }}
+          >
+            WeThePeople
+          </span>
         </div>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -230,70 +380,70 @@ function OverviewTab({ dashboard }: { dashboard: StateDashboardData }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
-      className="space-y-8"
+      style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
     >
-      {/* Party Breakdown */}
-      <SpotlightCard
-        className="rounded-xl border border-white/10 bg-white/[0.03]"
-        spotlightColor="rgba(59, 130, 246, 0.08)"
-      >
-        <div className="p-6">
-          <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white mb-5">
-            Party Breakdown
-          </h2>
+      {/* Party breakdown */}
+      <div style={cardStyle}>
+        <h2 style={cardHeader}>Party Breakdown</h2>
 
-          {/* Overall bar */}
-          <div className="mb-6">
-            <p className="font-mono text-xs text-white/30 mb-2">Overall</p>
-            <PartyBar parties={dashboard.by_party} total={dashboard.total_legislators} />
-          </div>
-
-          {/* Per-chamber bars */}
-          {chambers.map((chamber) => (
-            <div key={chamber} className="mb-4">
-              <p className="font-mono text-xs text-white/30 mb-2">
-                {CHAMBER_LABELS[chamber] || chamber}
-                <span className="ml-2 text-white/20">
-                  ({Object.values(dashboard.party_by_chamber[chamber]).reduce((s, v) => s + v, 0)} members)
-                </span>
-              </p>
-              <PartyBar
-                parties={dashboard.party_by_chamber[chamber]}
-                total={Object.values(dashboard.party_by_chamber[chamber]).reduce((s, v) => s + v, 0)}
-              />
-            </div>
-          ))}
+        <div style={{ marginBottom: '24px' }}>
+          <p
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '11px',
+              color: 'var(--color-text-3)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              margin: '0 0 8px',
+            }}
+          >
+            Overall
+          </p>
+          <PartyBar parties={dashboard.by_party} total={dashboard.total_legislators} />
         </div>
-      </SpotlightCard>
 
-      {/* Recent Bills */}
-      {dashboard.recent_bills.length > 0 && (
-        <SpotlightCard
-          className="rounded-xl border border-white/10 bg-white/[0.03]"
-          spotlightColor="rgba(245, 158, 11, 0.08)"
-        >
-          <div className="p-6">
-            <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-white mb-4">
-              Recent Bills
-            </h2>
-            <div className="space-y-3">
-              {dashboard.recent_bills.map((bill) => (
-                <BillRow key={bill.bill_id} bill={bill} />
-              ))}
+        {chambers.map((chamber) => {
+          const subtotal = Object.values(dashboard.party_by_chamber[chamber]).reduce((s, v) => s + v, 0);
+          return (
+            <div key={chamber} style={{ marginBottom: '16px' }}>
+              <p
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px',
+                  color: 'var(--color-text-3)',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  margin: '0 0 8px',
+                }}
+              >
+                {CHAMBER_LABELS[chamber] || chamber}{' '}
+                <span style={{ color: 'rgba(235,229,213,0.25)' }}>({subtotal} members)</span>
+              </p>
+              <PartyBar parties={dashboard.party_by_chamber[chamber]} total={subtotal} />
             </div>
+          );
+        })}
+      </div>
+
+      {/* Recent bills */}
+      {dashboard.recent_bills.length > 0 && (
+        <div style={cardStyle}>
+          <h2 style={cardHeader}>Recent Bills</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {dashboard.recent_bills.map((bill) => (
+              <BillRow key={bill.bill_id} bill={bill} />
+            ))}
           </div>
-        </SpotlightCard>
+        </div>
       )}
     </motion.div>
   );
 }
 
-// ── Party Bar ──
+// ── Party bar ──
 
 function PartyBar({ parties, total }: { parties: Record<string, number>; total: number }) {
   if (total === 0) return null;
-
-  // Sort: D first, then R, then others
   const order = ['D', 'R', 'I'];
   const sorted = Object.entries(parties).sort(([a], [b]) => {
     const ai = order.indexOf(a);
@@ -302,22 +452,43 @@ function PartyBar({ parties, total }: { parties: Record<string, number>; total: 
   });
 
   return (
-    <div className="flex h-8 overflow-hidden rounded-lg">
+    <div
+      style={{
+        display: 'flex',
+        height: '32px',
+        borderRadius: '8px',
+        overflow: 'hidden',
+        background: 'rgba(235,229,213,0.06)',
+      }}
+    >
       {sorted.map(([party, count]) => {
         const pct = (count / total) * 100;
         if (pct === 0) return null;
-        const color = PARTY_COLORS[party] || '#6B7280';
+        const color = PARTY_TOKEN[party] || 'rgba(235,229,213,0.3)';
         const label = PARTY_LABELS[party] || party;
 
         return (
           <div
             key={party}
-            className="flex items-center justify-center transition-all"
-            style={{ width: `${pct}%`, backgroundColor: color }}
             title={`${label}: ${count} (${pct.toFixed(1)}%)`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: `${pct}%`,
+              background: color,
+              transition: 'width 0.6s',
+            }}
           >
             {pct > 10 && (
-              <span className="font-mono text-[10px] font-bold text-white/90">
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: '#07090C',
+                }}
+              >
                 {party} {count}
               </span>
             )}
@@ -328,7 +499,7 @@ function PartyBar({ parties, total }: { parties: Record<string, number>; total: 
   );
 }
 
-// ── Bill Row ──
+// ── Bill row ──
 
 function BillRow({ bill }: { bill: StateBill }) {
   const [expanded, setExpanded] = useState(false);
@@ -336,33 +507,71 @@ function BillRow({ bill }: { bill: StateBill }) {
   return (
     <button
       onClick={() => setExpanded(!expanded)}
-      className="w-full text-left p-3 rounded-lg hover:bg-white/[0.02] transition-colors cursor-pointer"
+      style={{
+        width: '100%',
+        textAlign: 'left',
+        padding: '12px',
+        borderRadius: '10px',
+        border: '1px solid rgba(235,229,213,0.06)',
+        background: expanded ? 'var(--color-surface-2)' : 'transparent',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+      }}
+      onMouseEnter={(e) => {
+        if (!expanded) e.currentTarget.style.background = 'rgba(235,229,213,0.03)';
+      }}
+      onMouseLeave={(e) => {
+        if (!expanded) e.currentTarget.style.background = 'transparent';
+      }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="rounded bg-blue-500/10 px-2 py-0.5 font-mono text-[10px] font-bold text-blue-400">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <span
+              style={{
+                padding: '3px 8px',
+                borderRadius: '4px',
+                background: 'var(--color-accent-dim)',
+                color: 'var(--color-accent-text)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+              }}
+            >
               {bill.identifier}
             </span>
             {bill.session && (
-              <span className="font-mono text-[10px] text-white/20">
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-text-3)' }}>
                 Session {bill.session}
               </span>
             )}
           </div>
-          <p className={`font-body text-sm text-white/80 ${expanded ? '' : 'line-clamp-2'}`}>
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '14px',
+              color: 'var(--color-text-1)',
+              lineHeight: 1.45,
+              margin: 0,
+              display: expanded ? 'block' : '-webkit-box',
+              WebkitLineClamp: expanded ? undefined : 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: expanded ? 'visible' : 'hidden',
+            }}
+          >
             {bill.title}
           </p>
           {expanded && (
-            <div className="mt-2 space-y-1">
+            <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {bill.sponsor_name && (
-                <p className="font-mono text-xs text-white/30">
-                  Sponsor: {bill.sponsor_name}
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)', margin: 0 }}>
+                  Sponsor: <span style={{ color: 'var(--color-text-2)' }}>{bill.sponsor_name}</span>
                 </p>
               )}
               {bill.latest_action && (
-                <p className="font-mono text-xs text-white/30">
-                  Latest: {bill.latest_action}
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)', margin: 0 }}>
+                  Latest: <span style={{ color: 'var(--color-text-2)' }}>{bill.latest_action}</span>
                 </p>
               )}
               {bill.source_url && (
@@ -371,7 +580,15 @@ function BillRow({ bill }: { bill: StateBill }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1 font-mono text-xs text-blue-400 hover:text-blue-300 no-underline"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '11px',
+                    color: 'var(--color-accent-text)',
+                    textDecoration: 'none',
+                  }}
                 >
                   View Source <ExternalLink size={10} />
                 </a>
@@ -379,16 +596,27 @@ function BillRow({ bill }: { bill: StateBill }) {
             </div>
           )}
         </div>
-        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
           {bill.latest_action_date && (
-            <span className="font-mono text-[10px] text-white/20 tabular-nums">
-              {new Date(bill.latest_action_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                color: 'var(--color-text-3)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {new Date(bill.latest_action_date).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
             </span>
           )}
           {expanded ? (
-            <ChevronUp size={12} className="text-white/20" />
+            <ChevronUp size={12} style={{ color: 'var(--color-text-3)' }} />
           ) : (
-            <ChevronDown size={12} className="text-white/20" />
+            <ChevronDown size={12} style={{ color: 'var(--color-text-3)' }} />
           )}
         </div>
       </div>
@@ -396,7 +624,7 @@ function BillRow({ bill }: { bill: StateBill }) {
   );
 }
 
-// ── Legislators Tab ──
+// ── Legislators tab ──
 
 function LegislatorsTab({
   legislators,
@@ -422,27 +650,55 @@ function LegislatorsTab({
   onOffsetChange: (v: number) => void;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.4 }}
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '24px' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '220px', maxWidth: '420px' }}>
+          <Search
+            size={16}
+            style={{
+              position: 'absolute',
+              left: '14px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--color-text-3)',
+            }}
+          />
           <input
             type="text"
             value={search}
             onChange={(e) => { onSearchChange(e.target.value); onOffsetChange(0); }}
-            placeholder="Search legislators..."
-            className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-10 py-2.5 font-body text-sm text-white placeholder:text-white/20 focus:border-blue-500/50 focus:outline-none transition-colors"
+            placeholder="Search legislators…"
+            style={{
+              width: '100%',
+              padding: '10px 14px 10px 40px',
+              borderRadius: '10px',
+              border: '1px solid rgba(235,229,213,0.1)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text-1)',
+              fontFamily: 'var(--font-body)',
+              fontSize: '14px',
+              outline: 'none',
+              transition: 'border-color 0.2s',
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(235,229,213,0.1)'; }}
           />
         </div>
         <select
           value={chamberFilter}
           onChange={(e) => { onChamberChange(e.target.value); onOffsetChange(0); }}
-          className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 font-body text-sm text-white/60 focus:border-blue-500/50 focus:outline-none"
+          style={{
+            padding: '10px 14px',
+            borderRadius: '10px',
+            border: '1px solid rgba(235,229,213,0.1)',
+            background: 'var(--color-surface)',
+            color: 'var(--color-text-2)',
+            fontFamily: 'var(--font-body)',
+            fontSize: '14px',
+            outline: 'none',
+            cursor: 'pointer',
+          }}
         >
           <option value="">All Chambers</option>
           <option value="upper">Senate</option>
@@ -451,7 +707,17 @@ function LegislatorsTab({
         <select
           value={partyFilter}
           onChange={(e) => { onPartyChange(e.target.value); onOffsetChange(0); }}
-          className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 font-body text-sm text-white/60 focus:border-blue-500/50 focus:outline-none"
+          style={{
+            padding: '10px 14px',
+            borderRadius: '10px',
+            border: '1px solid rgba(235,229,213,0.1)',
+            background: 'var(--color-surface)',
+            color: 'var(--color-text-2)',
+            fontFamily: 'var(--font-body)',
+            fontSize: '14px',
+            outline: 'none',
+            cursor: 'pointer',
+          }}
         >
           <option value="">All Parties</option>
           <option value="D">Democrat</option>
@@ -460,20 +726,34 @@ function LegislatorsTab({
         </select>
       </div>
 
-      {/* Results count */}
-      <p className="font-mono text-xs text-white/30 mb-4">
+      {/* Count */}
+      <p
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: '11px',
+          color: 'var(--color-text-3)',
+          letterSpacing: '0.08em',
+          margin: '0 0 16px',
+        }}
+      >
         {fmtNum(total)} legislator{total !== 1 ? 's' : ''}
         {offset > 0 && ` (showing ${offset + 1}-${Math.min(offset + 50, total)})`}
       </p>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+          gap: '12px',
+        }}
+      >
         {legislators.map((leg, idx) => (
           <motion.div
             key={leg.id}
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: Math.min(idx * 0.03, 0.3) }}
+            transition={{ duration: 0.25, delay: Math.min(idx * 0.02, 0.3) }}
           >
             <LegislatorCard legislator={leg} />
           </motion.div>
@@ -481,28 +761,50 @@ function LegislatorsTab({
       </div>
 
       {legislators.length === 0 && (
-        <div className="py-16 text-center">
-          <p className="font-body text-sm text-white/30">No legislators found.</p>
+        <div style={{ padding: '64px 0', textAlign: 'center' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-3)' }}>
+            No legislators found.
+          </p>
         </div>
       )}
 
       {/* Pagination */}
       {total > 50 && (
-        <div className="flex items-center justify-center gap-3 mt-8">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '32px' }}>
           <button
             onClick={() => onOffsetChange(Math.max(0, offset - 50))}
             disabled={offset === 0}
-            className="rounded-lg border border-white/10 px-4 py-2 font-body text-xs text-white/50 hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            style={{
+              padding: '10px 16px',
+              borderRadius: '10px',
+              border: '1px solid rgba(235,229,213,0.1)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text-2)',
+              fontFamily: 'var(--font-body)',
+              fontSize: '12px',
+              cursor: offset === 0 ? 'not-allowed' : 'pointer',
+              opacity: offset === 0 ? 0.3 : 1,
+            }}
           >
             Previous
           </button>
-          <span className="font-mono text-xs text-white/30">
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)' }}>
             Page {Math.floor(offset / 50) + 1} of {Math.ceil(total / 50)}
           </span>
           <button
             onClick={() => onOffsetChange(offset + 50)}
             disabled={offset + 50 >= total}
-            className="rounded-lg border border-white/10 px-4 py-2 font-body text-xs text-white/50 hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            style={{
+              padding: '10px 16px',
+              borderRadius: '10px',
+              border: '1px solid rgba(235,229,213,0.1)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text-2)',
+              fontFamily: 'var(--font-body)',
+              fontSize: '12px',
+              cursor: offset + 50 >= total ? 'not-allowed' : 'pointer',
+              opacity: offset + 50 >= total ? 0.3 : 1,
+            }}
           >
             Next
           </button>
@@ -512,10 +814,12 @@ function LegislatorsTab({
   );
 }
 
-// ── Legislator Card ──
+// ── Legislator card ──
 
 function LegislatorCard({ legislator }: { legislator: StateLegislator }) {
-  const color = PARTY_COLORS[legislator.party || ''] || '#6B7280';
+  const key = (legislator.party || '').charAt(0).toUpperCase();
+  const color = PARTY_TOKEN[key] || 'var(--color-text-2)';
+  const hex = PARTY_HEX[key] || '#6B7280';
   const initials = legislator.name
     .split(/\s+/)
     .filter(Boolean)
@@ -525,52 +829,124 @@ function LegislatorCard({ legislator }: { legislator: StateLegislator }) {
     .toUpperCase();
 
   return (
-    <div className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20">
-      <div className="flex items-center gap-3">
+    <div
+      style={{
+        padding: '16px',
+        borderRadius: '12px',
+        border: '1px solid rgba(235,229,213,0.08)',
+        background: 'var(--color-surface)',
+        transition: 'all 0.2s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'var(--color-surface-2)';
+        e.currentTarget.style.borderColor = `${hex}40`;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'var(--color-surface)';
+        e.currentTarget.style.borderColor = 'rgba(235,229,213,0.08)';
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {legislator.photo_url ? (
           <img
             src={legislator.photo_url}
             alt={legislator.name}
-            className="h-10 w-10 rounded-full object-cover ring-2 ring-white/10"
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: `2px solid ${hex}40`,
+            }}
           />
         ) : (
           <div
-            className="flex h-10 w-10 items-center justify-center rounded-full font-heading text-sm font-bold text-white ring-2 ring-white/10"
-            style={{ backgroundColor: `${color}33` }}
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: `${hex}26`,
+              border: `2px solid ${hex}40`,
+              color: color,
+              fontFamily: 'var(--font-display)',
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: '14px',
+            }}
           >
             {initials}
           </div>
         )}
-        <div className="min-w-0 flex-1">
+        <div style={{ minWidth: 0, flex: 1 }}>
           {legislator.ocd_id ? (
             <a
               href={`https://openstates.org/person/${legislator.ocd_id}/`}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-body text-sm font-semibold text-white hover:text-blue-400 transition-colors no-underline truncate block"
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '14px',
+                fontWeight: 600,
+                color: 'var(--color-text-1)',
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: 'block',
+              }}
             >
               {legislator.name}
-              <ExternalLink size={10} className="inline ml-1 opacity-0 group-hover:opacity-50" />
+              <ExternalLink size={10} style={{ display: 'inline', marginLeft: '4px', opacity: 0.4 }} />
             </a>
           ) : (
-            <p className="font-body text-sm font-semibold text-white truncate">
+            <p
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '14px',
+                fontWeight: 600,
+                color: 'var(--color-text-1)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                margin: 0,
+              }}
+            >
               {legislator.name}
             </p>
           )}
-          <p className="font-mono text-[10px] text-white/30">
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-text-3)', margin: 0 }}>
             {legislator.district ? `District ${legislator.district}` : ''}
           </p>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+      <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
         <span
-          className="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold"
-          style={{ backgroundColor: `${color}22`, color }}
+          style={{
+            padding: '3px 8px',
+            borderRadius: '999px',
+            background: `${hex}1F`,
+            color: color,
+            fontFamily: 'var(--font-mono)',
+            fontSize: '10px',
+            fontWeight: 700,
+          }}
         >
-          {PARTY_LABELS[legislator.party || ''] || legislator.party || 'Unknown'}
+          {PARTY_LABELS[key] || legislator.party || 'Unknown'}
         </span>
         {legislator.chamber && (
-          <span className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-white/40">
+          <span
+            style={{
+              padding: '3px 8px',
+              borderRadius: '999px',
+              background: 'rgba(235,229,213,0.06)',
+              color: 'var(--color-text-2)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '10px',
+            }}
+          >
             {CHAMBER_LABELS[legislator.chamber] || legislator.chamber}
           </span>
         )}
@@ -579,9 +955,17 @@ function LegislatorCard({ legislator }: { legislator: StateLegislator }) {
   );
 }
 
-// ── Bills Tab ──
+// ── Bills tab ──
 
-function BillsTab({ stateCode, recentBills, totalBills }: { stateCode: string; recentBills: StateBill[]; totalBills: number }) {
+function BillsTab({
+  stateCode,
+  recentBills,
+  totalBills,
+}: {
+  stateCode: string;
+  recentBills: StateBill[];
+  totalBills: number;
+}) {
   const [bills, setBills] = useState<StateBill[]>(recentBills);
   const [search, setSearch] = useState('');
   const [total, setTotal] = useState(totalBills);
@@ -595,11 +979,7 @@ function BillsTab({ stateCode, recentBills, totalBills }: { stateCode: string; r
       return;
     }
     setSearching(true);
-    fetchStateBills(stateCode, {
-      search: search || undefined,
-      limit: 50,
-      offset,
-    })
+    fetchStateBills(stateCode, { search: search || undefined, limit: 50, offset })
       .then((data) => {
         if (cancelled) return;
         setBills(data.bills);
@@ -611,31 +991,58 @@ function BillsTab({ stateCode, recentBills, totalBills }: { stateCode: string; r
   }, [stateCode, search, offset]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.4 }}
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
       {/* Search */}
-      <div className="relative max-w-md mb-6">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+      <div style={{ position: 'relative', maxWidth: '420px', marginBottom: '24px' }}>
+        <Search
+          size={16}
+          style={{
+            position: 'absolute',
+            left: '14px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--color-text-3)',
+          }}
+        />
         <input
           type="text"
           value={search}
           onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
-          placeholder="Search bills..."
-          className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-10 py-2.5 font-body text-sm text-white placeholder:text-white/20 focus:border-blue-500/50 focus:outline-none transition-colors"
+          placeholder="Search bills…"
+          style={{
+            width: '100%',
+            padding: '10px 14px 10px 40px',
+            borderRadius: '10px',
+            border: '1px solid rgba(235,229,213,0.1)',
+            background: 'var(--color-surface)',
+            color: 'var(--color-text-1)',
+            fontFamily: 'var(--font-body)',
+            fontSize: '14px',
+            outline: 'none',
+            transition: 'border-color 0.2s',
+          }}
+          onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+          onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(235,229,213,0.1)'; }}
         />
       </div>
 
       {searching && (
-        <div className="flex items-center justify-center py-8">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+          <div
+            style={{
+              width: '24px',
+              height: '24px',
+              border: '2px solid var(--color-accent)',
+              borderTopColor: 'transparent',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+            }}
+          />
         </div>
       )}
 
       {!searching && (
-        <div className="space-y-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {bills.map((bill) => (
             <BillRow key={bill.bill_id} bill={bill} />
           ))}
@@ -643,30 +1050,49 @@ function BillsTab({ stateCode, recentBills, totalBills }: { stateCode: string; r
       )}
 
       {!searching && bills.length === 0 && (
-        <div className="py-16 text-center">
-          <p className="font-body text-sm text-white/30">
+        <div style={{ padding: '64px 0', textAlign: 'center' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-3)' }}>
             {search.trim() ? 'No bills found.' : 'State bill data coming soon'}
           </p>
         </div>
       )}
 
-      {/* Pagination for search results */}
       {search.trim() && total > 50 && (
-        <div className="flex items-center justify-center gap-3 mt-8">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '32px' }}>
           <button
             onClick={() => setOffset(Math.max(0, offset - 50))}
             disabled={offset === 0}
-            className="rounded-lg border border-white/10 px-4 py-2 font-body text-xs text-white/50 hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            style={{
+              padding: '10px 16px',
+              borderRadius: '10px',
+              border: '1px solid rgba(235,229,213,0.1)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text-2)',
+              fontFamily: 'var(--font-body)',
+              fontSize: '12px',
+              cursor: offset === 0 ? 'not-allowed' : 'pointer',
+              opacity: offset === 0 ? 0.3 : 1,
+            }}
           >
             Previous
           </button>
-          <span className="font-mono text-xs text-white/30">
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-3)' }}>
             Page {Math.floor(offset / 50) + 1} of {Math.ceil(total / 50)}
           </span>
           <button
             onClick={() => setOffset(offset + 50)}
             disabled={offset + 50 >= total}
-            className="rounded-lg border border-white/10 px-4 py-2 font-body text-xs text-white/50 hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            style={{
+              padding: '10px 16px',
+              borderRadius: '10px',
+              border: '1px solid rgba(235,229,213,0.1)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text-2)',
+              fontFamily: 'var(--font-body)',
+              fontSize: '12px',
+              cursor: offset + 50 >= total ? 'not-allowed' : 'pointer',
+              opacity: offset + 50 >= total ? 0.3 : 1,
+            }}
           >
             Next
           </button>

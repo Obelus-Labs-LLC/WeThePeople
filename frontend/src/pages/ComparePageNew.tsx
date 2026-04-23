@@ -1,47 +1,47 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { Search, ArrowLeft, X, Loader2 } from 'lucide-react';
+import { Search, ArrowLeft, X, Loader2, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../api/client';
 import type { Person, CompareResponse, ComparePersonData } from '../api/types';
-import BackButton from '../components/BackButton';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 
-// ── Constants ──
+// ─────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────
 
 const MAX_SELECTED = 4;
 
-const PARTY_COLOR: Record<string, string> = {
-  D: '#3B82F6',
-  R: '#EF4444',
-  I: '#A855F7',
+// Parallel token / hex maps: hex is used for ${hex}18 / ${hex}30 opacity combos
+// (CSS custom properties cannot accept alpha suffixes inline).
+const PARTY_HEX: Record<string, string> = {
+  D: '#4A7FDE',
+  R: '#E05555',
+  I: '#B06FD8',
+};
+const PARTY_TOKEN: Record<string, string> = {
+  D: 'var(--color-dem)',
+  R: 'var(--color-rep)',
+  I: 'var(--color-ind)',
 };
 
 const TIER_KEYS = ['strong', 'moderate', 'weak', 'none'] as const;
-const TIER_COLOR: Record<string, string> = {
-  strong: '#10B981',
-  moderate: '#3B82F6',
-  weak: '#F59E0B',
-  none: '#EF4444',
+const TIER_HEX: Record<string, string> = {
+  strong: '#3DB87A',
+  moderate: '#4A7FDE',
+  weak: '#C5A028',
+  none: '#E05555',
 };
 
-const TIMING_KEYS = ['before', 'during', 'after'] as const;
-const TIMING_COLOR: Record<string, string> = {
-  before: '#10B981',
-  during: '#3B82F6',
-  after: '#F59E0B',
-};
+// ─────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────
 
-const PROGRESS_KEYS = ['completed', 'in_progress', 'stalled', 'not_started'] as const;
-const PROGRESS_COLOR: Record<string, string> = {
-  completed: '#10B981',
-  in_progress: '#3B82F6',
-  stalled: '#F59E0B',
-  not_started: '#6B7280',
-};
+function partyHex(party: string | null): string {
+  return PARTY_HEX[party?.charAt(0) || ''] || '#6E7A85';
+}
 
-// ── Helpers ──
-
-function partyColor(party: string | null): string {
-  return PARTY_COLOR[party?.charAt(0) || ''] || '#6B7280';
+function partyToken(party: string | null): string {
+  return PARTY_TOKEN[party?.charAt(0) || ''] || 'var(--color-text-3)';
 }
 
 function initials(name: string): string {
@@ -60,7 +60,7 @@ function formatLabel(key: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Given an array of numbers, returns the indices that hold the maximum value */
+/** Indices of the highest value in an array (ties all returned). */
 function maxIndices(values: number[]): Set<number> {
   const max = Math.max(...values);
   if (max <= 0) return new Set();
@@ -71,22 +71,28 @@ function maxIndices(values: number[]): Set<number> {
   return indices;
 }
 
-// ── Sub-components ──
+function partyLabel(party: string | null): string {
+  if (party === 'D') return 'Democrat';
+  if (party === 'R') return 'Republican';
+  if (party === 'I') return 'Independent';
+  return 'Unknown';
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Avatar
+// ─────────────────────────────────────────────────────────────────────
 
 function PhotoAvatar({
   person,
   size,
-  borderWidth = 2,
-  borderColor,
+  borderWidth = 0,
 }: {
   person: Person;
   size: number;
   borderWidth?: number;
-  borderColor?: string;
 }) {
   const [imgError, setImgError] = useState(false);
-  const color = borderColor || partyColor(person.party);
-  const sizeClass = `${size}px`;
+  const hex = partyHex(person.party);
 
   if (person.photo_url && !imgError) {
     return (
@@ -94,30 +100,43 @@ function PhotoAvatar({
         src={person.photo_url}
         alt={person.display_name}
         onError={() => setImgError(true)}
-        className="rounded-full object-cover shrink-0"
         style={{
-          width: sizeClass,
-          height: sizeClass,
-          border: `${borderWidth}px solid ${color}`,
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          flexShrink: 0,
+          border: borderWidth > 0 ? `${borderWidth}px solid ${hex}` : 'none',
         }}
       />
     );
   }
   return (
     <div
-      className="rounded-full flex items-center justify-center shrink-0 font-oswald font-bold text-white"
       style={{
-        width: sizeClass,
-        height: sizeClass,
-        backgroundColor: partyColor(person.party),
-        fontSize: size * 0.38,
-        border: `${borderWidth}px solid ${color}`,
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        background: `${hex}1F`,
+        color: hex,
+        fontFamily: "'Inter', sans-serif",
+        fontWeight: 700,
+        fontSize: Math.round(size * 0.36),
+        border: borderWidth > 0 ? `${borderWidth}px solid ${hex}` : 'none',
       }}
     >
       {initials(person.display_name)}
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Stacked bar (activity tier breakdown)
+// ─────────────────────────────────────────────────────────────────────
 
 function StackedBar({
   data,
@@ -129,34 +148,52 @@ function StackedBar({
   colorMap: Record<string, string>;
 }) {
   return (
-    <div className="w-full">
-      <div className="h-8 rounded-full border border-[#1E293B] overflow-hidden flex">
+    <div style={{ width: '100%' }}>
+      <div
+        style={{
+          height: 8,
+          borderRadius: 4,
+          background: 'var(--color-surface-2)',
+          overflow: 'hidden',
+          display: 'flex',
+        }}
+      >
         {keys.map((key) => {
           const pct = data[key] ?? 0;
           if (pct <= 0) return null;
           return (
             <div
               key={key}
-              className="h-full flex items-center justify-center overflow-hidden"
-              style={{ width: `${pct}%`, backgroundColor: colorMap[key] }}
-            >
-              {pct > 10 && (
-                <span className="text-xs font-bold text-[#0F172A] px-1 truncate">
-                  {Math.round(pct)}%
-                </span>
-              )}
-            </div>
+              style={{
+                height: '100%',
+                width: `${pct}%`,
+                background: colorMap[key],
+              }}
+            />
           );
         })}
       </div>
-      <div className="flex justify-between mt-2">
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 12,
+          marginTop: 10,
+        }}
+      >
         {keys.map((key) => {
           const pct = data[key] ?? 0;
           return (
             <span
               key={key}
-              className="text-[10px] uppercase font-bold"
-              style={{ color: colorMap[key] }}
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: colorMap[key],
+              }}
             >
               {formatLabel(key)} {Math.round(pct)}%
             </span>
@@ -167,7 +204,9 @@ function StackedBar({
   );
 }
 
-// ── Main Component ──
+// ─────────────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────────────
 
 export default function ComparePageNew() {
   // Data
@@ -246,7 +285,7 @@ export default function ComparePageNew() {
     setError(null);
   }, []);
 
-  // ── If in comparison mode, build ordered person+data pairs ──
+  // ── Ordered person + data pairs ──
   const comparisonPairs = useMemo(() => {
     if (!compareData) return [];
     return selectedIds
@@ -258,7 +297,7 @@ export default function ComparePageNew() {
       .filter(Boolean) as { person: Person; data: ComparePersonData }[];
   }, [compareData, selectedIds, personMap]);
 
-  // ── Policy areas: union of all, sorted by total desc ──
+  // ── Policy areas: union sorted by total desc ──
   const policyRows = useMemo(() => {
     if (!comparisonPairs.length) return [];
     const areaSet = new Set<string>();
@@ -274,312 +313,862 @@ export default function ComparePageNew() {
       .sort((a, b) => b.total - a.total);
   }, [comparisonPairs]);
 
-  // ────────────────────────────────────────
-  //  RENDER
-  // ────────────────────────────────────────
-
   const showResults = compareData && !loadingCompare && comparisonPairs.length > 0;
 
-  return (
-    <div className="min-h-screen text-white flex flex-col overflow-hidden">
-      {/* ── STATE 2: COMPARISON RESULTS ── */}
-      {showResults ? (
-        <>
-          {/* Nav + Back */}
-          <div className="flex items-center justify-between px-6 pt-6 pb-2">
+  // ─────────────────────────────────────────────────────────────────
+  // RENDER: COMPARISON RESULTS
+  // ─────────────────────────────────────────────────────────────────
+
+  if (showResults) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'var(--color-bg)',
+          color: 'var(--color-text-1)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <PoliticsSectorHeader />
+
+        <div
+          style={{
+            maxWidth: 1200,
+            width: '100%',
+            margin: '0 auto',
+            padding: '32px 40px 80px',
+          }}
+        >
+          {/* Back bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
             <button
               onClick={resetCompare}
-              className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: 'var(--color-text-2)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
             >
-              <ArrowLeft size={16} />
-              <span className="font-dm-sans text-sm">New Comparison</span>
+              <ArrowLeft size={14} />
+              New comparison
             </button>
-            <PoliticsSectorHeader />
           </div>
 
-          {/* Sticky column headers */}
-          <div className="sticky top-0 z-20 bg-[rgba(2,6,23,0.95)] backdrop-blur border-b border-[#1E293B] px-4 sm:px-6 py-6 overflow-x-auto">
-            <div className="flex">
-              <div className="w-48 shrink-0" />
-              {comparisonPairs.map(({ person }) => (
-                <div key={person.person_id} className="flex-1 min-w-[240px] flex flex-col items-center gap-2">
-                  <PhotoAvatar person={person} size={64} borderWidth={4} borderColor={partyColor(person.party)} />
-                  <span className="font-oswald text-2xl font-bold uppercase text-center leading-tight">
-                    {person.display_name}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="text-xs font-bold px-2 py-0.5 rounded"
-                      style={{
-                        backgroundColor: `${partyColor(person.party)}20`,
-                        color: partyColor(person.party),
-                      }}
-                    >
-                      {person.party}
-                    </span>
-                    <span
-                      className="text-xs font-bold px-2 py-0.5 rounded"
-                      style={{ backgroundColor: 'rgba(100,116,139,0.2)', color: '#94A3B8' }}
-                    >
-                      {person.chamber?.toLowerCase() === 'senate' ? 'Senate' : 'House'}
-                    </span>
-                  </div>
-                  <span className="font-fira-code text-xs text-slate-400">{person.state}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Title */}
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(28px, 4vw, 36px)',
+              lineHeight: 1.05,
+              color: 'var(--color-text-1)',
+              marginBottom: 8,
+            }}
+          >
+            Compare
+          </h1>
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 14,
+              color: 'var(--color-text-2)',
+              marginBottom: 32,
+            }}
+          >
+            Side-by-side legislative analysis of {comparisonPairs.length} member{comparisonPairs.length === 1 ? '' : 's'}.
+          </p>
 
-          {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto overflow-x-auto px-4 sm:px-6 pb-12">
-            {/* OVERVIEW METRICS */}
-            <SectionTitle>Overview Metrics</SectionTitle>
-            {(() => {
-              const metrics = [
-                { label: 'Claims Tracked', values: comparisonPairs.map(({ data }) => data.total_claims ?? 0) },
-                { label: 'Claims Evaluated', values: comparisonPairs.map(({ data }) => data.total_scored ?? 0) },
-                { label: 'Legislative Actions', values: comparisonPairs.map(({ data }) => data.total_actions ?? 0) },
-              ];
-              return metrics.map((m) => {
-                const best = maxIndices(m.values);
-                return (
-                  <div key={m.label} className="flex border-b border-[#1E293B]">
-                    <div className="w-48 shrink-0 flex items-center bg-[rgba(15,23,42,0.3)] px-4 py-4">
-                      <span className="text-sm uppercase tracking-wider text-slate-400 font-dm-sans">
-                        {m.label}
-                      </span>
-                    </div>
-                    {m.values.map((v, i) => (
-                      <div
-                        key={i}
-                        className={`flex-1 min-w-[240px] flex items-center justify-center px-4 py-4 ${
-                          best.has(i) ? 'bg-[rgba(6,78,59,0.1)]' : ''
-                        }`}
-                      >
-                        <span
-                          className={`font-fira-code text-3xl font-bold ${
-                            best.has(i) ? 'text-emerald-400' : 'text-white'
-                          }`}
-                        >
-                          {v.toLocaleString()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              });
-            })()}
-
-            {/* ACTIVITY BREAKDOWN */}
-            {comparisonPairs.some(({ data }) => data.by_tier && Object.keys(data.by_tier || {}).length > 0) && (
-              <>
-                <SectionTitle>Activity Breakdown</SectionTitle>
-                <div className="flex">
-                  <div className="w-48 shrink-0" />
-                  {comparisonPairs.map(({ person, data }) => {
-                    const tier = data.by_tier || {};
-                    const total = Object.values(tier).reduce((a: number, b: number) => a + b, 0) || 1;
-                    const pctData: Record<string, number> = {};
-                    TIER_KEYS.forEach((k) => { pctData[k] = ((tier[k] || 0) / total) * 100; });
-                    return (
-                      <div key={person.person_id} className="flex-1 min-w-[240px] px-4 py-4">
-                        <StackedBar data={pctData} keys={TIER_KEYS} colorMap={TIER_COLOR} />
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-
-            {/* POLICY AREAS */}
-            {policyRows.length > 0 && <SectionTitle>Policy Areas</SectionTitle>}
-            {policyRows.map((row, rowIdx) => {
-              const best = maxIndices(row.values);
-              return (
-                <div
-                  key={row.area}
-                  className="flex border-b border-[#1E293B]"
+          {/* Entity cards (2-4 across) */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                comparisonPairs.length === 2
+                  ? '1fr 40px 1fr'
+                  : `repeat(${comparisonPairs.length}, 1fr)`,
+              gap: comparisonPairs.length === 2 ? 0 : 12,
+              alignItems: 'center',
+              marginBottom: 32,
+            }}
+          >
+            {comparisonPairs.map(({ person }, idx) => (
+              <React.Fragment key={person.person_id}>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: idx * 0.05 }}
                   style={{
-                    backgroundColor: rowIdx % 2 === 1 ? 'rgba(30,41,59,0.15)' : 'transparent',
+                    padding: '14px 16px',
+                    borderRadius: 10,
+                    border: '1px solid var(--color-border-hover)',
+                    background: 'var(--color-surface)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
                   }}
                 >
-                  <div className="w-48 shrink-0 flex items-center px-4 py-3">
-                    <span className="text-sm text-slate-300 font-dm-sans">{row.area}</span>
-                  </div>
-                  {row.values.map((v, i) => (
+                  <PhotoAvatar person={person} size={36} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div
-                      key={i}
-                      className={`flex-1 min-w-[240px] flex items-center justify-center px-4 py-3 ${
-                        best.has(i) ? 'bg-[rgba(6,78,59,0.1)]' : ''
-                      }`}
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: 'var(--color-text-1)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
                     >
-                      <span
-                        className={`font-fira-code font-bold ${
-                          best.has(i) ? 'text-emerald-400' : 'text-white'
-                        }`}
-                      >
-                        {v}
-                      </span>
+                      {person.display_name}
                     </div>
-                  ))}
-                </div>
-              );
-            })}
-            {policyRows.length === 0 && (
-              <p className="text-slate-500 text-sm font-dm-sans py-4 px-4">No policy area data available.</p>
-            )}
-          </div>
-        </>
-      ) : (
-        /* ── STATE 1: SELECTION MODE ── */
-        <div className="flex-1 flex flex-col overflow-hidden px-6 py-6">
-          {/* Header */}
-          <div className="mb-6">
-            <PoliticsSectorHeader />
-            <h1 className="font-oswald text-3xl sm:text-5xl md:text-6xl font-bold uppercase text-white leading-none mb-4">
-              Compare Members
-            </h1>
-            <p className="font-dm-sans text-lg text-slate-400">
-              Side-by-side legislative analysis
-            </p>
-            {selectedIds.length < MAX_SELECTED && (
-              <p className="font-dm-sans text-sm text-slate-500 mt-1">
-                Select up to {MAX_SELECTED} members to compare
-              </p>
-            )}
+                    <div
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 11,
+                        color: 'var(--color-text-3)',
+                        marginTop: 2,
+                      }}
+                    >
+                      {partyLabel(person.party)} · {person.state} ·{' '}
+                      {person.chamber?.toLowerCase() === 'senate' ? 'Senate' : 'House'}
+                    </div>
+                  </div>
+                </motion.div>
+                {comparisonPairs.length === 2 && idx === 0 && (
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: 'var(--color-text-3)',
+                    }}
+                  >
+                    vs
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
           </div>
 
-          {/* Selected chips */}
+          {/* OVERVIEW METRICS */}
+          <SectionEyebrow>Overview metrics</SectionEyebrow>
+          <div
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 12,
+              overflow: 'hidden',
+              marginBottom: 24,
+            }}
+          >
+            {[
+              { label: 'Claims tracked', values: comparisonPairs.map(({ data }) => data.total_claims ?? 0) },
+              { label: 'Claims evaluated', values: comparisonPairs.map(({ data }) => data.total_scored ?? 0) },
+              { label: 'Legislative actions', values: comparisonPairs.map(({ data }) => data.total_actions ?? 0) },
+            ].map((m, mi, arr) => {
+              const best = maxIndices(m.values);
+              const isTwo = comparisonPairs.length === 2;
+              return (
+                <MatrixRow
+                  key={m.label}
+                  isLast={mi === arr.length - 1}
+                  label={m.label}
+                  cells={m.values.map((v, i) => ({
+                    value: v.toLocaleString(),
+                    isBest: best.has(i),
+                    hex: partyHex(comparisonPairs[i].person.party),
+                  }))}
+                  twoColumn={isTwo}
+                />
+              );
+            })}
+          </div>
+
+          {/* ACTIVITY BREAKDOWN */}
+          {comparisonPairs.some(({ data }) => data.by_tier && Object.keys(data.by_tier || {}).length > 0) && (
+            <>
+              <SectionEyebrow>Activity breakdown</SectionEyebrow>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${comparisonPairs.length}, 1fr)`,
+                  gap: 16,
+                  marginBottom: 24,
+                }}
+              >
+                {comparisonPairs.map(({ person, data }) => {
+                  const tier = data.by_tier || {};
+                  const total = Object.values(tier).reduce((a: number, b: number) => a + b, 0) || 1;
+                  const pctData: Record<string, number> = {};
+                  TIER_KEYS.forEach((k) => { pctData[k] = ((tier[k] || 0) / total) * 100; });
+                  return (
+                    <div
+                      key={person.person_id}
+                      style={{
+                        padding: 16,
+                        borderRadius: 12,
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-surface)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: 'var(--color-text-2)',
+                          marginBottom: 12,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {person.display_name}
+                      </div>
+                      <StackedBar data={pctData} keys={TIER_KEYS} colorMap={TIER_HEX} />
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* POLICY AREAS */}
+          {policyRows.length > 0 && (
+            <>
+              <SectionEyebrow>Policy areas</SectionEyebrow>
+              <div
+                style={{
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                }}
+              >
+                {policyRows.map((row, rowIdx) => {
+                  const best = maxIndices(row.values);
+                  const isTwo = comparisonPairs.length === 2;
+                  return (
+                    <MatrixRow
+                      key={row.area}
+                      isLast={rowIdx === policyRows.length - 1}
+                      label={row.area}
+                      cells={row.values.map((v, i) => ({
+                        value: String(v),
+                        isBest: best.has(i),
+                        hex: partyHex(comparisonPairs[i].person.party),
+                      }))}
+                      twoColumn={isTwo}
+                    />
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {policyRows.length === 0 && (
+            <p
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                color: 'var(--color-text-3)',
+                padding: '16px 0',
+              }}
+            >
+              No policy area data available.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // RENDER: SELECTION MODE
+  // ─────────────────────────────────────────────────────────────────
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--color-bg)',
+        color: 'var(--color-text-1)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <PoliticsSectorHeader />
+
+      <div
+        style={{
+          maxWidth: 1200,
+          width: '100%',
+          margin: '0 auto',
+          padding: '32px 40px 80px',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Title */}
+        <h1
+          style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontStyle: 'italic',
+            fontWeight: 900,
+            fontSize: 'clamp(32px, 5vw, 48px)',
+            lineHeight: 1.05,
+            color: 'var(--color-text-1)',
+            marginBottom: 8,
+          }}
+        >
+          Compare members
+        </h1>
+        <p
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            color: 'var(--color-text-2)',
+            marginBottom: 24,
+          }}
+        >
+          Side-by-side legislative analysis — select 2 to {MAX_SELECTED} members to compare.
+        </p>
+
+        {/* Selected chips */}
+        <AnimatePresence>
           {selectedIds.length > 0 && (
-            <div className="flex flex-wrap gap-3 mb-4">
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginBottom: 16,
+              }}
+            >
               {selectedIds.map((id) => {
                 const person = personMap.get(id);
                 if (!person) return null;
+                const hex = partyHex(person.party);
                 return (
-                  <div
+                  <motion.div
                     key={id}
-                    className="flex items-center gap-2 bg-[#0F172A] border border-[#1E293B] rounded-full px-3 py-1.5"
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      background: 'var(--color-surface)',
+                      border: '1px solid var(--color-border-hover)',
+                      borderRadius: 999,
+                      padding: '6px 10px 6px 6px',
+                    }}
                   >
-                    <PhotoAvatar person={person} size={24} borderWidth={0} />
-                    <span className="text-sm text-white font-dm-sans">{person.display_name}</span>
-                    <div
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: partyColor(person.party) }}
-                      aria-label={person.party === 'D' ? 'Democrat' : person.party === 'R' ? 'Republican' : 'Independent'}
+                    <PhotoAvatar person={person} size={22} />
+                    <span
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 13,
+                        color: 'var(--color-text-1)',
+                      }}
+                    >
+                      {person.display_name}
+                    </span>
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        background: hex,
+                        flexShrink: 0,
+                      }}
+                      aria-label={partyLabel(person.party)}
                       role="img"
                     />
                     <button
                       onClick={() => removePerson(id)}
-                      className="text-slate-400 hover:text-white transition-colors cursor-pointer ml-1"
+                      style={{
+                        color: 'var(--color-text-3)',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-3)'; }}
                       aria-label={`Remove ${person.display_name}`}
                     >
                       <X size={14} />
                     </button>
-                  </div>
+                  </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
           )}
+        </AnimatePresence>
 
-          {/* Search + Compare row */}
-          <div className="flex gap-4 mb-4">
-            <div className="flex-1 relative">
-              <Search
-                size={18}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-              />
-              <input
-                type="text"
-                placeholder="Search by name or state..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-[#0F172A] border border-[#334155] rounded-lg py-4 pl-12 pr-4 text-white font-dm-sans placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
-            <button
-              onClick={runCompare}
-              disabled={selectedIds.length < 2 || loadingCompare}
-              className={`rounded-lg px-8 py-4 uppercase font-bold tracking-wide font-oswald transition-colors cursor-pointer ${
-                selectedIds.length >= 2
-                  ? 'bg-blue-600 text-white hover:bg-blue-500'
-                  : 'bg-[#1E293B] text-slate-500 cursor-not-allowed'
-              }`}
-            >
-              {loadingCompare ? (
-                <Loader2 size={20} className="animate-spin" />
-              ) : (
-                'Compare'
-              )}
-            </button>
+        {/* Search + Compare row */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <Search
+              size={16}
+              style={{
+                position: 'absolute',
+                left: 14,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--color-text-3)',
+                pointerEvents: 'none',
+              }}
+            />
+            <input
+              type="text"
+              placeholder="Search by name or state..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: '100%',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 10,
+                padding: '12px 14px 12px 40px',
+                color: 'var(--color-text-1)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 14,
+                outline: 'none',
+                transition: 'border-color 150ms',
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
+            />
           </div>
-
-          {/* Error */}
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 mb-4">
-              <p className="text-red-400 text-sm font-dm-sans">{error}</p>
-            </div>
-          )}
-
-          {/* Loading people */}
-          {loadingPeople ? (
-            <div className="flex-1 flex items-center justify-center">
-              <Loader2 size={32} className="animate-spin text-blue-500" />
-            </div>
-          ) : (
-            /* Member grid */
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[calc(100vh-380px)] overflow-y-auto pr-1">
-              {filtered.map((person) => {
-                const isSelected = selectedIds.includes(person.person_id);
-                const isDisabled = !isSelected && selectedIds.length >= MAX_SELECTED;
-                return (
-                  <button
-                    key={person.person_id}
-                    onClick={() => !isDisabled && togglePerson(person.person_id)}
-                    disabled={isDisabled}
-                    className={`bg-[#0F172A] border rounded-xl p-4 flex gap-4 text-left transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-[rgba(30,58,138,0.2)] border-blue-500'
-                        : isDisabled
-                          ? 'border-[#1E293B] opacity-50 grayscale pointer-events-none'
-                          : 'border-[#1E293B] hover:bg-[rgba(30,41,59,0.5)] hover:border-[#475569]'
-                    }`}
-                  >
-                    <PhotoAvatar person={person} size={48} />
-                    <div className="flex flex-col justify-center min-w-0">
-                      <span className="font-dm-sans font-bold text-white truncate">
-                        {person.display_name}
-                      </span>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="font-fira-code text-sm text-slate-400">{person.state}</span>
-                        <div
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: partyColor(person.party) }}
-                        />
-                        <span className="text-xs text-slate-400 font-dm-sans">{person.party}</span>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-              {filtered.length === 0 && !loadingPeople && (
-                <p className="text-slate-500 text-sm font-dm-sans col-span-full py-8 text-center">
-                  No members match your search.
-                </p>
-              )}
-            </div>
-          )}
+          <button
+            onClick={runCompare}
+            disabled={selectedIds.length < 2 || loadingCompare}
+            style={{
+              borderRadius: 10,
+              padding: '12px 24px',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              border: 'none',
+              cursor: selectedIds.length >= 2 && !loadingCompare ? 'pointer' : 'not-allowed',
+              background: selectedIds.length >= 2
+                ? 'var(--color-accent)'
+                : 'var(--color-surface-2)',
+              color: selectedIds.length >= 2 ? '#07090C' : 'var(--color-text-3)',
+              minWidth: 120,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              transition: 'background-color 150ms',
+            }}
+          >
+            {loadingCompare ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              `Compare (${selectedIds.length})`
+            )}
+          </button>
         </div>
-      )}
+
+        {/* Error */}
+        {error && (
+          <div
+            style={{
+              background: 'rgba(230,57,70,0.08)',
+              border: '1px solid rgba(230,57,70,0.25)',
+              borderRadius: 8,
+              padding: '10px 14px',
+              marginBottom: 16,
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                color: 'var(--color-red)',
+              }}
+            >
+              {error}
+            </p>
+          </div>
+        )}
+
+        {/* Counter */}
+        <div
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 11,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-3)',
+            marginBottom: 12,
+          }}
+        >
+          {selectedIds.length === 0
+            ? `Select members to compare`
+            : `${selectedIds.length} of ${MAX_SELECTED} selected`}
+        </div>
+
+        {/* Member grid */}
+        {loadingPeople ? (
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 48,
+            }}
+          >
+            <Loader2 size={28} className="animate-spin" style={{ color: 'var(--color-accent)' }} />
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+              gap: 10,
+            }}
+          >
+            {filtered.map((person) => {
+              const isSelected = selectedIds.includes(person.person_id);
+              const isDisabled = !isSelected && selectedIds.length >= MAX_SELECTED;
+              const hex = partyHex(person.party);
+              return (
+                <button
+                  key={person.person_id}
+                  onClick={() => !isDisabled && togglePerson(person.person_id)}
+                  disabled={isDisabled}
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    alignItems: 'center',
+                    textAlign: 'left',
+                    padding: 14,
+                    borderRadius: 10,
+                    background: isSelected
+                      ? `${hex}14`
+                      : 'var(--color-surface)',
+                    border: isSelected
+                      ? `1px solid ${hex}`
+                      : '1px solid var(--color-border)',
+                    opacity: isDisabled ? 0.4 : 1,
+                    filter: isDisabled ? 'grayscale(1)' : 'none',
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    transition: 'all 150ms',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected && !isDisabled) {
+                      e.currentTarget.style.borderColor = 'var(--color-border-hover)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected && !isDisabled) {
+                      e.currentTarget.style.borderColor = 'var(--color-border)';
+                    }
+                  }}
+                >
+                  <PhotoAvatar person={person} size={40} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: 'var(--color-text-1)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {person.display_name}
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        marginTop: 2,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                          fontSize: 11,
+                          color: 'var(--color-text-3)',
+                        }}
+                      >
+                        {person.state}
+                      </span>
+                      <span
+                        style={{
+                          width: 4,
+                          height: 4,
+                          borderRadius: '50%',
+                          background: hex,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 11,
+                          color: 'var(--color-text-3)',
+                        }}
+                      >
+                        {person.party}
+                      </span>
+                    </div>
+                  </div>
+                  {!isSelected && !isDisabled && (
+                    <Plus size={16} style={{ color: 'var(--color-text-3)', flexShrink: 0 }} />
+                  )}
+                </button>
+              );
+            })}
+            {filtered.length === 0 && !loadingPeople && (
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  color: 'var(--color-text-3)',
+                  gridColumn: '1 / -1',
+                  padding: '24px 0',
+                  textAlign: 'center',
+                }}
+              >
+                No members match your search.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-// ── Section title helper ──
+// ─────────────────────────────────────────────────────────────────────
+// Section eyebrow (uppercase label above each matrix/chart block)
+// ─────────────────────────────────────────────────────────────────────
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="font-oswald text-xl font-bold uppercase text-white mt-8 mb-4 px-4">
+    <h2
+      style={{
+        fontFamily: "'Inter', sans-serif",
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        color: 'var(--color-text-3)',
+        marginTop: 28,
+        marginBottom: 12,
+      }}
+    >
       {children}
     </h2>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Matrix row (2-col = prototype "1fr 120px 1fr", 3-4 col = flat grid)
+// ─────────────────────────────────────────────────────────────────────
+
+interface MatrixCell {
+  value: string;
+  isBest: boolean;
+  hex: string;
+}
+
+function MatrixRow({
+  label,
+  cells,
+  twoColumn,
+  isLast,
+}: {
+  label: string;
+  cells: MatrixCell[];
+  twoColumn: boolean;
+  isLast: boolean;
+}) {
+  if (twoColumn && cells.length === 2) {
+    return (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 120px 1fr',
+          borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
+        }}
+      >
+        {/* Left cell */}
+        <div style={{ padding: '16px 20px', textAlign: 'left' }}>
+          <div
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 22,
+              fontWeight: 700,
+              lineHeight: 1,
+              color: cells[0].isBest ? cells[0].hex : 'var(--color-text-1)',
+              marginBottom: 2,
+            }}
+          >
+            {cells[0].value}
+          </div>
+          {cells[0].isBest && (
+            <div
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 10,
+                fontWeight: 600,
+                color: cells[0].hex,
+              }}
+            >
+              ↑ Higher
+            </div>
+          )}
+        </div>
+
+        {/* Center metric label */}
+        <div
+          style={{
+            padding: '16px 0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderLeft: '1px solid var(--color-border)',
+            borderRight: '1px solid var(--color-border)',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-3)',
+              textAlign: 'center',
+              padding: '0 8px',
+            }}
+          >
+            {label}
+          </span>
+        </div>
+
+        {/* Right cell */}
+        <div style={{ padding: '16px 20px', textAlign: 'right' }}>
+          <div
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: 22,
+              fontWeight: 700,
+              lineHeight: 1,
+              color: cells[1].isBest ? cells[1].hex : 'var(--color-text-1)',
+              marginBottom: 2,
+            }}
+          >
+            {cells[1].value}
+          </div>
+          {cells[1].isBest && (
+            <div
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 10,
+                fontWeight: 600,
+                color: cells[1].hex,
+              }}
+            >
+              ↑ Higher
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 3-4 column layout: label row above, then values row (stacked for clarity)
+  return (
+    <div
+      style={{
+        borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
+        padding: '14px 20px',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          color: 'var(--color-text-3)',
+          marginBottom: 8,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${cells.length}, 1fr)`,
+          gap: 12,
+        }}
+      >
+        {cells.map((cell, i) => (
+          <div key={i} style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: 20,
+                fontWeight: 700,
+                lineHeight: 1,
+                color: cell.isBest ? cell.hex : 'var(--color-text-1)',
+              }}
+            >
+              {cell.value}
+            </div>
+            {cell.isBest && (
+              <div
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: cell.hex,
+                  marginTop: 2,
+                }}
+              >
+                ↑ Leader
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -3,116 +3,16 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Scale, Building2, TrendingUp } from 'lucide-react';
 import CSVExport from '../components/CSVExport';
-import {
-  PoliticsSectorHeader,
-  FinanceSectorHeader,
-  HealthSectorHeader,
-  TechSectorHeader,
-  EnergySectorHeader,
-  TransportationSectorHeader,
-  DefenseSectorHeader,
-  ChemicalsSectorHeader,
-  AgricultureSectorHeader,
-  TelecomSectorHeader,
-  EducationSectorHeader,
-} from '../components/SectorHeader';
-import { getApiBaseUrl } from '../api/client';
+import SectorTabLayout, {
+  statCard,
+  statLabel,
+  statNumber,
+  sectionTitle,
+  sectionSubtitle,
+  emptyState,
+} from '../components/sector/SectorTabLayout';
+import { SECTOR_MAP, detectSector } from '../components/sector/sectorConfig';
 import { fmtDollar, fmtNum } from '../utils/format';
-
-const API_BASE = getApiBaseUrl();
-
-// ── Sector config ──
-
-interface SectorConfig {
-  key: string;
-  label: string;
-  accent: string;
-  accentRGB: string;
-  Header: React.FC;
-  aggregateEndpoint: string;
-  entityKey: string;
-  profilePath: (id: string) => string;
-}
-
-const SECTOR_MAP: Record<string, SectorConfig> = {
-  finance: {
-    key: 'finance', label: 'Finance', accent: '#10B981', accentRGB: '16,185,129',
-    Header: FinanceSectorHeader,
-    aggregateEndpoint: `${API_BASE}/aggregate/finance/lobbying?limit=500`,
-    entityKey: 'institutions',
-    profilePath: (id) => `/finance/${id}`,
-  },
-  health: {
-    key: 'health', label: 'Health', accent: '#F43F5E', accentRGB: '244,63,94',
-    Header: HealthSectorHeader,
-    aggregateEndpoint: `${API_BASE}/aggregate/health/lobbying?limit=500`,
-    entityKey: 'companies',
-    profilePath: (id) => `/health/${id}`,
-  },
-  technology: {
-    key: 'technology', label: 'Technology', accent: '#8B5CF6', accentRGB: '139,92,246',
-    Header: TechSectorHeader,
-    aggregateEndpoint: `${API_BASE}/aggregate/tech/lobbying?limit=500`,
-    entityKey: 'companies',
-    profilePath: (id) => `/technology/${id}`,
-  },
-  energy: {
-    key: 'energy', label: 'Energy', accent: '#F97316', accentRGB: '249,115,22',
-    Header: EnergySectorHeader,
-    aggregateEndpoint: `${API_BASE}/aggregate/energy/lobbying?limit=500`,
-    entityKey: 'companies',
-    profilePath: (id) => `/energy/${id}`,
-  },
-  politics: {
-    key: 'politics', label: 'Politics', accent: '#3B82F6', accentRGB: '59,130,246',
-    Header: PoliticsSectorHeader,
-    aggregateEndpoint: '',
-    entityKey: 'companies',
-    profilePath: () => '/politics',
-  },
-  transportation: {
-    key: 'transportation', label: 'Transportation', accent: '#06B6D4', accentRGB: '6,182,212',
-    Header: TransportationSectorHeader,
-    aggregateEndpoint: `${API_BASE}/aggregate/transportation/lobbying?limit=500`,
-    entityKey: 'companies',
-    profilePath: (id) => `/transportation/${id}`,
-  },
-  defense: {
-    key: 'defense', label: 'Defense', accent: '#DC2626', accentRGB: '220,38,38',
-    Header: DefenseSectorHeader,
-    aggregateEndpoint: `${API_BASE}/aggregate/defense/lobbying?limit=500`,
-    entityKey: 'companies',
-    profilePath: (id) => `/defense/${id}`,
-  },
-  chemicals: {
-    key: 'chemicals', label: 'Chemicals', accent: '#A855F7', accentRGB: '168,85,247',
-    Header: ChemicalsSectorHeader,
-    aggregateEndpoint: `${API_BASE}/aggregate/chemicals/lobbying?limit=500`,
-    entityKey: 'companies',
-    profilePath: (id) => `/chemicals/${id}`,
-  },
-  agriculture: {
-    key: 'agriculture', label: 'Agriculture', accent: '#16A34A', accentRGB: '22,163,74',
-    Header: AgricultureSectorHeader,
-    aggregateEndpoint: `${API_BASE}/aggregate/agriculture/lobbying?limit=500`,
-    entityKey: 'companies',
-    profilePath: (id) => `/agriculture/${id}`,
-  },
-  telecom: {
-    key: 'telecom', label: 'Telecommunications', accent: '#06B6D4', accentRGB: '6,182,212',
-    Header: TelecomSectorHeader,
-    aggregateEndpoint: `${API_BASE}/aggregate/telecom/lobbying?limit=500`,
-    entityKey: 'companies',
-    profilePath: (id) => `/telecom/${id}`,
-  },
-  education: {
-    key: 'education', label: 'Education', accent: '#A855F7', accentRGB: '168,85,247',
-    Header: EducationSectorHeader,
-    aggregateEndpoint: `${API_BASE}/aggregate/education/lobbying?limit=500`,
-    entityKey: 'companies',
-    profilePath: (id) => `/education/${id}`,
-  },
-};
 
 // ── Types ──
 
@@ -148,26 +48,28 @@ const containerVariants = {
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 14 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { type: 'spring' as const, stiffness: 120, damping: 22 },
+    transition: { type: 'spring' as const, stiffness: 130, damping: 22 },
   },
 };
 
-const BAR_COLORS = [
-  '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
-  '#EC4899', '#6366F1', '#14B8A6', '#F97316', '#A855F7',
+// ── Issue bar palette keyed from design tokens ──
+
+const BAR_PALETTE: string[] = [
+  '#D4AE35', // accent-text
+  '#3DB87A', // green
+  '#4A7FDE', // dem
+  '#B06FD8', // ind
+  '#E63946', // red
+  '#C5A028', // accent
+  '#6B95E8', // dem-light
+  '#5EC090', // green-mid
+  '#D48B3A', // warm
+  '#8F9EE6', // dem-soft
 ];
-
-// ── Helpers ──
-
-function detectSector(pathname: string): string {
-  const seg = pathname.split('/').filter(Boolean)[0] || '';
-  if (seg in SECTOR_MAP) return seg;
-  return 'technology';
-}
 
 async function fetchJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -181,24 +83,27 @@ export default function SectorLobbyingPage() {
   const location = useLocation();
   const sectorKey = detectSector(location.pathname);
   const config = SECTOR_MAP[sectorKey];
+  const entityWord = config.entityKey === 'institutions' ? 'institutions' : 'companies';
+  const EntityWord = config.entityKey === 'institutions' ? 'Institutions' : 'Companies';
 
   const [allFilings, setAllFilings] = useState<LobbyingFiling[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<number | string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const endpoint = config.endpoints.lobbying;
 
     async function loadData() {
-      if (!config.aggregateEndpoint) {
+      if (!endpoint) {
         setError('No lobbying data available for this sector.');
         setLoading(false);
         return;
       }
 
       try {
-        const data = await fetchJSON<{ filings: typeof allFilings }>(config.aggregateEndpoint);
+        const data = await fetchJSON<{ filings: LobbyingFiling[] }>(endpoint);
         if (cancelled) return;
         setAllFilings(data.filings || []);
       } catch (e: unknown) {
@@ -214,10 +119,10 @@ export default function SectorLobbyingPage() {
     setExpandedId(null);
     loadData();
     return () => { cancelled = true; };
-  }, [sectorKey]);
+  }, [sectorKey, config.endpoints.lobbying]);
 
   // Parse lobbying issues and build breakdown
-  const issueBreakdown = useMemo(() => {
+  const issueBreakdown = useMemo<IssueBreakdown[]>(() => {
     const issueMap = new Map<string, IssueBreakdown>();
 
     for (const filing of allFilings) {
@@ -268,160 +173,133 @@ export default function SectorLobbyingPage() {
   const totalIncome = allFilings.reduce((sum, f) => sum + (f.income || 0), 0);
   const totalFilings = allFilings.length;
   const uniqueCompanies = new Set(allFilings.map((f) => f.entity_id)).size;
-
   const maxIncome = issueBreakdown.length > 0 ? issueBreakdown[0].totalIncome : 0;
 
-  const SectorHeaderComp = config.Header;
-
-  if (error) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg text-red-400 mb-2">Failed to load lobbying data</p>
-          <p className="text-sm text-white/50">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 rounded px-4 py-2 text-sm text-white hover:opacity-80"
-            style={{ backgroundColor: config.accent }}
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const csvExport = (
+    <CSVExport
+      data={allFilings}
+      filename={`${config.key}-lobbying`}
+      columns={[
+        { key: 'entity_name', label: 'Company' },
+        { key: 'registrant_name', label: 'Registrant' },
+        { key: 'client_name', label: 'Client' },
+        { key: 'filing_year', label: 'Year' },
+        { key: 'filing_period', label: 'Period' },
+        { key: 'income', label: 'Income' },
+        { key: 'lobbying_issues', label: 'Issues' },
+        { key: 'government_entities', label: 'Gov Entities' },
+      ]}
+    />
+  );
 
   return (
-    <div className="min-h-screen">
-      {/* Background decor */}
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div
-          className="absolute w-full h-full"
-          style={{ background: `radial-gradient(ellipse at 50% -20%, ${config.accent} 0%, transparent 60%)`, opacity: 0.08 }}
-        />
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: 'linear-gradient(#F8FAFC 1px, transparent 1px), linear-gradient(90deg, #F8FAFC 1px, transparent 1px)',
-            backgroundSize: '48px 48px',
-            opacity: 0.025,
-          }}
-        />
-      </div>
-
-      <div className="relative z-10 mx-auto max-w-[1400px] px-8 py-8 md:px-12">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="flex flex-col gap-8"
-        >
-          {/* Header */}
-          <motion.div variants={itemVariants} className="flex flex-col gap-3">
-            <SectorHeaderComp />
-
-            <div className="flex items-center gap-3 mt-1">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-50" style={{ backgroundColor: config.accent }} />
-                <span className="relative inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: config.accent, boxShadow: `0 0 8px rgba(${config.accentRGB},0.5)` }} />
-              </span>
-              <span className="font-heading text-sm font-bold tracking-[0.2em] uppercase" style={{ color: config.accent }}>
-                Lobbying Activity
-              </span>
-            </div>
-
-            <h1 className="font-heading text-4xl font-bold tracking-tight text-zinc-50 leading-tight xl:text-5xl">
-              {config.label} Lobbying Breakdown
-            </h1>
-            <div className="flex items-center gap-4">
-              <p className="font-body text-base text-zinc-400 leading-relaxed max-w-2xl">
-                Lobbying spending by issue area across all tracked {config.label.toLowerCase()} {config.entityKey === 'institutions' ? 'institutions' : 'companies'}.
-              </p>
-              <CSVExport
-                data={allFilings}
-                filename={`${config.key}-lobbying`}
-                columns={[
-                  { key: 'entity_name', label: 'Company' },
-                  { key: 'registrant_name', label: 'Registrant' },
-                  { key: 'client_name', label: 'Client' },
-                  { key: 'filing_year', label: 'Year' },
-                  { key: 'filing_period', label: 'Period' },
-                  { key: 'income', label: 'Income' },
-                  { key: 'lobbying_issues', label: 'Issues' },
-                  { key: 'government_entities', label: 'Gov Entities' },
-                ]}
-              />
-            </div>
+    <SectorTabLayout
+      config={config}
+      eyebrow="Lobbying Activity"
+      title={`${config.label} lobbying breakdown`}
+      subtitle={`Lobbying spending by issue area across all tracked ${config.label.toLowerCase()} ${entityWord}.`}
+      rightSlot={csvExport}
+      error={error}
+      errorLabel="lobbying data"
+    >
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}
+      >
+        {/* Stat cards */}
+        {loading ? (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: '12px',
+            }}
+          >
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ ...statCard, height: '96px' }} />
+            ))}
+          </div>
+        ) : (
+          <motion.div
+            variants={containerVariants}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px',
+            }}
+          >
+            <motion.div variants={itemVariants} style={statCard}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={statLabel}>Total Lobbying Income</span>
+                <TrendingUp size={16} color="var(--color-text-3)" />
+              </div>
+              <span style={{ ...statNumber, color: config.accent }}>{fmtDollar(totalIncome)}</span>
+            </motion.div>
+            <motion.div variants={itemVariants} style={statCard}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={statLabel}>Total Filings</span>
+                <Scale size={16} color="var(--color-text-3)" />
+              </div>
+              <span style={statNumber}>{fmtNum(totalFilings)}</span>
+            </motion.div>
+            <motion.div variants={itemVariants} style={statCard}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={statLabel}>{EntityWord}</span>
+                <Building2 size={16} color="var(--color-text-3)" />
+              </div>
+              <span style={statNumber}>{uniqueCompanies}</span>
+            </motion.div>
           </motion.div>
+        )}
 
-          {/* Stat cards */}
-          {loading ? (
-            <div className="grid grid-cols-3 gap-4">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="h-24 rounded-xl bg-zinc-900 animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <motion.div variants={containerVariants} className="grid grid-cols-3 gap-4">
-              <motion.div
-                variants={itemVariants}
-                className="group relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-5 flex flex-col gap-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-heading text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">Total Lobbying Income</span>
-                  <TrendingUp size={18} className="text-zinc-500" />
-                </div>
-                <span className="font-mono text-3xl font-semibold text-zinc-100">{fmtDollar(totalIncome)}</span>
-              </motion.div>
-              <motion.div
-                variants={itemVariants}
-                className="group relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-5 flex flex-col gap-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-heading text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">Total Filings</span>
-                  <Scale size={18} className="text-zinc-500" />
-                </div>
-                <span className="font-mono text-3xl font-semibold text-zinc-100">{fmtNum(totalFilings)}</span>
-              </motion.div>
-              <motion.div
-                variants={itemVariants}
-                className="group relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-md p-5 flex flex-col gap-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-heading text-xs font-bold tracking-[0.15em] uppercase text-zinc-500">{config.entityKey === 'institutions' ? 'Institutions' : 'Companies'}</span>
-                  <Building2 size={18} className="text-zinc-500" />
-                </div>
-                <span className="font-mono text-3xl font-semibold text-zinc-100">{uniqueCompanies}</span>
-              </motion.div>
+        {/* Issue breakdown */}
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <div key={i} style={{ ...statCard, height: '72px' }} />
+            ))}
+          </div>
+        ) : issueBreakdown.length === 0 ? (
+          <div style={emptyState}>
+            <Scale size={40} color="var(--color-text-3)" style={{ opacity: 0.4, marginBottom: '16px' }} />
+            <p
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '16px',
+                color: 'var(--color-text-3)',
+                margin: 0,
+              }}
+            >
+              No lobbying issue data available
+            </p>
+          </div>
+        ) : (
+          <motion.div variants={containerVariants}>
+            <motion.div variants={itemVariants}>
+              <h2 style={sectionTitle}>
+                Spending by <span style={{ color: config.accent, fontStyle: 'italic' }}>issue area</span>
+              </h2>
+              <p style={sectionSubtitle}>
+                Top 25 lobbying issue categories ranked by total reported income.
+              </p>
             </motion.div>
-          )}
 
-          {/* Issue breakdown - horizontal bar chart */}
-          {loading ? (
-            <div className="flex flex-col gap-3">
-              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-                <div key={i} className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
-              ))}
-            </div>
-          ) : issueBreakdown.length === 0 ? (
-            <motion.div variants={itemVariants} className="flex flex-col items-center justify-center py-20">
-              <Scale size={48} className="text-white/20 mb-4" />
-              <p className="font-body text-xl text-white/40">No lobbying issue data available</p>
-            </motion.div>
-          ) : (
-            <motion.div variants={containerVariants} className="flex flex-col gap-2">
-              <motion.div variants={itemVariants} className="mb-2">
-                <h2 className="font-heading text-2xl font-bold tracking-tight uppercase text-zinc-50">
-                  Spending by Issue Area
-                </h2>
-                <p className="mt-1 font-body text-sm text-zinc-500">
-                  Top 25 lobbying issue categories ranked by total reported income
-                </p>
-              </motion.div>
-
+            <div
+              style={{
+                padding: '8px',
+                background: 'var(--color-surface)',
+                border: '1px solid rgba(235,229,213,0.08)',
+                borderRadius: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+              }}
+            >
               {issueBreakdown.map((item, idx) => {
                 const pct = maxIncome > 0 ? (item.totalIncome / maxIncome) * 100 : 0;
-                const color = BAR_COLORS[idx % BAR_COLORS.length];
+                const color = BAR_PALETTE[idx % BAR_PALETTE.length];
                 const allCompanies = Array.from(item.companies.entries())
                   .map(([entityId, v]) => ({ entityId, ...v }))
                   .sort((a, b) => b.income - a.income);
@@ -433,78 +311,245 @@ export default function SectorLobbyingPage() {
                     key={item.issue}
                     variants={itemVariants}
                     onClick={() => setExpandedId(isExpanded ? null : item.issue)}
-                    className="group rounded-xl border border-transparent bg-white/[0.03] p-4 transition-all hover:bg-white/[0.06] hover:border-white/10 cursor-pointer"
+                    style={{
+                      padding: '14px 16px',
+                      borderRadius: '12px',
+                      background: isExpanded ? 'rgba(235,229,213,0.04)' : 'transparent',
+                      border: '1px solid transparent',
+                      cursor: 'pointer',
+                      transition: 'background 0.18s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isExpanded) e.currentTarget.style.background = 'rgba(235,229,213,0.03)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isExpanded) e.currentTarget.style.background = 'transparent';
+                    }}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div
-                          className="w-3 h-3 rounded-sm flex-shrink-0"
-                          style={{ backgroundColor: color }}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        marginBottom: '10px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          minWidth: 0,
+                          flex: 1,
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '3px',
+                            background: color,
+                            flexShrink: 0,
+                          }}
                         />
-                        <span className={`font-body text-sm font-medium text-white ${isExpanded ? '' : 'truncate'}`}>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            color: 'var(--color-text-1)',
+                            overflow: isExpanded ? 'visible' : 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: isExpanded ? 'normal' : 'nowrap',
+                          }}
+                        >
                           {item.issue}
                         </span>
                       </div>
-                      <div className="flex items-center gap-4 flex-shrink-0">
-                        <span className="font-mono text-xs text-white/40">{item.filingCount} filings</span>
-                        <span className="font-mono text-sm font-bold text-white">{fmtDollar(item.totalIncome)}</span>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '16px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '11px',
+                            color: 'var(--color-text-3)',
+                          }}
+                        >
+                          {item.filingCount} filings
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            color: 'var(--color-text-1)',
+                          }}
+                        >
+                          {fmtDollar(item.totalIncome)}
+                        </span>
                       </div>
                     </div>
 
                     {/* Bar */}
-                    <div className="h-6 bg-zinc-900 rounded-lg overflow-hidden mb-2">
+                    <div
+                      style={{
+                        height: '6px',
+                        background: 'var(--color-surface-2)',
+                        borderRadius: '999px',
+                        overflow: 'hidden',
+                        marginBottom: isExpanded ? '14px' : '8px',
+                      }}
+                    >
                       <motion.div
-                        className="h-full rounded-lg"
-                        style={{ backgroundColor: color }}
+                        style={{
+                          height: '100%',
+                          borderRadius: '999px',
+                          background: color,
+                        }}
                         initial={{ width: 0 }}
                         animate={{ width: `${Math.max(pct, 2)}%` }}
-                        transition={{ duration: 0.8, delay: idx * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                        transition={{ duration: 0.7, delay: idx * 0.03, ease: [0.16, 1, 0.3, 1] }}
                       />
                     </div>
 
-                    {/* AI Summaries */}
+                    {/* AI summaries */}
                     {isExpanded && item.aiSummaries.length > 0 && (
-                      <div className="mt-2 mb-1">
-                        <span className="text-zinc-500 text-xs uppercase tracking-wider">AI Analysis</span>
+                      <div style={{ marginBottom: '14px' }}>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            letterSpacing: '0.14em',
+                            textTransform: 'uppercase',
+                            color: 'var(--color-text-3)',
+                            marginBottom: '4px',
+                          }}
+                        >
+                          AI analysis
+                        </span>
                         {item.aiSummaries.slice(0, 3).map((s, si) => (
-                          <p key={si} className="text-zinc-400 text-sm mt-1">{s}</p>
+                          <p
+                            key={si}
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              fontSize: '13px',
+                              color: 'var(--color-text-2)',
+                              margin: '4px 0 0',
+                              lineHeight: 1.55,
+                            }}
+                          >
+                            {s}
+                          </p>
                         ))}
                       </div>
                     )}
 
-                    {/* Company breakdown */}
+                    {/* Companies — expanded list or top-3 summary */}
                     {isExpanded ? (
-                      <div className="flex flex-col gap-1 mt-2">
-                        <span className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-white/30">
-                          All {config.entityKey === 'institutions' ? 'Institutions' : 'Companies'}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            letterSpacing: '0.14em',
+                            textTransform: 'uppercase',
+                            color: 'var(--color-text-3)',
+                            marginBottom: '6px',
+                          }}
+                        >
+                          All {entityWord}
                         </span>
                         {allCompanies.map((comp) => (
                           <div
                             key={comp.entityId}
-                            className="flex items-center gap-1 px-1 py-0.5 rounded transition-colors hover:bg-white/[0.06] [&:hover_.comp-name]:text-white [&:hover_.comp-amount]:text-white"
                             onClick={(e) => e.stopPropagation()}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '3px 4px',
+                              borderRadius: '6px',
+                              transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'rgba(235,229,213,0.04)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'transparent';
+                            }}
                           >
                             <Link
                               to={config.profilePath(comp.entityId)}
-                              className="comp-name font-mono text-[11px] text-white/60 hover:underline flex-shrink-0 transition-colors"
+                              style={{
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: '11px',
+                                color: 'var(--color-text-2)',
+                                textDecoration: 'none',
+                                flexShrink: 0,
+                                maxWidth: '60%',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.color = config.accent; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
                             >
                               {comp.name}
                             </Link>
-                            <div className="flex-1 border-b border-dotted border-white/15 mx-1 translate-y-[-2px]" />
-                            <span className="comp-amount font-mono text-[11px] text-white/50 flex-shrink-0 transition-colors">
+                            <div
+                              style={{
+                                flex: 1,
+                                borderBottom: '1px dotted rgba(235,229,213,0.15)',
+                                margin: '0 4px',
+                                transform: 'translateY(-2px)',
+                              }}
+                            />
+                            <span
+                              style={{
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: '11px',
+                                color: 'var(--color-text-3)',
+                                flexShrink: 0,
+                              }}
+                            >
                               {fmtDollar(comp.income)}
                             </span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '8px 14px',
+                          opacity: 0.75,
+                        }}
+                      >
                         {topCompanies.map((comp) => (
                           <Link
                             key={comp.entityId}
                             to={config.profilePath(comp.entityId)}
                             onClick={(e) => e.stopPropagation()}
-                            className="font-mono text-[11px] text-white/50 hover:text-white hover:underline transition-colors"
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '11px',
+                              color: 'var(--color-text-3)',
+                              textDecoration: 'none',
+                              transition: 'color 0.15s',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = config.accent; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-3)'; }}
                           >
                             {comp.name}: {fmtDollar(comp.income)}
                           </Link>
@@ -514,10 +559,10 @@ export default function SectorLobbyingPage() {
                   </motion.div>
                 );
               })}
-            </motion.div>
-          )}
-        </motion.div>
-      </div>
-    </div>
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
+    </SectorTabLayout>
   );
 }
