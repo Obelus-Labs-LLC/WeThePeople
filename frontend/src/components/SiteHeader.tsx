@@ -1,25 +1,21 @@
 import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import Logo from './Logo';
 
 /**
- * Main-site top navigation bar — Claude Design 1:1.
+ * Main-site top navigation bar — landing only.
  *
  * Sticky 64px bar with backdrop-blur. Left: Logo (WTP box + WeThePeople
- * wordmark) linked to /. Center: Home / Dashboard toggle (Home = /, Dashboard
- * = /politics). Right: search input + Log in + Sign up buttons.
+ * wordmark) linked to /. Right: search input + Log in + Sign up buttons.
  *
- * Used on the landing page. Sector pages use `SectorHeader` which nests
- * under this one (to be wired in when the Politics dashboard is aligned).
+ * Home/Dashboard toggle removed per redesign — users pick a sector directly
+ * from the landing grid. Sector pages use `SectorHeader` (52px) which
+ * replaces this one.
  */
 export default function SiteHeader() {
-  const { pathname } = useLocation();
   const navigate = useNavigate();
   const [query, setQuery] = React.useState('');
-
-  const isHome = pathname === '/';
-  const isDashboard = pathname.startsWith('/politics');
 
   return (
     <header
@@ -41,50 +37,6 @@ export default function SiteHeader() {
       >
         <Logo size="sm" />
       </Link>
-
-      {/* Center — Home / Dashboard toggle */}
-      <nav
-        className="absolute left-1/2 flex items-center"
-        style={{
-          transform: 'translateX(-50%)',
-          gap: 4,
-          padding: 3,
-          borderRadius: 'var(--radius-pill)',
-        }}
-      >
-        <Link
-          to="/"
-          className="no-underline"
-          style={{
-            padding: '6px 16px',
-            borderRadius: 'var(--radius-pill)',
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            fontWeight: 600,
-            color: isHome ? 'var(--color-text-1)' : 'var(--color-text-2)',
-            background: isHome ? 'var(--color-surface-2)' : 'transparent',
-            transition: 'background 0.15s, color 0.15s',
-          }}
-        >
-          Home
-        </Link>
-        <Link
-          to="/politics"
-          className="no-underline"
-          style={{
-            padding: '6px 16px',
-            borderRadius: 'var(--radius-pill)',
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            fontWeight: 600,
-            color: isDashboard ? 'var(--color-text-1)' : 'var(--color-text-2)',
-            background: isDashboard ? 'var(--color-surface-2)' : 'transparent',
-            transition: 'background 0.15s, color 0.15s',
-          }}
-        >
-          Dashboard
-        </Link>
-      </nav>
 
       {/* Right — search + auth */}
       <div className="flex items-center shrink-0" style={{ gap: 10 }}>
