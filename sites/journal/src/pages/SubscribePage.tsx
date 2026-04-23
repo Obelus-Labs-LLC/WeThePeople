@@ -61,7 +61,6 @@ export default function SubscribePage() {
             className="mb-4"
             style={{
               fontFamily: 'var(--font-display)',
-              fontStyle: 'italic',
               fontWeight: 900,
               fontSize: 'clamp(34px, 5vw, 52px)',
               letterSpacing: '-0.025em',

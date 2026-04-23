@@ -120,7 +120,6 @@ export default function HomePage() {
           <h1
             style={{
               fontFamily: 'var(--font-display)',
-              fontStyle: 'italic',
               fontWeight: 900,
               fontSize: 'clamp(36px, 6vw, 56px)',
               letterSpacing: '-0.02em',

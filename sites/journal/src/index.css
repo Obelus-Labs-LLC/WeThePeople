@@ -36,10 +36,13 @@
   /* ── Fonts ────────────────────────────────────────────────────── */
   /* Display: prefer Canela (Commercial Type) when self-hosted via @font-face,
      fall back to Playfair Display (Google Fonts, currently loaded in
-     index.html). Both share the same editorial-italic energy; the family
-     order means switching is purely a font-loading change with no JSX
-     edits required. Georgia / generic serif round out the stack so we
-     always have a decent display face even when web fonts fail. */
+     index.html). Top-level titles (masthead, article H1, story cards)
+     render as bold 900 NON-italic per the `WTP Ecosystem Sites` design
+     handoff — only editorial callouts (pull-quotes, retraction banners,
+     Weekly Digest CTA) keep italic. The family order means swapping to
+     Canela is purely a font-loading change with no JSX edits required.
+     Georgia / generic serif round out the stack so we always have a
+     decent display face even when web fonts fail. */
   --font-display: 'Canela', 'Playfair Display', Georgia, serif;
   --font-body:    'Inter', sans-serif;          /* all UI text */
   --font-mono:    'JetBrains Mono', monospace;  /* all numbers, codes, IDs */

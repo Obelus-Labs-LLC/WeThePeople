@@ -25,7 +25,6 @@ const eyebrowStyle: React.CSSProperties = {
 };
 const h1Style: React.CSSProperties = {
   fontFamily: 'var(--font-display)',
-  fontStyle: 'italic',
   fontWeight: 900,
   fontSize: 'clamp(36px, 5.5vw, 56px)',
   letterSpacing: '-0.025em',
@@ -34,7 +33,6 @@ const h1Style: React.CSSProperties = {
 };
 const h2Style: React.CSSProperties = {
   fontFamily: 'var(--font-display)',
-  fontStyle: 'italic',
   fontWeight: 900,
   fontSize: '24px',
   letterSpacing: '-0.015em',
@@ -323,7 +321,6 @@ export default function CoverageBalancePage() {
                 <p
                   style={{
                     fontFamily: 'var(--font-display)',
-                    fontStyle: 'italic',
                     fontWeight: 900,
                     fontSize: '56px',
                     letterSpacing: '-0.025em',
