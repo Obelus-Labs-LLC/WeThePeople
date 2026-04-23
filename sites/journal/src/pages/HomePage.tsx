@@ -1,17 +1,46 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { StoryCard } from '../components/StoryCard';
 import { NewsletterCTA } from '../components/NewsletterCTA';
 import { EmptyState } from '../components/EmptyState';
 import { useStories } from '../hooks/useStories';
 import { CATEGORY_META, type StoryCategory } from '../types';
 
+/**
+ * Influence Journal home — editorial masthead + featured story + 3-col
+ * latest grid + newsletter CTA. Matches the layout from the
+ * `WTP Ecosystem Sites.html` Journal section:
+ *
+ *   - Centered masthead: small mono URL overline, big italic Playfair
+ *     "The Influence Journal", 60×2 crimson rule, tagline
+ *   - Featured story (uses the existing StoryCard `featured` variant —
+ *     same data shape so no API change required)
+ *   - "Latest" overline + 3-column StoryCard grid
+ *   - Newsletter CTA
+ *   - Search + Category browse (kept below the editorial fold so the page
+ *     reads like a magazine first, search-second)
+ *
+ * Data still flows through useStories(/stories/latest) — no backend change.
+ */
+
 const categories: StoryCategory[] = [
-  'contract_windfall', 'revolving_door', 'bipartisan_buying', 'stock_act_violation',
-  'committee_stock_trade', 'prolific_trader', 'enforcement_immunity', 'penalty_contract_ratio',
-  'lobbying_spike', 'enforcement_gap', 'trade_timing', 'full_influence_loop',
-  'foreign_lobbying', 'regulatory_capture', 'regulatory_arbitrage', 'trade_cluster',
+  'contract_windfall',
+  'revolving_door',
+  'bipartisan_buying',
+  'stock_act_violation',
+  'committee_stock_trade',
+  'prolific_trader',
+  'enforcement_immunity',
+  'penalty_contract_ratio',
+  'lobbying_spike',
+  'enforcement_gap',
+  'trade_timing',
+  'full_influence_loop',
+  'foreign_lobbying',
+  'regulatory_capture',
+  'regulatory_arbitrage',
+  'trade_cluster',
 ];
 
 export default function HomePage() {
@@ -22,21 +51,28 @@ export default function HomePage() {
   const q = search.trim().toLowerCase();
   const filteredStories = q
     ? allStories.filter(
-        (s) => s.title.toLowerCase().includes(q) || s.summary.toLowerCase().includes(q)
+        (s) => s.title.toLowerCase().includes(q) || s.summary.toLowerCase().includes(q),
       )
     : displayStories;
 
-  const featured = q ? null : (filteredStories.find((s) => s.featured) ?? filteredStories[0] ?? null);
+  // Featured = first explicitly-flagged story, falling back to most recent.
+  // Skip featuring while a search is active so the result list isn't split.
+  const featured = q
+    ? null
+    : (filteredStories.find((s) => s.featured) ?? filteredStories[0] ?? null);
   const rest = featured ? filteredStories.filter((s) => s !== featured) : filteredStories;
 
   return (
     <main
       id="main-content"
-      className="flex-1 px-4 py-10 sm:py-16 relative"
+      className="flex-1 px-4 py-10 sm:py-14 relative"
       style={{ color: 'var(--color-text-1)' }}
     >
-      {/* Decorative grid + radial */}
-      <div style={{ pointerEvents: 'none', position: 'fixed', inset: 0, zIndex: 0 }}>
+      {/* Decorative background — soft crimson radial + subtle grid. */}
+      <div
+        aria-hidden
+        style={{ pointerEvents: 'none', position: 'fixed', inset: 0, zIndex: 0 }}
+      >
         <div
           style={{
             position: 'absolute',
@@ -59,141 +95,67 @@ export default function HomePage() {
       </div>
 
       <div className="max-w-5xl mx-auto relative" style={{ zIndex: 1 }}>
-        {/* Masthead */}
-        <header className="text-center mb-12 sm:mb-16">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <span style={{ position: 'relative', display: 'inline-flex', height: 8, width: 8 }}>
-              <span
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  borderRadius: '999px',
-                  background: 'var(--color-journal)',
-                  opacity: 0.5,
-                  animation: 'research-ping 1.6s cubic-bezier(0,0,0.2,1) infinite',
-                }}
-              />
-              <span
-                style={{
-                  position: 'relative',
-                  height: 8,
-                  width: 8,
-                  borderRadius: '999px',
-                  background: 'var(--color-journal)',
-                  boxShadow: '0 0 10px var(--color-journal)',
-                }}
-              />
-            </span>
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '11px',
-                fontWeight: 700,
-                letterSpacing: '0.24em',
-                textTransform: 'uppercase',
-                color: 'var(--color-journal)',
-              }}
-            >
-              WeThePeople Research
-            </span>
+        {/* ── Masthead ─────────────────────────────────────────────── */}
+        <header
+          className="text-center"
+          style={{
+            paddingBottom: 28,
+            borderBottom: '1px solid var(--color-border)',
+            marginBottom: 36,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.24em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-3)',
+              marginBottom: 10,
+            }}
+          >
+            wethepeopleforus.com
           </div>
           <h1
-            className="mb-4"
             style={{
               fontFamily: 'var(--font-display)',
               fontStyle: 'italic',
               fontWeight: 900,
-              fontSize: 'clamp(40px, 6vw, 72px)',
-              letterSpacing: '-0.025em',
-              lineHeight: 1,
+              fontSize: 'clamp(36px, 6vw, 56px)',
+              letterSpacing: '-0.02em',
+              lineHeight: 1.0,
               color: 'var(--color-text-1)',
+              marginBottom: 12,
             }}
           >
             The Influence Journal
           </h1>
+          <div
+            aria-hidden
+            style={{
+              width: 60,
+              height: 2,
+              background: 'var(--color-journal)',
+              margin: '0 auto 12px',
+            }}
+          />
           <p
-            className="max-w-2xl mx-auto"
             style={{
               fontFamily: 'var(--font-body)',
-              fontSize: '17px',
-              lineHeight: 1.6,
-              color: 'var(--color-text-2)',
+              fontSize: 14,
+              color: 'var(--color-text-3)',
+              maxWidth: 520,
+              margin: '0 auto',
+              lineHeight: 1.55,
             }}
           >
-            Data-driven investigations into corporate influence on government. Every claim cited.
-            Every dollar traced.
+            Data-driven investigations into corporate influence on American democracy.
+            Every claim cited. Every dollar traced.
           </p>
         </header>
 
-        {/* Search bar */}
-        <div className="relative max-w-md mx-auto mb-10">
-          <Search
-            size={16}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2"
-            style={{ color: 'var(--color-text-3)' }}
-          />
-          <input
-            type="search"
-            placeholder="Search stories…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full focus:outline-none transition-all"
-            style={{
-              background: 'var(--color-surface)',
-              border: '1px solid rgba(235,229,213,0.1)',
-              borderRadius: '10px',
-              padding: '10px 14px 10px 38px',
-              fontFamily: 'var(--font-body)',
-              fontSize: '14px',
-              color: 'var(--color-text-1)',
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(197,160,40,0.35)';
-              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(197,160,40,0.08)';
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(235,229,213,0.1)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          />
-        </div>
-
-        {/* Category pills */}
-        <nav className="flex flex-wrap items-center justify-center gap-2 mb-12">
-          {categories.map((cat) => {
-            const meta = CATEGORY_META[cat];
-            return (
-              <Link
-                key={cat}
-                to={`/category/${cat}`}
-                className="transition-colors no-underline"
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  letterSpacing: '0.16em',
-                  textTransform: 'uppercase',
-                  padding: '6px 14px',
-                  borderRadius: '999px',
-                  border: '1px solid rgba(235,229,213,0.1)',
-                  color: 'var(--color-text-2)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(197,160,40,0.35)';
-                  e.currentTarget.style.color = 'var(--color-accent-text)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(235,229,213,0.1)';
-                  e.currentTarget.style.color = 'var(--color-text-2)';
-                }}
-              >
-                {meta.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Loading */}
+        {/* ── Loading / error / empty states ───────────────────────── */}
         {loading && (
           <div className="flex items-center justify-center py-20">
             <div
@@ -211,29 +173,27 @@ export default function HomePage() {
             </div>
           </div>
         )}
-
-        {/* Error / Empty */}
         {error && !loading && <EmptyState message={error} />}
         {!loading && !error && displayStories.length === 0 && <EmptyState />}
 
-        {/* Search results count */}
+        {/* ── Search results count (only while filtering) ───────────── */}
         {q && !loading && (
           <p
             className="text-center mb-6"
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: '11px',
+              fontSize: 11,
               letterSpacing: '0.16em',
               textTransform: 'uppercase',
               color: 'var(--color-text-3)',
             }}
           >
-            {filteredStories.length} {filteredStories.length === 1 ? 'result' : 'results'} for "
-            {search.trim()}"
+            {filteredStories.length} {filteredStories.length === 1 ? 'result' : 'results'} for &ldquo;
+            {search.trim()}&rdquo;
           </p>
         )}
 
-        {/* Stories */}
+        {/* ── Featured + Latest grid ───────────────────────────────── */}
         {!loading && !error && filteredStories.length > 0 && (
           <>
             {featured && (
@@ -243,110 +203,148 @@ export default function HomePage() {
             )}
 
             {rest.length > 0 && (
-              <section className="mb-16">
-                <div className="flex items-center justify-between mb-6">
+              <section style={{ marginBottom: 56 }}>
+                <div
+                  className="flex items-center justify-between"
+                  style={{ marginBottom: 16 }}
+                >
                   <h2
                     style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '13px',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 11,
                       fontWeight: 700,
-                      letterSpacing: '0.22em',
+                      letterSpacing: '0.18em',
                       textTransform: 'uppercase',
-                      color: 'var(--color-text-1)',
+                      color: 'var(--color-text-3)',
                     }}
                   >
-                    Recent Investigations
+                    Latest
                   </h2>
+                  <Link
+                    to="/coverage"
+                    className="no-underline"
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--color-accent-text)',
+                    }}
+                  >
+                    Browse all →
+                  </Link>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                   {rest.map((story) => (
                     <StoryCard key={story.slug} story={story} />
                   ))}
                 </div>
               </section>
             )}
-
-            <section className="mb-16">
-              <h2
-                className="mb-6"
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  letterSpacing: '0.22em',
-                  textTransform: 'uppercase',
-                  color: 'var(--color-text-1)',
-                }}
-              >
-                Browse by Category
-              </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {categories.map((cat) => {
-                  const meta = CATEGORY_META[cat];
-                  const count = allStories.filter((s) => s.category === cat).length;
-                  return (
-                    <Link
-                      key={cat}
-                      to={`/category/${cat}`}
-                      className="group flex flex-col items-center text-center no-underline transition-all"
-                      style={{
-                        padding: '16px 14px',
-                        borderRadius: '12px',
-                        border: '1px solid rgba(235,229,213,0.08)',
-                        background: 'var(--color-surface)',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = 'rgba(197,160,40,0.3)';
-                        e.currentTarget.style.background = 'var(--color-surface-2)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'rgba(235,229,213,0.08)';
-                        e.currentTarget.style.background = 'var(--color-surface)';
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          letterSpacing: '0.16em',
-                          textTransform: 'uppercase',
-                          color: 'var(--color-text-1)',
-                          marginBottom: 4,
-                        }}
-                      >
-                        {meta.label}
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '10px',
-                          color: 'var(--color-text-3)',
-                        }}
-                      >
-                        {count} {count === 1 ? 'story' : 'stories'}
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
           </>
         )}
 
-        {/* Newsletter */}
-        <section className="mb-12">
+        {/* ── Newsletter ───────────────────────────────────────────── */}
+        <section className="mb-16">
           <NewsletterCTA />
         </section>
 
-        {/* About link */}
+        {/* ── Search + Category browse (post-fold tools) ───────────── */}
+        <section style={{ marginBottom: 48 }}>
+          <div
+            className="flex items-center justify-between"
+            style={{ marginBottom: 16, gap: 12, flexWrap: 'wrap' }}
+          >
+            <h2
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--color-text-3)',
+              }}
+            >
+              Search & Browse
+            </h2>
+          </div>
+
+          {/* Search input — sticks out on its own row so the cursor target is
+              obvious; pressing Enter doesn't navigate, just filters in place. */}
+          <div className="relative max-w-md mb-6">
+            <Search
+              size={16}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--color-text-3)' }}
+            />
+            <input
+              type="search"
+              placeholder="Search stories…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full focus:outline-none transition-all"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 10,
+                padding: '10px 14px 10px 38px',
+                fontFamily: 'var(--font-body)',
+                fontSize: 14,
+                color: 'var(--color-text-1)',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(230,57,70,0.45)';
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(230,57,70,0.10)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            />
+          </div>
+
+          <nav className="flex flex-wrap items-center gap-2" aria-label="Browse by category">
+            {categories.map((cat) => {
+              const meta = CATEGORY_META[cat];
+              return (
+                <Link
+                  key={cat}
+                  to={`/category/${cat}`}
+                  className="transition-colors no-underline"
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: '0.16em',
+                    textTransform: 'uppercase',
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text-2)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(230,57,70,0.4)';
+                    e.currentTarget.style.color = 'var(--color-accent-text)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-border)';
+                    e.currentTarget.style.color = 'var(--color-text-2)';
+                  }}
+                >
+                  {meta?.label ?? cat}
+                </Link>
+              );
+            })}
+          </nav>
+        </section>
+
+        {/* ── About link ──────────────────────────────────────────── */}
         <div className="text-center">
           <Link
             to="/about"
             className="inline-flex items-center gap-2 no-underline transition-colors"
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: '11px',
+              fontSize: 11,
               letterSpacing: '0.2em',
               textTransform: 'uppercase',
               color: 'var(--color-text-3)',
@@ -358,8 +356,7 @@ export default function HomePage() {
               e.currentTarget.style.color = 'var(--color-text-3)';
             }}
           >
-            About The Influence Journal
-            <ArrowRight size={12} />
+            About The Influence Journal →
           </Link>
         </div>
       </div>

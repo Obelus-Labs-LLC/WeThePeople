@@ -1,7 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Link2, FileText, Youtube, Loader2, ArrowRight, Database } from 'lucide-react';
 import { apiPost, apiFetch, humanizeError, ApiError } from '../api/client';
+
+/**
+ * Verify (Veritas) home page — hero pill + URL/text submit form + recent
+ * verification list. Matches the design from `WTP Ecosystem Sites.html`:
+ * the emerald accent identifies Verify within the WTP ecosystem nav, and
+ * the layout follows the spec's editorial-italic headline + clean form +
+ * scored verdict cards pattern.
+ *
+ * Backend integration is unchanged from the previous version:
+ *   - GET  /claims/dashboard/stats   – stats + 5 recent claims
+ *   - POST /claims/verify            – plain-text or claim submission
+ *   - POST /claims/verify-url        – URL/YouTube submission (transcript)
+ *
+ * On submit we route to /results/quick with the response in router state,
+ * matching the existing ResultsPage contract.
+ */
 
 type InputType = 'TEXT' | 'URL' | 'YOUTUBE';
 
@@ -12,24 +27,53 @@ function detectInputType(value: string): InputType {
   return 'TEXT';
 }
 
-const TYPE_ICON = {
-  TEXT: FileText,
-  URL: Link2,
-  YOUTUBE: Youtube,
-} as const;
-
-const TYPE_COLOR = {
-  TEXT: 'text-zinc-400 border-zinc-700',
-  URL: 'text-blue-400 border-blue-800',
-  YOUTUBE: 'text-red-400 border-red-800',
-} as const;
-
 interface DashboardStats {
   total_claims: number;
   total_evaluated: number;
   unique_entities: number;
   tier_distribution?: Record<string, number>;
+  recent?: Array<{
+    id: number;
+    person_id?: string | null;
+    text: string;
+    tier?: string | null;
+    created_at?: string | null;
+  }>;
 }
+
+// ── Tokens ──────────────────────────────────────────────────────────────
+// Verify owns the emerald accent. We pull from CSS vars so theme tweaks
+// (e.g. dark/light mode someday) propagate automatically.
+const ACCENT = 'var(--color-accent)';
+const ACCENT_DIM = 'var(--color-accent-dim)';
+const ACCENT_TEXT = 'var(--color-accent-text)';
+const T1 = 'var(--color-text-1)';
+const T2 = 'var(--color-text-2)';
+const T3 = 'var(--color-text-3)';
+const SURF = 'var(--color-surface)';
+const SURF2 = 'var(--color-surface-2)';
+const BORDER = 'var(--color-border)';
+const BORDER_HOVER = 'var(--color-border-hover)';
+const BG = 'var(--color-bg)';
+
+// Color a tier badge — keyed off the backend's evaluation.tier field.
+// `null`/missing means we couldn't score it (yet) — render as muted.
+const TIER_LABEL: Record<string, string> = {
+  strong: 'Supported',
+  moderate: 'Mostly True',
+  weak: 'Mixed Evidence',
+  none: 'Unverified',
+};
+const TIER_COLOR: Record<string, string> = {
+  strong: '#10B981',
+  moderate: '#3DB87A',
+  weak: '#C5A028',
+  none: 'rgba(235,229,213,0.4)',
+};
+
+const FONT_DISPLAY = "'Playfair Display', Georgia, serif";
+const FONT_BODY = "'Inter', sans-serif";
+const FONT_MONO = "'JetBrains Mono', 'Fira Code', monospace";
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -37,12 +81,13 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [textMode, setTextMode] = useState(false);
+  const [inputFocus, setInputFocus] = useState(false);
 
   const inputType = detectInputType(input);
-  const TypeIcon = TYPE_ICON[inputType];
 
-  // Fetch dashboard stats on mount. Failures are non-fatal but are logged so
-  // we know when the stats endpoint is misbehaving instead of silently hiding.
+  // Stats are non-fatal — log if they fail so we don't silently hide a
+  // misbehaving endpoint, but never block the page on the call.
   useEffect(() => {
     const controller = new AbortController();
     apiFetch<DashboardStats>('/claims/dashboard/stats', { signal: controller.signal })
@@ -58,11 +103,13 @@ export default function HomePage() {
   const handleVerify = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed) {
-      setError('Enter a claim, article text, or URL above to get started.');
+      setError('Paste a URL or claim text above to get started.');
       return;
     }
     if (trimmed.length < 20) {
-      setError(`Text is too short (${trimmed.length} characters). Enter at least 20 characters so the engine can extract verifiable claims.`);
+      setError(
+        `Text is too short (${trimmed.length} chars). Enter at least 20 so the engine can extract verifiable claims.`,
+      );
       return;
     }
 
@@ -71,19 +118,17 @@ export default function HomePage() {
 
     try {
       const detected = detectInputType(trimmed);
-      let result;
+      const result =
+        detected === 'URL' || detected === 'YOUTUBE'
+          ? await apiPost('/claims/verify-url', { url: trimmed })
+          : await apiPost('/claims/verify', { text: trimmed });
 
-      if (detected === 'URL' || detected === 'YOUTUBE') {
-        result = await apiPost('/claims/verify-url', { url: trimmed });
-      } else {
-        result = await apiPost('/claims/verify', { text: trimmed });
-      }
-
-      // Navigate to results page with the data in state
       navigate('/results/quick', { state: { result, inputText: trimmed } });
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
-        setError('Daily verification limit reached. Try again tomorrow, or contact us about enterprise access for unlimited checks.');
+        setError(
+          'Daily verification limit reached. Try again tomorrow, or contact us about enterprise access for unlimited checks.',
+        );
       } else {
         setError(humanizeError(err));
       }
@@ -93,135 +138,508 @@ export default function HomePage() {
   }, [input, navigate]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      handleVerify();
-    }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleVerify();
   };
 
-  // Sum supported + partial tiers to surface a meaningful "verified" count
-  // (total_evaluated includes "none" tier, which is really "no match found").
-  const verifiedCount = stats?.tier_distribution
-    ? (stats.tier_distribution.strong || 0) + (stats.tier_distribution.moderate || 0) + (stats.tier_distribution.weak || 0)
-    : stats?.total_evaluated ?? 0;
+  const recent = stats?.recent ?? [];
+
+  // Show a helper subtext under the input that explains what we'll do with
+  // it. Switches between URL transcript flow and raw-text claim flow.
+  const helperText = textMode ? (
+    <>
+      Paste raw claim text — we&apos;ll extract verifiable statements and score
+      each one ·{' '}
+      <span
+        style={{ color: ACCENT_TEXT, cursor: 'pointer' }}
+        onClick={() => setTextMode(false)}
+      >
+        switch back to URL input
+      </span>
+    </>
+  ) : (
+    <>
+      Or paste raw text:{' '}
+      <span
+        style={{ color: ACCENT_TEXT, cursor: 'pointer' }}
+        onClick={() => setTextMode(true)}
+      >
+        switch to text input
+      </span>{' '}
+      · Supports audio/video URLs via transcript extraction
+    </>
+  );
 
   return (
-    <main id="main-content" className="flex-1 flex flex-col items-center justify-center px-4 py-16 sm:py-24">
-      <div className="w-full max-w-2xl mx-auto">
-        {/* Shield icon */}
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-            <Shield className="w-8 h-8 text-amber-400" />
-          </div>
-        </div>
-
-        {/* Heading */}
-        <h1
-          className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-center mb-3"
-          style={{ fontFamily: 'Oswald, sans-serif' }}
-        >
-          <span className="text-amber-400">VERITAS</span>
-        </h1>
-        <p className="text-center text-zinc-400 text-lg mb-2">
-          Zero-LLM Claim Verification Engine
-        </p>
-        <p className="text-center text-zinc-600 text-sm mb-10 max-w-md mx-auto">
-          Paste any political claim, article text, or URL. Claims are extracted
-          deterministically and verified against government data sources.
-        </p>
-
-        {/* Input area */}
-        <div className="relative mb-4">
-          <label htmlFor="verify-input" className="block text-sm text-zinc-400 mb-2">
-            Paste a claim, article text, or URL to verify
-          </label>
-          <textarea
-            id="verify-input"
-            value={input}
-            onChange={(e) => { setInput(e.target.value); setError(''); }}
-            onKeyDown={handleKeyDown}
-            placeholder={'Examples:\n  "Lockheed Martin received $45 billion in defense contracts"\n  https://example.com/article-about-lobbying'}
-            rows={6}
-            disabled={loading}
-            aria-describedby={error ? 'verify-error' : undefined}
-            className="w-full bg-zinc-900/80 border border-white/10 rounded-xl px-5 py-4 text-white placeholder-zinc-600 text-sm leading-relaxed resize-none focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all disabled:opacity-50"
-          />
-
-          {/* Input type badge */}
-          {input.trim().length > 0 && (
-            <div className={`absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${TYPE_COLOR[inputType]}`}>
-              <TypeIcon size={12} />
-              {inputType}
-            </div>
-          )}
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div id="verify-error" role="alert" className="mb-4 px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-            {error}
-          </div>
-        )}
-
-        {/* Verify button */}
-        <div aria-live="polite" aria-atomic="true" className="sr-only">
-          {loading ? 'Verifying claims, please wait...' : ''}
-        </div>
-
-        <button
-          onClick={handleVerify}
-          disabled={loading || input.trim().length < 5}
-          className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-black font-semibold text-sm uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all"
-        >
-          {loading ? (
-            <>
-              <Loader2 size={18} className="animate-spin" />
-              Verifying...
-            </>
-          ) : (
-            <>
-              VERIFY
-              <ArrowRight size={16} />
-            </>
-          )}
-        </button>
-
-        <p className="text-center text-zinc-700 text-xs mt-3">
-          Ctrl+Enter to submit
-        </p>
-
-        {/* Stats bar */}
-        {stats && (stats.total_claims > 0 || stats.total_evaluated > 0) && (
-          <div className="mt-12 flex items-center justify-center gap-6 text-xs text-zinc-600 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <Database size={12} className="text-zinc-700" />
-              <span className="font-mono text-zinc-500">{stats.total_claims.toLocaleString()}</span>
-              <span>claims indexed</span>
-            </div>
-            <span className="text-zinc-800">|</span>
-            <div className="flex items-center gap-1.5">
-              <Shield size={12} className="text-zinc-700" />
-              <span className="font-mono text-zinc-500">{verifiedCount.toLocaleString()}</span>
-              <span>verified with evidence</span>
-            </div>
-            <span className="text-zinc-800">|</span>
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono text-zinc-500">{stats.unique_entities.toLocaleString()}</span>
-              <span>entities</span>
-            </div>
-          </div>
-        )}
-
-        {/* Vault link */}
-        <div className="mt-8 text-center">
-          <a
-            href="/vault"
-            onClick={(e) => { e.preventDefault(); navigate('/vault'); }}
-            className="inline-flex items-center gap-1.5 text-xs text-zinc-600 hover:text-amber-400 transition-colors"
+    <main
+      id="main-content"
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        background: BG,
+        color: T1,
+      }}
+    >
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 40px' }}>
+        {/* ── Hero ───────────────────────────────────────────────────── */}
+        <section style={{ marginBottom: 40, maxWidth: 680 }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              border: `1px solid ${ACCENT_DIM}`,
+              borderRadius: 20,
+              padding: '5px 14px',
+              background: ACCENT_DIM,
+              marginBottom: 20,
+            }}
           >
-            Browse verification vault
-            <ArrowRight size={12} />
-          </a>
-        </div>
+            <span
+              aria-hidden
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: ACCENT,
+                animation: 'pulse 2s ease-in-out infinite',
+              }}
+              className="animate-pulse-dot"
+            />
+            <span
+              style={{
+                fontFamily: FONT_BODY,
+                fontSize: 11,
+                fontWeight: 700,
+                color: ACCENT_TEXT,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Real-time claim verification
+            </span>
+          </div>
+
+          <h1
+            style={{
+              fontFamily: FONT_DISPLAY,
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(36px, 5.5vw, 48px)',
+              color: T1,
+              lineHeight: 1.0,
+              marginBottom: 14,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            What&apos;s true.
+            <br />
+            What isn&apos;t.
+          </h1>
+          <p
+            style={{
+              fontFamily: FONT_BODY,
+              fontSize: 15,
+              color: T2,
+              lineHeight: 1.7,
+              maxWidth: 620,
+            }}
+          >
+            Submit any URL — speech, interview, social post, or article — and
+            Veritas extracts every verifiable claim, checks each one against
+            20+ authoritative sources, and produces a structured verdict.
+            Zero AI hallucination. Deterministic by design.
+          </p>
+        </section>
+
+        {/* ── Submit form ────────────────────────────────────────────── */}
+        <section
+          style={{
+            background: SURF,
+            border: `1px solid ${BORDER_HOVER}`,
+            borderRadius: 14,
+            padding: 28,
+            marginBottom: 40,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: FONT_BODY,
+              fontSize: 13,
+              fontWeight: 700,
+              color: T1,
+              marginBottom: 16,
+            }}
+          >
+            {textMode ? 'Paste claim text for fact-checking' : 'Submit a source for fact-checking'}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            {textMode ? (
+              <textarea
+                aria-label="Claim text to verify"
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  setError('');
+                }}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setInputFocus(true)}
+                onBlur={() => setInputFocus(false)}
+                placeholder='Paste a claim — e.g. "Lockheed received $45B in DoD contracts last year."'
+                rows={3}
+                disabled={loading}
+                style={{
+                  flex: 1,
+                  padding: '12px 14px',
+                  borderRadius: 8,
+                  border: `1.5px solid ${input || inputFocus ? ACCENT : BORDER}`,
+                  background: BG,
+                  fontFamily: FONT_BODY,
+                  fontSize: 14,
+                  color: T1,
+                  outline: 'none',
+                  resize: 'vertical',
+                  transition: 'border-color 0.2s',
+                  lineHeight: 1.5,
+                }}
+              />
+            ) : (
+              <input
+                aria-label="URL to verify"
+                type="url"
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  setError('');
+                }}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setInputFocus(true)}
+                onBlur={() => setInputFocus(false)}
+                placeholder="Paste a URL — speech transcript, news article, tweet, YouTube video…"
+                disabled={loading}
+                style={{
+                  flex: 1,
+                  padding: '12px 14px',
+                  borderRadius: 8,
+                  border: `1.5px solid ${input || inputFocus ? ACCENT : BORDER}`,
+                  background: BG,
+                  fontFamily: FONT_BODY,
+                  fontSize: 14,
+                  color: T1,
+                  outline: 'none',
+                  transition: 'border-color 0.2s',
+                }}
+              />
+            )}
+
+            <button
+              type="button"
+              onClick={handleVerify}
+              disabled={loading || !input.trim()}
+              style={{
+                padding: '12px 22px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: loading || !input.trim() ? 'default' : 'pointer',
+                background: input.trim() ? ACCENT : 'rgba(255,255,255,0.05)',
+                fontFamily: FONT_BODY,
+                fontSize: 14,
+                fontWeight: 700,
+                color: input.trim() ? '#07090C' : T3,
+                opacity: loading ? 0.6 : input.trim() ? 1 : 0.5,
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap',
+                alignSelf: textMode ? 'flex-start' : 'auto',
+                height: textMode ? undefined : 44,
+              }}
+            >
+              {loading ? 'Analyzing…' : 'Analyze →'}
+            </button>
+          </div>
+
+          <div
+            style={{
+              fontFamily: FONT_BODY,
+              fontSize: 11,
+              color: T3,
+              minHeight: 16,
+            }}
+          >
+            {helperText}
+          </div>
+
+          {/* Detected input-type hint — emerald for URL/YouTube, neutral for text */}
+          {!textMode && input.trim().length > 0 && (
+            <div
+              style={{
+                marginTop: 10,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontFamily: FONT_MONO,
+                fontSize: 10,
+                color: inputType === 'TEXT' ? T3 : ACCENT_TEXT,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  background: inputType === 'TEXT' ? T3 : ACCENT,
+                }}
+              />
+              Detected: {inputType}
+            </div>
+          )}
+
+          {error && (
+            <div
+              role="alert"
+              style={{
+                marginTop: 14,
+                padding: '10px 14px',
+                borderRadius: 8,
+                border: '1px solid rgba(230,57,70,0.25)',
+                background: 'rgba(230,57,70,0.08)',
+                fontFamily: FONT_BODY,
+                fontSize: 13,
+                color: 'var(--color-red)',
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <div aria-live="polite" aria-atomic="true" className="sr-only">
+            {loading ? 'Verifying claims, please wait…' : ''}
+          </div>
+        </section>
+
+        {/* ── Recent verifications ──────────────────────────────────── */}
+        {recent.length > 0 && (
+          <section>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 16,
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: FONT_BODY,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: T3,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Recent Verifications
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/vault')}
+                style={{
+                  fontFamily: FONT_BODY,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: ACCENT_TEXT,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                Browse vault →
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {recent.map((c) => {
+                const tierKey = (c.tier || 'none').toLowerCase();
+                const label = TIER_LABEL[tierKey] || 'Unverified';
+                const color = TIER_COLOR[tierKey] || TIER_COLOR.none;
+                // Date string — falls back to "—" if backend returned null.
+                const date = c.created_at
+                  ? new Date(c.created_at).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                    })
+                  : '—';
+
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => navigate(`/results/${c.id}`)}
+                    style={{
+                      padding: '16px 20px',
+                      borderRadius: 10,
+                      border: `1px solid ${BORDER}`,
+                      background: SURF,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      gap: 16,
+                      alignItems: 'flex-start',
+                      textAlign: 'left',
+                      transition: 'border-color 0.15s, transform 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = BORDER_HOVER;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = BORDER;
+                    }}
+                  >
+                    {/* Verdict column — tier label + accent badge */}
+                    <div
+                      style={{
+                        flexShrink: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 4,
+                        width: 88,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: FONT_MONO,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: T3,
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        #{c.id}
+                      </div>
+                      <span
+                        style={{
+                          fontFamily: FONT_BODY,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color,
+                          background: `${color}18`,
+                          borderRadius: 4,
+                          padding: '2px 6px',
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {label}
+                      </span>
+                    </div>
+
+                    {/* Content column — claim text + meta row */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontFamily: FONT_BODY,
+                          fontSize: 13,
+                          color: T1,
+                          fontStyle: 'italic',
+                          marginBottom: 7,
+                          lineHeight: 1.5,
+                          // Wrap claim text in display quotes — matches the
+                          // editorial feel of the design's verdict cards.
+                          // Two-line clamp keeps the row tidy.
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        &ldquo;{c.text}&rdquo;
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 10,
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        {c.person_id && (
+                          <span
+                            style={{
+                              fontFamily: FONT_MONO,
+                              fontSize: 10,
+                              color: T3,
+                              background: SURF2,
+                              borderRadius: 4,
+                              padding: '2px 6px',
+                              letterSpacing: '0.05em',
+                            }}
+                          >
+                            {c.person_id}
+                          </span>
+                        )}
+                        <span
+                          style={{
+                            fontFamily: FONT_MONO,
+                            fontSize: 11,
+                            color: T3,
+                            marginLeft: 'auto',
+                          }}
+                        >
+                          {date}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ── Stats footer ──────────────────────────────────────────── */}
+        {stats && (stats.total_claims > 0 || stats.total_evaluated > 0) && (
+          <div
+            style={{
+              marginTop: 40,
+              paddingTop: 24,
+              borderTop: `1px solid ${BORDER}`,
+              display: 'flex',
+              gap: 24,
+              alignItems: 'center',
+              fontFamily: FONT_MONO,
+              fontSize: 11,
+              color: T3,
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+            }}
+          >
+            <div>
+              <span style={{ color: T1, fontWeight: 700 }}>
+                {stats.total_claims.toLocaleString()}
+              </span>{' '}
+              claims indexed
+            </div>
+            <span style={{ opacity: 0.4 }}>·</span>
+            <div>
+              <span style={{ color: T1, fontWeight: 700 }}>
+                {stats.total_evaluated.toLocaleString()}
+              </span>{' '}
+              evaluated
+            </div>
+            <span style={{ opacity: 0.4 }}>·</span>
+            <div>
+              <span style={{ color: T1, fontWeight: 700 }}>
+                {stats.unique_entities.toLocaleString()}
+              </span>{' '}
+              entities
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
