@@ -1,30 +1,54 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import {
-  ArrowRight,
-  Building2,
-  FileText,
-  Users,
-  User,
-  DollarSign,
-  Filter,
-  ChevronRight,
-  AlertCircle,
-} from 'lucide-react';
-import { PoliticsSectorHeader } from '../components/SectorHeader';
 import { getApiBaseUrl } from '../api/client';
 import { fmtMoney as formatCurrency } from '../utils/format';
 
 const API_BASE = getApiBaseUrl();
 
+// ── Design tokens ──────────────────────────────────────────────────────
+const BG = '#07090C';
+const SURF = '#0D1117';
+const SURF2 = '#141C25';
+const B = 'rgba(235,229,213,0.08)';
+const T1 = '#EBE5D5';
+const T2 = '#A29A8A';
+const T3 = '#6F6A5F';
+const GOLD = '#C5A028';
+const GOLDT = '#D4AE35';
+const GOLDD = 'rgba(197,160,40,0.14)';
+const DRD = '#E63946';
+const DBL = '#4A7FDE';
+const DGR = '#3DB87A';
+const DPR = '#B06FD8';
+
 interface ClosedLoop {
   company: { entity_type: string; entity_id: string; display_name: string };
   lobbying: { total_income: number; issue_codes: string; filing_count: number };
-  bill: { bill_id: string; title: string; policy_area: string; status: string; referral_date: string | null };
-  committee: { thomas_id: string; name: string; chamber: string | null; referral_date: string | null };
-  politician: { person_id: string; committee_role: string; display_name: string; party: string; state: string };
-  donation: { total_amount: number; donation_count: number; latest_date: string | null };
+  bill: {
+    bill_id: string;
+    title: string;
+    policy_area: string;
+    status: string;
+    referral_date: string | null;
+  };
+  committee: {
+    thomas_id: string;
+    name: string;
+    chamber: string | null;
+    referral_date: string | null;
+  };
+  politician: {
+    person_id: string;
+    committee_role: string;
+    display_name: string;
+    party: string;
+    state: string;
+  };
+  donation: {
+    total_amount: number;
+    donation_count: number;
+    latest_date: string | null;
+  };
 }
 
 interface ClosedLoopResponse {
@@ -44,12 +68,45 @@ const SECTORS = ['All', 'Finance', 'Health', 'Tech', 'Energy'] as const;
 type SectorFilter = (typeof SECTORS)[number];
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 2020 + 1 }, (_, i) => 2020 + i);
+const YEAR_OPTIONS = Array.from(
+  { length: CURRENT_YEAR - 2020 + 1 },
+  (_, i) => 2020 + i,
+);
 
-const fadeIn = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4 },
+function companyRoute(entityType: string, entityId: string): string {
+  const map: Record<string, string> = {
+    finance: 'finance',
+    health: 'health',
+    tech: 'technology',
+    technology: 'technology',
+    energy: 'energy',
+    defense: 'defense',
+    transportation: 'transportation',
+    chemicals: 'chemicals',
+    agriculture: 'agriculture',
+    telecom: 'telecommunications',
+    telecommunications: 'telecommunications',
+    education: 'education',
+  };
+  return `/${map[entityType] || 'politics'}/${entityId}`;
+}
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg, ' + BG + ')',
+  color: T1,
+  fontFamily: 'var(--font-body)',
 };
 
 export default function ClosedLoopPage() {
@@ -57,33 +114,39 @@ export default function ClosedLoopPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
   const [sector, setSector] = useState<SectorFilter>('All');
   const [minDonation, setMinDonation] = useState(0);
   const [yearStart, setYearStart] = useState(2020);
-  const [yearEnd, setYearEnd] = useState(new Date().getFullYear());
+  const [yearEnd, setYearEnd] = useState(CURRENT_YEAR);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams();
     if (sector !== 'All') params.set('entity_type', sector.toLowerCase());
-    if (minDonation > 0) params.set('min_donation', minDonation.toString());
-    params.set('year_from', yearStart.toString());
-    params.set('year_to', yearEnd.toString());
+    if (minDonation > 0) params.set('min_donation', String(minDonation));
+    params.set('year_from', String(yearStart));
+    params.set('year_to', String(yearEnd));
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
-    fetch(`${API_BASE}/influence/closed-loops?${params}`, { signal: controller.signal })
+    fetch(`${API_BASE}/influence/closed-loops?${params}`, {
+      signal: controller.signal,
+    })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((d: ClosedLoopResponse) => setData(d))
       .catch((e) => {
-        if (e.name === 'AbortError') setError('Request timed out — the server may be under heavy load. Try narrowing filters.');
-        else setError(e.message);
+        if (e.name === 'AbortError') {
+          setError(
+            'Request timed out — the server may be under heavy load. Try narrowing filters.',
+          );
+        } else {
+          setError(e.message);
+        }
       })
       .finally(() => {
         clearTimeout(timeoutId);
@@ -99,64 +162,170 @@ export default function ClosedLoopPage() {
   const stats = data?.stats;
   const loops = data?.closed_loops || [];
 
+  // Overall "ROI" for hero callout
+  const headline = useMemo(() => {
+    if (!stats) return null;
+    const lob = stats.total_lobbying_spend;
+    const don = stats.total_donations;
+    return {
+      total: stats.total_loops_found,
+      companies: stats.unique_companies,
+      politicians: stats.unique_politicians,
+      lobbying: lob,
+      donations: don,
+    };
+  }, [stats]);
+
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto max-w-[1400px] px-4 py-6 lg:px-16 lg:py-14">
-        <PoliticsSectorHeader />
+    <main id="main-content" style={pageShell}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 40px 96px' }}>
+        <Link
+          to="/influence"
+          style={{
+            color: T3,
+            textDecoration: 'none',
+            fontSize: 12,
+            letterSpacing: '0.04em',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            marginBottom: 18,
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          ← Influence Explorer
+        </Link>
 
-        {/* Header */}
-        <motion.div className="mb-8" {...fadeIn}>
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-            Closed-Loop Influence Detection
+        {/* Hero */}
+        <div style={{ marginBottom: 22 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: DRD,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              marginBottom: 8,
+              fontFamily: 'var(--font-body)',
+            }}
+          >
+            Closed-Loop Case
+          </div>
+          <h1
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(32px, 4.8vw, 48px)',
+              lineHeight: 1.02,
+              letterSpacing: '-0.01em',
+              color: T1,
+              margin: '0 0 10px',
+            }}
+          >
+            From donation to legislative outcome to reward.
           </h1>
-          <p className="text-white/50 max-w-2xl">
-            Follow the money trail: companies lobby on issues, bills go through committees,
-            politicians on those committees receive donations from those same companies.
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: 14,
+              color: T2,
+              maxWidth: 620,
+              lineHeight: 1.6,
+              margin: 0,
+            }}
+          >
+            When the complete sequence can be documented from public sources, we
+            call it a closed loop. Correlation, not causation — but the pattern
+            is what it is.
           </p>
-        </motion.div>
+        </div>
 
-        {/* Partial results banner */}
+        {/* Partial-results banner */}
         {stats?.partial && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2.5">
-            <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-            <span className="text-sm text-yellow-300">Results may be incomplete — showing top matches within time limit.</span>
+          <div
+            style={{
+              padding: '10px 14px',
+              background: GOLD + '10',
+              border: `1px solid ${GOLD}30`,
+              borderRadius: 8,
+              marginBottom: 14,
+              color: GOLDT,
+              fontFamily: 'var(--font-body)',
+              fontSize: 12,
+            }}
+          >
+            Results may be incomplete — showing top matches within time limit.
           </div>
         )}
 
         {/* Filters */}
-        <motion.div
-          className="flex flex-wrap items-end gap-4 mb-8 rounded-xl bg-white/[0.03] border border-white/10 p-4"
-          {...fadeIn}
-          transition={{ duration: 0.4, delay: 0.05 }}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 12,
+            alignItems: 'flex-end',
+            padding: 14,
+            background: SURF,
+            border: `1px solid ${B}`,
+            borderRadius: 12,
+            marginBottom: 18,
+          }}
         >
-          <div className="flex items-center gap-1.5 text-white/40 text-sm">
-            <Filter className="w-4 h-4" />
-            Filters
-          </div>
-
           {/* Sector */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/30 font-mono uppercase tracking-wider">Sector</label>
-            <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
-              {SECTORS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSector(s)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    sector === s
-                      ? 'bg-blue-500/20 text-blue-400'
-                      : 'text-white/40 hover:text-white/70'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                fontWeight: 700,
+                color: T3,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Sector
+            </label>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {SECTORS.map((s) => {
+                const active = sector === s;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setSector(s)}
+                    style={{
+                      padding: '6px 11px',
+                      borderRadius: 6,
+                      border: `1px solid ${active ? GOLD : B}`,
+                      background: active ? GOLDD : 'transparent',
+                      color: active ? GOLDT : T3,
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 11,
+                      fontWeight: active ? 600 : 400,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Min donation */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/30 font-mono uppercase tracking-wider">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                fontWeight: 700,
+                color: T3,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
               Min Donation: {formatCurrency(minDonation)}
             </label>
             <input
@@ -166,241 +335,584 @@ export default function ClosedLoopPage() {
               step={5000}
               value={minDonation}
               onChange={(e) => setMinDonation(Number(e.target.value))}
-              className="w-40 accent-blue-500"
+              style={{ width: 160, accentColor: GOLD }}
             />
           </div>
 
           {/* Year range */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/30 font-mono uppercase tracking-wider">Year Range</label>
-            <div className="flex items-center gap-2">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                fontWeight: 700,
+                color: T3,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Year Range
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <select
                 value={yearStart}
                 onChange={(e) => setYearStart(Number(e.target.value))}
-                className="bg-white/5 border border-white/10 text-white text-sm rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-500/50"
+                style={{
+                  background: SURF2,
+                  border: `1px solid ${B}`,
+                  color: T1,
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 12,
+                  borderRadius: 6,
+                  padding: '6px 8px',
+                }}
               >
                 {YEAR_OPTIONS.map((y) => (
-                  <option key={y} value={y} className="bg-zinc-900">{y}</option>
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
                 ))}
               </select>
-              <span className="text-white/30">to</span>
+              <span style={{ color: T3, fontSize: 11 }}>to</span>
               <select
                 value={yearEnd}
                 onChange={(e) => setYearEnd(Number(e.target.value))}
-                className="bg-white/5 border border-white/10 text-white text-sm rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-500/50"
+                style={{
+                  background: SURF2,
+                  border: `1px solid ${B}`,
+                  color: T1,
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 12,
+                  borderRadius: 6,
+                  padding: '6px 8px',
+                }}
               >
                 {YEAR_OPTIONS.map((y) => (
-                  <option key={y} value={y} className="bg-zinc-900">{y}</option>
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
           {loops.length > 0 && (
-            <span className="text-white/30 text-sm ml-auto">
-              {loops.length.toLocaleString()} loops found
+            <span
+              style={{
+                marginLeft: 'auto',
+                color: T3,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+              }}
+            >
+              {loops.length.toLocaleString()} loops
             </span>
           )}
-        </motion.div>
+        </div>
 
-        {/* Stats Summary */}
-        {stats && !loading && (
-          <motion.div
-            className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8"
-            {...fadeIn}
-            transition={{ duration: 0.4, delay: 0.1 }}
+        {/* Summary stat strip */}
+        {headline && !loading && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, 1fr)',
+              gap: 10,
+              marginBottom: 20,
+            }}
           >
             {[
-              { label: 'Total Loops', value: stats.total_loops_found.toLocaleString(), icon: AlertCircle },
-              { label: 'Companies', value: stats.unique_companies.toLocaleString(), icon: Building2 },
-              { label: 'Politicians', value: stats.unique_politicians.toLocaleString(), icon: User },
-              { label: 'Lobbying $', value: formatCurrency(stats.total_lobbying_spend), icon: DollarSign },
-              { label: 'Donations $', value: formatCurrency(stats.total_donations), icon: DollarSign },
-            ].map((stat) => (
+              { label: 'Loops', value: headline.total.toLocaleString(), color: DRD },
+              {
+                label: 'Companies',
+                value: headline.companies.toLocaleString(),
+                color: DPR,
+              },
+              {
+                label: 'Politicians',
+                value: headline.politicians.toLocaleString(),
+                color: DBL,
+              },
+              {
+                label: 'Lobbying',
+                value: formatCurrency(headline.lobbying),
+                color: GOLD,
+              },
+              {
+                label: 'Donations',
+                value: formatCurrency(headline.donations),
+                color: DGR,
+              },
+            ].map((s) => (
               <div
-                key={stat.label}
-                className="rounded-xl bg-white/[0.03] border border-white/10 p-4 flex flex-col items-center text-center"
+                key={s.label}
+                style={{
+                  padding: '14px 16px',
+                  background: SURF,
+                  border: `1px solid ${B}`,
+                  borderRadius: 10,
+                }}
               >
-                <stat.icon className="w-5 h-5 text-blue-400 mb-2" />
-                <span className="text-xl font-bold text-white font-mono">{stat.value}</span>
-                <span className="text-xs text-white/40 mt-1">{stat.label}</span>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: T3,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    marginBottom: 6,
+                  }}
+                >
+                  {s.label}
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 20,
+                    fontWeight: 700,
+                    color: s.color,
+                    lineHeight: 1,
+                  }}
+                >
+                  {s.value}
+                </div>
               </div>
             ))}
-          </motion.div>
+          </div>
         )}
 
-        {/* Loading */}
+        {/* Loading / Error / Empty */}
         {loading && (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-            <p className="text-sm text-white/30">Analyzing influence chains across lobbying, bills, committees, and donations...</p>
-            <p className="text-xs text-white/20">This may take up to 30 seconds.</p>
+          <div
+            style={{
+              background: SURF,
+              border: `1px solid ${B}`,
+              borderRadius: 12,
+              padding: '80px 24px',
+              textAlign: 'center',
+              color: T3,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+            }}
+          >
+            Analyzing influence chains across lobbying, bills, committees, and
+            donations…
           </div>
         )}
 
-        {/* Error */}
         {error && !loading && (
-          <div className="text-center py-20 text-white/30">
-            <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-30" />
-            <p className="text-lg">Failed to load influence loops.</p>
-            <p className="text-sm mt-2 text-white/20">{error}</p>
-          </div>
-        )}
-
-        {/* Empty */}
-        {!loading && !error && loops.length === 0 && (
-          <div className="text-center py-20 text-white/30">
-            <Users className="w-12 h-12 mx-auto mb-4 opacity-30" />
-            <p className="text-lg">No closed loops found.</p>
-            <p className="text-sm mt-2">
-              Try adjusting filters or check back after influence data is synced.
+          <div
+            style={{
+              background: SURF,
+              border: `1px solid ${DRD}30`,
+              borderRadius: 12,
+              padding: '40px 24px',
+              textAlign: 'center',
+            }}
+          >
+            <p
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 14,
+                color: DRD,
+                margin: '0 0 6px',
+              }}
+            >
+              Failed to load influence loops.
+            </p>
+            <p
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: T3,
+                margin: 0,
+              }}
+            >
+              {error}
             </p>
           </div>
         )}
 
-        {/* Loop Cards */}
-        {!loading && !error && loops.length > 0 && (
-          <div className="space-y-4">
-            {loops.map((loop, i) => (
-              <motion.div
-                key={`${loop.company.entity_id}-${loop.bill.bill_id}-${loop.politician.person_id}-${i}`}
-                className="rounded-xl bg-white/[0.03] border border-white/10 p-5 hover:bg-white/[0.05] transition-colors"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, delay: Math.min(i * 0.04, 0.6) }}
-              >
-                {/* Sector badge */}
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    {loop.company.entity_type}
-                  </span>
-                </div>
+        {!loading && !error && loops.length === 0 && (
+          <div
+            style={{
+              background: SURF,
+              border: `1px solid ${B}`,
+              borderRadius: 12,
+              padding: '80px 24px',
+              textAlign: 'center',
+              color: T3,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+            }}
+          >
+            No closed loops match the current filters.
+          </div>
+        )}
 
-                {/* Chain visualization */}
-                <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 lg:gap-0">
-                  {/* Company */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                      <Building2 className="w-4 h-4 text-emerald-400" />
-                    </div>
-                    <div>
+        {/* Loop cards (one vertical timeline per loop) */}
+        {!loading && !error && loops.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {loops.map((loop, idx) => {
+              const refDate =
+                loop.bill.referral_date ||
+                loop.committee.referral_date ||
+                null;
+              const partyColor =
+                loop.politician.party === 'D'
+                  ? DBL
+                  : loop.politician.party === 'R'
+                    ? DRD
+                    : loop.politician.party === 'I'
+                      ? DPR
+                      : T3;
+
+              const STEPS: {
+                n: number;
+                label: string;
+                color: string;
+                icon: string;
+                detail: React.ReactNode;
+                date: string;
+              }[] = [
+                {
+                  n: 1,
+                  label: 'Lobbying spend',
+                  color: GOLD,
+                  icon: '$',
+                  detail: (
+                    <>
                       <Link
-                        to={`/${loop.company.entity_type === 'finance' ? 'finance' : loop.company.entity_type === 'health' ? 'health' : loop.company.entity_type === 'energy' ? 'energy' : loop.company.entity_type === 'defense' ? 'defense' : loop.company.entity_type === 'transportation' ? 'transportation' : 'technology'}/${loop.company.entity_id}`}
-                        className="text-sm font-semibold text-emerald-400 hover:text-emerald-300 no-underline"
+                        to={companyRoute(
+                          loop.company.entity_type,
+                          loop.company.entity_id,
+                        )}
+                        style={{ color: GOLDT, textDecoration: 'none' }}
                       >
                         {loop.company.display_name}
-                      </Link>
-                    </div>
-                  </div>
-
-                  <ChevronRight className="w-4 h-4 text-white/20 shrink-0 mx-1 hidden lg:block" />
-                  <ArrowRight className="w-4 h-4 text-white/20 shrink-0 ml-4 lg:hidden" />
-
-                  {/* Lobbied */}
-                  <div className="flex items-center gap-2 shrink-0 lg:ml-0 ml-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                      <DollarSign className="w-4 h-4 text-yellow-400" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-sm text-white/70">
-                        Lobbied <span className="font-mono text-yellow-400">{formatCurrency(loop.lobbying.total_income)}</span>
-                      </span>
-                      {loop.lobbying.issue_codes && (
-                        <span className="text-xs text-white/30 truncate max-w-[200px]">
-                          {loop.lobbying.issue_codes.split(', ').slice(0, 3).join(', ')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <ChevronRight className="w-4 h-4 text-white/20 shrink-0 mx-1 hidden lg:block" />
-                  <ArrowRight className="w-4 h-4 text-white/20 shrink-0 ml-4 lg:hidden" />
-
-                  {/* Bill */}
-                  <div className="flex items-center gap-2 shrink-0 min-w-0 lg:ml-0 ml-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20">
-                      <FileText className="w-4 h-4 text-violet-400" />
-                    </div>
-                    <div className="flex flex-col min-w-0">
+                      </Link>{' '}
+                      spent{' '}
+                      <span style={{ color: T1, fontFamily: 'var(--font-mono)' }}>
+                        {formatCurrency(loop.lobbying.total_income)}
+                      </span>{' '}
+                      lobbying across{' '}
+                      {loop.lobbying.filing_count.toLocaleString()} filings
+                      {loop.lobbying.issue_codes
+                        ? ` on ${loop.lobbying.issue_codes
+                            .split(', ')
+                            .slice(0, 2)
+                            .join(', ')}`
+                        : ''}
+                      .
+                    </>
+                  ),
+                  date: `${yearStart}–${yearEnd}`,
+                },
+                {
+                  n: 2,
+                  label: 'Bill referred',
+                  color: DBL,
+                  icon: '§',
+                  detail: (
+                    <>
                       <Link
                         to={`/politics/bill/${loop.bill.bill_id}`}
-                        className="text-sm text-violet-400 hover:text-violet-300 no-underline truncate max-w-[180px]"
+                        style={{ color: DBL, textDecoration: 'none' }}
                         title={loop.bill.title}
                       >
                         {loop.bill.title}
-                      </Link>
-                      <span className="text-xs text-white/30">{loop.bill.status}</span>
-                    </div>
-                  </div>
-
-                  <ChevronRight className="w-4 h-4 text-white/20 shrink-0 mx-1 hidden lg:block" />
-                  <ArrowRight className="w-4 h-4 text-white/20 shrink-0 ml-4 lg:hidden" />
-
-                  {/* Committee */}
-                  <div className="flex items-center gap-2 shrink-0 lg:ml-0 ml-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                      <Users className="w-4 h-4 text-orange-400" />
-                    </div>
-                    <span className="text-sm text-white/70 truncate max-w-[160px]" title={loop.committee.name}>
-                      {loop.committee.name}
-                    </span>
-                  </div>
-
-                  <ChevronRight className="w-4 h-4 text-white/20 shrink-0 mx-1 hidden lg:block" />
-                  <ArrowRight className="w-4 h-4 text-white/20 shrink-0 ml-4 lg:hidden" />
-
-                  {/* Politician */}
-                  <div className="flex items-center gap-2 shrink-0 lg:ml-0 ml-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                      <User className="w-4 h-4 text-blue-400" />
-                    </div>
-                    <div className="flex flex-col">
+                      </Link>{' '}
+                      —{' '}
+                      <span style={{ color: T2 }}>{loop.bill.status}</span>
+                    </>
+                  ),
+                  date: fmtDate(refDate),
+                },
+                {
+                  n: 3,
+                  label: 'Committee',
+                  color: DPR,
+                  icon: '⎈',
+                  detail: (
+                    <>
+                      Referred to{' '}
+                      <span style={{ color: DPR }}>{loop.committee.name}</span>
+                      {loop.committee.chamber ? (
+                        <span style={{ color: T3 }}>
+                          {' '}
+                          · {loop.committee.chamber}
+                        </span>
+                      ) : null}
+                    </>
+                  ),
+                  date: fmtDate(loop.committee.referral_date),
+                },
+                {
+                  n: 4,
+                  label: 'Politician seat',
+                  color: DGR,
+                  icon: '⚑',
+                  detail: (
+                    <>
                       <Link
                         to={`/politics/people/${loop.politician.person_id}`}
-                        className="text-sm font-medium text-blue-400 hover:text-blue-300 no-underline"
+                        style={{ color: DGR, textDecoration: 'none' }}
                       >
                         {loop.politician.display_name}
-                      </Link>
-                      <span className="text-xs text-white/30">
-                        <span className={loop.politician.party === 'D' ? 'text-blue-400' : loop.politician.party === 'R' ? 'text-red-400' : 'text-white/40'}>
-                          ({loop.politician.party})
-                        </span>
-                        {' '}{loop.politician.committee_role}
+                      </Link>{' '}
+                      <span style={{ color: partyColor }}>
+                        ({loop.politician.party}-{loop.politician.state})
                       </span>
-                    </div>
+                      {loop.politician.committee_role
+                        ? ` serves as ${loop.politician.committee_role}`
+                        : ` sits on the committee`}
+                      .
+                    </>
+                  ),
+                  date: '—',
+                },
+                {
+                  n: 5,
+                  label: 'Donation',
+                  color: DRD,
+                  icon: '✓',
+                  detail: (
+                    <>
+                      {loop.company.display_name}-linked PAC gave{' '}
+                      <span style={{ color: T1, fontFamily: 'var(--font-mono)' }}>
+                        {formatCurrency(loop.donation.total_amount)}
+                      </span>{' '}
+                      to {loop.politician.display_name}
+                      {loop.donation.donation_count > 1
+                        ? ` across ${loop.donation.donation_count} contributions`
+                        : ''}
+                      .
+                    </>
+                  ),
+                  date: fmtDate(loop.donation.latest_date),
+                },
+              ];
+
+              const ratio =
+                loop.lobbying.total_income > 0
+                  ? loop.donation.total_amount / loop.lobbying.total_income
+                  : 0;
+
+              return (
+                <div
+                  key={`${loop.company.entity_id}-${loop.bill.bill_id}-${loop.politician.person_id}-${idx}`}
+                  style={{
+                    position: 'relative',
+                    padding: '22px 26px',
+                    background: SURF,
+                    border: `1px solid ${B}`,
+                    borderRadius: 14,
+                  }}
+                >
+                  {/* Sector chip */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: GOLDT,
+                        background: GOLDD,
+                        border: `1px solid ${GOLD}30`,
+                        borderRadius: 4,
+                        padding: '3px 7px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                      }}
+                    >
+                      {loop.company.entity_type}
+                    </span>
+                    {ratio > 0 && (
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 10,
+                          color: T3,
+                        }}
+                      >
+                        donations / lobbying ={' '}
+                        <span style={{ color: T1 }}>
+                          {ratio < 0.01 ? ratio.toFixed(4) : ratio.toFixed(3)}×
+                        </span>
+                      </span>
+                    )}
                   </div>
 
-                  <ChevronRight className="w-4 h-4 text-white/20 shrink-0 mx-1 hidden lg:block" />
-                  <ArrowRight className="w-4 h-4 text-white/20 shrink-0 ml-4 lg:hidden" />
+                  {/* Vertical timeline */}
+                  <div style={{ position: 'relative' }}>
+                    {/* The spine */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 21,
+                        top: 22,
+                        bottom: 22,
+                        width: 2,
+                        background: B,
+                      }}
+                    />
+                    {STEPS.map((s, i) => (
+                      <div
+                        key={s.n}
+                        style={{
+                          display: 'flex',
+                          gap: 18,
+                          position: 'relative',
+                          marginBottom: i === STEPS.length - 1 ? 0 : 14,
+                          alignItems: 'flex-start',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            flexShrink: 0,
+                            borderRadius: '50%',
+                            background: s.color + '22',
+                            border: `2px solid ${s.color}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontFamily: 'var(--font-display)',
+                            fontWeight: 700,
+                            fontSize: 18,
+                            color: s.color,
+                            zIndex: 1,
+                          }}
+                        >
+                          {s.icon}
+                        </div>
+                        <div
+                          style={{
+                            flex: 1,
+                            padding: '14px 16px',
+                            background: SURF2,
+                            border: `1px solid ${B}`,
+                            borderRadius: 10,
+                            minWidth: 0,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'baseline',
+                              marginBottom: 5,
+                              gap: 10,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <div>
+                              <span
+                                style={{
+                                  fontFamily: 'var(--font-mono)',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: s.color,
+                                  marginRight: 10,
+                                  letterSpacing: '0.06em',
+                                }}
+                              >
+                                STEP {s.n}
+                              </span>
+                              <span
+                                style={{
+                                  fontFamily: 'var(--font-body)',
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  color: T1,
+                                }}
+                              >
+                                {s.label}
+                              </span>
+                            </div>
+                            <span
+                              style={{
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: 10,
+                                color: T3,
+                              }}
+                            >
+                              {s.date}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              fontSize: 13,
+                              color: T2,
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {s.detail}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
 
-                  {/* Donation */}
-                  <div className="flex items-center gap-2 shrink-0 lg:ml-0 ml-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20">
-                      <DollarSign className="w-4 h-4 text-red-400" />
+                  {/* Loop-closed callout */}
+                  <div
+                    style={{
+                      marginTop: 16,
+                      padding: '14px 18px',
+                      background: DRD + '10',
+                      border: `1px solid ${DRD}30`,
+                      borderRadius: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: DRD,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        marginBottom: 4,
+                      }}
+                    >
+                      Loop Closed
                     </div>
-                    <span className="text-sm font-mono font-semibold text-red-400">
-                      {formatCurrency(loop.donation.total_amount)}
-                    </span>
+                    <p
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: 13,
+                        color: T2,
+                        lineHeight: 1.55,
+                        margin: 0,
+                      }}
+                    >
+                      <strong style={{ color: T1 }}>
+                        {formatCurrency(loop.lobbying.total_income)}
+                      </strong>{' '}
+                      in lobbying +{' '}
+                      <strong style={{ color: T1 }}>
+                        {formatCurrency(loop.donation.total_amount)}
+                      </strong>{' '}
+                      in contributions traced through the same bill, committee,
+                      and member. No violation of current law has occurred —
+                      the record is the record.
+                    </p>
                   </div>
                 </div>
-
-                {/* Explanatory summary */}
-                <p className="mt-3 pt-3 border-t border-white/5 text-xs text-white/40 leading-relaxed">
-                  <span className="text-emerald-400">{loop.company.display_name}</span> lobbied{' '}
-                  <span className="text-yellow-400 font-mono">{formatCurrency(loop.lobbying.total_income)}</span> on issues related to{' '}
-                  <span className="text-violet-400">{loop.bill.title.length > 50 ? loop.bill.title.slice(0, 50) + '...' : loop.bill.title}</span>.{' '}
-                  The bill was referred to the <span className="text-orange-400">{loop.committee.name}</span>, where{' '}
-                  <span className="text-blue-400">{loop.politician.display_name}</span> ({loop.politician.party}-{loop.politician.state}) serves
-                  {loop.politician.committee_role ? ` as ${loop.politician.committee_role}` : ''}.{' '}
-                  {loop.company.display_name}'s PAC donated{' '}
-                  <span className="text-red-400 font-mono">{formatCurrency(loop.donation.total_amount)}</span> to {loop.politician.display_name}
-                  {loop.donation.donation_count > 1 ? ` across ${loop.donation.donation_count} contributions` : ''}.
-                </p>
-              </motion.div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }

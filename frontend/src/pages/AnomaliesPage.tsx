@@ -1,9 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Filter, ArrowLeft, ExternalLink } from 'lucide-react';
 import { getApiBaseUrl } from '../api/client';
 
 const API_BASE = getApiBaseUrl();
+
+// ── Design tokens ──────────────────────────────────────────────────────
+const BG = '#07090C';
+const SURF = '#0D1117';
+const SURF2 = '#141C25';
+const B = 'rgba(235,229,213,0.08)';
+const T1 = '#EBE5D5';
+const T2 = '#A29A8A';
+const T3 = '#6F6A5F';
+const GOLD = '#C5A028';
+const GOLDT = '#D4AE35';
+const GOLDD = 'rgba(197,160,40,0.14)';
+const DRD = '#E63946';
+const DBL = '#4A7FDE';
+const DGR = '#3DB87A';
+const DPR = '#B06FD8';
 
 interface Anomaly {
   id: number;
@@ -24,216 +39,536 @@ interface AnomalyResponse {
 }
 
 const PATTERN_LABELS: Record<string, string> = {
-  trade_near_vote: 'Trade Near Vote',
-  lobbying_spike: 'Lobbying Spike',
-  enforcement_gap: 'Enforcement Gap',
-  revolving_door: 'Revolving Door',
+  trade_near_vote: 'Insider trade',
+  lobbying_spike: 'Lobbying spike',
+  enforcement_gap: 'Enforcement gap',
+  revolving_door: 'Revolving door',
 };
 
-const PATTERN_COLORS: Record<string, string> = {
-  trade_near_vote: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-  lobbying_spike: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
-  enforcement_gap: 'bg-red-500/10 text-red-400 border-red-500/30',
-  revolving_door: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+// Map pattern_type → visual "type" slug in design
+const PATTERN_TO_TYPE: Record<string, string> = {
+  trade_near_vote: 'insider',
+  lobbying_spike: 'lobbying',
+  enforcement_gap: 'enforce',
+  revolving_door: 'vote',
 };
 
-function scoreColor(score: number): string {
-  if (score >= 8) return 'bg-red-500';
-  if (score >= 6) return 'bg-orange-500';
-  if (score >= 4) return 'bg-amber-500';
-  return 'bg-slate-500';
+// Severity from score (score is 0..10 in backend)
+type Severity = 'high' | 'med' | 'low';
+function severityFromScore(s: number): Severity {
+  if (s >= 7) return 'high';
+  if (s >= 5) return 'med';
+  return 'low';
+}
+const SEV_COLOR: Record<Severity, string> = {
+  high: DRD,
+  med: GOLD,
+  low: DBL,
+};
+
+// score 0..10 → approx σ (1.5..3+) for display bar
+function sigmaFromScore(s: number): number {
+  return Math.max(1.5, Math.min(3.2, 1.5 + (s / 10) * 1.7));
 }
 
-function scoreTextColor(score: number): string {
-  if (score >= 8) return 'text-red-400';
-  if (score >= 6) return 'text-orange-400';
-  if (score >= 4) return 'text-amber-400';
-  return 'text-slate-400';
-}
-
-function entityRoute(entityType: string, entityId: string, patternType: string, evidence: Record<string, unknown> | null): string {
+function entityRoute(
+  entityType: string,
+  entityId: string,
+  _patternType: string,
+  evidence: Record<string, unknown> | null,
+): string {
   if (entityType === 'person') return `/politics/people/${entityId}`;
   const sector = evidence?.sector as string | undefined;
   if (sector === 'finance') return `/finance/${entityId}`;
   if (sector === 'health') return `/health/${entityId}`;
-  if (sector === 'tech') return `/technology/${entityId}`;
+  if (sector === 'tech' || sector === 'technology') return `/technology/${entityId}`;
   if (sector === 'energy') return `/energy/${entityId}`;
+  if (sector === 'defense') return `/defense/${entityId}`;
+  if (sector === 'transportation') return `/transportation/${entityId}`;
+  if (sector === 'agriculture') return `/agriculture/${entityId}`;
+  if (sector === 'chemicals') return `/chemicals/${entityId}`;
+  if (sector === 'telecom' || sector === 'telecommunications')
+    return `/telecommunications/${entityId}`;
+  if (sector === 'education') return `/education/${entityId}`;
   return `/`;
 }
 
-function formatDate(iso: string | null): string {
+function relativeTime(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 60) return `${Math.max(1, mins)}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
 }
 
-const PATTERNS = ['all', 'trade_near_vote', 'lobbying_spike', 'enforcement_gap', 'revolving_door'] as const;
-const MIN_SCORES = [0, 3, 5, 7, 8] as const;
+// Filter pills spec (key maps to either pattern_type or severity)
+type FilterKey = 'all' | 'high' | 'insider' | 'contract' | 'lobbying' | 'vote';
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'high', label: 'High severity' },
+  { key: 'insider', label: 'Insider trades' },
+  { key: 'contract', label: 'Contracts' },
+  { key: 'lobbying', label: 'Lobbying' },
+  { key: 'vote', label: 'Votes' },
+];
+
+const pageShell: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--color-bg, ' + BG + ')',
+  color: T1,
+  fontFamily: 'var(--font-body)',
+};
 
 export default function AnomaliesPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const initialPattern = searchParams.get('pattern') || 'all';
-  const initialEntity = searchParams.get('entity_id') || '';
+  const [searchParams] = useSearchParams();
+  const entityFilter = searchParams.get('entity_id') || '';
+  const entityTypeQP = searchParams.get('entity_type') || 'person';
+  const patternQP = searchParams.get('pattern') as FilterKey | null;
 
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [patternFilter, setPatternFilter] = useState<string>(initialPattern);
-  const [minScore, setMinScore] = useState<number>(0);
-  const [entityFilter] = useState<string>(initialEntity);
+  const [filter, setFilter] = useState<FilterKey>(patternQP || 'all');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     const params = new URLSearchParams();
-    if (patternFilter && patternFilter !== 'all') params.set('pattern_type', patternFilter);
-    if (minScore > 0) params.set('min_score', String(minScore));
-    params.set('limit', '100');
 
-    let url: string;
-    if (entityFilter) {
-      // Entity-specific view
-      const entityType = searchParams.get('entity_type') || 'person';
-      url = `${API_BASE}/anomalies/entity/${entityType}/${entityFilter}`;
-    } else {
-      url = `${API_BASE}/anomalies?${params}`;
+    // Map filter key → backend params
+    const patternMap: Record<Exclude<FilterKey, 'all' | 'high'>, string> = {
+      insider: 'trade_near_vote',
+      contract: 'enforcement_gap', // closest contract-level flag; loose map
+      lobbying: 'lobbying_spike',
+      vote: 'revolving_door',
+    };
+    if (filter !== 'all' && filter !== 'high') {
+      params.set('pattern_type', patternMap[filter]);
     }
+    if (filter === 'high') {
+      params.set('min_score', '7');
+    }
+    params.set('limit', '200');
+
+    const url = entityFilter
+      ? `${API_BASE}/anomalies/entity/${entityTypeQP}/${entityFilter}`
+      : `${API_BASE}/anomalies?${params}`;
 
     fetch(url)
-      .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
+      .then((r) => {
+        if (!r.ok) throw new Error(r.statusText);
+        return r.json();
+      })
       .then((data: AnomalyResponse) => {
         if (cancelled) return;
         setAnomalies(data.anomalies || []);
         setTotal(data.total || 0);
       })
       .catch(() => {
+        if (cancelled) return;
         setAnomalies([]);
         setTotal(0);
       })
-      .finally(() => setLoading(false));
-    return () => { cancelled = true; };
-  }, [patternFilter, minScore, entityFilter, searchParams]);
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filter, entityFilter, entityTypeQP]);
+
+  // Derived counts for stat cards
+  const stats = useMemo(() => {
+    const active = total || anomalies.length;
+    const now = Date.now();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const newThisWeek = anomalies.filter((a) => {
+      if (!a.detected_at) return false;
+      const t = new Date(a.detected_at).getTime();
+      return !isNaN(t) && now - t <= weekMs;
+    }).length;
+    const avgSigma =
+      anomalies.length > 0
+        ? (
+            anomalies.reduce((s, a) => s + sigmaFromScore(a.score), 0) /
+            anomalies.length
+          ).toFixed(1)
+        : '—';
+    return {
+      active: active.toLocaleString(),
+      newThisWeek: newThisWeek.toLocaleString(),
+      resolved: '—', // backend doesn't expose resolved count yet
+      avgSigma,
+    };
+  }, [anomalies, total]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-[1200px] px-8 py-10 lg:px-16 lg:py-14">
-        {/* Navigation */}
-        <Link to="/influence" className="text-white/40 hover:text-white/70 text-sm mb-6 inline-block no-underline">
-          <ArrowLeft className="w-4 h-4 inline mr-1 -mt-0.5" />
-          Back to Influence Explorer
+    <main id="main-content" style={pageShell}>
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '32px 40px 96px' }}>
+        <Link
+          to="/influence"
+          style={{
+            color: T3,
+            textDecoration: 'none',
+            fontSize: 12,
+            letterSpacing: '0.04em',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            marginBottom: 18,
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          ← Influence Explorer
         </Link>
 
         {/* Hero */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-3">
-            <AlertTriangle className="w-8 h-8 text-amber-400" />
-            <h1 className="text-4xl font-bold text-white">Suspicious Patterns</h1>
+        <div style={{ marginBottom: 22 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: DRD,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              marginBottom: 8,
+              fontFamily: 'var(--font-body)',
+            }}
+          >
+            Anomaly Feed · Live
           </div>
-          <p className="text-white/50 max-w-2xl">
-            Automatically detected correlations between money and political action.
-            Higher scores indicate more suspicious patterns.
+          <h1
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontStyle: 'italic',
+              fontWeight: 900,
+              fontSize: 'clamp(32px, 4.8vw, 48px)',
+              lineHeight: 1.02,
+              letterSpacing: '-0.01em',
+              color: T1,
+              margin: '0 0 10px',
+            }}
+          >
+            What looks unusual.
+          </h1>
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: 14,
+              color: T2,
+              maxWidth: 620,
+              lineHeight: 1.6,
+              margin: 0,
+            }}
+          >
+            Statistical deviations ≥1.5σ from sector/cohort medians. Surfaced as
+            patterns, not allegations. Each flag links to its methodology and
+            primary sources.
           </p>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 mb-8">
-          <Filter className="w-4 h-4 text-white/40" />
-          {PATTERNS.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPatternFilter(p)}
-              aria-pressed={patternFilter === p}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
-                patternFilter === p
-                  ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
-                  : 'bg-white/5 text-white/50 border-white/10 hover:border-white/20'
-              }`}
+        {/* Stat cards */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 10,
+            marginBottom: 20,
+          }}
+        >
+          {[
+            { label: 'Active flags', value: stats.active, color: DRD },
+            { label: 'New this week', value: stats.newThisWeek, color: GOLD },
+            { label: 'Resolved', value: stats.resolved, color: DGR },
+            { label: 'Avg σ', value: stats.avgSigma, color: T1 },
+          ].map((s) => (
+            <div
+              key={s.label}
+              style={{
+                padding: '14px 18px',
+                background: SURF,
+                border: `1px solid ${B}`,
+                borderRadius: 10,
+              }}
             >
-              {p === 'all' ? 'All' : PATTERN_LABELS[p]}
-            </button>
-          ))}
-          <span className="text-white/20 mx-2">|</span>
-          <span className="text-xs text-white/40">Min Score:</span>
-          {MIN_SCORES.map((s) => (
-            <button
-              key={s}
-              onClick={() => setMinScore(s)}
-              className={`px-2.5 py-1 rounded text-xs font-mono border transition-colors cursor-pointer ${
-                minScore === s
-                  ? 'bg-white/10 text-white border-white/20'
-                  : 'bg-white/5 text-white/40 border-white/10 hover:border-white/15'
-              }`}
-            >
-              {s === 0 ? 'Any' : `${s}+`}
-            </button>
+              <div
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: T3,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  marginBottom: 6,
+                }}
+              >
+                {s.label}
+              </div>
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 26,
+                  fontWeight: 700,
+                  color: s.color,
+                  lineHeight: 1,
+                }}
+              >
+                {s.value}
+              </div>
+            </div>
           ))}
         </div>
 
-        {/* Count */}
-        <div className="text-xs text-white/30 mb-4 font-mono">
-          {total} anomalies found
+        {/* Filter pills */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+          {FILTERS.map((f) => {
+            const active = filter === f.key;
+            return (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                aria-pressed={active}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 7,
+                  border: `1px solid ${active ? GOLD : B}`,
+                  background: active ? GOLDD : 'transparent',
+                  color: active ? GOLDT : T3,
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 11,
+                  fontWeight: active ? 600 : 400,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {f.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Results */}
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+          <div
+            style={{
+              background: SURF,
+              border: `1px solid ${B}`,
+              borderRadius: 12,
+              padding: '80px 24px',
+              textAlign: 'center',
+              color: T3,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+            }}
+          >
+            Loading flags…
           </div>
         ) : anomalies.length === 0 ? (
-          <div className="text-center py-20 text-white/30">
-            No anomalies found matching your filters.
+          <div
+            style={{
+              background: SURF,
+              border: `1px solid ${B}`,
+              borderRadius: 12,
+              padding: '80px 24px',
+              textAlign: 'center',
+              color: T3,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+            }}
+          >
+            No anomalies match the current filter.
           </div>
         ) : (
-          <div className="space-y-3">
-            {anomalies.map((a) => (
-              <Link
-                key={a.id}
-                to={entityRoute(a.entity_type, a.entity_id, a.pattern_type, a.evidence)}
-                className="block rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:border-white/10 hover:bg-white/[0.04] transition-all no-underline group"
-              >
-                <div className="flex items-start gap-4">
-                  {/* Score badge */}
-                  <div className="flex flex-col items-center shrink-0">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${scoreColor(a.score)} text-white font-bold text-lg`}>
-                      {a.score.toFixed(0)}
+          <div
+            style={{
+              background: SURF,
+              border: `1px solid ${B}`,
+              borderRadius: 12,
+              overflow: 'hidden',
+            }}
+          >
+            {anomalies.map((a, i) => {
+              const sev = severityFromScore(a.score);
+              const sevColor = SEV_COLOR[sev];
+              const sigma = sigmaFromScore(a.score);
+              const conf = Math.round(50 + (a.score / 10) * 50); // 50–100%
+              const typeLabel =
+                PATTERN_TO_TYPE[a.pattern_type] || a.pattern_type;
+              const patternLabel =
+                PATTERN_LABELS[a.pattern_type] || a.pattern_type;
+
+              return (
+                <Link
+                  key={a.id}
+                  to={entityRoute(
+                    a.entity_type,
+                    a.entity_id,
+                    a.pattern_type,
+                    a.evidence,
+                  )}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '60px 1.8fr 1fr 90px 80px 40px',
+                    padding: '14px 18px',
+                    borderBottom:
+                      i < anomalies.length - 1 ? `1px solid ${B}` : 'none',
+                    gap: 14,
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    transition: 'background 0.12s',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = SURF2;
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.background =
+                      'transparent';
+                  }}
+                >
+                  {/* Severity badge */}
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: sevColor,
+                      background: sevColor + '18',
+                      borderRadius: 4,
+                      padding: '3px 7px',
+                      textAlign: 'center',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                    }}
+                  >
+                    {sev}
+                  </span>
+
+                  {/* Title + entity */}
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: T1,
+                        marginBottom: 2,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={a.title}
+                    >
+                      {a.title}
                     </div>
-                    <span className={`text-[10px] mt-1 ${scoreTextColor(a.score)} font-mono`}>
-                      /10
-                    </span>
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: 11,
+                        color: T3,
+                      }}
+                    >
+                      {(a.entity_name || a.entity_id) + ' · ' + typeLabel}
+                    </div>
                   </div>
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className={`text-[10px] px-2 py-0.5 rounded border ${PATTERN_COLORS[a.pattern_type] || 'bg-white/5 text-white/40 border-white/10'}`}>
-                        {PATTERN_LABELS[a.pattern_type] || a.pattern_type}
-                      </span>
-                      <span className="text-[10px] text-white/20 font-mono">
-                        {formatDate(a.detected_at)}
-                      </span>
+                  {/* Deviation (σ bar) */}
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: 11,
+                        color: T3,
+                        marginBottom: 3,
+                      }}
+                    >
+                      Deviation
                     </div>
-                    <h2 className="text-sm font-semibold text-white group-hover:text-amber-400 transition-colors mb-1">
-                      {a.title}
-                    </h2>
-                    {a.description && (
-                      <p className="text-xs text-white/40 line-clamp-2">
-                        {a.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[10px] text-white/30 font-mono">
-                        {a.entity_name || a.entity_id}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: sevColor,
+                        }}
+                      >
+                        {sigma.toFixed(1)}σ
                       </span>
-                      <ExternalLink className="w-3 h-3 text-white/20 group-hover:text-white/40" />
+                      <div
+                        style={{
+                          flex: 1,
+                          height: 3,
+                          background: SURF2,
+                          borderRadius: 2,
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: 3,
+                            background: sevColor,
+                            width: `${Math.min((sigma / 3) * 100, 100)}%`,
+                            borderRadius: 2,
+                          }}
+                        />
+                      </div>
                     </div>
+                    <span
+                      style={{
+                        display: 'none',
+                      }}
+                      title={patternLabel}
+                    />
                   </div>
-                </div>
-              </Link>
-            ))}
+
+                  {/* Confidence */}
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: DGR,
+                    }}
+                  >
+                    {conf}%
+                  </span>
+
+                  {/* Relative time */}
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
+                      color: T3,
+                    }}
+                  >
+                    {relativeTime(a.detected_at) || '—'}
+                  </span>
+
+                  {/* Arrow */}
+                  <span
+                    style={{
+                      color: T3,
+                      textAlign: 'right',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 16,
+                    }}
+                  >
+                    →
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }
