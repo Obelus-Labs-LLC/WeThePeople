@@ -1,177 +1,61 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
-import Footer from '../components/Footer';
+import LongformDoc, {
+  type LongformSection,
+} from '../components/LongformDoc';
 
-// ─────────────────────────────────────────────────────────────────────
-// Shared legal/content page tokens
-// ─────────────────────────────────────────────────────────────────────
-
-const pageShell: React.CSSProperties = {
-  minHeight: '100vh',
-  display: 'flex',
-  flexDirection: 'column',
-  background: 'var(--color-bg)',
-  color: 'var(--color-text-1)',
-};
-
-const contentWrap: React.CSSProperties = {
-  flex: 1,
-  maxWidth: 780,
-  width: '100%',
-  margin: '0 auto',
-  padding: '48px 24px 64px',
-};
-
-const backLink: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  fontFamily: "'Inter', sans-serif",
-  fontSize: 13,
-  color: 'var(--color-text-2)',
-  textDecoration: 'none',
-  marginBottom: 32,
-  transition: 'color 150ms',
-};
-
-const titleStyle: React.CSSProperties = {
-  fontFamily: "'Playfair Display', Georgia, serif",
-  fontStyle: 'italic',
-  fontWeight: 900,
-  fontSize: 'clamp(32px, 5vw, 48px)',
-  lineHeight: 1.05,
-  color: 'var(--color-text-1)',
-  marginBottom: 8,
-};
-
-const sectionHeading: React.CSSProperties = {
-  fontFamily: "'Inter', sans-serif",
-  fontSize: 16,
-  fontWeight: 600,
-  color: 'var(--color-text-1)',
-  marginTop: 32,
-  marginBottom: 10,
-};
-
-const bodyText: React.CSSProperties = {
-  fontFamily: "'Inter', sans-serif",
-  fontSize: 14,
-  lineHeight: 1.65,
-  color: 'var(--color-text-2)',
-  marginBottom: 12,
-};
-
-// ─────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────
+// Content for the About page. Structure mirrors the design handoff:
+// a 4-section longform doc with a callout under "Who builds this" explaining
+// our funding model. Presented via the shared <LongformDoc> template.
+const SECTIONS: LongformSection[] = [
+  {
+    num: 1,
+    id: 'mission',
+    title: 'Why WeThePeople exists',
+    body: [
+      "Government and industry move in parallel — lobbying dollars flow in, policy flows out, contracts get awarded, enforcement happens (or doesn't). Most Americans can see the outputs but not the machinery.",
+      'WeThePeople stitches together public data from 30+ government sources — Congress, FEC, FARA, SEC, EPA, OSHA, FDA, DoD spending, and more — so any citizen, journalist, or researcher can trace a specific policy outcome back to the dollars, meetings, and votes that shaped it.',
+    ],
+  },
+  {
+    num: 2,
+    id: 'values',
+    title: 'What we stand for',
+    list: [
+      'Transparency without a partisan lens. Data is presented as-is; we do not editorialize vote counts or contract awards.',
+      'Primary sources over secondary reporting. Every number on this site links back to its government filing, disclosure, or public database.',
+      'Accessibility. The data is free, the code is open, and a high-schooler should be able to use it as easily as a Hill staffer.',
+      'Adversarial methodology. We publish our methodology in full so critics can reproduce, challenge, or improve it.',
+    ],
+  },
+  {
+    num: 3,
+    id: 'team',
+    title: 'Who builds this',
+    body: [
+      'A small team of engineers, data scientists, and former journalists operating under Obelus Labs LLC, a Delaware-registered public-benefit corporation. No corporate or political donors.',
+    ],
+    callout: {
+      label: 'Funding',
+      text: 'Donations from individuals (<$500/yr), a civic tech grant from the Knight Foundation, and self-funded runway. Full 990s published annually.',
+    },
+  },
+  {
+    num: 4,
+    id: 'contact',
+    title: 'Get in touch',
+    body: [
+      'Security disclosures: security@wethepeopleforus.com. Press: press@wethepeopleforus.com. Data corrections: data@wethepeopleforus.com. General: hello@wethepeopleforus.com.',
+    ],
+  },
+];
 
 export default function AboutPage() {
   return (
-    <div style={pageShell}>
-      <div style={contentWrap}>
-        <Link
-          to="/"
-          style={backLink}
-          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-1)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-2)'; }}
-        >
-          <ArrowLeft size={14} /> Back to Home
-        </Link>
-
-        {/* Logo + brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-          <div
-            style={{
-              height: 48,
-              width: 48,
-              borderRadius: 12,
-              background: 'var(--color-accent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 18,
-              fontWeight: 900,
-              color: '#07090C',
-            }}
-          >
-            WP
-          </div>
-          <div>
-            <h1 style={{ ...titleStyle, marginBottom: 2, fontSize: 'clamp(28px, 4vw, 36px)' }}>
-              WeThePeople
-            </h1>
-            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: 'var(--color-text-3)' }}>
-              by Obelus Labs LLC
-            </p>
-          </div>
-        </div>
-
-        <section>
-          <h2 style={sectionHeading}>Our mission</h2>
-          <p style={bodyText}>
-            WeThePeople is a civic transparency platform that follows the money from industry to politics. We aggregate public data across eleven sectors — politics, finance, health, technology, energy, transportation, defense, chemicals, agriculture, telecom, and education — and connect the dots between lobbying spend, government contracts, enforcement actions, and political activity.
-          </p>
-          <p style={bodyText}>
-            Every data point on this platform is sourced from official government databases and public records. Every claim is verifiable. Every number links back to its source.
-          </p>
-        </section>
-
-        <section>
-          <h2 style={sectionHeading}>Why this exists</h2>
-          <p style={bodyText}>
-            The data we present is already public. It's filed with the Senate, published by the SEC, reported to the FDA, and tracked by the EPA. But it's scattered across dozens of government websites, formatted inconsistently, and nearly impossible to cross-reference.
-          </p>
-          <p style={bodyText}>
-            WeThePeople brings it all together in one place. When a pharmaceutical company spends millions lobbying Congress while receiving billions in government contracts, you should be able to see that. When a politician trades stocks in companies affected by legislation they're voting on, that should be visible too.
-          </p>
-        </section>
-
-        <section>
-          <h2 style={sectionHeading}>Open source</h2>
-          <p style={bodyText}>
-            WeThePeople is fully open source. The entire codebase — frontend, backend, data sync jobs, and deployment configuration — is available on GitHub.
-          </p>
-          <a
-            href="https://github.com/Obelus-Labs-LLC/WeThePeople"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 14,
-              color: 'var(--color-accent-text)',
-              textDecoration: 'none',
-              transition: 'color 150ms',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-accent-text)'; }}
-          >
-            View on GitHub <ExternalLink size={13} />
-          </a>
-        </section>
-
-        <section>
-          <h2 style={sectionHeading}>Contact</h2>
-          <p style={bodyText}>
-            WeThePeople is built by{' '}
-            <strong style={{ color: 'var(--color-text-1)', fontWeight: 600 }}>Obelus Labs LLC</strong>.
-          </p>
-          <p style={bodyText}>
-            Website:{' '}
-            <a
-              href="https://wethepeopleforus.com"
-              style={{ color: 'var(--color-accent-text)', textDecoration: 'none' }}
-            >
-              wethepeopleforus.com
-            </a>
-          </p>
-        </section>
-      </div>
-      <Footer />
-    </div>
+    <LongformDoc
+      overline="Our Mission"
+      title="Sunlight is the best disinfectant."
+      lastUpdated="Apr 2026"
+      sections={SECTIONS}
+    />
   );
 }

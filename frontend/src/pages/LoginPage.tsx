@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import AuthShell, { AuthField } from '../components/AuthShell';
 
+/**
+ * Login page redesign. Uses the shared <AuthShell> + <AuthField> layout with
+ * the new "Welcome back" copy, Remember-me checkbox, Forgot-password link,
+ * and OR-divider + OAuth provider buttons (visual only — email/password is
+ * the only auth path the backend currently exposes).
+ */
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -25,178 +32,275 @@ export default function LoginPage() {
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    background: 'var(--color-surface-2)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 10,
-    padding: '10px 14px',
-    color: 'var(--color-text-1)',
-    fontFamily: "'Inter', sans-serif",
-    fontSize: 14,
-    outline: 'none',
-    transition: 'border-color 150ms',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontFamily: "'Inter', sans-serif",
-    fontSize: 12,
-    fontWeight: 500,
-    color: 'var(--color-text-2)',
-    marginBottom: 6,
+  const notifyOAuth = (provider: string) => {
+    // OAuth flows aren't wired up yet on the backend — surface a transparent
+    // message rather than silently failing.
+    alert(
+      `${provider} sign-in is coming soon. For now, please create a free account with your email.`,
+    );
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'var(--color-bg)',
-        color: 'var(--color-text-1)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: 420 }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 48,
-              height: 48,
-              borderRadius: 12,
-              background: 'var(--color-accent-dim)',
-              marginBottom: 16,
-            }}
-          >
-            <LogIn size={22} style={{ color: 'var(--color-accent-text)' }} />
-          </div>
-          <h1
-            style={{
-              fontFamily: "'Playfair Display', Georgia, serif",
-              fontStyle: 'italic',
-              fontWeight: 900,
-              fontSize: 'clamp(28px, 4vw, 36px)',
-              lineHeight: 1.05,
-              color: 'var(--color-text-1)',
-              marginBottom: 6,
-            }}
-          >
-            Log in
-          </h1>
-          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: 'var(--color-text-2)' }}>
-            Track politicians, companies, and influence.
-          </p>
-        </div>
-
-        <form
-          onSubmit={handleSubmit}
+    <AuthShell
+      footer={
+        <div
           style={{
-            borderRadius: 12,
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 14,
-          }}
-        >
-          {error && (
-            <div
-              style={{
-                borderRadius: 8,
-                background: 'rgba(230,57,70,0.08)',
-                border: '1px solid rgba(230,57,70,0.25)',
-                padding: '10px 14px',
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                color: 'var(--color-red)',
-              }}
-            >
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label style={labelStyle}>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="you@example.com"
-              style={inputStyle}
-              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="Your password"
-              style={inputStyle}
-              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              borderRadius: 10,
-              background: 'var(--color-accent)',
-              color: '#07090C',
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 13,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              padding: '12px 16px',
-              border: 'none',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1,
-              transition: 'opacity 150ms',
-              marginTop: 4,
-            }}
-          >
-            {loading ? 'Logging in…' : 'Log in'}
-          </button>
-        </form>
-
-        <p
-          style={{
-            textAlign: 'center',
-            marginTop: 24,
             fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
+            fontSize: 12,
             color: 'var(--color-text-3)',
+            textAlign: 'center',
+            marginTop: 20,
           }}
         >
-          No account?{' '}
+          Don&apos;t have an account?{' '}
           <Link
             to="/signup"
             style={{
               color: 'var(--color-accent-text)',
               textDecoration: 'none',
-              fontWeight: 500,
+              fontWeight: 600,
             }}
           >
-            Create one free
+            Create one
           </Link>
+        </div>
+      }
+    >
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          width: '100%',
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 14,
+          padding: '32px 28px',
+        }}
+      >
+        <h1
+          style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontStyle: 'italic',
+            fontWeight: 700,
+            fontSize: 26,
+            color: 'var(--color-text-1)',
+            marginBottom: 6,
+          }}
+        >
+          Welcome back
+        </h1>
+        <p
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            color: 'var(--color-text-2)',
+            marginBottom: 24,
+            lineHeight: 1.55,
+          }}
+        >
+          Sign in to save politicians, subscribe to alerts, and track your
+          reps.
         </p>
-      </div>
-    </div>
+
+        {error && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 14,
+              borderRadius: 8,
+              background: 'rgba(230,57,70,0.08)',
+              border: '1px solid rgba(230,57,70,0.25)',
+              padding: '10px 14px',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'var(--color-red)',
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <AuthField
+          label="Email"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          placeholder="you@example.com"
+          autoComplete="email"
+          required
+        />
+        <AuthField
+          label="Password"
+          type="password"
+          value={password}
+          onChange={setPassword}
+          placeholder="••••••••"
+          autoComplete="current-password"
+          required
+        />
+
+        {/* Remember me + forgot password */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 20,
+          }}
+        >
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              cursor: 'pointer',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              color: 'var(--color-text-2)',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+            />
+            <span
+              aria-hidden
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: 3,
+                border: `1.5px solid ${
+                  remember ? 'var(--color-accent)' : 'var(--color-border-hover)'
+                }`,
+                background: remember ? 'var(--color-accent)' : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#07090C',
+                fontSize: 9,
+                fontWeight: 700,
+              }}
+            >
+              {remember ? '✓' : ''}
+            </span>
+            Remember me
+          </label>
+          <button
+            type="button"
+            onClick={() =>
+              alert(
+                'Password reset: email support@wethepeopleforus.com and we\u2019ll send you a reset link.',
+              )
+            }
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              fontWeight: 500,
+              color: 'var(--color-accent-text)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            Forgot password?
+          </button>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            width: '100%',
+            padding: '12px',
+            borderRadius: 9,
+            background: 'var(--color-accent)',
+            color: '#07090C',
+            border: 'none',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.6 : 1,
+            transition: 'opacity 150ms',
+            marginBottom: 14,
+          }}
+        >
+          {loading ? 'Signing in\u2026' : 'Sign in'}
+        </button>
+
+        {/* OR divider */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            margin: '20px 0',
+          }}
+        >
+          <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+          <span
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+              letterSpacing: '0.08em',
+            }}
+          >
+            OR
+          </span>
+          <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+        </div>
+
+        {/* OAuth provider buttons — visual only until backend support lands */}
+        {[
+          { name: 'Google', glyph: 'G' },
+          { name: 'GitHub', glyph: '⌥' },
+        ].map((p) => (
+          <button
+            key={p.name}
+            type="button"
+            onClick={() => notifyOAuth(p.name)}
+            style={{
+              width: '100%',
+              padding: '10px',
+              marginBottom: 8,
+              borderRadius: 9,
+              background: 'transparent',
+              color: 'var(--color-text-1)',
+              border: '1px solid var(--color-border)',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              transition: 'border-color 150ms',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 14,
+                fontWeight: 700,
+                color: 'var(--color-text-2)',
+              }}
+            >
+              {p.glyph}
+            </span>
+            Continue with {p.name}
+          </button>
+        ))}
+      </form>
+    </AuthShell>
   );
 }
