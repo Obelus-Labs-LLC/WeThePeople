@@ -136,7 +136,11 @@ const GlobalOverlays: React.FC = () => {
     <>
       <GlobalSearch />
       <ChatAgent />
-      <div className="fixed top-3 right-32 z-50">
+      {/* Sits at same top as GlobalSearch (top-4) and just below its
+          z-index (9998) so the search modal always opens above. Kept at
+          right-32 (128px) so it clears the ~80px-wide search pill anchored
+          at right-4 with a ~30px visual gap. */}
+      <div className="fixed top-4 right-32 z-[9997]">
         <UserMenu />
       </div>
     </>
