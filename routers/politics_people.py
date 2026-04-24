@@ -1170,17 +1170,31 @@ def get_person_full(person_id: str):
             _log.warning("full/%s failed: %s", key, exc, exc_info=True)
             results[key] = None
 
+    # Every parameter with a fastapi.Query(...) default must be passed
+    # explicitly here — Query() defaults are only evaluated by FastAPI's
+    # dependency resolver during a real HTTP request. When we call these
+    # handlers directly the Query sentinel leaks into SQLAlchemy as a
+    # query parameter. Passing real values side-steps that entirely.
     _safe("person",      lambda: get_person_directory_entry(person_id=person_id))
     _safe("profile",     lambda: get_person_profile(person_id=person_id))
     _safe("stats",       lambda: get_person_stats(person_id=person_id))
-    _safe("performance", lambda: person_performance(person_id=person_id))
+    _safe("performance", lambda: person_performance(person_id=person_id, top=10))
     _safe("committees",  lambda: get_person_committees(person_id=person_id))
-    _safe("activity",    lambda: get_person_activity(person_id=person_id, limit=50))
-    _safe("votes",       lambda: get_person_votes(person_id=person_id, limit=50))
+    _safe("activity",    lambda: get_person_activity(
+        person_id=person_id, role=None, congress=None, policy_area=None,
+        limit=50, offset=0,
+    ))
+    _safe("votes",       lambda: get_person_votes(
+        person_id=person_id, position=None, limit=50, offset=0,
+    ))
     _safe("finance",     lambda: get_person_finance(person_id=person_id))
     _safe("trends",      lambda: get_person_trends(person_id=person_id))
-    _safe("donors",      lambda: get_person_industry_donors(person_id=person_id, limit=100))
-    _safe("trades",      lambda: get_person_trades(person_id=person_id, limit=50))
+    _safe("donors",      lambda: get_person_industry_donors(
+        person_id=person_id, limit=100, offset=0,
+    ))
+    _safe("trades",      lambda: get_person_trades(
+        person_id=person_id, limit=50, offset=0, transaction_type=None,
+    ))
     _safe("graph",       lambda: get_person_graph(person_id=person_id, limit=20))
 
     return results
