@@ -176,6 +176,8 @@ export default function HomeScreen() {
               { screen: 'StateExplorer', icon: 'map' as const, name: 'State Explorer', desc: 'All 50 states\' data', accent: '#3B82F6' },
               { screen: 'ChatAgent', icon: 'chatbubble-ellipses' as const, name: 'Ask WTP', desc: 'AI-powered data assistant', accent: '#7C3AED' },
               { screen: 'InfluenceNetwork', icon: 'git-network' as const, name: 'Influence Network', desc: 'Follow the money', accent: '#7C3AED' },
+              { screen: 'CivicHub', icon: 'people' as const, name: 'Civic Hub', desc: 'Promises, proposals, and badges', accent: '#2563EB' },
+              { screen: 'EnforcementTracker', icon: 'shield-checkmark' as const, name: 'Enforcement Tracker', desc: 'Tech sector penalties & cases', accent: '#DC2626' },
             ].map((tool) => (
               <TouchableOpacity
                 key={tool.screen}

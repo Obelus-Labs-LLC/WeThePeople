@@ -728,6 +728,97 @@ class WTPClient {
     );
   }
 
+  // ── Ledger (claims) ──
+
+  async getClaim(claimId: string | number, opts?: FetchOptions): Promise<any> {
+    return this.fetchJSON(
+      `${this.baseUrl}/ledger/claim/${encodeURIComponent(String(claimId))}`,
+      opts,
+    );
+  }
+
+  // ── Civic engagement ──
+
+  async getPromises(
+    params?: { limit?: number; offset?: number; status?: string; category?: string; person_id?: string },
+    opts?: FetchOptions,
+  ): Promise<{ total: number; items: any[] }> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    if (params?.status) sp.set('status', params.status);
+    if (params?.category) sp.set('category', params.category);
+    if (params?.person_id) sp.set('person_id', params.person_id);
+    return this.fetchJSON(`${this.baseUrl}/civic/promises?${sp}`, opts);
+  }
+
+  async getPromise(promiseId: number | string, opts?: FetchOptions): Promise<any> {
+    return this.fetchJSON(
+      `${this.baseUrl}/civic/promises/${encodeURIComponent(String(promiseId))}`,
+      opts,
+    );
+  }
+
+  async getProposals(
+    params?: { limit?: number; offset?: number; category?: string; sector?: string },
+    opts?: FetchOptions,
+  ): Promise<{ total: number; items: any[] }> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    if (params?.category) sp.set('category', params.category);
+    if (params?.sector) sp.set('sector', params.sector);
+    return this.fetchJSON(`${this.baseUrl}/civic/proposals?${sp}`, opts);
+  }
+
+  async getBadges(opts?: FetchOptions): Promise<{ total: number; items: any[] }> {
+    return this.fetchJSON(`${this.baseUrl}/civic/badges`, opts);
+  }
+
+  // ── Vote detail ──
+
+  async getVoteDetail(voteId: number | string, opts?: FetchOptions): Promise<any> {
+    return this.fetchJSON(
+      `${this.baseUrl}/votes/${encodeURIComponent(String(voteId))}`,
+      opts,
+    );
+  }
+
+  // ── Cross-sector aggregates (contracts / enforcement / lobbying) ──
+
+  async getAggregateContracts(
+    sector: string, params?: { limit?: number }, opts?: FetchOptions,
+  ): Promise<{ total?: number; contracts: any[] }> {
+    const sp = new URLSearchParams();
+    sp.set('limit', (params?.limit ?? 500).toString());
+    return this.fetchJSON(
+      `${this.baseUrl}/aggregate/${encodeURIComponent(sector)}/contracts?${sp}`,
+      opts,
+    );
+  }
+
+  async getAggregateEnforcement(
+    sector: string, params?: { limit?: number }, opts?: FetchOptions,
+  ): Promise<{ total?: number; actions: any[] }> {
+    const sp = new URLSearchParams();
+    sp.set('limit', (params?.limit ?? 500).toString());
+    return this.fetchJSON(
+      `${this.baseUrl}/aggregate/${encodeURIComponent(sector)}/enforcement?${sp}`,
+      opts,
+    );
+  }
+
+  async getAggregateLobbying(
+    sector: string, params?: { limit?: number }, opts?: FetchOptions,
+  ): Promise<{ total?: number; filings: any[] }> {
+    const sp = new URLSearchParams();
+    sp.set('limit', (params?.limit ?? 500).toString());
+    return this.fetchJSON(
+      `${this.baseUrl}/aggregate/${encodeURIComponent(sector)}/lobbying?${sp}`,
+      opts,
+    );
+  }
+
   // ── Chat agent ──
 
   async askChat(
