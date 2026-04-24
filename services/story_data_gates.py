@@ -134,7 +134,11 @@ def gate_sector(db: Session, sector: str) -> Tuple[bool, List[DataIssue]]:
                                     f"{contract_table} is missing or unreadable"))
 
     far_future = _count_future_dates(db, contract_table, "start_date", now + timedelta(days=365 * 5))
-    if far_future:
+    if far_future is None:
+        # Query itself failed — treat as critical, don't silently skip the check.
+        issues.append(DataIssue("contract_future_check_failed", "critical",
+                                f"could not check {contract_table}.start_date for future corruption — see logs"))
+    elif far_future:
         issues.append(DataIssue("contract_far_future_start", "critical",
                                 f"{contract_table}.start_date has {far_future} rows > 5 years ahead (corruption)"))
 
@@ -172,7 +176,10 @@ def gate_global(db: Session) -> Tuple[bool, List[DataIssue]]:
 
     # 3. FARA must have a non-zero count of principals
     cnt = _count(db, "fara_foreign_principals")
-    if cnt is not None and cnt < 10:
+    if cnt is None:
+        issues.append(DataIssue("fara_check_failed", "critical",
+                                "could not count fara_foreign_principals — see logs"))
+    elif cnt < 10:
         issues.append(DataIssue("fara_empty", "warn",
                                 f"fara_foreign_principals has only {cnt} rows"))
 
