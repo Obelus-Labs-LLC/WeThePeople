@@ -1141,46 +1141,46 @@ def get_person_full(person_id: str):
     """Combined endpoint: returns person, profile, stats, committees, activity,
     votes, trades, finance, donors, and trends in a single response.
 
-    Eliminates 12 separate API calls from the frontend profile page.
+    Implemented as direct, in-process function calls rather than HTTP self-fan-out.
+    The earlier httpx-to-localhost version turned every external request into
+    12 additional internal requests, amplifying any load (including abuse)
+    12× and bypassing per-IP limits because the internal hops appeared as
+    loopback traffic. Direct calls are also faster — no TCP, no HTTP framing,
+    no JSON round-trip — and share a single SQLAlchemy session per sub-call
+    (each handler opens/closes its own session internally).
     """
-    import concurrent.futures
-    import httpx
+    import logging
 
-    base = "http://localhost:8006"
+    from routers.politics_votes import get_person_votes
+    from routers.politics_trades import get_person_trades
+
+    _log = logging.getLogger("politics_people.full")
     results: Dict[str, Any] = {"person_id": person_id}
 
-    paths = {
-        "person": f"/people/{person_id}",
-        "profile": f"/people/{person_id}/profile",
-        "stats": f"/people/{person_id}/stats",
-        "performance": f"/people/{person_id}/performance",
-        "committees": f"/people/{person_id}/committees",
-        "activity": f"/people/{person_id}/activity?limit=50",
-        "votes": f"/people/{person_id}/votes?limit=50",
-        "finance": f"/people/{person_id}/finance",
-        "trends": f"/people/{person_id}/trends",
-        "donors": f"/people/{person_id}/industry-donors?limit=100",
-        "trades": f"/people/{person_id}/trades?limit=50",
-        "graph": f"/graph/person/{person_id}?limit=20",
-    }
-
-    import logging
-    _log = logging.getLogger("politics_people.full")
-
-    def _fetch(key: str, path: str):
+    def _safe(key: str, thunk):
         try:
-            r = httpx.get(f"{base}{path}", timeout=14.0)
-            if r.status_code == 200:
-                return key, r.json()
-            _log.debug("full/%s returned %d", key, r.status_code)
-        except Exception as e:
-            _log.debug("full/%s failed: %s", key, e)
-        return key, None
+            results[key] = thunk()
+        except HTTPException as exc:
+            if exc.status_code == 404:
+                results[key] = None
+            else:
+                _log.warning("full/%s returned %d: %s", key, exc.status_code, exc.detail)
+                results[key] = None
+        except Exception as exc:
+            _log.warning("full/%s failed: %s", key, exc, exc_info=True)
+            results[key] = None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        futures = [executor.submit(_fetch, k, p) for k, p in paths.items()]
-        for future in concurrent.futures.as_completed(futures, timeout=15):
-            key, data = future.result()
-            results[key] = data
+    _safe("person",      lambda: get_person_directory_entry(person_id=person_id))
+    _safe("profile",     lambda: get_person_profile(person_id=person_id))
+    _safe("stats",       lambda: get_person_stats(person_id=person_id))
+    _safe("performance", lambda: person_performance(person_id=person_id))
+    _safe("committees",  lambda: get_person_committees(person_id=person_id))
+    _safe("activity",    lambda: get_person_activity(person_id=person_id, limit=50))
+    _safe("votes",       lambda: get_person_votes(person_id=person_id, limit=50))
+    _safe("finance",     lambda: get_person_finance(person_id=person_id))
+    _safe("trends",      lambda: get_person_trends(person_id=person_id))
+    _safe("donors",      lambda: get_person_industry_donors(person_id=person_id, limit=100))
+    _safe("trades",      lambda: get_person_trades(person_id=person_id, limit=50))
+    _safe("graph",       lambda: get_person_graph(person_id=person_id, limit=20))
 
     return results

@@ -23,10 +23,12 @@ import os
 import threading
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from starlette.responses import PlainTextResponse
 
-router = APIRouter(tags=["observability"])
+from services.auth import require_press_key
+
+router = APIRouter(tags=["observability"], dependencies=[Depends(require_press_key)])
 
 # --- Startup time ---
 _start_time = time.time()
