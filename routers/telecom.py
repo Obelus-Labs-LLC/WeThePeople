@@ -30,6 +30,7 @@ config = SectorConfig(
         (TelecomGovernmentContract, "contract_count"),
         (SECTelecomFiling, "filing_count"),
         (TelecomEnforcement, "enforcement_count"),
+        (TelecomLobbyingRecord, "lobbying_count"),
     ],
 )
 

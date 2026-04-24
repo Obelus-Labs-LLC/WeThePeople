@@ -30,6 +30,7 @@ config = SectorConfig(
         (AgricultureGovernmentContract, "contract_count"),
         (SECAgricultureFiling, "filing_count"),
         (AgricultureEnforcement, "enforcement_count"),
+        (AgricultureLobbyingRecord, "lobbying_count"),
     ],
 )
 
