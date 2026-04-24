@@ -538,7 +538,7 @@ export default function AccountPage() {
                     style={{ ...primaryBtn, marginTop: 4 }}
                     onClick={() =>
                       alert(
-                        'Profile edit API is coming soon. Email support@wethepeopleforus.com to update for now.',
+                        'Profile edit API is coming soon. Email wethepeopleforus@gmail.com to update for now.',
                       )
                     }
                   >
@@ -561,7 +561,7 @@ export default function AccountPage() {
                     style={{ ...secondaryBtn, marginTop: 4 }}
                     onClick={() =>
                       alert(
-                        'Password reset API is coming soon. Email support@wethepeopleforus.com for now.',
+                        'Password reset API is coming soon. Email wethepeopleforus@gmail.com for now.',
                       )
                     }
                   >
@@ -1157,7 +1157,7 @@ export default function AccountPage() {
                       type="button"
                       onClick={() =>
                         alert(
-                          'Thanks! Per-tier donation checkout is coming soon. Email hello@wethepeopleforus.com to set one up manually.',
+                          'Thanks! Per-tier donation checkout is coming soon. Email wethepeopleforus@gmail.com to set one up manually.',
                         )
                       }
                       style={{
@@ -1292,8 +1292,8 @@ export default function AccountPage() {
                     onClick={() =>
                       alert(
                         row.danger
-                          ? 'Account deletion is coming soon. Email privacy@wethepeopleforus.com to request removal.'
-                          : 'Data export is coming soon. Email hello@wethepeopleforus.com for a manual export.',
+                          ? 'Account deletion is coming soon. Email wethepeopleforus@gmail.com to request removal.'
+                          : 'Data export is coming soon. Email wethepeopleforus@gmail.com for a manual export.',
                       )
                     }
                     style={{

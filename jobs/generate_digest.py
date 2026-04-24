@@ -220,7 +220,7 @@ def generate_preview(zip_code: str) -> Dict[str, Any]:
 
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-FROM_EMAIL = os.getenv("WTP_DIGEST_FROM", "digest@wethepeopleforus.com")
+FROM_EMAIL = os.getenv("WTP_DIGEST_FROM", "wethepeopleforus@gmail.com")
 SITE_URL = "https://wethepeopleforus.com"
 
 

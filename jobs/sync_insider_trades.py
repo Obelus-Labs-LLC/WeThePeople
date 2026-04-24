@@ -38,7 +38,7 @@ from models.finance_models import TrackedInstitution, SECInsiderTrade
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
-UA = {"User-Agent": "WeThePeople/1.0 (contact@wethepeopleforus.com)"}
+UA = {"User-Agent": "WeThePeople/1.0 (wethepeopleforus@gmail.com)"}
 SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik10}.json"
 ARCHIVES_URL = "https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession_nodash}"
 POLITE_DELAY = 0.17  # ~6 req/sec

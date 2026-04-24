@@ -42,7 +42,7 @@ def search_jobs(
     Raises:
         ValueError: If USAJobs API key is not configured
     """
-    email = os.environ.get("USAJOBS_EMAIL", "research@wethepeopleforus.com")
+    email = os.environ.get("USAJOBS_EMAIL", "wethepeopleforus@gmail.com")
     api_key = os.environ.get("USAJOBS_API_KEY", "")
 
     if not api_key:

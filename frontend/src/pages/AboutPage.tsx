@@ -36,7 +36,7 @@ const SECTIONS: LongformSection[] = [
     ],
     callout: {
       label: 'Funding',
-      text: 'Donations from individuals (<$500/yr), a civic tech grant from the Knight Foundation, and self-funded runway. Full 990s published annually.',
+      text: 'Self-funded. No corporate grants, no political donors.',
     },
   },
   {
@@ -44,7 +44,7 @@ const SECTIONS: LongformSection[] = [
     id: 'contact',
     title: 'Get in touch',
     body: [
-      'Security disclosures: security@wethepeopleforus.com. Press: press@wethepeopleforus.com. Data corrections: data@wethepeopleforus.com. General: hello@wethepeopleforus.com.',
+      'Contact: wethepeopleforus@gmail.com — security disclosures, press inquiries, data corrections, and general questions.',
     ],
   },
 ];

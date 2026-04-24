@@ -33,7 +33,7 @@ const SECTIONS: LongformSection[] = [
     id: 'rights',
     title: 'Your rights',
     body: [
-      'Email privacy@wethepeopleforus.com to export, correct, or delete your data. We respond within 30 days.',
+      'Email wethepeopleforus@gmail.com to export, correct, or delete your data. We respond within 30 days.',
     ],
   },
   {

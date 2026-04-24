@@ -190,7 +190,7 @@ export default function LoginPage() {
             type="button"
             onClick={() =>
               alert(
-                'Password reset: email support@wethepeopleforus.com and we\u2019ll send you a reset link.',
+                'Password reset: email wethepeopleforus@gmail.com and we\u2019ll send you a reset link.',
               )
             }
             style={{

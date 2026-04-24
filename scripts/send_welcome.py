@@ -30,7 +30,7 @@ r = requests.post(
     RESEND_API_URL,
     headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
     json={
-        "from": "WeThePeople <digest@wethepeopleforus.com>",
+        "from": "WeThePeople <wethepeopleforus@gmail.com>",
         "to": ["john.bojtos@gmail.com"],
         "subject": "You are subscriber #1",
         "html": html,

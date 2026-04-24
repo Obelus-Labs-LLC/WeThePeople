@@ -100,7 +100,7 @@ const NotFoundPage: React.FC = () => {
           ? document.referrer
           : '(direct nav)'),
     );
-    window.location.href = `mailto:support@wethepeopleforus.com?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:wethepeopleforus@gmail.com?subject=${subject}&body=${body}`;
   };
 
   return (

@@ -568,7 +568,7 @@ export default function PressToolsPage() {
               </div>
             </div>
             <a
-              href="mailto:press@wethepeopleforus.com?subject=Press%20access%20request"
+              href="mailto:wethepeopleforus@gmail.com?subject=Press%20access%20request"
               style={{
                 padding: '11px 20px',
                 borderRadius: '9px',

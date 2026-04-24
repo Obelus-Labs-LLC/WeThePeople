@@ -221,14 +221,14 @@ export default function CorrectionsPage() {
               Anyone can report an error in a story. Use the "Report an error" button on any story page,
               or contact us at{' '}
               <a
-                href="mailto:corrections@wethepeopleforus.com"
+                href="mailto:wethepeopleforus@gmail.com"
                 style={{
                   color: 'var(--color-accent-text)',
                   textDecoration: 'underline',
                   textUnderlineOffset: '3px',
                 }}
               >
-                corrections@wethepeopleforus.com
+                wethepeopleforus@gmail.com
               </a>
               . We review all reports and respond within 48 hours.
             </p>
