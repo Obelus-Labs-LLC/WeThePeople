@@ -99,3 +99,11 @@ frontend/tsconfig.tsbuildinfo
 alembic/README
 wallet_wtpdb/
 prompts.env
+
+# Planning scratch (local only — audit notes, story/rehab snapshots, design handoffs)
+# Design handoffs contain superseded copy (fabricated Knight Foundation claim,
+# fake @wethepeopleforus.com mailboxes) that must NEVER reach the public repo.
+.planning/
+
+# One-off rehab / audit scripts (kept locally for rerun reference, not shipped)
+scripts/rehab_*.py
