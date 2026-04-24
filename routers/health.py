@@ -57,9 +57,13 @@ def get_health_companies(limit: int = Query(50, ge=1, le=200), offset: int = Que
     event_counts = dict(db.query(FDAAdverseEvent.company_id, func.count(FDAAdverseEvent.id)).filter(FDAAdverseEvent.company_id.in_(company_ids)).group_by(FDAAdverseEvent.company_id).all()) if company_ids else {}
     recall_counts = dict(db.query(FDARecall.company_id, func.count(FDARecall.id)).filter(FDARecall.company_id.in_(company_ids)).group_by(FDARecall.company_id).all()) if company_ids else {}
     trial_counts = dict(db.query(ClinicalTrial.company_id, func.count(ClinicalTrial.id)).filter(ClinicalTrial.company_id.in_(company_ids)).group_by(ClinicalTrial.company_id).all()) if company_ids else {}
+    lobbying_counts = dict(db.query(HealthLobbyingRecord.company_id, func.count(HealthLobbyingRecord.id)).filter(HealthLobbyingRecord.company_id.in_(company_ids)).group_by(HealthLobbyingRecord.company_id).all()) if company_ids else {}
+    contract_counts = dict(db.query(HealthGovernmentContract.company_id, func.count(HealthGovernmentContract.id)).filter(HealthGovernmentContract.company_id.in_(company_ids)).group_by(HealthGovernmentContract.company_id).all()) if company_ids else {}
+    filing_counts = dict(db.query(SECHealthFiling.company_id, func.count(SECHealthFiling.id)).filter(SECHealthFiling.company_id.in_(company_ids)).group_by(SECHealthFiling.company_id).all()) if company_ids else {}
+    enforcement_counts = dict(db.query(HealthEnforcement.company_id, func.count(HealthEnforcement.id)).filter(HealthEnforcement.company_id.in_(company_ids)).group_by(HealthEnforcement.company_id).all()) if company_ids else {}
     companies = []
     for c in rows:
-        companies.append({"company_id": c.company_id, "display_name": c.display_name, "ticker": c.ticker, "sector_type": c.sector_type, "headquarters": c.headquarters, "logo_url": c.logo_url, "adverse_event_count": event_counts.get(c.company_id, 0), "recall_count": recall_counts.get(c.company_id, 0), "trial_count": trial_counts.get(c.company_id, 0)})
+        companies.append({"company_id": c.company_id, "display_name": c.display_name, "ticker": c.ticker, "sector_type": c.sector_type, "headquarters": c.headquarters, "logo_url": c.logo_url, "adverse_event_count": event_counts.get(c.company_id, 0), "recall_count": recall_counts.get(c.company_id, 0), "trial_count": trial_counts.get(c.company_id, 0), "lobbying_count": lobbying_counts.get(c.company_id, 0), "contract_count": contract_counts.get(c.company_id, 0), "filing_count": filing_counts.get(c.company_id, 0), "enforcement_count": enforcement_counts.get(c.company_id, 0)})
     return {"total": total, "limit": limit, "offset": offset, "companies": companies}
 
 

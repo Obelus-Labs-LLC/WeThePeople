@@ -31,6 +31,7 @@ config = SectorConfig(
         (ChemicalGovernmentContract, "contract_count"),
         (SECChemicalFiling, "filing_count"),
         (ChemicalEnforcement, "enforcement_count"),
+        (ChemicalLobbyingRecord, "lobbying_count"),
     ],
 )
 

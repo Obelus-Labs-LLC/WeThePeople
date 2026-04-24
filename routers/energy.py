@@ -40,6 +40,7 @@ config = SectorConfig(
         (EnergyGovernmentContract, "contract_count"),
         (SECEnergyFiling, "filing_count"),
         (EnergyEnforcement, "enforcement_count"),
+        (EnergyLobbyingRecord, "lobbying_count"),
     ],
 )
 

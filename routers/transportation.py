@@ -44,6 +44,7 @@ config = SectorConfig(
         (TransportationGovernmentContract, "contract_count"),
         (SECTransportationFiling, "filing_count"),
         (TransportationEnforcement, "enforcement_count"),
+        (TransportationLobbyingRecord, "lobbying_count"),
     ],
 )
 
