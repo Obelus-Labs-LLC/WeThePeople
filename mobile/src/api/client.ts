@@ -595,6 +595,18 @@ class WTPClient {
     return this.fetchJSON(`${this.baseUrl}/influence/top-contracts?${sp}`, opts);
   }
 
+  async getInfluenceNetwork(
+    params: { entity_type: string; entity_id: string; depth?: number; limit?: number },
+    opts?: FetchOptions,
+  ): Promise<{ nodes: any[]; edges: any[] }> {
+    const sp = new URLSearchParams();
+    sp.set('entity_type', params.entity_type);
+    sp.set('entity_id', params.entity_id);
+    sp.set('depth', String(params.depth ?? 1));
+    sp.set('limit', String(params.limit ?? 100));
+    return this.fetchJSON(`${this.baseUrl}/influence/network?${sp}`, opts);
+  }
+
   // ── Activity feed ──
 
   async getRecentActivity(

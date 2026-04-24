@@ -66,6 +66,11 @@ import SectorEnforcementScreen from '../screens/SectorEnforcementScreen';
 import SectorLobbyingScreen from '../screens/SectorLobbyingScreen';
 import EnforcementTrackerScreen from '../screens/EnforcementTrackerScreen';
 
+// Wave B (simple influence views)
+import LobbyingBreakdownScreen from '../screens/LobbyingBreakdownScreen';
+import ContractTimelineScreen from '../screens/ContractTimelineScreen';
+import InfluenceTimelineScreen from '../screens/InfluenceTimelineScreen';
+
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 const Tab = createBottomTabNavigator();
@@ -339,6 +344,22 @@ function HomeStackScreen() {
         name="EnforcementTracker"
         component={EnforcementTrackerScreen}
         options={{ title: 'Enforcement Tracker' }}
+      />
+      {/* Wave B: simple influence views */}
+      <HomeStack.Screen
+        name="LobbyingBreakdown"
+        component={LobbyingBreakdownScreen}
+        options={{ title: 'Lobbying Breakdown' }}
+      />
+      <HomeStack.Screen
+        name="ContractTimeline"
+        component={ContractTimelineScreen}
+        options={{ title: 'Contract Timeline' }}
+      />
+      <HomeStack.Screen
+        name="InfluenceTimeline"
+        component={InfluenceTimelineScreen}
+        options={{ title: 'Influence Timeline' }}
       />
     </HomeStack.Navigator>
   );

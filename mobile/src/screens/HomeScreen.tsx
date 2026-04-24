@@ -178,6 +178,8 @@ export default function HomeScreen() {
               { screen: 'InfluenceNetwork', icon: 'git-network' as const, name: 'Influence Network', desc: 'Follow the money', accent: '#7C3AED' },
               { screen: 'CivicHub', icon: 'people' as const, name: 'Civic Hub', desc: 'Promises, proposals, and badges', accent: '#2563EB' },
               { screen: 'EnforcementTracker', icon: 'shield-checkmark' as const, name: 'Enforcement Tracker', desc: 'Tech sector penalties & cases', accent: '#DC2626' },
+              { screen: 'LobbyingBreakdown', icon: 'megaphone' as const, name: 'Lobbying Breakdown', desc: 'What tech companies lobby about', accent: '#F59E0B' },
+              { screen: 'ContractTimeline', icon: 'calendar' as const, name: 'Contract Timeline', desc: 'Tech contracts by year', accent: '#10B981' },
             ].map((tool) => (
               <TouchableOpacity
                 key={tool.screen}
