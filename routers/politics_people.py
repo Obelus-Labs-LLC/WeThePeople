@@ -520,15 +520,26 @@ def get_person_activity(
         sponsored_count = sponsored_q.scalar() or 0
         cosponsored_count = cosponsored_q.scalar() or 0
 
-        policy_areas = dict(
+        # Apply the same role/congress/policy_area filters as the main query
+        # so the breakdown reflects what the caller is actually looking at.
+        policy_areas_q = (
             db.query(Bill.policy_area, func.count(MemberBillGroundTruth.id))
             .outerjoin(Bill, MemberBillGroundTruth.bill_id == Bill.bill_id)
             .filter(
                 MemberBillGroundTruth.bioguide_id == member.bioguide_id,
                 Bill.policy_area.isnot(None),
             )
-            .group_by(Bill.policy_area).all()
         )
+        if role is not None:
+            if role in ("sponsored", "sponsor"):
+                policy_areas_q = policy_areas_q.filter(MemberBillGroundTruth.role.in_(["sponsored", "sponsor"]))
+            else:
+                policy_areas_q = policy_areas_q.filter(MemberBillGroundTruth.role.in_(["cosponsored", "cosponsor"]))
+        if congress is not None:
+            policy_areas_q = policy_areas_q.filter(Bill.congress == congress)
+        if policy_area is not None:
+            policy_areas_q = policy_areas_q.filter(func.lower(Bill.policy_area) == func.lower(policy_area))
+        policy_areas = dict(policy_areas_q.group_by(Bill.policy_area).all())
 
         entries = []
         for gt, bill in rows:

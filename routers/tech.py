@@ -83,9 +83,12 @@ def get_tech_companies(limit: int = Query(50, ge=1, le=200), offset: int = Query
     patent_counts = dict(db.query(TechPatent.company_id, func.count(TechPatent.id)).filter(TechPatent.company_id.in_(company_ids)).group_by(TechPatent.company_id).all()) if company_ids else {}
     contract_counts = dict(db.query(GovernmentContract.company_id, func.count(GovernmentContract.id)).filter(GovernmentContract.company_id.in_(company_ids)).group_by(GovernmentContract.company_id).all()) if company_ids else {}
     filing_counts = dict(db.query(SECTechFiling.company_id, func.count(SECTechFiling.id)).filter(SECTechFiling.company_id.in_(company_ids)).group_by(SECTechFiling.company_id).all()) if company_ids else {}
+    lobbying_counts = dict(db.query(LobbyingRecord.company_id, func.count(LobbyingRecord.id)).filter(LobbyingRecord.company_id.in_(company_ids)).group_by(LobbyingRecord.company_id).all()) if company_ids else {}
+    enforcement_counts = dict(db.query(FTCEnforcement.company_id, func.count(FTCEnforcement.id)).filter(FTCEnforcement.company_id.in_(company_ids)).group_by(FTCEnforcement.company_id).all()) if company_ids else {}
+    donation_counts = dict(db.query(CompanyDonation.entity_id, func.count(CompanyDonation.id)).filter(CompanyDonation.entity_type == "tech", CompanyDonation.entity_id.in_(company_ids)).group_by(CompanyDonation.entity_id).all()) if company_ids else {}
     results = []
     for co in companies:
-        results.append({"company_id": co.company_id, "display_name": co.display_name, "ticker": co.ticker, "sector_type": co.sector_type, "headquarters": co.headquarters, "logo_url": co.logo_url, "patent_count": patent_counts.get(co.company_id, 0), "contract_count": contract_counts.get(co.company_id, 0), "filing_count": filing_counts.get(co.company_id, 0)})
+        results.append({"company_id": co.company_id, "display_name": co.display_name, "ticker": co.ticker, "sector_type": co.sector_type, "headquarters": co.headquarters, "logo_url": co.logo_url, "patent_count": patent_counts.get(co.company_id, 0), "contract_count": contract_counts.get(co.company_id, 0), "filing_count": filing_counts.get(co.company_id, 0), "lobbying_count": lobbying_counts.get(co.company_id, 0), "enforcement_count": enforcement_counts.get(co.company_id, 0), "donation_count": donation_counts.get(co.company_id, 0)})
     return {"total": total, "limit": limit, "offset": offset, "companies": results}
 
 
@@ -98,6 +101,12 @@ def get_tech_company(company_id: str, db: Session = Depends(get_db)):
     contract_count = db.query(GovernmentContract).filter_by(company_id=company_id).count()
     filing_count = db.query(SECTechFiling).filter_by(company_id=company_id).count()
     total_contract_value = db.query(func.sum(GovernmentContract.award_amount)).filter_by(company_id=company_id).scalar() or 0
+    lobbying_count = db.query(func.count(LobbyingRecord.id)).filter(LobbyingRecord.company_id == company_id).scalar() or 0
+    lobbying_spend_total = db.query(func.sum(lobby_spend(LobbyingRecord))).filter(LobbyingRecord.company_id == company_id).scalar() or 0.0
+    enforcement_count = db.query(func.count(FTCEnforcement.id)).filter(FTCEnforcement.company_id == company_id).scalar() or 0
+    penalty_total = db.query(func.sum(FTCEnforcement.penalty_amount)).filter(FTCEnforcement.company_id == company_id).scalar() or 0.0
+    donation_count = db.query(func.count(CompanyDonation.id)).filter(CompanyDonation.entity_type == "tech", CompanyDonation.entity_id == company_id).scalar() or 0
+    donation_total = db.query(func.sum(CompanyDonation.amount)).filter(CompanyDonation.entity_type == "tech", CompanyDonation.entity_id == company_id).scalar() or 0.0
     latest_stock = None
     latest = db.query(StockFundamentals).filter_by(entity_type="tech_company", entity_id=company_id).order_by(desc(StockFundamentals.snapshot_date)).first()
     if latest:
@@ -120,7 +129,7 @@ def get_tech_company(company_id: str, db: Session = Depends(get_db)):
     except Exception as e:
         logger.warning("Patent-policy bill query failed for %s: %s", company_id, e)
     patent_policy_summary = {"patent_count": patent_count, "lobbying_on_ip_policy": lobbying_on_ip, "related_bills": related_bills_count}
-    return {"company_id": co.company_id, "display_name": co.display_name, "ticker": co.ticker, "sector_type": co.sector_type, "headquarters": co.headquarters, "logo_url": co.logo_url, "sec_cik": co.sec_cik, "patent_count": patent_count, "contract_count": contract_count, "filing_count": filing_count, "total_contract_value": total_contract_value, "latest_stock": latest_stock, "ai_profile_summary": co.ai_profile_summary, "sanctions_status": co.sanctions_status, "patent_policy_summary": patent_policy_summary}
+    return {"company_id": co.company_id, "display_name": co.display_name, "ticker": co.ticker, "sector_type": co.sector_type, "headquarters": co.headquarters, "logo_url": co.logo_url, "sec_cik": co.sec_cik, "patent_count": patent_count, "contract_count": contract_count, "filing_count": filing_count, "total_contract_value": total_contract_value, "lobbying_count": lobbying_count, "lobbying_spend": lobbying_spend_total, "enforcement_count": enforcement_count, "penalty_total": penalty_total, "donation_count": donation_count, "donation_total": donation_total, "latest_stock": latest_stock, "ai_profile_summary": co.ai_profile_summary, "sanctions_status": co.sanctions_status, "patent_policy_summary": patent_policy_summary}
 
 
 @router.get("/companies/{company_id}/filings")

@@ -59,9 +59,14 @@ def get_finance_institutions(limit: int = Query(50, ge=1, le=200), offset: int =
     inst_ids = [r.institution_id for r in rows]
     filing_counts = dict(db.query(SECFiling.institution_id, func.count(SECFiling.id)).filter(SECFiling.institution_id.in_(inst_ids)).group_by(SECFiling.institution_id).all()) if inst_ids else {}
     complaint_counts = dict(db.query(CFPBComplaint.institution_id, func.count(CFPBComplaint.id)).filter(CFPBComplaint.institution_id.in_(inst_ids)).group_by(CFPBComplaint.institution_id).all()) if inst_ids else {}
+    lobbying_counts = dict(db.query(FinanceLobbyingRecord.institution_id, func.count(FinanceLobbyingRecord.id)).filter(FinanceLobbyingRecord.institution_id.in_(inst_ids)).group_by(FinanceLobbyingRecord.institution_id).all()) if inst_ids else {}
+    contract_counts = dict(db.query(FinanceGovernmentContract.institution_id, func.count(FinanceGovernmentContract.id)).filter(FinanceGovernmentContract.institution_id.in_(inst_ids)).group_by(FinanceGovernmentContract.institution_id).all()) if inst_ids else {}
+    enforcement_counts = dict(db.query(FinanceEnforcement.institution_id, func.count(FinanceEnforcement.id)).filter(FinanceEnforcement.institution_id.in_(inst_ids)).group_by(FinanceEnforcement.institution_id).all()) if inst_ids else {}
+    donation_counts = dict(db.query(CompanyDonation.entity_id, func.count(CompanyDonation.id)).filter(CompanyDonation.entity_type == "finance", CompanyDonation.entity_id.in_(inst_ids)).group_by(CompanyDonation.entity_id).all()) if inst_ids else {}
+    insider_counts = dict(db.query(SECInsiderTrade.institution_id, func.count(SECInsiderTrade.id)).filter(SECInsiderTrade.institution_id.in_(inst_ids)).group_by(SECInsiderTrade.institution_id).all()) if inst_ids else {}
     institutions = []
     for r in rows:
-        institutions.append({"institution_id": r.institution_id, "display_name": r.display_name, "ticker": r.ticker, "sector_type": r.sector_type, "headquarters": r.headquarters, "logo_url": r.logo_url, "filing_count": filing_counts.get(r.institution_id, 0), "complaint_count": complaint_counts.get(r.institution_id, 0)})
+        institutions.append({"institution_id": r.institution_id, "display_name": r.display_name, "ticker": r.ticker, "sector_type": r.sector_type, "headquarters": r.headquarters, "logo_url": r.logo_url, "filing_count": filing_counts.get(r.institution_id, 0), "complaint_count": complaint_counts.get(r.institution_id, 0), "lobbying_count": lobbying_counts.get(r.institution_id, 0), "contract_count": contract_counts.get(r.institution_id, 0), "enforcement_count": enforcement_counts.get(r.institution_id, 0), "donation_count": donation_counts.get(r.institution_id, 0), "insider_trade_count": insider_counts.get(r.institution_id, 0)})
     return {"total": total, "limit": limit, "offset": offset, "institutions": institutions}
 
 
@@ -76,11 +81,20 @@ def get_institution_detail(institution_id: str, db: Session = Depends(get_db)):
     complaint_count = db.query(func.count(CFPBComplaint.id)).filter(CFPBComplaint.institution_id == institution_id).scalar() or 0
     fred_count = db.query(func.count(FREDObservation.id)).filter(FREDObservation.institution_id == institution_id).scalar() or 0
     press_count = db.query(func.count(FedPressRelease.id)).filter(FedPressRelease.institution_id == institution_id).scalar() or 0
+    lobbying_count = db.query(func.count(FinanceLobbyingRecord.id)).filter(FinanceLobbyingRecord.institution_id == institution_id).scalar() or 0
+    lobbying_spend = db.query(func.sum(lobby_spend(FinanceLobbyingRecord))).filter(FinanceLobbyingRecord.institution_id == institution_id).scalar() or 0.0
+    contract_count = db.query(func.count(FinanceGovernmentContract.id)).filter(FinanceGovernmentContract.institution_id == institution_id).scalar() or 0
+    contract_value = db.query(func.sum(FinanceGovernmentContract.award_amount)).filter(FinanceGovernmentContract.institution_id == institution_id).scalar() or 0.0
+    enforcement_count = db.query(func.count(FinanceEnforcement.id)).filter(FinanceEnforcement.institution_id == institution_id).scalar() or 0
+    penalty_total = db.query(func.sum(FinanceEnforcement.penalty_amount)).filter(FinanceEnforcement.institution_id == institution_id).scalar() or 0.0
+    donation_count = db.query(func.count(CompanyDonation.id)).filter(CompanyDonation.entity_type == "finance", CompanyDonation.entity_id == institution_id).scalar() or 0
+    donation_total = db.query(func.sum(CompanyDonation.amount)).filter(CompanyDonation.entity_type == "finance", CompanyDonation.entity_id == institution_id).scalar() or 0.0
+    insider_trade_count = db.query(func.count(SECInsiderTrade.id)).filter(SECInsiderTrade.institution_id == institution_id).scalar() or 0
     latest_stock = db.query(StockFundamentals).filter_by(entity_type="institution", entity_id=institution_id).order_by(desc(StockFundamentals.snapshot_date)).first()
     stock_data = None
     if latest_stock:
         stock_data = {"snapshot_date": str(latest_stock.snapshot_date) if latest_stock.snapshot_date else None, "market_cap": latest_stock.market_cap, "pe_ratio": latest_stock.pe_ratio, "eps": latest_stock.eps, "dividend_yield": latest_stock.dividend_yield, "week_52_high": latest_stock.week_52_high, "week_52_low": latest_stock.week_52_low, "profit_margin": latest_stock.profit_margin}
-    return {"institution_id": inst.institution_id, "display_name": inst.display_name, "ticker": inst.ticker, "sector_type": inst.sector_type, "headquarters": inst.headquarters, "logo_url": inst.logo_url, "sec_cik": inst.sec_cik, "fdic_cert": inst.fdic_cert, "filing_count": filing_count, "financial_count": financial_count, "complaint_count": complaint_count, "fred_count": fred_count, "press_count": press_count, "latest_stock": stock_data, "ai_profile_summary": inst.ai_profile_summary, "sanctions_status": inst.sanctions_status}
+    return {"institution_id": inst.institution_id, "display_name": inst.display_name, "ticker": inst.ticker, "sector_type": inst.sector_type, "headquarters": inst.headquarters, "logo_url": inst.logo_url, "sec_cik": inst.sec_cik, "fdic_cert": inst.fdic_cert, "filing_count": filing_count, "financial_count": financial_count, "complaint_count": complaint_count, "fred_count": fred_count, "press_count": press_count, "lobbying_count": lobbying_count, "lobbying_spend": lobbying_spend, "contract_count": contract_count, "contract_value": contract_value, "enforcement_count": enforcement_count, "penalty_total": penalty_total, "donation_count": donation_count, "donation_total": donation_total, "insider_trade_count": insider_trade_count, "latest_stock": stock_data, "ai_profile_summary": inst.ai_profile_summary, "sanctions_status": inst.sanctions_status}
 
 
 @router.get("/institutions/{institution_id}/filings")
@@ -217,15 +231,42 @@ def get_finance_comparison(ids: str = Query(..., description="Comma-separated in
     """Cross-institution comparison for key financial metrics."""
     institution_ids = [iid.strip() for iid in ids.split(",") if iid.strip()]
     if not institution_ids or len(institution_ids) > 10: raise HTTPException(status_code=400, detail="Provide 2-10 institution IDs")
+
+    # Batch the per-institution aggregations in one query per table instead
+    # of N+1 per institution. Matches the factory-router pattern.
+    filing_counts = dict(db.query(SECFiling.institution_id, func.count(SECFiling.id)).filter(SECFiling.institution_id.in_(institution_ids)).group_by(SECFiling.institution_id).all())
+    complaint_counts = dict(db.query(CFPBComplaint.institution_id, func.count(CFPBComplaint.id)).filter(CFPBComplaint.institution_id.in_(institution_ids)).group_by(CFPBComplaint.institution_id).all())
+    lobbying_counts = dict(db.query(FinanceLobbyingRecord.institution_id, func.count(FinanceLobbyingRecord.id)).filter(FinanceLobbyingRecord.institution_id.in_(institution_ids)).group_by(FinanceLobbyingRecord.institution_id).all())
+    lobbying_totals = dict(db.query(FinanceLobbyingRecord.institution_id, func.sum(lobby_spend(FinanceLobbyingRecord))).filter(FinanceLobbyingRecord.institution_id.in_(institution_ids)).group_by(FinanceLobbyingRecord.institution_id).all())
+    contract_counts = dict(db.query(FinanceGovernmentContract.institution_id, func.count(FinanceGovernmentContract.id)).filter(FinanceGovernmentContract.institution_id.in_(institution_ids)).group_by(FinanceGovernmentContract.institution_id).all())
+    contract_totals = dict(db.query(FinanceGovernmentContract.institution_id, func.sum(FinanceGovernmentContract.award_amount)).filter(FinanceGovernmentContract.institution_id.in_(institution_ids)).group_by(FinanceGovernmentContract.institution_id).all())
+    enforcement_counts = dict(db.query(FinanceEnforcement.institution_id, func.count(FinanceEnforcement.id)).filter(FinanceEnforcement.institution_id.in_(institution_ids)).group_by(FinanceEnforcement.institution_id).all())
+    penalty_totals = dict(db.query(FinanceEnforcement.institution_id, func.sum(FinanceEnforcement.penalty_amount)).filter(FinanceEnforcement.institution_id.in_(institution_ids)).group_by(FinanceEnforcement.institution_id).all())
+    donation_counts = dict(db.query(CompanyDonation.entity_id, func.count(CompanyDonation.id)).filter(CompanyDonation.entity_type == "finance", CompanyDonation.entity_id.in_(institution_ids)).group_by(CompanyDonation.entity_id).all())
+    insider_counts = dict(db.query(SECInsiderTrade.institution_id, func.count(SECInsiderTrade.id)).filter(SECInsiderTrade.institution_id.in_(institution_ids)).group_by(SECInsiderTrade.institution_id).all())
+
     results = []
     for iid in institution_ids:
         inst = db.query(TrackedInstitution).filter(TrackedInstitution.institution_id == iid).first()
         if not inst: continue
-        filing_count = db.query(func.count(SECFiling.id)).filter(SECFiling.institution_id == iid).scalar() or 0
-        complaint_count = db.query(func.count(CFPBComplaint.id)).filter(CFPBComplaint.institution_id == iid).scalar() or 0
         latest_fin = db.query(FDICFinancial).filter(FDICFinancial.institution_id == iid).order_by(desc(FDICFinancial.report_date)).first()
         latest_stock = db.query(StockFundamentals).filter_by(entity_type="institution", entity_id=iid).order_by(desc(StockFundamentals.snapshot_date)).first()
-        results.append({"institution_id": iid, "display_name": inst.display_name, "ticker": inst.ticker, "sector_type": inst.sector_type, "headquarters": inst.headquarters, "industry": latest_stock.industry if latest_stock else None, "filing_count": filing_count, "complaint_count": complaint_count, "total_assets": latest_fin.total_assets if latest_fin else None, "total_deposits": latest_fin.total_deposits if latest_fin else None, "net_income": latest_fin.net_income if latest_fin else None, "net_loans": latest_fin.net_loans if latest_fin else None, "roa": latest_fin.roa if latest_fin else None, "roe": latest_fin.roe if latest_fin else None, "tier1_capital_ratio": latest_fin.tier1_capital_ratio if latest_fin else None, "efficiency_ratio": latest_fin.efficiency_ratio if latest_fin else None, "noncurrent_loan_ratio": latest_fin.noncurrent_loan_ratio if latest_fin else None, "net_charge_off_ratio": latest_fin.net_charge_off_ratio if latest_fin else None, "market_cap": latest_stock.market_cap if latest_stock else None, "pe_ratio": latest_stock.pe_ratio if latest_stock else None, "forward_pe": latest_stock.forward_pe if latest_stock else None, "peg_ratio": latest_stock.peg_ratio if latest_stock else None, "price_to_book": latest_stock.price_to_book if latest_stock else None, "eps": latest_stock.eps if latest_stock else None, "revenue_ttm": latest_stock.revenue_ttm if latest_stock else None, "profit_margin": latest_stock.profit_margin if latest_stock else None, "operating_margin": latest_stock.operating_margin if latest_stock else None, "return_on_equity": latest_stock.return_on_equity if latest_stock else None, "dividend_yield": latest_stock.dividend_yield if latest_stock else None, "dividend_per_share": latest_stock.dividend_per_share if latest_stock else None, "week_52_high": latest_stock.week_52_high if latest_stock else None, "week_52_low": latest_stock.week_52_low if latest_stock else None})
+        results.append({
+            "institution_id": iid, "display_name": inst.display_name, "ticker": inst.ticker,
+            "sector_type": inst.sector_type, "headquarters": inst.headquarters,
+            "industry": latest_stock.industry if latest_stock else None,
+            "filing_count": filing_counts.get(iid, 0),
+            "complaint_count": complaint_counts.get(iid, 0),
+            "lobbying_count": lobbying_counts.get(iid, 0),
+            "lobbying_spend": lobbying_totals.get(iid) or 0.0,
+            "contract_count": contract_counts.get(iid, 0),
+            "contract_value": contract_totals.get(iid) or 0.0,
+            "enforcement_count": enforcement_counts.get(iid, 0),
+            "penalty_total": penalty_totals.get(iid) or 0.0,
+            "donation_count": donation_counts.get(iid, 0),
+            "insider_trade_count": insider_counts.get(iid, 0),
+            "total_assets": latest_fin.total_assets if latest_fin else None, "total_deposits": latest_fin.total_deposits if latest_fin else None, "net_income": latest_fin.net_income if latest_fin else None, "net_loans": latest_fin.net_loans if latest_fin else None, "roa": latest_fin.roa if latest_fin else None, "roe": latest_fin.roe if latest_fin else None, "tier1_capital_ratio": latest_fin.tier1_capital_ratio if latest_fin else None, "efficiency_ratio": latest_fin.efficiency_ratio if latest_fin else None, "noncurrent_loan_ratio": latest_fin.noncurrent_loan_ratio if latest_fin else None, "net_charge_off_ratio": latest_fin.net_charge_off_ratio if latest_fin else None, "market_cap": latest_stock.market_cap if latest_stock else None, "pe_ratio": latest_stock.pe_ratio if latest_stock else None, "forward_pe": latest_stock.forward_pe if latest_stock else None, "peg_ratio": latest_stock.peg_ratio if latest_stock else None, "price_to_book": latest_stock.price_to_book if latest_stock else None, "eps": latest_stock.eps if latest_stock else None, "revenue_ttm": latest_stock.revenue_ttm if latest_stock else None, "profit_margin": latest_stock.profit_margin if latest_stock else None, "operating_margin": latest_stock.operating_margin if latest_stock else None, "return_on_equity": latest_stock.return_on_equity if latest_stock else None, "dividend_yield": latest_stock.dividend_yield if latest_stock else None, "dividend_per_share": latest_stock.dividend_per_share if latest_stock else None, "week_52_high": latest_stock.week_52_high if latest_stock else None, "week_52_low": latest_stock.week_52_low if latest_stock else None,
+        })
     return {"institutions": results}
 
 
