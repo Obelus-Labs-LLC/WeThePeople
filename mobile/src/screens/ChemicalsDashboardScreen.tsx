@@ -147,6 +147,14 @@ export default function ChemicalsDashboardScreen() {
         ))}
       </View>
 
+      <TouchableOpacity
+        style={styles.compareCta}
+        onPress={() => navigation.navigate('Compare', { sector: 'chemicals' })}
+      >
+        <Ionicons name="git-compare" size={16} color={ACCENT} />
+        <Text style={[styles.compareText, { color: ACCENT }]}>Compare Chemicals Companies</Text>
+      </TouchableOpacity>
+
       <View style={styles.footer}>
         <Text style={styles.footerText}>Data: SEC EDGAR · EPA · USASpending.gov · Senate LDA</Text>
       </View>
@@ -184,6 +192,8 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, borderWidth: 1 },
   badgeText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
   companyStats: { fontSize: 11, color: UI_COLORS.TEXT_MUTED, marginTop: 3 },
+  compareCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 16, marginBottom: 16, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: ACCENT + '40', backgroundColor: ACCENT + '08' },
+  compareText: { fontSize: 13, fontWeight: '700' },
   footer: { alignItems: 'center', paddingVertical: 20 },
   footerText: { fontSize: 11, color: UI_COLORS.TEXT_MUTED },
 });

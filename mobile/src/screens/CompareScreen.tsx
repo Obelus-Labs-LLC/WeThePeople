@@ -9,8 +9,9 @@ import { useRoute, RouteProp } from '@react-navigation/native';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
 const ACCENT = '#2563EB';
+const log = (msg: string, err: unknown) => console.warn(`[CompareScreen] ${msg}:`, err);
 
 type CompareRouteParams = {
   Compare: { sector: string };
@@ -188,14 +189,27 @@ export default function CompareScreen() {
   const loadCompanies = useCallback(async () => {
     try {
       setCompaniesLoading(true);
-      const res = await fetch(`${API_BASE}/${sector}/companies`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const list = data.companies || data.results || data.data || data || [];
+      // Finance still uses the /institutions endpoint via getInstitutions;
+      // every other sector routes through the unified getSectorCompanies.
+      let list: any[] = [];
+      if (sector === 'finance') {
+        const data = await apiClient.getInstitutions({ limit: 200 });
+        list = (data as any).institutions || [];
+      } else if (sector === 'health') {
+        const data = await apiClient.getCompanies({ limit: 200 });
+        list = (data as any).companies || [];
+      } else if (sector === 'tech') {
+        const data = await apiClient.getTechCompanies({ limit: 200 });
+        list = (data as any).companies || [];
+      } else {
+        const data = await apiClient.getSectorCompanies(sector, { limit: 200 });
+        list = (data as any).companies || [];
+      }
       setCompanies(Array.isArray(list) ? list : []);
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to load companies');
+      setError(e?.message || 'Failed to load companies');
+      log('loadCompanies failed', e);
     } finally {
       setCompaniesLoading(false);
     }
@@ -214,21 +228,21 @@ export default function CompareScreen() {
     const fetchDetails = async () => {
       setDetailsLoading(true);
       try {
-        const idA = companyA.slug || companyA.id || encodeURIComponent(companyA.name);
-        const idB = companyB.slug || companyB.id || encodeURIComponent(companyB.name);
-        const [resA, resB] = await Promise.all([
-          fetch(`${API_BASE}/${sector}/companies/${idA}`),
-          fetch(`${API_BASE}/${sector}/companies/${idB}`),
-        ]);
-        if (!resA.ok) throw new Error(`Company A: HTTP ${resA.status}`);
-        if (!resB.ok) throw new Error(`Company B: HTTP ${resB.status}`);
-        const dataA = await resA.json();
-        const dataB = await resB.json();
-        setDetailsA(dataA);
-        setDetailsB(dataB);
+        const idA = companyA.slug || companyA.id || companyA.name;
+        const idB = companyB.slug || companyB.id || companyB.name;
+        const fetchOne = async (id: string) => {
+          if (sector === 'finance') return apiClient.getInstitutionDetail(id);
+          if (sector === 'health') return apiClient.getCompanyDetail(id);
+          if (sector === 'tech') return apiClient.getTechCompanyDetail(id);
+          return apiClient.getSectorCompanyDetail(sector, id);
+        };
+        const [dataA, dataB] = await Promise.all([fetchOne(idA), fetchOne(idB)]);
+        setDetailsA(dataA as any);
+        setDetailsB(dataB as any);
         setError('');
       } catch (e: any) {
-        setError(e.message || 'Failed to load company details');
+        setError(e?.message || 'Failed to load company details');
+        log('detail load failed', e);
       } finally {
         setDetailsLoading(false);
       }

@@ -33,6 +33,10 @@ import ChemicalsDashboardScreen from '../screens/ChemicalsDashboardScreen';
 import ChemicalsCompaniesScreen from '../screens/ChemicalsCompaniesScreen';
 import AgricultureDashboardScreen from '../screens/AgricultureDashboardScreen';
 import AgricultureCompaniesScreen from '../screens/AgricultureCompaniesScreen';
+import TelecomDashboardScreen from '../screens/TelecomDashboardScreen';
+import TelecomCompaniesScreen from '../screens/TelecomCompaniesScreen';
+import EducationDashboardScreen from '../screens/EducationDashboardScreen';
+import EducationCompaniesScreen from '../screens/EducationCompaniesScreen';
 
 // Generic sector company detail — one component, 7 sectors
 import SectorCompanyScreen from '../screens/SectorCompanyScreen';
@@ -189,13 +193,33 @@ function HomeStackScreen() {
         initialParams={{ sector: 'agriculture' }}
         options={{ title: '' }}
       />
-      {/* Telecom & Education — backend exists via sector_factory; detail-only
-          registration until dedicated dashboard/directory screens exist. */}
+      {/* Telecom sector */}
+      <HomeStack.Screen
+        name="TelecomDashboard"
+        component={TelecomDashboardScreen}
+        options={{ title: 'Telecom' }}
+      />
+      <HomeStack.Screen
+        name="TelecomCompaniesDirectory"
+        component={TelecomCompaniesScreen}
+        options={{ title: 'Telecom Companies' }}
+      />
       <HomeStack.Screen
         name="TelecomCompanyDetail"
         component={SectorCompanyScreen}
         initialParams={{ sector: 'telecom' }}
         options={{ title: '' }}
+      />
+      {/* Education sector */}
+      <HomeStack.Screen
+        name="EducationDashboard"
+        component={EducationDashboardScreen}
+        options={{ title: 'Education' }}
+      />
+      <HomeStack.Screen
+        name="EducationCompaniesDirectory"
+        component={EducationCompaniesScreen}
+        options={{ title: 'Education Companies' }}
       />
       <HomeStack.Screen
         name="EducationCompanyDetail"
