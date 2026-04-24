@@ -14,6 +14,7 @@ Usage in FastAPI:
 """
 
 import os
+import re
 import hmac
 from typing import Optional
 
@@ -38,15 +39,27 @@ def _press_api_key() -> str:
     return os.getenv("WTP_PRESS_API_KEY", "")
 
 
+_SIGNED_TOKEN_PATH_RE = re.compile(
+    r"^/(?:api/v1/)?ops/(?:story|draft)-queue/(\d+)/(approve|reject)/?$"
+)
+
+
 def require_press_key(
+    request: Request,
     x_wtp_api_key: str = Header(default=""),
     key: str = Query(default=""),
+    token: str = Query(default=""),
 ) -> None:
-    """FastAPI dependency -- raises 401 if auth is required and key is wrong/missing.
+    """FastAPI dependency -- raises 401 unless auth is satisfied by one of:
 
-    Accepts either the X-WTP-API-Key header (preferred) or a `?key=` query
-    parameter. The query parameter is used by the Gate 5 review-queue email
-    so reviewers can approve/reject with a single click from their inbox.
+    1. Global press key via `X-WTP-API-Key` header (operators)
+    2. Global press key via `?key=` query parameter (legacy)
+    3. Per-story signed `?token=` scoped to a specific story_id and action —
+       accepted ONLY on GET /ops/{story,draft}-queue/{id}/{approve,reject}.
+       See services/press_signed_token.py for the signing format.
+
+    The signed-token path is what the Gate 5 review emails now use, so the
+    root press key never appears in outbound mail or confirmation pages.
     """
     if not _require_auth():
         return  # dev mode -- allow everything
@@ -56,10 +69,23 @@ def require_press_key(
         # Fail closed: if auth required but no key configured, block all PRESS requests.
         raise HTTPException(status_code=401, detail="unauthorized")
 
-    # Either source is acceptable; header wins when both are present.
+    # Path 1 & 2: global press key (header wins when both present).
     provided = x_wtp_api_key or key
-    if not provided or not hmac.compare_digest(provided, expected):
-        raise HTTPException(status_code=401, detail="unauthorized")
+    if provided and hmac.compare_digest(provided, expected):
+        return
+
+    # Path 3: per-story signed token — narrow surface.
+    if token and request.method == "GET":
+        m = _SIGNED_TOKEN_PATH_RE.match(request.url.path)
+        if m:
+            from services.press_signed_token import verify_story_action
+            story_id = int(m.group(1))
+            action = m.group(2)
+            ok, _reason = verify_story_action(token, story_id, action)
+            if ok:
+                return
+
+    raise HTTPException(status_code=401, detail="unauthorized")
 
 
 # ---------------------------------------------------------------------------

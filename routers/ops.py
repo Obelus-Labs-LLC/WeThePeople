@@ -776,6 +776,8 @@ def story_queue_approve(
 def story_queue_approve_get(
     story_id: int,
     confirm: Optional[str] = None,
+    token: Optional[str] = None,
+    key: Optional[str] = None,
     db: Session = Depends(get_db),
     _auth: None = Depends(require_press_key),
 ):
@@ -783,6 +785,12 @@ def story_queue_approve_get(
 
     Two-step: initial GET shows a confirm button (safe against email scanners
     that prefetch links). Only `?confirm=yes` actually publishes.
+
+    Auth passes through ``require_press_key`` which accepts the scoped
+    ``?token=`` signed for this (story_id, action), the legacy ``?key=``
+    press key, or the header. The confirmation button reuses whichever
+    credential the reviewer arrived with — we never embed the raw press
+    key in the response HTML.
     """
     from fastapi.responses import HTMLResponse
     try:
@@ -816,21 +824,37 @@ def story_queue_approve_get(
 
     # Step 1: show confirmation page (email scanners stop here)
     if confirm != "yes":
-        from urllib.parse import urlencode, urlparse, parse_qs, urlunparse, urljoin
-        from starlette.requests import Request
-        # Build the confirm URL by appending &confirm=yes
-        # We reconstruct from the current path to preserve the key param
-        key_param = f"key={html.escape(os.getenv('WTP_PRESS_API_KEY', os.getenv('WTP_PRESS_KEY', '')))}"
-        confirm_url = f"/ops/story-queue/{story_id}/approve?{key_param}&amp;confirm=yes"
+        # Reuse the credential the reviewer arrived with. A signed token is
+        # scoped to (story_id, action) and short-lived, so it's safe to echo
+        # back into the HTML. The raw press key is NEVER echoed — if only a
+        # key was supplied, fall back to a header-based flow (operator path).
+        if token:
+            cred_param = f"token={html.escape(token)}"
+        elif key:
+            # Operator with the root key: don't echo it into HTML. They can
+            # add the ``?confirm=yes`` themselves, or use the POST endpoint.
+            cred_param = None
+        else:
+            cred_param = None
+        if cred_param:
+            confirm_url = f"/ops/story-queue/{story_id}/approve?{cred_param}&amp;confirm=yes"
+            confirm_button = (
+                f"<a href='{confirm_url}' style='display:inline-block;background:#16a34a;color:#fff;"
+                f"text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:16px;'>"
+                f"Confirm Publish</a>"
+            )
+        else:
+            confirm_button = (
+                f"<p style='color:#64748b;font-size:13px;'>Re-submit the URL with "
+                f"<code>&amp;confirm=yes</code> to publish, or use the POST endpoint.</p>"
+            )
         return HTMLResponse(
             f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
             f"<h2>Approve this story?</h2>"
             f"<p><strong>{safe_title}</strong></p>"
             f"<p style='color:#64748b;font-size:13px;margin-bottom:24px;'>"
             f"{html.escape((story.summary or '')[:200])}</p>"
-            f"<a href='{confirm_url}' style='display:inline-block;background:#16a34a;color:#fff;"
-            f"text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:16px;'>"
-            f"Confirm Publish</a>"
+            f"{confirm_button}"
             f"<p style='color:#94a3b8;font-size:11px;margin-top:16px;'>Click to confirm. "
             f"This extra step prevents email scanners from auto-approving stories.</p>"
             f"</body></html>"
@@ -862,12 +886,15 @@ def story_queue_approve_get(
 def story_queue_reject_get(
     story_id: int,
     confirm: Optional[str] = None,
+    token: Optional[str] = None,
+    key: Optional[str] = None,
     db: Session = Depends(get_db),
     _auth: None = Depends(require_press_key),
 ):
     """GET version for email link taps — shows confirmation page first.
 
     Two-step: initial GET shows confirm button. Only `?confirm=yes` retracts.
+    See story_queue_approve_get for the credential-handling rationale.
     """
     from fastapi.responses import HTMLResponse
     try:
@@ -890,17 +917,31 @@ def story_queue_reject_get(
 
     # Step 1: show confirmation page
     if confirm != "yes":
-        key_param = f"key={html.escape(os.getenv('WTP_PRESS_API_KEY', os.getenv('WTP_PRESS_KEY', '')))}"
-        confirm_url = f"/ops/story-queue/{story_id}/reject?{key_param}&amp;confirm=yes"
+        # Same credential-echo policy as approve: only the short-lived signed
+        # token is echoed back. A raw press key is never reflected into HTML.
+        if token:
+            cred_param = f"token={html.escape(token)}"
+        else:
+            cred_param = None
+        if cred_param:
+            confirm_url = f"/ops/story-queue/{story_id}/reject?{cred_param}&amp;confirm=yes"
+            confirm_button = (
+                f"<a href='{confirm_url}' style='display:inline-block;background:#dc2626;color:#fff;"
+                f"text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:16px;'>"
+                f"Confirm Reject</a>"
+            )
+        else:
+            confirm_button = (
+                f"<p style='color:#64748b;font-size:13px;'>Re-submit the URL with "
+                f"<code>&amp;confirm=yes</code> to retract, or use the POST endpoint.</p>"
+            )
         return HTMLResponse(
             f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
             f"<h2>Reject this story?</h2>"
             f"<p><strong>{safe_title}</strong></p>"
             f"<p style='color:#64748b;font-size:13px;margin-bottom:24px;'>"
             f"{html.escape((story.summary or '')[:200])}</p>"
-            f"<a href='{confirm_url}' style='display:inline-block;background:#dc2626;color:#fff;"
-            f"text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:16px;'>"
-            f"Confirm Reject</a>"
+            f"{confirm_button}"
             f"<p style='color:#94a3b8;font-size:11px;margin-top:16px;'>Click to confirm. "
             f"This extra step prevents email scanners from auto-rejecting stories.</p>"
             f"</body></html>"

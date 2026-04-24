@@ -173,10 +173,43 @@ class SubscribeRequest(BaseModel):
 
 # ── Endpoints ──
 
+import re as _re_email
+
+# RFC 5322-lite: one @, non-empty local + domain, domain has a dot, total ≤ 254.
+_EMAIL_RE = _re_email.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+# Upper bound on NEW subscription emails sent per rolling 24h window. Protects
+# against turning /subscribe into a spam relay via rotating attacker-controlled
+# addresses. Tunable via env for campaigns.
+_DAILY_NEW_SUB_CAP = int(os.getenv("WTP_DIGEST_DAILY_NEW_CAP", "500"))
+
+
+def _daily_new_subscribers(db: Session) -> int:
+    """Count unverified DigestSubscribers created in the last 24h."""
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    return (
+        db.query(func.count(DigestSubscriber.id))
+        .filter(DigestSubscriber.created_at >= since)
+        .scalar()
+        or 0
+    )
+
+
 @router.post("/subscribe")
-@limiter.limit("5/minute")
+@limiter.limit("3/hour")
 def subscribe_to_digest(req: SubscribeRequest, request: Request, db: Session = Depends(get_db)):
-    """Subscribe to the weekly influence digest."""
+    """Subscribe to the weekly influence digest.
+
+    Rate controls (layered):
+      - 3/hour per client IP (slowapi) — covers bulk submission bursts.
+      - Existing subscriber (verified OR pending) short-circuits without
+        re-sending an email — repeat submissions for the same address never
+        trigger outbound mail.
+      - Rolling 24h global cap on brand-new subscriber rows (see
+        WTP_DIGEST_DAILY_NEW_CAP). When exceeded the endpoint returns 503
+        until the window rolls, so a distributed attacker cannot use us as
+        an unlimited email relay.
+    """
     # Validate zip code
     cleaned = "".join(c for c in req.zip_code if c.isdigit())[:5]
     if len(cleaned) < 5:
@@ -186,7 +219,7 @@ def subscribe_to_digest(req: SubscribeRequest, request: Request, db: Session = D
     # Emails are not case-sensitive per RFC 5321 §2.3.11 (local-part),
     # and uppercase submissions from mobile keyboards were creating duplicate rows.
     email_norm = (req.email or "").strip().lower()
-    if not email_norm or "@" not in email_norm:
+    if not email_norm or len(email_norm) > 254 or not _EMAIL_RE.match(email_norm):
         raise HTTPException(status_code=400, detail="Invalid email address")
 
     state = _zip_to_state(cleaned)
@@ -202,6 +235,19 @@ def subscribe_to_digest(req: SubscribeRequest, request: Request, db: Session = D
             return {"status": "already_subscribed", "message": "This email is already subscribed."}
         else:
             return {"status": "pending_verification", "message": "Check your email to verify your subscription."}
+
+    # Global spam-relay cap: only applies to brand-new addresses.
+    new_today = _daily_new_subscribers(db)
+    if new_today >= _DAILY_NEW_SUB_CAP:
+        log.warning(
+            "Digest subscribe daily cap reached: %d new subscribers in last 24h (cap=%d). "
+            "Investigate for abuse before raising the cap.",
+            new_today, _DAILY_NEW_SUB_CAP,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Too many subscriptions in progress. Please try again in a few hours.",
+        )
 
     # Generate tokens
     verification_token = uuid.uuid4().hex

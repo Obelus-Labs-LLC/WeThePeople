@@ -23,7 +23,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 
-from models.database import get_db
+from models.database import get_db, Bill, Person
 from models.auth_models import User
 from models.civic_models import (
     Promise, Milestone, CivicVote, Proposal, BillAnnotation,
@@ -66,10 +66,10 @@ class ProposalCreate(BaseModel):
 
 
 class AnnotationCreate(BaseModel):
-    bill_id: str
-    section_ref: str = ""
-    text_excerpt: str = ""
-    comment: str = Field(..., max_length=5000)
+    bill_id: str = Field(..., min_length=1, max_length=64)
+    section_ref: str = Field("", max_length=200)
+    text_excerpt: str = Field("", max_length=2000)
+    comment: str = Field(..., min_length=1, max_length=5000)
     sentiment: str = "neutral"  # support, oppose, neutral, question
 
 
@@ -249,9 +249,15 @@ def get_promise(promise_id: int, db: Session = Depends(get_db)):
 @router.post("/promises", status_code=201)
 @limiter.limit("10/minute")
 def create_promise(body: PromiseCreate, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    person = db.query(Person.person_id, Person.display_name).filter(Person.person_id == body.person_id).first()
+    if not person:
+        raise HTTPException(status_code=404, detail="person_id not found")
+    for bid in body.linked_bill_ids:
+        if not db.query(Bill.bill_id).filter(Bill.bill_id == bid).first():
+            raise HTTPException(status_code=404, detail=f"linked bill_id not found: {bid}")
     p = Promise(
         person_id=body.person_id,
-        person_name=body.person_name,
+        person_name=body.person_name or person.display_name,
         title=body.title,
         description=body.description,
         source_url=body.source_url,
@@ -554,6 +560,8 @@ def list_annotations(
 def create_annotation(body: AnnotationCreate, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if body.sentiment not in ("support", "oppose", "neutral", "question"):
         raise HTTPException(status_code=400, detail="sentiment must be support, oppose, neutral, or question")
+    if not db.query(Bill.bill_id).filter(Bill.bill_id == body.bill_id).first():
+        raise HTTPException(status_code=404, detail="bill_id not found")
     a = BillAnnotation(
         bill_id=body.bill_id,
         user_id=user.id,

@@ -36,6 +36,7 @@ from sqlalchemy import desc
 
 from models.database import SessionLocal
 from models.stories_models import Story
+from services.press_signed_token import sign_story_action
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("story_review_digest")
@@ -76,13 +77,14 @@ def _story_card(story: Story) -> str:
     entities = ", ".join(story.entity_ids or []) if isinstance(story.entity_ids, list) else ""
     sources = ", ".join(story.data_sources or []) if isinstance(story.data_sources, list) else ""
 
-    # Press-key is appended as a query param so the reviewer can click the
-    # button without pasting a header. It is a shared secret already in use
-    # for every /ops/* endpoint. `require_press_key` accepts either the
-    # X-Press-Key header OR a `?key=` query string.
-    key_suffix = f"?key={PRESS_KEY}" if PRESS_KEY else ""
-    approve_url = f"{API_BASE}/ops/story-queue/{story.id}/approve{key_suffix}"
-    reject_url = f"{API_BASE}/ops/story-queue/{story.id}/reject{key_suffix}"
+    # Per-story, per-action signed tokens scoped to (story_id, action) with a
+    # 72h expiry. The root press key never leaves the server — see
+    # services/press_signed_token.py. `require_press_key` accepts either the
+    # X-WTP-API-Key header, a ?key=<press key>, or a ?token=<signed token>.
+    approve_token = sign_story_action(story.id, "approve")
+    reject_token = sign_story_action(story.id, "reject")
+    approve_url = f"{API_BASE}/ops/story-queue/{story.id}/approve?token={approve_token}"
+    reject_url = f"{API_BASE}/ops/story-queue/{story.id}/reject?token={reject_token}"
 
     return f"""
     <div style="border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:24px;background:#fff;">
