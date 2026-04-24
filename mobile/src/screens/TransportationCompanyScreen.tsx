@@ -8,7 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
+const SECTOR = 'transportation';
+const log = (msg: string, err: unknown) => console.warn(`[TransportationCompanyScreen] ${msg}:`, err);
 const ACCENT = '#0EA5E9';
 
 const SECTOR_COLORS: Record<string, string> = {
@@ -48,12 +50,13 @@ export default function TransportationCompanyScreen() {
 
   const loadCompany = useCallback(async () => {
     try {
-      const data = await fetch(`${API_BASE}/transportation/companies/${companyId}`).then(r => r.json());
+      const data = await apiClient.getSectorCompanyDetail(SECTOR, companyId);
       setCompany(data);
       setError('');
       navigation.setOptions({ title: data.display_name || '' });
     } catch (e: any) {
       setError(e.message || 'Failed to load');
+      log('loadCompany failed', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -63,24 +66,23 @@ export default function TransportationCompanyScreen() {
   useEffect(() => { loadCompany(); }, [loadCompany]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/transportation/companies/${companyId}/filings?limit=5`)
-      .then(r => r.json())
+    apiClient.getSectorCompanyFilings(SECTOR, companyId, { limit: 5 })
       .then((res) => setFilings(res.filings || []))
-      .catch(() => {});
+        .catch((e) => log('fetch failed', e));
   }, [companyId]);
 
   useEffect(() => {
     if (tab === 'contracts' && contracts.length === 0 && !contractsLoading) {
       setContractsLoading(true);
       Promise.all([
-        fetch(`${API_BASE}/transportation/companies/${companyId}/contracts?limit=50`).then(r => r.json()),
-        fetch(`${API_BASE}/transportation/companies/${companyId}/contracts/summary`).then(r => r.json()),
+        apiClient.getSectorCompanyContracts(SECTOR, companyId, { limit: 50 }),
+        apiClient.getSectorCompanyContractSummary(SECTOR, companyId),
       ])
         .then(([ctRes, sumRes]) => {
           setContracts(ctRes.contracts || []);
           setContractSummary(sumRes);
         })
-        .catch(() => {})
+        .catch((e) => log('fetch failed', e))
         .finally(() => setContractsLoading(false));
     }
   }, [tab, companyId]);
@@ -89,14 +91,14 @@ export default function TransportationCompanyScreen() {
     if (tab === 'lobbying' && lobbyingFilings.length === 0 && !lobbyingLoading) {
       setLobbyingLoading(true);
       Promise.all([
-        fetch(`${API_BASE}/transportation/companies/${companyId}/lobbying?limit=50`).then(r => r.json()),
-        fetch(`${API_BASE}/transportation/companies/${companyId}/lobbying/summary`).then(r => r.json()),
+        apiClient.getSectorCompanyLobbying(SECTOR, companyId, { limit: 50 }),
+        apiClient.getSectorCompanyLobbySummary(SECTOR, companyId),
       ])
         .then(([filRes, sumRes]) => {
           setLobbyingFilings(filRes.filings || []);
           setLobbySummary(sumRes);
         })
-        .catch(() => {})
+        .catch((e) => log('fetch failed', e))
         .finally(() => setLobbyingLoading(false));
     }
   }, [tab, companyId]);
@@ -104,13 +106,12 @@ export default function TransportationCompanyScreen() {
   useEffect(() => {
     if (tab === 'enforcement' && enforcementActions.length === 0 && !enforcementLoading) {
       setEnforcementLoading(true);
-      fetch(`${API_BASE}/transportation/companies/${companyId}/enforcement?limit=50`)
-        .then(r => r.json())
+      apiClient.getSectorCompanyEnforcement(SECTOR, companyId, { limit: 50 })
         .then((res) => {
           setEnforcementActions(res.actions || []);
           setTotalPenalties(res.total_penalties || 0);
         })
-        .catch(() => {})
+        .catch((e) => log('fetch failed', e))
         .finally(() => setEnforcementLoading(false));
     }
   }, [tab, companyId]);

@@ -694,6 +694,33 @@ class WTPClient {
     );
   }
 
+  async getSectorCompanyFilings(
+    sector: string,
+    companyId: string,
+    params?: { form_type?: string; limit?: number; offset?: number },
+    opts?: FetchOptions
+  ): Promise<FilingsResponse> {
+    const sp = new URLSearchParams();
+    if (params?.form_type) sp.set('form_type', params.form_type);
+    if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) sp.set('offset', params.offset.toString());
+    return this.fetchJSON<FilingsResponse>(
+      `${this.baseUrl}/${encodeURIComponent(sector)}/companies/${encodeURIComponent(companyId)}/filings?${sp}`,
+      opts
+    );
+  }
+
+  async getSectorCompanyLobbySummary(
+    sector: string,
+    companyId: string,
+    opts?: FetchOptions
+  ): Promise<LobbyingSummary> {
+    return this.fetchJSON<LobbyingSummary>(
+      `${this.baseUrl}/${encodeURIComponent(sector)}/companies/${encodeURIComponent(companyId)}/lobbying/summary`,
+      opts
+    );
+  }
+
   async getSectorDashboardStats(sector: string, opts?: FetchOptions): Promise<any> {
     return this.fetchJSON(
       `${this.baseUrl}/${encodeURIComponent(sector)}/dashboard/stats`,

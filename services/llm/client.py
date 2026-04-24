@@ -166,7 +166,18 @@ def _parse_claims_response(response_text: str) -> List[Dict]:
         end = text.index("```", start)
         text = text[start:end].strip()
 
-    # Parse JSON
+    # Parse JSON. Every failure path bumps the /metrics error counter so we
+    # can alert on "LLM responses stopped being valid JSON" — otherwise the
+    # caller just sees empty claims lists and assumes the model decided
+    # nothing was claim-worthy, rather than knowing the parser broke.
+    def _record_parse_failure(reason: str):
+        logger.warning("LLM parse failure (%s): first 200 chars: %r", reason, response_text[:200])
+        try:
+            from routers.metrics import record_error
+            record_error()
+        except Exception:
+            pass
+
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
@@ -177,10 +188,10 @@ def _parse_claims_response(response_text: str) -> List[Dict]:
             try:
                 data = json.loads(match.group())
             except json.JSONDecodeError:
-                logger.warning("Could not parse LLM response as JSON")
+                _record_parse_failure("embedded-array-decode")
                 return []
         else:
-            logger.warning("No JSON array found in LLM response")
+            _record_parse_failure("no-json-array")
             return []
 
     # Handle both {"claims": [...]} and direct [...] formats
@@ -188,7 +199,7 @@ def _parse_claims_response(response_text: str) -> List[Dict]:
         data = data["claims"]
 
     if not isinstance(data, list):
-        logger.warning("Expected list from LLM, got %s", type(data).__name__)
+        _record_parse_failure(f"unexpected-type-{type(data).__name__}")
         return []
 
     # Validate and normalize each claim

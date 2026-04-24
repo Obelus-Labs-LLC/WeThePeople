@@ -92,7 +92,14 @@ def log_token_usage(feature: str, model: str, input_tokens: int, output_tokens: 
 
 
 def load_ledger() -> Dict[str, Any]:
-    """Load the shared budget ledger with file locking."""
+    """Load the shared budget ledger with file locking.
+
+    On corruption we rename-aside the damaged file (preserving prior
+    accounting for forensic review) BEFORE returning defaults. Silently
+    returning defaults would let the next record_spend() overwrite the
+    ledger with a single call's worth of data — erasing history of every
+    charge that had already been recorded this month.
+    """
     if BUDGET_FILE.exists():
         try:
             with open(BUDGET_FILE, "r") as f:
@@ -102,7 +109,24 @@ def load_ledger() -> Dict[str, Any]:
                 finally:
                     _unlock_file(f)
         except (json.JSONDecodeError, Exception) as e:
-            logger.warning("Budget ledger corrupted or unreadable, using defaults: %s", e)
+            # Preserve the corrupted file so we can investigate — timestamp
+            # the rename so repeated failures don't clobber the first copy.
+            import shutil
+            ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            corrupted_path = BUDGET_FILE.with_suffix(f".corrupted.{ts}")
+            try:
+                shutil.move(str(BUDGET_FILE), str(corrupted_path))
+                logger.error(
+                    "Budget ledger corrupted (preserved at %s): %s. "
+                    "Prior-month accounting is in the renamed file. "
+                    "Starting fresh ledger with default balance.",
+                    corrupted_path, e,
+                )
+            except Exception as move_err:
+                logger.error(
+                    "Budget ledger corrupted and could not be preserved: load=%s move=%s",
+                    e, move_err,
+                )
     return {
         "month": datetime.now(timezone.utc).strftime("%Y-%m"),
         "remaining_balance": 10.38,
