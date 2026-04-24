@@ -55,6 +55,17 @@ import CompareScreen from '../screens/CompareScreen';
 import LegislationTrackerScreen from '../screens/LegislationTrackerScreen';
 import ActivityFeedScreen from '../screens/ActivityFeedScreen';
 
+// Wave A (civic + cross-sector trackers + detail views)
+import BadgesScreen from '../screens/BadgesScreen';
+import CivicHubScreen from '../screens/CivicHubScreen';
+import PromiseDetailScreen from '../screens/PromiseDetailScreen';
+import VoteDetailScreen from '../screens/VoteDetailScreen';
+import ClaimDetailScreen from '../screens/ClaimDetailScreen';
+import SectorContractsScreen from '../screens/SectorContractsScreen';
+import SectorEnforcementScreen from '../screens/SectorEnforcementScreen';
+import SectorLobbyingScreen from '../screens/SectorLobbyingScreen';
+import EnforcementTrackerScreen from '../screens/EnforcementTrackerScreen';
+
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 const Tab = createBottomTabNavigator();
@@ -282,6 +293,52 @@ function HomeStackScreen() {
         name="ActivityFeed"
         component={ActivityFeedScreen}
         options={{ title: 'Activity Feed' }}
+      />
+      {/* Wave A: civic + cross-sector trackers + detail views */}
+      <HomeStack.Screen
+        name="CivicHub"
+        component={CivicHubScreen}
+        options={{ title: 'Civic Hub' }}
+      />
+      <HomeStack.Screen
+        name="Badges"
+        component={BadgesScreen}
+        options={{ title: 'Civic Badges' }}
+      />
+      <HomeStack.Screen
+        name="PromiseDetail"
+        component={PromiseDetailScreen}
+        options={{ title: 'Promise' }}
+      />
+      <HomeStack.Screen
+        name="VoteDetail"
+        component={VoteDetailScreen}
+        options={{ title: 'Vote' }}
+      />
+      <HomeStack.Screen
+        name="ClaimDetail"
+        component={ClaimDetailScreen}
+        options={{ title: 'Claim' }}
+      />
+      <HomeStack.Screen
+        name="SectorContracts"
+        component={SectorContractsScreen}
+        options={{ title: 'Contracts' }}
+      />
+      <HomeStack.Screen
+        name="SectorEnforcement"
+        component={SectorEnforcementScreen}
+        options={{ title: 'Enforcement' }}
+      />
+      <HomeStack.Screen
+        name="SectorLobbying"
+        component={SectorLobbyingScreen}
+        options={{ title: 'Lobbying' }}
+      />
+      <HomeStack.Screen
+        name="EnforcementTracker"
+        component={EnforcementTrackerScreen}
+        options={{ title: 'Enforcement Tracker' }}
       />
     </HomeStack.Navigator>
   );
