@@ -105,11 +105,15 @@ export default function DefenseCompanyProfilePage() {
 
   useEffect(() => {
     if (!companyId) return;
+    // Guard against setState after unmount or tab switch: a slow response
+    // could otherwise update state the user has already navigated away from.
+    let cancelled = false;
     if (activeTab === 'contracts' && !contractsLoaded) {
       Promise.all([
         getDefenseCompanyContracts(companyId, { limit: 100 }),
         getDefenseCompanyContractSummary(companyId).catch(() => null),
       ]).then(([c, s]) => {
+        if (cancelled) return;
         setContracts(c.contracts || []); setContractTotal(c.total);
         if (s) setContractSummary(s);
         setContractsLoaded(true);
@@ -120,6 +124,7 @@ export default function DefenseCompanyProfilePage() {
         getDefenseCompanyLobbying(companyId, { limit: 100 }),
         getDefenseCompanyLobbySummary(companyId).catch(() => null),
       ]).then(([l, s]) => {
+        if (cancelled) return;
         setLobbying(l.filings || []); setLobbyTotal(l.total);
         if (s) setLobbySummary(s);
         setLobbyingLoaded(true);
@@ -127,6 +132,7 @@ export default function DefenseCompanyProfilePage() {
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getDefenseCompanyEnforcement(companyId, { limit: 100 }).then((r) => {
+        if (cancelled) return;
         setEnforcement(r.actions || []); setEnforcementTotal(r.total);
         setTotalPenalties(r.total_penalties || 0);
         setEnforcementLoaded(true);
@@ -134,15 +140,18 @@ export default function DefenseCompanyProfilePage() {
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getDefenseCompanyFilings(companyId, { limit: 100 }).then((r) => {
+        if (cancelled) return;
         setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true);
       }).catch((err) => { console.warn('[DefenseCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'donations' && !donationsLoaded) {
       getDefenseCompanyDonations(companyId, { limit: 100 }).then((r) => {
+        if (cancelled) return;
         setDonations(r.donations || []); setDonationTotal(r.total);
         setDonationTotalAmount(r.total_amount || 0); setDonationsLoaded(true);
       }).catch((err) => { console.warn('[DefenseCompanyProfilePage] fetch failed:', err); });
     }
+    return () => { cancelled = true; };
   }, [activeTab, companyId, contractsLoaded, lobbyingLoaded, enforcementLoaded, filingsLoaded, donationsLoaded]);
 
   const tabs = [
