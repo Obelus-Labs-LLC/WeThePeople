@@ -125,11 +125,14 @@ export default function TransportationCompanyProfilePage() {
 
   useEffect(() => {
     if (!companyId) return;
+    // Prevent setState after unmount / tab switch mid-request.
+    let cancelled = false;
     if (activeTab === 'contracts' && !contractsLoaded) {
       Promise.all([
         getTransportationCompanyContracts(companyId, { limit: 100 }),
         getTransportationCompanyContractSummary(companyId).catch(() => null),
       ]).then(([c, s]) => {
+        if (cancelled) return;
         setContracts(c.contracts || []); setContractTotal(c.total);
         if (s) setContractSummary(s);
         setContractsLoaded(true);
@@ -140,6 +143,7 @@ export default function TransportationCompanyProfilePage() {
         getTransportationCompanyLobbying(companyId, { limit: 100 }),
         getTransportationCompanyLobbySummary(companyId).catch(() => null),
       ]).then(([l, s]) => {
+        if (cancelled) return;
         setLobbying(l.filings || []); setLobbyTotal(l.total);
         if (s) setLobbySummary(s);
         setLobbyingLoaded(true);
@@ -147,6 +151,7 @@ export default function TransportationCompanyProfilePage() {
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getTransportationCompanyEnforcement(companyId, { limit: 100 }).then((r) => {
+        if (cancelled) return;
         setEnforcement(r.actions || []); setEnforcementTotal(r.total);
         setTotalPenalties(r.total_penalties || 0);
         setEnforcementLoaded(true);
@@ -154,16 +159,19 @@ export default function TransportationCompanyProfilePage() {
     }
     if (activeTab === 'recalls' && !recallsLoaded) {
       getTransportationCompanyRecalls(companyId, { limit: 100 }).then((r) => {
+        if (cancelled) return;
         setRecalls(r.recalls || []); setRecallTotal(r.total); setRecallsLoaded(true);
       }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'complaints' && !complaintsLoaded) {
       getTransportationCompanyComplaints(companyId, { limit: 100 }).then((r) => {
+        if (cancelled) return;
         setComplaints(r.complaints || []); setComplaintTotal(r.total); setComplaintsLoaded(true);
       }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'safety_ratings' && !safetyRatingsLoaded) {
       getTransportationCompanySafetyRatings(companyId, { limit: 100 }).then((r) => {
+        if (cancelled) return;
         setSafetyRatings(r.ratings || []); setSafetyRatingsTotal(r.total);
         setAvgOverallRating(r.avg_overall_rating);
         setSafetyRatingsLoaded(true);
@@ -171,15 +179,18 @@ export default function TransportationCompanyProfilePage() {
     }
     if (activeTab === 'donations' && !donationsLoaded) {
       getTransportationCompanyDonations(companyId, { limit: 100 }).then((r) => {
+        if (cancelled) return;
         setDonations(r.donations || []); setDonationTotal(r.total);
         setDonationTotalAmount(r.total_amount || 0); setDonationsLoaded(true);
       }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
     if (activeTab === 'filings' && !filingsLoaded) {
       getTransportationCompanyFilings(companyId, { limit: 100 }).then((r) => {
+        if (cancelled) return;
         setFilings(r.filings || []); setFilingTotal(r.total); setFilingsLoaded(true);
       }).catch((err) => { console.warn('[TransportationCompanyProfilePage] fetch failed:', err); });
     }
+    return () => { cancelled = true; };
   }, [activeTab, companyId, contractsLoaded, lobbyingLoaded, enforcementLoaded, recallsLoaded, complaintsLoaded, safetyRatingsLoaded, donationsLoaded, filingsLoaded]);
 
   const vehicleLabel = (make?: string | null, model?: string | null, year?: number | null) =>

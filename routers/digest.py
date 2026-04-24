@@ -149,11 +149,15 @@ def _ensure_zip_map():
         if _ZIP_STATE:
             return
         try:
-            from routers.politics import _ZIP_STATE as politics_zip
+            # _ZIP_STATE lives in routers.politics_people (was moved there when
+            # the politics router was split). The old routers.politics import
+            # silently fell through to the built-in fallback, producing wrong
+            # state lookups for some ZIPs.
+            from routers.politics_people import _ZIP_STATE as politics_zip
             _ZIP_STATE.update(politics_zip)
-            log.debug("Loaded %d zip prefixes from politics router", len(_ZIP_STATE))
+            log.debug("Loaded %d zip prefixes from politics_people router", len(_ZIP_STATE))
         except (ImportError, AttributeError) as e:
-            log.warning("Could not import zip map from politics router (%s), using built-in fallback", e)
+            log.warning("Could not import zip map from politics_people router (%s), using built-in fallback", e)
             _ZIP_STATE.update(_FALLBACK_ZIP_STATE)
 
 
