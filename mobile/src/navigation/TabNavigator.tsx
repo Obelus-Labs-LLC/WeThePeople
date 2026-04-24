@@ -71,6 +71,11 @@ import LobbyingBreakdownScreen from '../screens/LobbyingBreakdownScreen';
 import ContractTimelineScreen from '../screens/ContractTimelineScreen';
 import InfluenceTimelineScreen from '../screens/InfluenceTimelineScreen';
 
+// Wave C auth
+import LoginScreen from '../screens/LoginScreen';
+import SignupScreen from '../screens/SignupScreen';
+import AccountScreen from '../screens/AccountScreen';
+
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 const Tab = createBottomTabNavigator();
@@ -360,6 +365,22 @@ function HomeStackScreen() {
         name="InfluenceTimeline"
         component={InfluenceTimelineScreen}
         options={{ title: 'Influence Timeline' }}
+      />
+      {/* Wave C: auth */}
+      <HomeStack.Screen
+        name="Login"
+        component={LoginScreen}
+        options={{ title: 'Sign in' }}
+      />
+      <HomeStack.Screen
+        name="Signup"
+        component={SignupScreen}
+        options={{ title: 'Create account' }}
+      />
+      <HomeStack.Screen
+        name="Account"
+        component={AccountScreen}
+        options={{ title: 'Account' }}
       />
     </HomeStack.Navigator>
   );

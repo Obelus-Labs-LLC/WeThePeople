@@ -104,6 +104,7 @@ export class ApiError extends Error {
 
 class WTPClient {
   private baseUrl: string;
+  private authToken: string | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
@@ -111,6 +112,21 @@ class WTPClient {
 
   get base(): string {
     return this.baseUrl;
+  }
+
+  /**
+   * Set the JWT access token used on every subsequent request.
+   * Pass `null` to clear (logout).
+   *
+   * Callers (AuthContext) are responsible for persisting the token in
+   * AsyncStorage — apiClient stays stateless across process restarts.
+   */
+  setAuthToken(token: string | null): void {
+    this.authToken = token;
+  }
+
+  getAuthToken(): string | null {
+    return this.authToken;
   }
 
   /**
@@ -139,6 +155,7 @@ class WTPClient {
         headers: {
           Accept: 'application/json',
           ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
           ...(opts.headers || {}),
         },
         body: opts.body ? JSON.stringify(opts.body) : undefined,
@@ -829,6 +846,105 @@ class WTPClient {
       `${this.baseUrl}/aggregate/${encodeURIComponent(sector)}/lobbying?${sp}`,
       opts,
     );
+  }
+
+  // ── Auth ──
+
+  async register(
+    body: {
+      email: string;
+      password: string;
+      display_name?: string;
+      zip_code?: string;
+      digest_opt_in?: boolean;
+      alert_opt_in?: boolean;
+    },
+    opts?: FetchOptions,
+  ): Promise<any> {
+    return this.fetchJSON(`${this.baseUrl}/auth/register`, {
+      ...(opts || {}),
+      method: 'POST',
+      body,
+    });
+  }
+
+  async login(
+    body: { email: string; password: string },
+    opts?: FetchOptions,
+  ): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
+    return this.fetchJSON(`${this.baseUrl}/auth/login`, {
+      ...(opts || {}),
+      method: 'POST',
+      body,
+    });
+  }
+
+  async getMe(opts?: FetchOptions): Promise<any> {
+    return this.fetchJSON(`${this.baseUrl}/auth/me`, opts);
+  }
+
+  async getPreferences(opts?: FetchOptions): Promise<any> {
+    return this.fetchJSON(`${this.baseUrl}/auth/preferences`, opts);
+  }
+
+  async setPreferences(
+    body: { zip_code?: string; digest_opt_in?: boolean; alert_opt_in?: boolean },
+    opts?: FetchOptions,
+  ): Promise<any> {
+    return this.fetchJSON(`${this.baseUrl}/auth/preferences`, {
+      ...(opts || {}),
+      method: 'POST',
+      body,
+    });
+  }
+
+  // ── Watchlist (tracked politicians/companies/bills/sectors) ──
+
+  async getWatchlist(opts?: FetchOptions): Promise<{ total: number; items: any[] }> {
+    return this.fetchJSON(`${this.baseUrl}/auth/watchlist`, opts);
+  }
+
+  async addToWatchlist(
+    body: { entity_type: string; entity_id: string; entity_name?: string; sector?: string },
+    opts?: FetchOptions,
+  ): Promise<{ status: string; id?: number }> {
+    return this.fetchJSON(`${this.baseUrl}/auth/watchlist`, {
+      ...(opts || {}),
+      method: 'POST',
+      body,
+    });
+  }
+
+  async removeFromWatchlist(itemId: number, opts?: FetchOptions): Promise<void> {
+    // 204 No Content — fetchJSON will throw on attempting to parse empty JSON.
+    // Build a bespoke call that tolerates 204.
+    const url = `${this.baseUrl}/auth/watchlist/${itemId}`;
+    const timeoutMs = opts?.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+    const timeoutCtrl = new AbortController();
+    const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          Accept: 'application/json',
+          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+        },
+        signal: timeoutCtrl.signal,
+      });
+      if (!response.ok && response.status !== 204) {
+        const bodyText = await response.text().catch(() => undefined);
+        throw new ApiError(response.status, `HTTP ${response.status}`, bodyText?.slice(0, 500));
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  async checkWatchlist(
+    entity_type: string, entity_id: string, opts?: FetchOptions,
+  ): Promise<{ watching: boolean; item_id: number | null }> {
+    const sp = new URLSearchParams({ entity_type, entity_id });
+    return this.fetchJSON(`${this.baseUrl}/auth/watchlist/check?${sp}`, opts);
   }
 
   // ── Chat agent ──

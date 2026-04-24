@@ -9,6 +9,7 @@ import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
 import type { BillDetail } from '../api/types';
 import { LoadingSpinner } from '../components/ui';
+import WatchlistButton from '../components/WatchlistButton';
 
 const STATUS_COLORS: Record<string, string> = {
   introduced: '#6B7280',
@@ -69,6 +70,14 @@ export default function BillScreen() {
         </View>
 
         <Text style={styles.titleText}>{bill.title || 'Untitled Bill'}</Text>
+
+        <View style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+          <WatchlistButton
+            entityType="bill"
+            entityId={bill.bill_id}
+            entityName={bill.title || bill.bill_id}
+          />
+        </View>
 
         <View style={styles.metaRow}>
           {bill.policy_area && (
