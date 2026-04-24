@@ -32,7 +32,7 @@ const SECTIONS: LongformSection[] = [
     id: 'team',
     title: 'Who builds this',
     body: [
-      'A small team of engineers, data scientists, and former journalists operating under Obelus Labs LLC, a Delaware-registered public-benefit corporation. No corporate or political donors.',
+      'Independently built and maintained by a solo operator under Obelus Labs LLC. No employees, no investors, no corporate or political donors.',
     ],
     callout: {
       label: 'Funding',
