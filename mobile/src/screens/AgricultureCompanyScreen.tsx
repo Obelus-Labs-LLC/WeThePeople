@@ -8,8 +8,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
 const ACCENT = '#84CC16';
+const SECTOR = 'agriculture';
+const log = (msg: string, err: unknown) => console.warn(`[AgricultureCompanyScreen] ${msg}:`, err);
 
 const SECTOR_COLORS: Record<string, string> = {
   crops: '#84CC16',
@@ -48,48 +50,75 @@ export default function AgricultureCompanyScreen() {
 
   const loadCompany = useCallback(async () => {
     try {
-      const data = await fetch(`${API_BASE}/agriculture/companies/${companyId}`).then(r => r.json());
+      const data = await apiClient.getSectorCompanyDetail(SECTOR, companyId);
       setCompany(data);
       setError('');
-      navigation.setOptions({ title: data.display_name || '' });
+      navigation.setOptions({ title: (data as any).display_name || '' });
     } catch (e: any) {
-      setError(e.message || 'Failed to load');
+      setError(e?.message || 'Failed to load');
+      log('loadCompany failed', e);
     } finally { setLoading(false); setRefreshing(false); }
   }, [companyId, navigation]);
 
   useEffect(() => { loadCompany(); }, [loadCompany]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/agriculture/companies/${companyId}/filings?limit=5`).then(r => r.json()).then((res) => setFilings(res.filings || [])).catch(() => {});
+    let cancelled = false;
+    apiClient.getSectorCompanyFilings(SECTOR, companyId, { limit: 5 })
+      .then((res) => { if (!cancelled) setFilings(res.filings || []); })
+      .catch((e) => log('recent filings', e));
+    return () => { cancelled = true; };
   }, [companyId]);
 
   useEffect(() => {
-    if (tab === 'contracts' && contracts.length === 0 && !contractsLoading) {
-      setContractsLoading(true);
-      Promise.all([
-        fetch(`${API_BASE}/agriculture/companies/${companyId}/contracts?limit=50`).then(r => r.json()),
-        fetch(`${API_BASE}/agriculture/companies/${companyId}/contracts/summary`).then(r => r.json()),
-      ]).then(([ctRes, sumRes]) => { setContracts(ctRes.contracts || []); setContractSummary(sumRes); }).catch(() => {}).finally(() => setContractsLoading(false));
-    }
+    if (tab !== 'contracts' || contracts.length !== 0 || contractsLoading) return;
+    let cancelled = false;
+    setContractsLoading(true);
+    Promise.all([
+      apiClient.getSectorCompanyContracts(SECTOR, companyId, { limit: 50 }),
+      apiClient.getSectorCompanyContractSummary(SECTOR, companyId),
+    ])
+      .then(([ctRes, sumRes]) => {
+        if (cancelled) return;
+        setContracts((ctRes as any).contracts || []);
+        setContractSummary(sumRes);
+      })
+      .catch((e) => log('contracts tab', e))
+      .finally(() => { if (!cancelled) setContractsLoading(false); });
+    return () => { cancelled = true; };
   }, [tab, companyId]);
 
   useEffect(() => {
-    if (tab === 'lobbying' && lobbyingFilings.length === 0 && !lobbyingLoading) {
-      setLobbyingLoading(true);
-      Promise.all([
-        fetch(`${API_BASE}/agriculture/companies/${companyId}/lobbying?limit=50`).then(r => r.json()),
-        fetch(`${API_BASE}/agriculture/companies/${companyId}/lobbying/summary`).then(r => r.json()),
-      ]).then(([filRes, sumRes]) => { setLobbyingFilings(filRes.filings || []); setLobbySummary(sumRes); }).catch(() => {}).finally(() => setLobbyingLoading(false));
-    }
+    if (tab !== 'lobbying' || lobbyingFilings.length !== 0 || lobbyingLoading) return;
+    let cancelled = false;
+    setLobbyingLoading(true);
+    Promise.all([
+      apiClient.getSectorCompanyLobbying(SECTOR, companyId, { limit: 50 }),
+      apiClient.getSectorCompanyLobbySummary(SECTOR, companyId),
+    ])
+      .then(([filRes, sumRes]) => {
+        if (cancelled) return;
+        setLobbyingFilings((filRes as any).filings || []);
+        setLobbySummary(sumRes);
+      })
+      .catch((e) => log('lobbying tab', e))
+      .finally(() => { if (!cancelled) setLobbyingLoading(false); });
+    return () => { cancelled = true; };
   }, [tab, companyId]);
 
   useEffect(() => {
-    if (tab === 'enforcement' && enforcementActions.length === 0 && !enforcementLoading) {
-      setEnforcementLoading(true);
-      fetch(`${API_BASE}/agriculture/companies/${companyId}/enforcement?limit=50`).then(r => r.json())
-        .then((res) => { setEnforcementActions(res.actions || []); setTotalPenalties(res.total_penalties || 0); })
-        .catch(() => {}).finally(() => setEnforcementLoading(false));
-    }
+    if (tab !== 'enforcement' || enforcementActions.length !== 0 || enforcementLoading) return;
+    let cancelled = false;
+    setEnforcementLoading(true);
+    apiClient.getSectorCompanyEnforcement(SECTOR, companyId, { limit: 50 })
+      .then((res: any) => {
+        if (cancelled) return;
+        setEnforcementActions(res.actions || []);
+        setTotalPenalties(res.total_penalties || 0);
+      })
+      .catch((e) => log('enforcement tab', e))
+      .finally(() => { if (!cancelled) setEnforcementLoading(false); });
+    return () => { cancelled = true; };
   }, [tab, companyId]);
 
   const onRefresh = () => { setRefreshing(true); loadCompany(); };

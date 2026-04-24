@@ -403,39 +403,13 @@ JOB_REGISTRY: List[JobDef] = [
         description="Pipeline health check: overdue jobs, stuck DLQ items, disk usage",
     ),
 
-    # NOTE: twitter_bot.py is NOT in the scheduler — it runs via cron at US-optimized times:
-    #   12:17, 13:43, 16:11, 17:37, 21:08, 23:22, 01:14 UTC
-    #   (= 8:17am, 9:43am, 12:11pm, 1:37pm, 5:08pm, 7:22pm, 9:14pm ET)
-    # This gives 7 posts/day from the main bot (well within Basic tier's 100/day).
-
-    # ── Twitter Monitor (every 3h) ─────────────────────────────────
-    JobDef(
-        name="twitter_monitor",
-        script="jobs/twitter_monitor.py",
-        interval_hours=3,
-        timeout_sec=600,    # 10 min — API calls + DB queries
-        description="Scan watchdog X accounts, generate draft quote-tweets for human review",
-    ),
-
-    # ── Twitter: Post Approved Drafts (every 2h) ───────────────────
-    JobDef(
-        name="twitter_post_approved",
-        script="jobs/twitter_monitor.py",
-        args=["--post-approved"],
-        interval_hours=2,
-        timeout_sec=300,    # 5 min — just posting pre-approved content
-        description="Post human-approved monitor drafts (max 3 per cycle)",
-    ),
-
-    # ── Twitter: Collect Engagement Metrics (every 6h) ─────────────
-    JobDef(
-        name="twitter_metrics",
-        script="jobs/twitter_bot.py",
-        args=["--collect-metrics"],
-        interval_hours=6,
-        timeout_sec=300,
-        description="Fetch engagement metrics for recent tweets (A/B optimization)",
-    ),
+    # NOTE: Twitter jobs disabled 2026-04-24 — account doesn't have paid API
+    # access. To re-enable: restore the three JobDefs below (monitor,
+    # post_approved, metrics), uncomment the seven twitter_bot cron lines
+    # in dshon's crontab, remove `.bot_paused`, and unset `WTP_BOT_PAUSED`
+    # in .env. The scripts themselves (jobs/twitter_bot.py, twitter_monitor.py,
+    # twitter_reply.py) are still compiled and wired — just dormant — so
+    # the re-enable is a pure config flip.
 
     # ── Compliance / Maintenance (weekly) ─────────────────────────
     JobDef(

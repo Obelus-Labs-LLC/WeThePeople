@@ -269,8 +269,9 @@ def lookup_entity_data(session, entity: Dict[str, Any]) -> Dict[str, Any]:
                     f"GROUP BY specific_issue ORDER BY cnt DESC LIMIT 3"
                 ), {"eid": entity_id}).fetchall()
                 data["top_issues"] = [r[0] for r in issue_rows if r[0]]
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("top-issues lookup failed for %s in %s: %s", entity_id, lobby_table, e)
+                data.setdefault("data_fetch_errors", []).append(f"top_issues:{lobby_table}")
             break
 
     # Contract data
@@ -295,8 +296,9 @@ def lookup_entity_data(session, entity: Dict[str, Any]) -> Dict[str, Any]:
             ), {"pid": entity_id}).fetchone()
             if row:
                 data["trades_count"] = int(row[0] or 0)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("person trades lookup failed for %s: %s", entity_id, e)
+            data.setdefault("data_fetch_errors", []).append("trades_count:person")
 
     # Congressional trades by ticker (companies)
     if entity.get("ticker"):
@@ -306,8 +308,9 @@ def lookup_entity_data(session, entity: Dict[str, Any]) -> Dict[str, Any]:
             ), {"ticker": entity["ticker"]}).fetchone()
             if row:
                 data["trades_count"] = int(row[0] or 0)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("ticker trades lookup failed for %s: %s", entity.get("ticker"), e)
+            data.setdefault("data_fetch_errors", []).append("trades_count:ticker")
 
     return data
 
