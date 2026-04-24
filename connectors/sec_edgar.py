@@ -23,7 +23,7 @@ SEC_BROWSE_BASE = "https://www.sec.gov/cgi-bin/browse-edgar"
 EFTS_BASE = "https://efts.sec.gov/LATEST"
 
 HEADERS = {
-    "User-Agent": "WeThePeople/1.0 (contact@wethepeopleforus.com)",
+    "User-Agent": "WeThePeople/1.0 (wethepeopleforus@gmail.com)",
     "Accept": "application/json",
 }
 

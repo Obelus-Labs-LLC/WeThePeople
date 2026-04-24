@@ -51,7 +51,7 @@ REQUEST_TIMEOUT = 30  # seconds
 MAX_RETRIES = 3
 
 HEADERS = {
-    "User-Agent": "WeThePeople/1.0 (civic transparency; https://wethepeopleforus.com; ops@wethepeopleforus.com)",
+    "User-Agent": "WeThePeople/1.0 (civic transparency; https://wethepeopleforus.com; wethepeopleforus@gmail.com)",
     "Accept": "application/json",
 }
 HTML_HEADERS = {

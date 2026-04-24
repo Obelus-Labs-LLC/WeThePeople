@@ -30,7 +30,7 @@ def send_email(
         logger.warning("No RESEND_API_KEY set — skipping email to %s", to)
         return False
 
-    sender = from_addr or os.getenv("WTP_DIGEST_FROM", "digest@wethepeopleforus.com")
+    sender = from_addr or os.getenv("WTP_DIGEST_FROM", "wethepeopleforus@gmail.com")
     try:
         resp = http_requests.post(
             RESEND_API_URL,

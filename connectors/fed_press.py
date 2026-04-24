@@ -71,7 +71,7 @@ def fetch_press_releases(
         resp = requests.get(
             feed_url,
             headers={
-                "User-Agent": "WeThePeople/1.0 (contact@wethepeopleforus.com)",
+                "User-Agent": "WeThePeople/1.0 (wethepeopleforus@gmail.com)",
                 "Accept": "application/rss+xml, application/xml, text/xml",
             },
             timeout=30,

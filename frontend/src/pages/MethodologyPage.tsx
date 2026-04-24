@@ -53,7 +53,7 @@ const SECTIONS: LongformSection[] = [
     id: 'corrections',
     title: 'Corrections and data audits',
     body: [
-      'Errors in upstream government data are frequent and often discovered weeks late. We run nightly reconciliation jobs and publish a public changelog of corrections at /changelog. If you find an error, email data@wethepeopleforus.com.',
+      'Errors in upstream government data are frequent and often discovered weeks late. We run nightly reconciliation jobs and publish a public changelog of corrections at /changelog. If you find an error, email wethepeopleforus@gmail.com.',
     ],
   },
   {
@@ -61,7 +61,7 @@ const SECTIONS: LongformSection[] = [
     id: 'replicability',
     title: 'Reproducing our work',
     body: [
-      'All computation code is open-source at github.com/Obelus-Labs-LLC/WeThePeople. Raw exports available as CSV/Parquet at /data. Academic researchers can request a bulk ETL snapshot via research@wethepeopleforus.com.',
+      'All computation code is open-source at github.com/Obelus-Labs-LLC/WeThePeople. Raw exports available as CSV/Parquet at /data. Academic researchers can request a bulk ETL snapshot via wethepeopleforus@gmail.com.',
     ],
   },
 ];
