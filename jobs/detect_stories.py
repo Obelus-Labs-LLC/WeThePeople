@@ -659,7 +659,13 @@ def get_sector_aggregate(db, table, id_col, metric=None):
         )).fetchone()
         return float(row[0] or 0), int(row[1] or 0)
     except Exception:
-        return 0, 0
+        # Raising is the right move: this helper is the denominator for
+        # "entity X represents N% of sector total" story claims
+        # (e.g. detect_stories.py:1045 and :1234). Returning (0, 0) on
+        # error silently produced stories claiming a single entity equalled
+        # the entire sector — garbage output dressed as a data story.
+        log.error("get_sector_aggregate failed on %s; refusing to produce zero-denominator stories", table, exc_info=True)
+        raise
 
 
 # ── Inline Citation URL Builders ──
@@ -1041,8 +1047,14 @@ def detect_top_spender(db, sector_idx=None):
 
     c_table = CONTRACT_TABLES[idx][0]
 
-    # Sector-wide comparative context
-    sector_total, sector_entity_count = get_sector_aggregate(db, table, id_col)
+    # Sector-wide comparative context. Errors here would have previously
+    # been swallowed by get_sector_aggregate returning (0, 0), producing
+    # "entity X represents 100% of sector" garbage stories. We now bail.
+    try:
+        sector_total, sector_entity_count = get_sector_aggregate(db, table, id_col)
+    except Exception as e:
+        log.error("skipping lobbying_spike for %s — sector aggregate failed: %s", sector, e)
+        return stories
 
     for eid, sector_spend, sector_filing_count in rows:
         if not sector_spend or sector_spend < 100000:
@@ -1230,10 +1242,16 @@ def detect_contract_windfall(db, sector_idx=None):
         log.warning("Contract windfall query failed for %s: %s", sector, e)
         return stories
 
-    # Sector comparative context
-    sector_contract_total, sector_contractor_count = get_sector_aggregate(
-        db, table, id_col, metric="SUM(award_amount)"
-    )
+    # Sector comparative context. Same rationale as lobbying_spike above —
+    # a silent (0, 0) fallback produced "X won 100% of sector contracts"
+    # false stories when the sector aggregate errored.
+    try:
+        sector_contract_total, sector_contractor_count = get_sector_aggregate(
+            db, table, id_col, metric="SUM(award_amount)"
+        )
+    except Exception as e:
+        log.error("skipping contract_windfall for %s — sector aggregate failed: %s", sector, e)
+        return stories
 
     for eid, total_value, contract_count in rows:
         if entity_story_recent(db, eid, "contract_windfall", days=14):

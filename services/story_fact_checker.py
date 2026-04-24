@@ -146,8 +146,12 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
                         "critical", "entity_not_found", eid, None,
                         f"{eid} not in {tracked_table}",
                     ))
-            except Exception as exc:
-                log.debug("entity lookup failed for %s: %s", eid, exc)
+            except Exception:
+                log.error("entity lookup failed for %s in %s", eid, tracked_table, exc_info=True)
+                issues.append(FactIssue(
+                    "critical", "entity_lookup_failed", eid, None,
+                    f"DB error while verifying {eid} in {tracked_table}",
+                ))
 
     # 2. Lobbying spend claims
     # For sector-aggregate stories, the "total" is the SUM over the whole
@@ -240,7 +244,12 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
             continue
         lobby_table, _, _, id_col, _ = sector_tables
         actual = _count_rows(db, lobby_table, id_col, entity_ids[0])
-        if actual is not None and not _within(claimed, actual, COUNT_TOLERANCE):
+        if actual is None:
+            issues.append(FactIssue(
+                "critical", "filing_count_query_failed", f"{int(claimed)}", None,
+                f"could not verify filing_count against {lobby_table} — see logs",
+            ))
+        elif not _within(claimed, actual, COUNT_TOLERANCE):
             issues.append(FactIssue(
                 "critical", "filing_count_mismatch",
                 f"{int(claimed)}", actual,
@@ -279,8 +288,16 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
                 ).fetchone()
                 actual = int(row[0]) if row else 0
             except Exception:
+                log.error("trade-count query failed for %d persons", len(person_ids), exc_info=True)
                 actual = None
-            if actual is not None:
+            if actual is None:
+                body_claims = _extract_trade_claims(body)
+                if body_claims:
+                    issues.append(FactIssue(
+                        "critical", "trade_count_query_failed", f"{body_claims[0]}", None,
+                        "could not verify trade counts against congressional_trades — see logs",
+                    ))
+            else:
                 body_claims = _extract_trade_claims(body)
                 for claimed in body_claims:
                     if claimed > actual * (1 + COUNT_TOLERANCE) or claimed > actual + 5:
@@ -341,6 +358,12 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
 # ──────────────────────────────────────────────────────────────────────────
 
 def _sum_col(db: Session, table: str, col: str, id_col: str, eid: str) -> Optional[float]:
+    """Return the sum, or None when the query itself failed.
+
+    Callers MUST treat a ``None`` return as a verification failure (not a
+    pass). This is Gate 4 — the last automated check before a story reaches
+    human review. Silently passing would let unverified numbers through.
+    """
     try:
         row = db.execute(
             text(f"SELECT COALESCE(SUM({col}), 0) FROM {table} WHERE {id_col} = :eid"),
@@ -349,8 +372,8 @@ def _sum_col(db: Session, table: str, col: str, id_col: str, eid: str) -> Option
         if not row:
             return None
         return float(row[0] or 0.0)
-    except Exception as exc:
-        log.debug("sum query failed on %s.%s: %s", table, col, exc)
+    except Exception:
+        log.error("sum query failed on %s.%s for %s", table, col, eid, exc_info=True)
         return None
 
 
@@ -359,6 +382,8 @@ def _sum_table(db: Session, table: str, col: str) -> Optional[float]:
 
     Used for sector-aggregate stories where the evidence value is the
     whole-sector total (lobbying_breakdown, tax_lobbying, etc.).
+    Returns ``None`` only on SQL error; callers MUST treat ``None`` as a
+    verification failure, not a pass.
     """
     try:
         row = db.execute(
@@ -367,12 +392,16 @@ def _sum_table(db: Session, table: str, col: str) -> Optional[float]:
         if not row:
             return None
         return float(row[0] or 0.0)
-    except Exception as exc:
-        log.debug("sum-table query failed on %s.%s: %s", table, col, exc)
+    except Exception:
+        log.error("sum-table query failed on %s.%s", table, col, exc_info=True)
         return None
 
 
 def _count_rows(db: Session, table: str, id_col: str, eid: str) -> Optional[int]:
+    """Count rows, or return None when the query itself failed.
+
+    Callers MUST treat ``None`` as a verification failure. See _sum_col.
+    """
     try:
         row = db.execute(
             text(f"SELECT COUNT(*) FROM {table} WHERE {id_col} = :eid"),
@@ -381,8 +410,8 @@ def _count_rows(db: Session, table: str, id_col: str, eid: str) -> Optional[int]
         if not row:
             return None
         return int(row[0] or 0)
-    except Exception as exc:
-        log.debug("count query failed on %s: %s", table, exc)
+    except Exception:
+        log.error("count query failed on %s for %s", table, eid, exc_info=True)
         return None
 
 

@@ -696,8 +696,11 @@ def story_queue(
         total = q.count()
         rows = q.order_by(Story.created_at.desc()).offset(offset).limit(limit).all()
     except Exception as exc:
-        logger.warning("story queue query failed: %s", exc)
-        return {"total": 0, "stories": []}
+        # Previously returned {"total": 0, "stories": []} on error, making the
+        # admin UI look like "nothing to review" when the DB was actually
+        # misbehaving — a backlog could silently hide. Surface the error.
+        logger.error("story queue query failed", exc_info=True)
+        raise HTTPException(status_code=500, detail="story-queue query failed")
 
     return {
         "total": total,
@@ -729,9 +732,9 @@ def story_queue_stats(db: Session = Depends(get_db)):
         drafts = db.query(Story).filter(Story.status == "draft").count()
         published = db.query(Story).filter(Story.status == "published").count()
         retracted = db.query(Story).filter(Story.status == "retracted").count()
-    except Exception as exc:
-        logger.warning("story queue stats failed: %s", exc)
-        return {"drafts": 0, "published": 0, "retracted": 0}
+    except Exception:
+        logger.error("story queue stats failed", exc_info=True)
+        raise HTTPException(status_code=500, detail="story-queue stats query failed")
     return {"drafts": drafts, "published": published, "retracted": retracted}
 
 

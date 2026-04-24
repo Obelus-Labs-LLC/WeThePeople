@@ -106,8 +106,16 @@ def _extract_claims_veritas(input_text: str, title: str = "") -> List[Dict[str, 
     return []
 
 
-def _search_wtp_evidence(db: Session, claim_text: str) -> List[Dict[str, Any]]:
-    """Search the WTP database for evidence matching a claim."""
+def _search_wtp_evidence(db: Session, claim_text: str) -> Dict[str, Any]:
+    """Search WTP DB for evidence matching claim_text.
+
+    Returns ``{"evidence": [...], "degraded_sources": [...]}``. When a per-source
+    SQL query errors out, the source name is added to ``degraded_sources`` so
+    callers can surface a "verification incomplete" flag instead of silently
+    returning a lower evidence count.
+    """
+    degraded: set = set()
+
     evidence = []
     claim_lower = claim_text.lower()
 
@@ -162,6 +170,8 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> List[Dict[str, Any]]:
                 for eid, ename in rows:
                     matched.append({"entity_id": eid, "entity_name": ename, "sector": sector, "id_col": id_col})
             except Exception:
+                logger.warning("entity lookup failed: table=%s name=%r", table, entity_name, exc_info=True)
+                degraded.add("entity_lookup:%s" % sector)
                 continue
 
     def _fmt(n):
@@ -228,7 +238,8 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> List[Dict[str, Any]]:
                             "evidence_type": "primary_source",
                         })
                 except Exception:
-                    pass
+                    logger.warning("lobbying query failed: sector=%s eid=%r", sector, eid, exc_info=True)
+                    degraded.add("lobbying:%s" % sector)
 
         # Contracts
         if any(w in claim_lower for w in ["contract", "receive", "award", "billion", "pentagon", "defense"]):
@@ -249,7 +260,8 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> List[Dict[str, Any]]:
                             "evidence_type": "primary_source",
                         })
                 except Exception:
-                    pass
+                    logger.warning("contract query failed: sector=%s eid=%r", sector, eid, exc_info=True)
+                    degraded.add("contracts:%s" % sector)
 
         # Congressional trades
         if sector == "politician" and any(w in claim_lower for w in ["trad", "stock", "bought", "purchased", "sold"]):
@@ -268,7 +280,8 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> List[Dict[str, Any]]:
                         "evidence_type": "primary_source",
                     })
             except Exception:
-                pass
+                logger.warning("congressional trade query failed: eid=%r", eid, exc_info=True)
+                degraded.add("congressional_trades")
 
         # Committees
         if any(w in claim_lower for w in ["committee", "serving", "oversight", "panel"]):
@@ -289,7 +302,8 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> List[Dict[str, Any]]:
                         "evidence_type": "primary_source",
                     })
             except Exception:
-                pass
+                logger.warning("committee query failed: eid=%r", eid, exc_info=True)
+                degraded.add("committees")
 
         # PAC Donations
         if any(w in claim_lower for w in ["donat", "contribut", "pac", "campaign"]):
@@ -308,9 +322,10 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> List[Dict[str, Any]]:
                         "evidence_type": "primary_source",
                     })
             except Exception:
-                pass
+                logger.warning("donation query failed: eid=%r", eid, exc_info=True)
+                degraded.add("donations")
 
-    return evidence
+    return {"evidence": evidence, "degraded_sources": sorted(degraded)}
 
 
 def run_verification(db: Session, text_input: str, source_url: Optional[str] = None) -> Dict[str, Any]:
@@ -345,7 +360,9 @@ def run_verification(db: Session, text_input: str, source_url: Optional[str] = N
         claim_text = claim.get("text", "")
         claim_category = claim.get("category", "general")
 
-        wtp_evidence = _search_wtp_evidence(db, claim_text)
+        search = _search_wtp_evidence(db, claim_text)
+        wtp_evidence = search["evidence"]
+        degraded_sources = search["degraded_sources"]
 
         # Simple scoring based on evidence found
         # (Veritas scoring via HTTP would require a separate endpoint)
@@ -367,6 +384,13 @@ def run_verification(db: Session, text_input: str, source_url: Optional[str] = N
             status = "unknown"
             confidence = 0.0
 
+        # When some evidence sources failed, mark the verification as
+        # degraded so callers and the UI can distinguish "genuinely no
+        # evidence" from "pipeline partially broken." Lower confidence
+        # by 20% per degraded source, floored at 0.
+        if degraded_sources:
+            confidence = max(0.0, confidence - 0.20 * len(degraded_sources))
+
         results.append({
             "claim_id": claim.get("id", ""),
             "claim_text": claim_text,
@@ -378,6 +402,8 @@ def run_verification(db: Session, text_input: str, source_url: Optional[str] = N
             "confidence": confidence,
             "evidence_count": evidence_count,
             "evidence": wtp_evidence,
+            "degraded": bool(degraded_sources),
+            "degraded_sources": degraded_sources,
         })
 
     return {

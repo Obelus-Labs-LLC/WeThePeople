@@ -105,7 +105,17 @@ def api_get(path: str, params: dict = None, timeout: int = None) -> dict:
             log.info("Retrying API %s in %ds...", path, wait)
             time.sleep(wait)
 
-    log.error("API %s failed after %d attempts", path, API_MAX_RETRIES)
+    # Total failure — retries exhausted. Log at CRITICAL so it shows in
+    # dashboards/alerts, and bump the error counter so /metrics reflects
+    # the outage. Callers that can tolerate `{}` (e.g. twitter_bot.run
+    # falls back to DB-only "story" category via api_healthy()) will still
+    # work, but operators now have a signal to react to.
+    log.critical("API %s failed after %d attempts — returning empty dict; caller should degrade gracefully", path, API_MAX_RETRIES)
+    try:
+        from routers.metrics import record_error
+        record_error()
+    except Exception:
+        pass
     return {}
 
 
