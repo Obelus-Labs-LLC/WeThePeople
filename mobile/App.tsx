@@ -7,6 +7,7 @@ import TabNavigator from './src/navigation/TabNavigator';
 import SplashScreen from './src/screens/SplashScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { AuthProvider } from './src/contexts/AuthContext';
 
 const ONBOARDING_KEY = '@wtp_onboarding_seen';
 
@@ -85,10 +86,12 @@ export default function App() {
   // Main app
   return (
     <ErrorBoundary tag="App">
-      <NavigationContainer theme={navTheme}>
-        <StatusBar style="light" />
-        <TabNavigator />
-      </NavigationContainer>
+      <AuthProvider>
+        <NavigationContainer theme={navTheme}>
+          <StatusBar style="light" />
+          <TabNavigator />
+        </NavigationContainer>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

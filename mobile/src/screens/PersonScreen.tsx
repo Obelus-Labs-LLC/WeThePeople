@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
+import WatchlistButton from '../components/WatchlistButton';
 import type { LedgerEntry, PersonProfile, PersonFinance, PersonPerformance } from '../api/types';
 import {
   LoadingSpinner, EmptyState, StatCard, TierBadge, PartyBadge,
@@ -286,6 +287,14 @@ export default function PersonScreen() {
               {profile?.infobox?.party && <PartyBadge party={profile.infobox.party} />}
               {profile?.infobox?.office && (
                 <ChamberBadge chamber={profile.infobox.office.includes('Senate') ? 'senate' : 'house'} />
+              )}
+              {person_id && (
+                <WatchlistButton
+                  entityType="politician"
+                  entityId={person_id}
+                  entityName={displayName}
+                  sector="politics"
+                />
               )}
             </View>
             {profile?.summary ? (
