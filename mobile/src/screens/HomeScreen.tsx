@@ -37,6 +37,8 @@ export default function HomeScreen() {
     defense: 'DefenseDashboard',
     chemicals: 'ChemicalsDashboard',
     agriculture: 'AgricultureDashboard',
+    telecom: 'TelecomDashboard',
+    education: 'EducationDashboard',
   };
 
   const handleSectorPress = (sector: typeof SECTORS[0]) => {
@@ -92,7 +94,7 @@ export default function HomeScreen() {
                 <Text style={styles.pillText}>24+ Federal Sources</Text>
               </View>
               <View style={styles.pillGold}>
-                <Text style={styles.pillGoldText}>9 Sectors Live</Text>
+                <Text style={styles.pillGoldText}>11 Sectors Live</Text>
               </View>
             </View>
           </View>

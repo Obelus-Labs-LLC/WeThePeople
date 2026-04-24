@@ -107,8 +107,8 @@ export const SECTORS: Sector[] = [
     icon: '\u{1F4F6}',
     gradientStart: '#DB2777',
     gradientEnd: '#BE185D',
-    route: 'ComingSoon',
-    available: false,
+    route: 'TelecomDashboard',
+    available: true,
   },
   {
     slug: 'education',
@@ -117,7 +117,7 @@ export const SECTORS: Sector[] = [
     icon: '\u{1F393}',
     gradientStart: '#CA8A04',
     gradientEnd: '#A16207',
-    route: 'ComingSoon',
-    available: false,
+    route: 'EducationDashboard',
+    available: true,
   },
 ];

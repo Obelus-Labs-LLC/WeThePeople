@@ -8,19 +8,23 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
+const SECTOR = 'telecom';
+const log = (msg: string, err: unknown) => console.warn(`[TelecomDashboardScreen] ${msg}:`, err);
 
 const SECTOR_COLORS: Record<string, string> = {
-  crops: '#84CC16',
-  livestock: '#F59E0B',
-  'food processing': '#DC2626',
-  'farm equipment': '#0EA5E9',
-  agribusiness: '#8B5CF6',
+  'wireless': '#DB2777',,
+  'broadband': '#0EA5E9',,
+  'cable': '#7C3AED',,
+  'fiber': '#10B981',,
+  'satellite': '#F59E0B',,
+  'infrastructure': '#6B7280',,
+  'voip': '#DC2626',
 };
 
-const ACCENT = '#84CC16';
+const ACCENT = '#DB2777';
 
-export default function AgricultureDashboardScreen() {
+export default function TelecomDashboardScreen() {
   const navigation = useNavigation<any>();
   const [stats, setStats] = useState<any>(null);
   const [companies, setCompanies] = useState<any[]>([]);
@@ -31,14 +35,15 @@ export default function AgricultureDashboardScreen() {
   const loadData = async () => {
     try {
       const [statsRes, compRes] = await Promise.all([
-        fetch(`${API_BASE}/agriculture/dashboard/stats`).then(r => r.json()),
-        fetch(`${API_BASE}/agriculture/companies?limit=6`).then(r => r.json()),
+        apiClient.getSectorDashboardStats(SECTOR),
+        apiClient.getSectorCompanies(SECTOR, { limit: 6 }),
       ]);
       setStats(statsRes);
-      setCompanies(compRes.companies || []);
+      setCompanies((compRes as any).companies || []);
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to load');
+      setError(e?.message || 'Failed to load');
+      log('loadData failed', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -48,7 +53,7 @@ export default function AgricultureDashboardScreen() {
   useEffect(() => { loadData(); }, []);
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
-  if (loading) return <LoadingSpinner message="Loading agriculture data..." />;
+  if (loading) return <LoadingSpinner message="Loading telecom data..." />;
   if (error) return <EmptyState title="Error" message={error} />;
   if (!stats) return <EmptyState title="No Data" />;
 
@@ -60,7 +65,7 @@ export default function AgricultureDashboardScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
     >
       <LinearGradient
-        colors={['#84CC16', '#65A30D', '#4D7C0F']}
+        colors={['#DB2777', '#BE185D', '#9D174D']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.hero}
@@ -68,11 +73,11 @@ export default function AgricultureDashboardScreen() {
         <View style={styles.heroOrb} />
         <View style={styles.heroInner}>
           <View style={styles.heroIconRow}>
-            <Ionicons name="leaf" size={24} color="#FFFFFF" />
-            <Text style={styles.heroTitle}>Agriculture Sector</Text>
+            <Ionicons name="cellular" size={24} color="#FFFFFF" />
+            <Text style={styles.heroTitle}>Telecom Sector</Text>
           </View>
           <Text style={styles.heroSubtitle}>
-            Food safety, SEC filings, contracts, lobbying, enforcement
+            Wireless, broadband, cable and fiber carriers — lobbying, contracts, SEC filings, enforcement
           </Text>
         </View>
       </LinearGradient>
@@ -117,7 +122,7 @@ export default function AgricultureDashboardScreen() {
             <View style={[styles.accentBar, { backgroundColor: ACCENT }]} />
             <Text style={styles.sectionTitle}>Featured Companies</Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('AgricultureCompaniesDirectory')}>
+          <TouchableOpacity onPress={() => navigation.navigate('TelecomCompaniesDirectory')}>
             <Text style={styles.seeAll}>See All →</Text>
           </TouchableOpacity>
         </View>
@@ -125,10 +130,10 @@ export default function AgricultureDashboardScreen() {
           <TouchableOpacity
             key={c.company_id}
             style={styles.companyCard}
-            onPress={() => navigation.navigate('AgricultureCompanyDetail', { company_id: c.company_id })}
+            onPress={() => navigation.navigate('TelecomCompanyDetail', { company_id: c.company_id })}
           >
             <View style={[styles.iconWrap, { backgroundColor: (SECTOR_COLORS[c.sector_type] || '#6B7280') + '15' }]}>
-              <Ionicons name="leaf" size={20} color={SECTOR_COLORS[c.sector_type] || '#6B7280'} />
+              <Ionicons name="cellular" size={20} color={SECTOR_COLORS[c.sector_type] || '#6B7280'} />
             </View>
             <View style={styles.companyInfo}>
               <Text style={styles.companyName} numberOfLines={1}>{c.display_name}</Text>
@@ -149,14 +154,14 @@ export default function AgricultureDashboardScreen() {
 
       <TouchableOpacity
         style={styles.compareCta}
-        onPress={() => navigation.navigate('Compare', { sector: 'agriculture' })}
+        onPress={() => navigation.navigate('Compare', { sector: SECTOR })}
       >
         <Ionicons name="git-compare" size={16} color={ACCENT} />
-        <Text style={[styles.compareText, { color: ACCENT }]}>Compare Agriculture Companies</Text>
+        <Text style={[styles.compareText, { color: ACCENT }]}>Compare Telecom Companies</Text>
       </TouchableOpacity>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Data: SEC EDGAR · USDA · USASpending.gov · Senate LDA · EPA</Text>
+        <Text style={styles.footerText}>Data: SEC EDGAR · FCC · USASpending.gov · Senate LDA</Text>
       </View>
     </ScrollView>
   );
