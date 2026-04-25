@@ -1,8 +1,10 @@
 import { ExpoConfig, ConfigContext } from "expo/config";
 
-// Read from environment — set WTP_API_URL before running expo start/eas update.
-// Falls back to localhost for safe local dev (no accidental IP leak).
-const API_URL = process.env.WTP_API_URL || "http://localhost:8006";
+// Read from environment — set WTP_API_URL before running expo start/eas update
+// to override (e.g. local dev against http://10.0.0.x:8006). The fallback is
+// production so an EAS update without WTP_API_URL exported doesn't ship a
+// localhost URL that the phone can't reach.
+const API_URL = process.env.WTP_API_URL || "https://api.wethepeopleforus.com";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,

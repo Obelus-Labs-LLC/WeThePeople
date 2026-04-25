@@ -24,6 +24,7 @@ interface Tile {
 
 const TILES: Tile[] = [
   { title: 'Influence Explorer', desc: 'Top lobbyists, contractors, and overall stats', icon: 'pulse', color: '#7C3AED', screen: 'InfluenceExplorer' },
+  { title: 'Influence Network', desc: 'Force-directed graph of who connects to whom', icon: 'git-network', color: '#7C3AED', screen: 'InfluenceNetwork' },
   { title: 'Money Flow', desc: 'Company \u2192 politician donation graph', icon: 'cash', color: '#3B82F6', screen: 'MoneyFlow' },
   { title: 'Closed Loops', desc: 'Lobby \u2192 bill \u2192 committee \u2192 donation', icon: 'git-compare', color: '#DC2626', screen: 'ClosedLoop' },
   { title: 'Spend by State', desc: 'Geographic breakdown of lobbying & contracts', icon: 'map', color: '#CA8A04', screen: 'InfluenceMap' },
