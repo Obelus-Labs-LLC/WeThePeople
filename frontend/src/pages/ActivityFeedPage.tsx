@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, Vote, ExternalLink, CheckCircle, XCircle, Clock, ArrowLeft, Activity } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
@@ -99,8 +99,10 @@ export default function ActivityFeedPage() {
   const headerRef = React.useRef<HTMLDivElement>(null);
   useInView(headerRef, { once: true, amount: 0.1 });
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     let cancelled = false;
+    setError(null);
+    setLoading(true);
     Promise.all([
       apiClient.getRecentActions(100),
       apiClient.getVotes({ limit: 20 }),
@@ -111,13 +113,17 @@ export default function ActivityFeedPage() {
         setVotes(votesRes.votes || []);
       })
       .catch((err: unknown) => {
+        if (cancelled) return;
         setError(err instanceof Error ? err.message : 'Failed to load activity feed');
       })
-      .finally(() => setLoading(false));
-    return () => {
-      cancelled = true;
-    };
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    const teardown = loadData();
+    return teardown;
+  }, [loadData]);
 
   if (loading) {
     return (
@@ -163,7 +169,7 @@ export default function ActivityFeedPage() {
             {error}
           </p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => loadData()}
             style={{
               borderRadius: 10,
               border: '1px solid var(--color-border)',

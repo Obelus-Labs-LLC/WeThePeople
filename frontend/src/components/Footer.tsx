@@ -31,21 +31,36 @@ export default function Footer() {
             }}
           >
             {[
-              { to: '/about', label: 'About' },
-              { to: '/privacy', label: 'Privacy Policy' },
-              { to: '/terms', label: 'Terms of Use' },
-              { to: '/disclaimer', label: 'Disclaimer' },
-              { to: '/methodology', label: 'Methodology' },
-              { to: '/stories', label: 'Stories' },
-            ].map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className="no-underline transition-colors text-[var(--color-text-3)] hover:text-[var(--color-text-2)]"
-              >
-                {link.label}
-              </Link>
-            ))}
+              { to: '/about', label: 'About', external: false },
+              { to: '/privacy', label: 'Privacy Policy', external: false },
+              { to: '/terms', label: 'Terms of Use', external: false },
+              { to: '/disclaimer', label: 'Disclaimer', external: false },
+              { to: '/methodology', label: 'Methodology', external: false },
+              // Stories moved to the journal sub-site. Linking to /stories
+              // hits MovedToJournalPage which immediately bounces — confusing
+              // to land on. Send users straight to the journal.
+              { to: 'https://journal.wethepeopleforus.com', label: 'Journal ↗', external: true },
+            ].map((link) =>
+              link.external ? (
+                <a
+                  key={link.to}
+                  href={link.to}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="no-underline transition-colors text-[var(--color-text-3)] hover:text-[var(--color-text-2)]"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  className="no-underline transition-colors text-[var(--color-text-3)] hover:text-[var(--color-text-2)]"
+                >
+                  {link.label}
+                </Link>
+              ),
+            )}
           </div>
         </div>
 

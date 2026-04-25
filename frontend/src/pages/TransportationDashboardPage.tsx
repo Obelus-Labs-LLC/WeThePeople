@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState, useCallback} from 'react';
 import { DollarSign, Landmark, Shield, Truck } from 'lucide-react';
 import { TransportationSectorHeader } from '../components/SectorHeader';
 import CompanyLogo from '../components/CompanyLogo';
@@ -99,8 +99,10 @@ export default function TransportationDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     let cancelled = false;
+    setError(null);
+    setLoading(true);
     Promise.all([
       getTransportationDashboardStats(),
       getTransportationCompanies({ limit: 6 }),
@@ -118,6 +120,11 @@ export default function TransportationDashboardPage() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    const teardown = loadData();
+    return teardown;
+  }, [loadData]);
+
   if (error) {
     return (
       <div className="flex h-screen items-center justify-center" style={{ background: 'var(--color-bg)' }}>
@@ -127,7 +134,7 @@ export default function TransportationDashboardPage() {
           </p>
           <p style={{ color: 'var(--color-text-3)', fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{error}</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => loadData()}
             style={{
               marginTop: 16,
               padding: '8px 16px',
