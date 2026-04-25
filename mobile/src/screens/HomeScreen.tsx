@@ -169,20 +169,15 @@ export default function HomeScreen() {
           </View>
           <View style={styles.quickToolsGrid}>
             {[
-              { screen: 'CongressionalTrades', icon: 'trending-up' as const, name: 'Congressional Trades', desc: 'Stock trades by members of Congress', accent: '#3B82F6' },
+              // Personal / action tools only. All data-exploration surfaces
+              // (Trades, Stories, Anomalies, State Explorer, Ask WTP,
+              // Influence Network/Explorer, Enforcement, Lobbying, Contracts)
+              // now live exclusively under Data Explorer to remove the
+              // duplicate listing that was here.
               { screen: 'ZipLookup', icon: 'location' as const, name: 'ZIP Code Lookup', desc: 'Find your representatives', accent: '#10B981' },
-              { screen: 'Stories', icon: 'newspaper' as const, name: 'Stories', desc: 'AI-generated investigations', accent: '#059669' },
-              { screen: 'Anomalies', icon: 'warning' as const, name: 'Anomalies', desc: 'Suspicious patterns detected', accent: '#EF4444' },
-              { screen: 'StateExplorer', icon: 'map' as const, name: 'State Explorer', desc: 'All 50 states\' data', accent: '#3B82F6' },
-              { screen: 'ChatAgent', icon: 'chatbubble-ellipses' as const, name: 'Ask WTP', desc: 'AI-powered data assistant', accent: '#7C3AED' },
-              { screen: 'InfluenceNetwork', icon: 'git-network' as const, name: 'Influence Network', desc: 'Follow the money', accent: '#7C3AED' },
               { screen: 'CivicHub', icon: 'people' as const, name: 'Civic Hub', desc: 'Promises, proposals, and badges', accent: '#2563EB' },
-              { screen: 'EnforcementTracker', icon: 'shield-checkmark' as const, name: 'Enforcement Tracker', desc: 'Tech sector penalties & cases', accent: '#DC2626' },
-              { screen: 'LobbyingBreakdown', icon: 'megaphone' as const, name: 'Lobbying Breakdown', desc: 'What tech companies lobby about', accent: '#F59E0B' },
-              { screen: 'ContractTimeline', icon: 'calendar' as const, name: 'Contract Timeline', desc: 'Tech contracts by year', accent: '#10B981' },
               { screen: 'Account', icon: 'person-circle' as const, name: 'Account', desc: 'Follow politicians, companies, bills', accent: '#2563EB' },
               { screen: 'DataExplorer', icon: 'compass' as const, name: 'Data Explorer', desc: 'Every data tool in one place', accent: '#6366F1' },
-              { screen: 'InfluenceExplorer', icon: 'pulse' as const, name: 'Influence Explorer', desc: 'Top lobbyists, contractors, stats', accent: '#7C3AED' },
               { screen: 'DataStory', icon: 'book' as const, name: 'State of the Data', desc: 'One-read summary of everything', accent: '#059669' },
             ].map((tool) => (
               <TouchableOpacity
