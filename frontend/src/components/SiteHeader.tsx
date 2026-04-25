@@ -29,14 +29,31 @@ export default function SiteHeader() {
         WebkitBackdropFilter: 'blur(12px)',
       }}
     >
-      {/* Left — WTP mark + wordmark */}
-      <Link
-        to="/"
-        className="no-underline shrink-0"
-        style={{ display: 'inline-flex', alignItems: 'center', color: 'inherit' }}
-      >
-        <Logo size="sm" />
-      </Link>
+      {/* Left — WTP mark + wordmark + civic-transparency tagline */}
+      <div className="flex items-center shrink-0" style={{ gap: 14 }}>
+        <Link
+          to="/"
+          className="no-underline"
+          style={{ display: 'inline-flex', alignItems: 'center', color: 'inherit' }}
+        >
+          <Logo size="sm" />
+        </Link>
+        <span
+          className="hidden sm:inline"
+          style={{
+            paddingLeft: 14,
+            borderLeft: '1px solid var(--color-border)',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-3)',
+          }}
+        >
+          Civic Transparency
+        </span>
+      </div>
 
       {/* Right — search + auth */}
       <div className="flex items-center shrink-0" style={{ gap: 10 }}>
