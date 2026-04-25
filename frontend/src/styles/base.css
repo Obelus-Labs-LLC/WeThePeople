@@ -110,7 +110,7 @@ html, body, #root {
 .animate-fade-up-2  { animation: fade-up 0.5s 0.1s ease both; }
 .animate-fade-up-3  { animation: fade-up 0.5s 0.2s ease both; }
 .animate-pulse-dot  { animation: pulse 2s ease-in-out infinite; }
-.animate-ticker     { animation: ticker 28s linear infinite; }
+.animate-ticker     { animation: ticker 50s linear infinite; }
 .animate-ticker:hover { animation-play-state: paused; }
 .animate-scale-in   { animation: scale-in 0.5s ease-out both; }
 
