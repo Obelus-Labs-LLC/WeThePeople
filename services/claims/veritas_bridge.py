@@ -75,23 +75,43 @@ def _is_safe_url(url: str) -> Optional[str]:
 
 
 def _call_veritas(endpoint: str, method: str = "GET", json_body: dict = None, timeout: int = 60) -> Optional[dict]:
-    """Call a Veritas API endpoint."""
+    """Call a Veritas API endpoint.
+
+    Returns the parsed JSON body on 2xx, ``None`` on any failure. Logs
+    distinguish three failure modes — connection refused, timeout, and
+    HTTP error responses — so a 500 can't masquerade as "Veritas down"
+    in the bridge's call sites (V6 in the Apr 24 audit).
+    """
     url = "%s%s" % (VERITAS_URL, endpoint)
     try:
         if method == "POST":
             resp = requests.post(url, json=json_body, timeout=timeout)
         else:
             resp = requests.get(url, timeout=timeout)
-        resp.raise_for_status()
-        return resp.json()
     except requests.exceptions.ConnectionError:
-        logger.error("Veritas service not reachable at %s", VERITAS_URL)
+        logger.error("Veritas service not reachable at %s (endpoint=%s)", VERITAS_URL, endpoint)
         return None
     except requests.exceptions.Timeout:
-        logger.error("Veritas request timed out: %s", endpoint)
+        logger.error("Veritas request timed out: %s (after %ds)", endpoint, timeout)
         return None
-    except Exception as e:
-        logger.error("Veritas API error: %s", e)
+    except Exception:
+        logger.exception("Veritas API request failed before sending: %s", endpoint)
+        return None
+
+    # Differentiate HTTP error responses from network failures: useful
+    # when triaging a malformed-request 422 vs an outage.
+    if resp.status_code >= 400:
+        body_preview = (resp.text or "")[:200]
+        logger.error(
+            "Veritas %s %s -> HTTP %d. Body: %r",
+            method, endpoint, resp.status_code, body_preview,
+        )
+        return None
+
+    try:
+        return resp.json()
+    except ValueError:
+        logger.error("Veritas %s returned non-JSON body: %r", endpoint, (resp.text or "")[:200])
         return None
 
 
@@ -364,25 +384,71 @@ def run_verification(db: Session, text_input: str, source_url: Optional[str] = N
         wtp_evidence = search["evidence"]
         degraded_sources = search["degraded_sources"]
 
-        # Simple scoring based on evidence found
-        # (Veritas scoring via HTTP would require a separate endpoint)
+        # Score the claim against WTP evidence using Veritas BM25. We send the
+        # claim text and the evidence snippets we just collected to
+        # /api/v1/claims/score and let Veritas grade the relevance with its
+        # canonical tokeniser + normaliser. This replaces the previous
+        # row-count heuristic ("3 rows = supported, regardless of relevance"),
+        # which was producing high scores for evidence whose words didn't
+        # actually match the claim — Apr 24 audit V1.
         evidence_count = len(wtp_evidence)
-        if evidence_count >= 3:
-            score = 85
-            status = "supported"
-            confidence = 0.85
-        elif evidence_count >= 2:
-            score = 70
-            status = "partial"
-            confidence = 0.70
-        elif evidence_count >= 1:
-            score = 50
-            status = "partial"
-            confidence = 0.50
-        else:
-            score = 0
-            status = "unknown"
-            confidence = 0.0
+        score = 0
+        status = "unknown"
+        confidence = 0.0
+        scoring_used = "row_count_fallback"
+
+        if evidence_count > 0:
+            score_resp = _call_veritas(
+                "/api/v1/claims/score",
+                method="POST",
+                json_body={
+                    "claim_text": claim_text,
+                    "evidence_snippets": [e["snippet"] for e in wtp_evidence],
+                    "category": claim_category or "general",
+                },
+                timeout=15,
+            )
+
+            if score_resp and isinstance(score_resp.get("scores"), list):
+                snippet_scores = score_resp["scores"]
+                # Annotate each evidence row with its bm25 score so the UI
+                # can show which sources actually matched the claim.
+                for snip in snippet_scores:
+                    idx = snip.get("snippet_index")
+                    if idx is not None and 0 <= idx < len(wtp_evidence):
+                        wtp_evidence[idx]["bm25_points"] = snip.get("bm25_points", 0)
+                        wtp_evidence[idx]["bm25_raw"] = snip.get("bm25_raw", 0.0)
+
+                # Veritas returns 0..30 bm25_points per snippet. Use the best
+                # match as the primary signal, with a small bonus per
+                # additional matching snippet capped at +20.
+                points = [s.get("bm25_points", 0) for s in snippet_scores]
+                max_pts = max(points) if points else 0
+                strong_matches = sum(1 for p in points if p >= 10)
+                bonus = min(20, max(0, strong_matches - 1) * 5)
+                score = min(100, int(max_pts * 100 / 30) + bonus)
+
+                if score >= 80:
+                    status = "supported"; confidence = 0.85
+                elif score >= 60:
+                    status = "supported"; confidence = 0.70
+                elif score >= 30:
+                    status = "partial"; confidence = 0.55
+                elif score > 0:
+                    status = "partial"; confidence = 0.30
+                else:
+                    status = "unknown"; confidence = 0.10
+                scoring_used = "veritas_bm25"
+            else:
+                # Veritas score endpoint failed — fall back to the row-count
+                # heuristic and mark the claim degraded.
+                degraded_sources = list(degraded_sources) + ["veritas_score"]
+                if evidence_count >= 3:
+                    score, status, confidence = 65, "partial", 0.50
+                elif evidence_count >= 2:
+                    score, status, confidence = 50, "partial", 0.40
+                else:
+                    score, status, confidence = 30, "partial", 0.30
 
         # When some evidence sources failed, mark the verification as
         # degraded so callers and the UI can distinguish "genuinely no
@@ -402,6 +468,7 @@ def run_verification(db: Session, text_input: str, source_url: Optional[str] = N
             "confidence": confidence,
             "evidence_count": evidence_count,
             "evidence": wtp_evidence,
+            "scoring": scoring_used,
             "degraded": bool(degraded_sources),
             "degraded_sources": degraded_sources,
         })
