@@ -107,16 +107,32 @@ export default function CorrectionsPage() {
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-    fetch(`${API_BASE}/stories/corrections/all?limit=100`)
-      .then((res) => res.json())
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    fetch(`${API_BASE}/stories/corrections/all?limit=100`, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
         setCorrections(
           (data.corrections || []).filter((c: Correction) => c.type !== 'reader_report')
         );
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        setError(err?.message || 'Failed to load corrections');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
   }, []);
 
   return (
@@ -253,7 +269,20 @@ export default function CorrectionsPage() {
           </div>
         )}
 
-        {!loading && corrections.length === 0 && (
+        {!loading && error && (
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '14px',
+              color: 'var(--color-red)',
+              paddingBlock: 24,
+            }}
+          >
+            Could not load corrections: {error}
+          </p>
+        )}
+
+        {!loading && !error && corrections.length === 0 && (
           <p
             style={{
               fontFamily: 'var(--font-body)',

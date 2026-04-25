@@ -5,7 +5,11 @@
  * In dev: proxied through Vite at /api
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+// Default to '/api' so that production requests are routed through the
+// Vercel rewrite to api.wethepeopleforus.com. With an empty default the
+// browser hits the SPA host directly and the catch-all rewrite returns
+// index.html — JSON.parse then fails. Aligned with journal/research.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export function getApiBase(): string {
   return API_BASE.replace(/\/$/, '');

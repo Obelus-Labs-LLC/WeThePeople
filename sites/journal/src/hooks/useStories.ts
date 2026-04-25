@@ -46,7 +46,10 @@ export function useStories(opts?: UseStoriesOptions): UseStoriesResult {
           setError(err.message || 'Failed to load stories');
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        // Avoid setting state after unmount/abort.
+        if (!controller.signal.aborted) setLoading(false);
+      });
 
     return () => controller.abort();
   }, [limit, category]);
@@ -72,43 +75,56 @@ export function useStory(slug: string | undefined) {
     setError(null);
 
     // Try the slug endpoint first
-    apiFetch<Story>(`/stories/${slug}`, { signal: controller.signal })
-      .then((data) => {
+    // Single async path so the fallback fetch is awaited inside the
+    // catch — previously .finally fired BEFORE the fallback completed,
+    // showing "Story not found" briefly on slow networks before the
+    // fallback resolved with a real story.
+    (async () => {
+      try {
+        const data = await apiFetch<Story>(`/stories/${slug}`, { signal: controller.signal });
         setStory(data);
-        // Try to get related stories
-        return apiFetch<StoriesResponse | Story[]>('/stories/latest', {
-          params: { limit: 4 },
-          signal: controller.signal,
-        }).catch(() => []);
-      })
-      .then((relData) => {
-        const items = Array.isArray(relData) ? relData : (relData as StoriesResponse).stories ?? [];
-        setRelated(items.filter((s) => s.slug !== slug).slice(0, 3));
-      })
-      .catch((err) => {
-        if (err.name === 'AbortError') return;
-        // Fallback: load all stories and filter client-side
-        apiFetch<StoriesResponse | Story[]>('/stories/latest', {
-          params: { limit: 20 },
-          signal: controller.signal,
-        })
-          .then((data) => {
-            const items = Array.isArray(data) ? data : data.stories ?? [];
-            const found = items.find((s) => s.slug === slug);
-            if (found) {
-              setStory(found);
-              setRelated(items.filter((s) => s.slug !== slug).slice(0, 3));
-            } else {
-              setError('Story not found');
-            }
-          })
-          .catch((fallbackErr) => {
-            if (fallbackErr.name !== 'AbortError') {
-              setError(fallbackErr.message || 'Failed to load story');
-            }
-          });
-      })
-      .finally(() => setLoading(false));
+        try {
+          const relData = await apiFetch<StoriesResponse | Story[]>(
+            '/stories/latest',
+            { params: { limit: 4 }, signal: controller.signal },
+          );
+          const items = Array.isArray(relData) ? relData : (relData as StoriesResponse).stories ?? [];
+          setRelated(items.filter((s) => s.slug !== slug).slice(0, 3));
+        } catch (relErr: unknown) {
+          if ((relErr as { name?: string })?.name !== 'AbortError') {
+            // Related-stories failure is non-fatal; just leave the list empty.
+            console.warn('[useStory] related fetch failed:', relErr);
+          }
+        }
+      } catch (err: unknown) {
+        if ((err as { name?: string })?.name === 'AbortError') return;
+        // Primary endpoint failed — try the fallback before showing
+        // "not found", and only flip loading off after it settles.
+        try {
+          const data = await apiFetch<StoriesResponse | Story[]>(
+            '/stories/latest',
+            { params: { limit: 20 }, signal: controller.signal },
+          );
+          const items = Array.isArray(data) ? data : data.stories ?? [];
+          const found = items.find((s) => s.slug === slug);
+          if (found) {
+            setStory(found);
+            setRelated(items.filter((s) => s.slug !== slug).slice(0, 3));
+          } else {
+            setError('Story not found');
+          }
+        } catch (fallbackErr: unknown) {
+          if ((fallbackErr as { name?: string })?.name !== 'AbortError') {
+            setError((fallbackErr as Error)?.message || 'Failed to load story');
+          }
+        }
+      } finally {
+        // Only flip loading off if the request hasn't been aborted; the
+        // unmount cleanup also flips it implicitly because the component
+        // is gone.
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
 
     return () => controller.abort();
   }, [slug]);

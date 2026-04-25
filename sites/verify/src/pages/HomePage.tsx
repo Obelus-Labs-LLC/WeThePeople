@@ -246,7 +246,7 @@ export default function HomePage() {
           >
             Submit any URL — speech, interview, social post, or article — and
             Veritas extracts every verifiable claim, checks each one against
-            20+ authoritative sources, and produces a structured verdict.
+            29+ authoritative sources, and produces a structured verdict.
             Zero AI hallucination. Deterministic by design.
           </p>
         </section>
