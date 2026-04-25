@@ -13,12 +13,12 @@ const SECTOR = 'education';
 const log = (msg: string, err: unknown) => console.warn(`[EducationDashboardScreen] ${msg}:`, err);
 
 const SECTOR_COLORS: Record<string, string> = {
-  'for_profit_college': '#DC2626',,
-  'higher_ed_services': '#3B82F6',,
-  'edtech': '#8B5CF6',,
-  'k12_services': '#10B981',,
-  'publishing': '#F59E0B',,
-  'student_lending': '#CA8A04',,
+  'for_profit_college': '#DC2626',
+  'higher_ed_services': '#3B82F6',
+  'edtech': '#8B5CF6',
+  'k12_services': '#10B981',
+  'publishing': '#F59E0B',
+  'student_lending': '#CA8A04',
   'testing': '#7C3AED',
 };
 
