@@ -5,7 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
+const SECTOR = 'defense';
+const log = (msg: string, err: unknown) => console.warn(`[DefenseCompaniesScreen] ${msg}:`, err);
 
 const SECTOR_COLORS: Record<string, string> = {
   'prime contractor': '#DC2626',
@@ -23,10 +25,9 @@ export default function DefenseCompaniesScreen() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetch(`${API_BASE}/defense/companies?limit=200`)
-      .then(r => r.json())
+    apiClient.getSectorCompanies(SECTOR, { limit: 200 })
       .then((res) => { setCompanies(res.companies || []); })
-      .catch((e: any) => setError(e.message || 'Failed to load'))
+      .catch((e: any) => { setError(e?.message || 'Failed to load'); log('load', e); })
       .finally(() => setLoading(false));
   }, []);
 

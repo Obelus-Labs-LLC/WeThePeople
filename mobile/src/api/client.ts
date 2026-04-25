@@ -667,6 +667,30 @@ class WTPClient {
     return this.fetchJSON(`${this.baseUrl}/influence/closed-loops?${sp}`, opts);
   }
 
+  // ── Anomalies / Stories ──
+
+  async getAnomalies(
+    params?: { limit?: number; offset?: number; entity_type?: string; severity?: string },
+    opts?: FetchOptions,
+  ): Promise<{ total: number; items: any[] }> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', String(params.limit));
+    if (params?.offset !== undefined) sp.set('offset', String(params.offset));
+    if (params?.entity_type) sp.set('entity_type', params.entity_type);
+    if (params?.severity) sp.set('severity', params.severity);
+    return this.fetchJSON(`${this.baseUrl}/anomalies?${sp}`, opts);
+  }
+
+  async getStoriesLatest(
+    params?: { limit?: number; offset?: number },
+    opts?: FetchOptions,
+  ): Promise<{ total: number; items: any[] }> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', String(params.limit));
+    if (params?.offset !== undefined) sp.set('offset', String(params.offset));
+    return this.fetchJSON(`${this.baseUrl}/stories/latest?${sp}`, opts);
+  }
+
   // ── Civic verification ──
 
   async getVerificationStatus(opts?: FetchOptions): Promise<any> {

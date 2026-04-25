@@ -7,7 +7,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
+const log = (msg: string, err: unknown) => console.warn(`[StoriesScreen] ${msg}:`, err);
 const ACCENT = '#059669';
 
 interface Story {
@@ -73,13 +74,15 @@ export default function StoriesScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/stories/latest?limit=20`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: StoriesResponse = await res.json();
-      setStories(data.stories || []);
+      // /stories/latest returns { stories: [...] } per the existing
+      // StoriesResponse type, but the generic getStoriesLatest helper is
+      // typed to { items: [...] }. Tolerate both keys.
+      const data: any = await apiClient.getStoriesLatest({ limit: 20 });
+      setStories(data.stories || data.items || []);
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to load stories');
+      setError(e?.message || 'Failed to load stories');
+      log('loadData', e);
     } finally {
       setLoading(false);
       setRefreshing(false);

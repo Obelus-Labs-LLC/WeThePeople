@@ -7,6 +7,7 @@ import { useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
+import WatchlistButton from '../components/WatchlistButton';
 import type {
   InstitutionDetail, SECFiling, FDICFinancial,
   CFPBComplaint, ComplaintSummary, NewsArticle,
@@ -145,6 +146,16 @@ export default function InstitutionScreen() {
           <SectorTypeBadge sectorType={detail.sector_type} />
           {detail.headquarters && <Text style={styles.headerHQ}>{detail.headquarters}</Text>}
         </View>
+        {institution_id && (
+          <View style={{ marginTop: 10 }}>
+            <WatchlistButton
+              entityType="institution"
+              entityId={institution_id}
+              entityName={detail.display_name}
+              sector="finance"
+            />
+          </View>
+        )}
       </View>
 
       {/* Tabs */}

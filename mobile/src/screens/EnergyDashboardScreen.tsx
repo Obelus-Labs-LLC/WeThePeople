@@ -8,7 +8,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, StatCard, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
+const SECTOR = 'energy';
+const log = (msg: string, err: unknown) => console.warn(`[EnergyDashboardScreen] ${msg}:`, err);
 
 const SECTOR_COLORS: Record<string, string> = {
   'oil & gas': '#475569',
@@ -31,14 +33,15 @@ export default function EnergyDashboardScreen() {
   const loadData = async () => {
     try {
       const [statsRes, compRes] = await Promise.all([
-        fetch(`${API_BASE}/energy/dashboard/stats`).then(r => r.json()),
-        fetch(`${API_BASE}/energy/companies?limit=6`).then(r => r.json()),
+        apiClient.getSectorDashboardStats(SECTOR),
+        apiClient.getSectorCompanies(SECTOR, { limit: 6 }),
       ]);
       setStats(statsRes);
       setCompanies(compRes.companies || []);
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to load');
+      setError(e?.message || 'Failed to load');
+      log('loadData failed', e);
     } finally {
       setLoading(false);
       setRefreshing(false);

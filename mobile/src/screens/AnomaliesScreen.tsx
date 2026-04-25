@@ -7,7 +7,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
+const log = (msg: string, err: unknown) => console.warn(`[AnomaliesScreen] ${msg}:`, err);
 const ACCENT = '#DC2626';
 
 interface Anomaly {
@@ -63,13 +64,16 @@ export default function AnomaliesScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/anomalies?limit=30`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: AnomaliesResponse = await res.json();
-      setAnomalies(data.anomalies || []);
+      // The /anomalies router returns { anomalies: [...] } per the existing
+      // AnomaliesResponse type — the generic getAnomalies helper returns
+      // { items: [...] } for the new response_model. Cast through any to
+      // tolerate both shapes for now.
+      const data: any = await apiClient.getAnomalies({ limit: 30 });
+      setAnomalies(data.anomalies || data.items || []);
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to load anomalies');
+      setError(e?.message || 'Failed to load anomalies');
+      log('loadData', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
