@@ -10,12 +10,12 @@ const SECTOR = 'telecom';
 const log = (msg: string, err: unknown) => console.warn(`[TelecomCompaniesScreen] ${msg}:`, err);
 
 const SECTOR_COLORS: Record<string, string> = {
-  'wireless': '#DB2777',,
-  'broadband': '#0EA5E9',,
-  'cable': '#7C3AED',,
-  'fiber': '#10B981',,
-  'satellite': '#F59E0B',,
-  'infrastructure': '#6B7280',,
+  'wireless': '#DB2777',
+  'broadband': '#0EA5E9',
+  'cable': '#7C3AED',
+  'fiber': '#10B981',
+  'satellite': '#F59E0B',
+  'infrastructure': '#6B7280',
   'voip': '#DC2626',
 };
 
