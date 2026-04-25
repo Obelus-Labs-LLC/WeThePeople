@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useMemo, useState, useEffect } from 'react';
-import ForceGraph2D from 'react-force-graph-2d';
+import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d';
 import { useNavigate } from 'react-router-dom';
 import type { NetworkNode, NetworkEdge } from '../api/influence';
 
@@ -136,7 +136,10 @@ export default function InfluenceGraph({
 }: InfluenceGraphProps) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
-  const fgRef = useRef<any>(undefined);
+  // Use the typed ForceGraphMethods so any breaking change in the lib
+  // (e.g. zoomToFit signature change) surfaces at compile time instead
+  // of failing silently at runtime. Apr 24 audit F7.
+  const fgRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [dimensions, setDimensions] = useState({ w: width || 800, h: height || 600 });
 

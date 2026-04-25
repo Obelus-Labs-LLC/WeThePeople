@@ -47,6 +47,7 @@ export default function InsiderTradesPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const filteredTrades = useMemo(() => {
     if (!search.trim()) return trades;
@@ -60,14 +61,28 @@ export default function InsiderTradesPage() {
   }, [trades, search]);
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
+    setError(null);
+
     const params: Record<string, string | number> = { limit: 100 };
     if (filter) params.transaction_type = filter;
 
-    apiFetch<{ trades: InsiderTradeItem[] }>('/finance/insider-trades', { params })
+    apiFetch<{ trades: InsiderTradeItem[] }>('/finance/insider-trades', {
+      params,
+      signal: controller.signal,
+    })
       .then((res) => setTrades(res.trades || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        console.error('[InsiderTrades] failed to load:', err);
+        setError(err?.message || 'Failed to load insider trades');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [filter]);
 
   if (loading && trades.length === 0) {
@@ -86,6 +101,12 @@ export default function InsiderTradesPage() {
         description="Executive stock transactions from SEC Form 4 filings across tracked financial institutions."
         accent="var(--color-green)"
       />
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          Could not load insider trades: {error}
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">

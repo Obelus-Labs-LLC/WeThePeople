@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState, useCallback} from 'react';
 import { DollarSign, Landmark, Shield, FileBadge } from 'lucide-react';
 import { TechSectorHeader } from '../components/SectorHeader';
 import CompanyLogo from '../components/CompanyLogo';
@@ -97,8 +97,10 @@ export default function TechDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     let cancelled = false;
+    setError(null);
+    setLoading(true);
     Promise.all([
       getTechDashboardStats(),
       getTechCompanies({ limit: 6 }),
@@ -115,6 +117,11 @@ export default function TechDashboardPage() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    const teardown = loadData();
+    return teardown;
+  }, [loadData]);
+
   if (error) {
     return (
       <div className="flex h-screen items-center justify-center" style={{ background: 'var(--color-bg)' }}>
@@ -124,7 +131,7 @@ export default function TechDashboardPage() {
           </p>
           <p style={{ color: 'var(--color-text-3)', fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{error}</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => loadData()}
             style={{
               marginTop: 16,
               padding: '8px 16px',

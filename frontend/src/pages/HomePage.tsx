@@ -96,23 +96,22 @@ function LiveBadge() {
 // ─────────────────────────────────────────────────────────────────────
 
 function StatsTicker({ stats }: { stats: InfluenceStats | null }) {
-  const items = stats
-    ? [
-        `${formatMoney(stats.total_lobbying_spend)} in lobbying tracked`,
-        `${stats.politicians_connected.toLocaleString()} politicians monitored`,
-        `${SECTORS.length} industry sectors`,
-        `${formatMoney(stats.total_contract_value)} in gov contracts`,
-        `${stats.total_enforcement_actions.toLocaleString()} enforcement actions`,
-        "30+ government data sources",
-      ]
-    : [
-        "$4.2B in lobbying tracked",
-        "535 politicians monitored",
-        "11 industry sectors",
-        "$8.7B in gov contracts",
-        "50,000+ enforcement actions",
-        "30+ government data sources",
-      ];
+  // Only show ticker entries we can actually back with live data. The
+  // ticker used to fall back to hard-coded numbers ("$4.2B in lobbying
+  // tracked, 535 politicians monitored, ...") whenever /influence/stats
+  // failed — that presented fabricated figures as live data, which is
+  // exactly the fabrication-guard problem we cleaned up elsewhere.
+  // Static-only entries (sector count, sources count) are safe; live
+  // entries are skipped if the stats payload is missing.
+  const items: string[] = [];
+  if (stats) {
+    items.push(`${formatMoney(stats.total_lobbying_spend)} in lobbying tracked`);
+    items.push(`${stats.politicians_connected.toLocaleString()} politicians monitored`);
+    items.push(`${formatMoney(stats.total_contract_value)} in gov contracts`);
+    items.push(`${stats.total_enforcement_actions.toLocaleString()} enforcement actions`);
+  }
+  items.push(`${SECTORS.length} industry sectors`);
+  items.push("30+ government data sources");
   // Doubled for seamless translateX(-50%) loop
   const loop = [...items, ...items];
 
@@ -492,10 +491,16 @@ function LeaderboardSection({
         {title}
       </h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {rows.map((l, i) => (
+        {rows.map((l, i) => {
+          // Skip rows whose sector we don't recognise — falling back to
+          // "/" produced URLs like "//entity_id" (double slash) that
+          // matched no route and 404'd via NotFoundPage.
+          const sectorRoute = SECTOR_ROUTES[l.sector];
+          if (!sectorRoute) return null;
+          return (
           <Link
             key={l.entity_id}
-            to={`${SECTOR_ROUTES[l.sector] || "/"}/${l.entity_id}`}
+            to={`${sectorRoute}/${l.entity_id}`}
             style={{
               display: "flex",
               alignItems: "center",
@@ -553,7 +558,8 @@ function LeaderboardSection({
               {formatMoney((l[valueKey] as number) || 0)}
             </span>
           </Link>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -240,17 +240,24 @@ export default function InstitutionPage() {
         .then((r) => { setDonationsData(r.donations || []); setDonationsTotal(r.total || 0); setDonationsLoaded(true); })
         .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
     }
-    if (activeTab === 'financials' && !pressLoaded) {
-      // Load press + FRED + filings in the collapsed financials tab
-      Promise.all([
-        pressLoaded ? Promise.resolve(null) : getInstitutionPressReleases(institution_id, { limit: 50 }),
-        fredLoaded ? Promise.resolve(null) : getInstitutionFRED(institution_id, { limit: 200 }),
-      ]).then(([pr, fr]) => {
-        if (pr) { setPressReleases(pr.press_releases || []); setPressLoaded(true); }
-        if (fr) { setFredData(fr.observations || []); setFredLoaded(true); }
-      }).catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
+    if (activeTab === 'financials' && (!pressLoaded || !fredLoaded)) {
+      // Press releases + FRED observations both surface in the financials
+      // tab. Previously the outer guard was `!pressLoaded`, so once press
+      // loaded successfully on visit #1, FRED was never re-tried on visit
+      // #2 even if it had failed (Apr 24 audit F4). Each loader now has
+      // its own gate.
+      if (!pressLoaded) {
+        getInstitutionPressReleases(institution_id, { limit: 50 })
+          .then((pr) => { setPressReleases(pr.press_releases || []); setPressLoaded(true); })
+          .catch((err) => { console.warn('[InstitutionPage] press fetch failed:', err); });
+      }
+      if (!fredLoaded) {
+        getInstitutionFRED(institution_id, { limit: 200 })
+          .then((fr) => { setFredData(fr.observations || []); setFredLoaded(true); })
+          .catch((err) => { console.warn('[InstitutionPage] FRED fetch failed:', err); });
+      }
     }
-  }, [activeTab, institution_id, complaintsLoaded, tradesLoaded, pressLoaded, fredLoaded, lobbyingLoaded, contractsLoaded, enforcementLoaded, donationsLoaded, tradeFilter]);
+  }, [activeTab, institution_id, tradesLoaded, pressLoaded, fredLoaded, lobbyingLoaded, contractsLoaded, enforcementLoaded, donationsLoaded, tradeFilter]);
 
   // Re-fetch trades on filter change
   useEffect(() => {

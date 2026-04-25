@@ -5,7 +5,11 @@
       "destination": "https://api.wethepeopleforus.com/:path*"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/claims/:path*",
+      "destination": "https://api.wethepeopleforus.com/claims/:path*"
+    },
+    {
+      "source": "/((?!api/|claims/).*)",
       "destination": "/index.html"
     }
   ]
