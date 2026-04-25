@@ -28,6 +28,36 @@ interface WatchlistItem {
   created_at: string;
 }
 
+// Map a watchlist row to its detail URL. Routes are registered as
+// `/{sector}/:companyId` (no `/companies/` segment), and finance uses
+// `/finance/:institution_id`. Returns `null` if we don't know how to
+// link this entity, so the caller can render a non-link fallback —
+// avoids the 404 that the previous unconditional URL produced for any
+// non-politician entity_type.
+function watchlistItemUrl(item: WatchlistItem): string | null {
+  if (item.entity_type === 'politician' || item.entity_type === 'person') {
+    return `/politics/people/${item.entity_id}`;
+  }
+  if (item.entity_type === 'bill') {
+    return `/politics/bill/${item.entity_id}`;
+  }
+  if (item.entity_type === 'institution' || item.sector === 'finance') {
+    return `/finance/${item.entity_id}`;
+  }
+  if (item.entity_type === 'company') {
+    const sector = item.sector || 'technology';
+    // Sector slugs in the watchlist sometimes use the API slug (`tech`)
+    // and the route uses `/technology/`. Normalise here.
+    const routeSector = sector === 'tech' ? 'technology' : sector;
+    return `/${routeSector}/${item.entity_id}`;
+  }
+  if (item.entity_type === 'sector' && item.sector) {
+    const routeSector = item.sector === 'tech' ? 'technology' : item.sector;
+    return `/${routeSector}`;
+  }
+  return null;
+}
+
 interface APIKey {
   id: number;
   name: string;
@@ -548,25 +578,26 @@ export default function AccountPage() {
 
                 <div style={card}>
                   <h3 style={sectionTitle}>Password</h3>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={fieldLabel}>Current password</label>
-                    <input type="password" style={fieldInput} placeholder="••••••••" />
-                  </div>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={fieldLabel}>New password</label>
-                    <input type="password" style={fieldInput} placeholder="At least 12 chars" />
-                  </div>
-                  <button
-                    type="button"
-                    style={{ ...secondaryBtn, marginTop: 4 }}
-                    onClick={() =>
-                      alert(
-                        'Password reset API is coming soon. Email wethepeopleforus@gmail.com for now.',
-                      )
-                    }
+                  <div
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 13,
+                      color: 'var(--color-text-2)',
+                      lineHeight: 1.5,
+                      marginBottom: 12,
+                    }}
                   >
-                    Update password
-                  </button>
+                    Self-serve password change is not yet wired up. Until it
+                    is, email <strong>wethepeopleforus@gmail.com</strong> from
+                    your account address and we will reset it manually within
+                    one business day.
+                  </div>
+                  <a
+                    href="mailto:wethepeopleforus@gmail.com?subject=Password%20reset%20request"
+                    style={{ ...secondaryBtn, marginTop: 4, display: 'inline-block', textDecoration: 'none' }}
+                  >
+                    Email password reset
+                  </a>
                 </div>
               </div>
 
@@ -814,28 +845,34 @@ export default function AccountPage() {
                     }}
                   >
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <Link
-                        to={
-                          item.entity_type === 'politician'
-                            ? `/politics/people/${item.entity_id}`
-                            : `/${item.sector || 'tech'}/companies/${item.entity_id}`
-                        }
-                        style={{
+                      {(() => {
+                        const url = watchlistItemUrl(item);
+                        const labelStyle = {
                           fontFamily: "'Inter', sans-serif",
                           fontSize: 13,
                           fontWeight: 600,
                           color: 'var(--color-text-1)',
                           textDecoration: 'none',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = 'var(--color-accent-text)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = 'var(--color-text-1)';
-                        }}
-                      >
-                        {item.entity_name || item.entity_id}
-                      </Link>
+                        } as const;
+                        const label = item.entity_name || item.entity_id;
+                        if (!url) {
+                          return <span style={labelStyle}>{label}</span>;
+                        }
+                        return (
+                          <Link
+                            to={url}
+                            style={labelStyle}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = 'var(--color-accent-text)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = 'var(--color-text-1)';
+                            }}
+                          >
+                            {label}
+                          </Link>
+                        );
+                      })()}
                       <div
                         style={{
                           fontFamily: "'Inter', sans-serif",

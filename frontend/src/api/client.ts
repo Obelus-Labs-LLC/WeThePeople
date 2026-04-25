@@ -53,7 +53,24 @@ export function getApiBaseUrl(): string {
       try {
         const parsed = new URL(apiOverride);
         const allowed = ['localhost', '127.0.0.1', 'api.wethepeopleforus.com'];
-        if (allowed.includes(parsed.hostname)) return apiOverride.replace(/\/$/, '');
+        // Reject URLs that include a userinfo segment. `URL` resolves
+        // hostname correctly for `https://attacker@victim/...` (hostname
+        // is "victim", which would pass the allowlist), but the userinfo
+        // can still cause the browser to send credentials to the host
+        // and is a common phishing/exfil vector. Reject any url that
+        // tries to use it.
+        if (parsed.username || parsed.password) {
+          return import.meta.env.VITE_API_BASE_URL || '/api';
+        }
+        if (!allowed.includes(parsed.hostname)) {
+          return import.meta.env.VITE_API_BASE_URL || '/api';
+        }
+        // Use the parsed URL's origin + pathname rather than the raw
+        // override string. This drops any trailing query/fragment a
+        // caller stuffed in there, and normalises away weirdness like
+        // multiple consecutive slashes.
+        const normalised = parsed.origin + parsed.pathname.replace(/\/$/, '');
+        return normalised;
       } catch { /* ignore invalid URLs */ }
     }
   }

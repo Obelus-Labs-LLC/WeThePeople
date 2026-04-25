@@ -762,17 +762,8 @@ export default function PoliticsDashboardPage() {
               >
                 Balance of power
               </span>
-              <Link
-                to="/politics/balance-of-power"
-                className="no-underline"
-                style={{
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 12,
-                  color: 'var(--color-accent-text)',
-                }}
-              >
-                Full breakdown →
-              </Link>
+              {/* The standalone /politics/balance-of-power page was merged
+                  into this dashboard. Link removed (was a 404). */}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               <ChamberBar label="House of Representatives" breakdown={house} />
