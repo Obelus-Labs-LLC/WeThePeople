@@ -67,37 +67,64 @@ export default function ForeignLobbyingPage() {
   const [search, setSearch] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch countries + stats on mount
   useEffect(() => {
-    apiFetch<{ countries: CountryItem[] }>('/fara/countries')
-      .then((res) => setCountries(res.countries || []))
-      .catch(() => {});
+    const controller = new AbortController();
 
-    apiFetch<StatsData>('/fara/stats')
+    apiFetch<{ countries: CountryItem[] }>('/fara/countries', { signal: controller.signal })
+      .then((res) => setCountries(res.countries || []))
+      .catch((err) => {
+        if (err?.name !== 'AbortError') {
+          console.warn('[ForeignLobbying] countries failed:', err);
+        }
+      });
+
+    apiFetch<StatsData>('/fara/stats', { signal: controller.signal })
       .then((res) => setStats(res))
-      .catch(() => {});
+      .catch((err) => {
+        if (err?.name !== 'AbortError') {
+          console.warn('[ForeignLobbying] stats failed:', err);
+        }
+      });
+
+    return () => controller.abort();
   }, []);
 
   // Fetch data when filters change
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
+    setError(null);
+
     const params: Record<string, string | number> = { limit: 100 };
     if (search.trim()) params.search = search.trim();
     if (countryFilter) params.country = countryFilter;
     if (statusFilter) params.status = statusFilter;
 
-    if (view === 'registrants') {
-      apiFetch<{ registrants: Registrant[]; total: number }>('/fara/registrants', { params })
-        .then((res) => setRegistrants(res.registrants || []))
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    } else {
-      apiFetch<{ foreign_principals: ForeignPrincipal[]; total: number }>('/fara/foreign-principals', { params })
-        .then((res) => setPrincipals(res.foreign_principals || []))
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    }
+    const fetchPromise =
+      view === 'registrants'
+        ? apiFetch<{ registrants: Registrant[]; total: number }>('/fara/registrants', {
+            params,
+            signal: controller.signal,
+          }).then((res) => setRegistrants(res.registrants || []))
+        : apiFetch<{ foreign_principals: ForeignPrincipal[]; total: number }>('/fara/foreign-principals', {
+            params,
+            signal: controller.signal,
+          }).then((res) => setPrincipals(res.foreign_principals || []));
+
+    fetchPromise
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        console.error('[ForeignLobbying] failed to load:', err);
+        setError(err?.message || 'Failed to load FARA data');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [view, search, countryFilter, statusFilter]);
 
   // Local search filtering
@@ -139,6 +166,12 @@ export default function ForeignLobbyingPage() {
         description="Foreign Agents Registration Act data — who lobbies for foreign governments and entities in the United States."
         accent="var(--color-ind)"
       />
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          Could not load FARA data: {error}
+        </div>
+      )}
 
       {/* Stats cards */}
       {stats && (
