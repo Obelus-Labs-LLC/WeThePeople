@@ -8,7 +8,8 @@ import { useNavigation } from '@react-navigation/native';
 import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
+const log = (msg: string, err: unknown) => console.warn(`[CongressionalTradesScreen] ${msg}:`, err);
 const ACCENT = '#2563EB';
 
 interface Trade {
@@ -49,14 +50,13 @@ export default function CongressionalTradesScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/congressional-trades?limit=50`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: TradesResponse = await res.json();
-      setTrades(data.trades || []);
-      setTotal(data.total || 0);
+      const data = await apiClient.getCongressionalTrades({ limit: 50 });
+      setTrades((data as any).trades || []);
+      setTotal((data as any).total || 0);
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to load trades');
+      setError(e?.message || 'Failed to load trades');
+      log('loadData', e);
     } finally {
       setLoading(false);
       setRefreshing(false);

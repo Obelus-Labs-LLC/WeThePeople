@@ -7,6 +7,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
+import WatchlistButton from '../components/WatchlistButton';
 import type {
   TechCompanyDetail, SECFiling, TechPatentItem,
   ContractItem, ContractSummary, ContractTrendYear,
@@ -236,6 +237,14 @@ export default function TechCompanyScreen() {
                 <Text style={[styles.sectorBadgeText, { color: sectorColor }]}>{company.sector_type}</Text>
               </View>
               {company.headquarters && <Text style={styles.headerHQ}>{company.headquarters}</Text>}
+              {companyId && (
+                <WatchlistButton
+                  entityType="company"
+                  entityId={companyId}
+                  entityName={company.display_name}
+                  sector="tech"
+                />
+              )}
             </View>
           </View>
         </View>

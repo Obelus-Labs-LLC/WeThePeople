@@ -7,7 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UI_COLORS } from '../constants/colors';
 
-import { API_BASE } from '../api/client';
+import { apiClient } from '../api/client';
+const log = (msg: string, err: unknown) => console.warn(`[ChatAgentScreen] ${msg}:`, err);
 const ACCENT = '#7C3AED';
 
 interface ChatAction {
@@ -93,13 +94,7 @@ export default function ChatAgentScreen() {
     scrollToBottom();
 
     try {
-      const res = await fetch(`${API_BASE}/chat/ask`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: cleaned }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await apiClient.askChat(cleaned);
       const assistantMsg: ChatMessage = {
         role: 'assistant',
         text: data.answer || 'No response.',
@@ -108,7 +103,8 @@ export default function ChatAgentScreen() {
       setMessages((prev) => [...prev, assistantMsg]);
       if (data.remaining != null) setRemaining(data.remaining);
     } catch (e: any) {
-      setError(e.message || 'Failed to send message');
+      setError(e?.message || 'Failed to send message');
+      log('askChat', e);
       const errMsg: ChatMessage = {
         role: 'assistant',
         text: 'Sorry, something went wrong. Please try again.',
