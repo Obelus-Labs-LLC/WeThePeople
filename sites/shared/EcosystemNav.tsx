@@ -40,7 +40,7 @@
 // This also keeps the shared file dependency-free, which matters because
 // it's symlinked into per-site tsconfigs that have their own React install.
 
-export type EcosystemSite = 'core' | 'verify' | 'research' | 'journal';
+export type EcosystemSite = 'core' | 'civic' | 'verify' | 'research' | 'journal';
 
 interface EcosystemNavProps {
   active: EcosystemSite;
@@ -70,6 +70,16 @@ const SITES: Record<Exclude<EcosystemSite, 'core'>, SiteDef> & { core: SiteDef }
     dim: 'rgba(197,160,40,0.12)',
     text: '#D8B84A',
     mark: 'WTP',
+  },
+  civic: {
+    key: 'civic',
+    name: 'Civic Hub',
+    display: 'Civic Hub',
+    href: 'https://wethepeopleforus.com/civic',
+    accent: '#C5A028',
+    dim: 'rgba(197,160,40,0.12)',
+    text: '#D8B84A',
+    mark: 'CIV',
   },
   verify: {
     key: 'verify',
@@ -105,7 +115,7 @@ const SITES: Record<Exclude<EcosystemSite, 'core'>, SiteDef> & { core: SiteDef }
 
 // Order shown in the switcher. "core" is represented by the WTP brand mark on
 // the far left, not as a button, so it doesn't appear here.
-const SWITCHER_ORDER: Exclude<EcosystemSite, 'core'>[] = ['verify', 'research', 'journal'];
+const SWITCHER_ORDER: Exclude<EcosystemSite, 'core'>[] = ['civic', 'verify', 'research', 'journal'];
 
 // Tokenless palette — these colors are baked into the design spec rather than
 // driven by per-site CSS vars, since the nav must look identical across all

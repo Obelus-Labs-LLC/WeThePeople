@@ -18,7 +18,7 @@
  * sibling project's node_modules. Keep the four copies in sync visually.
  */
 
-type EcosystemSite = 'core' | 'verify' | 'research' | 'journal';
+type EcosystemSite = 'core' | 'civic' | 'verify' | 'research' | 'journal';
 
 interface EcosystemNavProps {
   /** Highlights the current site in the switcher. Defaults to 'core'. */
@@ -46,6 +46,16 @@ const SITES: Record<Exclude<EcosystemSite, 'core'>, SiteDef> & { core: SiteDef }
     dim: 'rgba(197,160,40,0.12)',
     text: '#D8B84A',
     mark: 'WTP',
+  },
+  civic: {
+    key: 'civic',
+    name: 'Civic Hub',
+    display: 'Civic Hub',
+    href: '/civic',
+    accent: '#C5A028',
+    dim: 'rgba(197,160,40,0.12)',
+    text: '#D8B84A',
+    mark: 'CIV',
   },
   verify: {
     key: 'verify',
@@ -79,7 +89,7 @@ const SITES: Record<Exclude<EcosystemSite, 'core'>, SiteDef> & { core: SiteDef }
   },
 };
 
-const SWITCHER_ORDER: Exclude<EcosystemSite, 'core'>[] = ['verify', 'research', 'journal'];
+const SWITCHER_ORDER: Exclude<EcosystemSite, 'core'>[] = ['civic', 'verify', 'research', 'journal'];
 
 // Tokenless palette — baked so the nav looks identical across all sites.
 const T1 = '#EBE5D5';
