@@ -181,6 +181,9 @@ export default function HomeScreen() {
               { screen: 'LobbyingBreakdown', icon: 'megaphone' as const, name: 'Lobbying Breakdown', desc: 'What tech companies lobby about', accent: '#F59E0B' },
               { screen: 'ContractTimeline', icon: 'calendar' as const, name: 'Contract Timeline', desc: 'Tech contracts by year', accent: '#10B981' },
               { screen: 'Account', icon: 'person-circle' as const, name: 'Account', desc: 'Follow politicians, companies, bills', accent: '#2563EB' },
+              { screen: 'DataExplorer', icon: 'compass' as const, name: 'Data Explorer', desc: 'Every data tool in one place', accent: '#6366F1' },
+              { screen: 'InfluenceExplorer', icon: 'pulse' as const, name: 'Influence Explorer', desc: 'Top lobbyists, contractors, stats', accent: '#7C3AED' },
+              { screen: 'DataStory', icon: 'book' as const, name: 'State of the Data', desc: 'One-read summary of everything', accent: '#059669' },
             ].map((tool) => (
               <TouchableOpacity
                 key={tool.screen}

@@ -76,6 +76,16 @@ import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import AccountScreen from '../screens/AccountScreen';
 
+// Wave C rest — civic + influence + data + state
+import CivicVerifyScreen from '../screens/CivicVerifyScreen';
+import InfluenceExplorerScreen from '../screens/InfluenceExplorerScreen';
+import InfluenceMapScreen from '../screens/InfluenceMapScreen';
+import MoneyFlowScreen from '../screens/MoneyFlowScreen';
+import ClosedLoopScreen from '../screens/ClosedLoopScreen';
+import DataExplorerScreen from '../screens/DataExplorerScreen';
+import DataStoryScreen from '../screens/DataStoryScreen';
+import StateDashboardScreen from '../screens/StateDashboardScreen';
+
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 const Tab = createBottomTabNavigator();
@@ -381,6 +391,47 @@ function HomeStackScreen() {
         name="Account"
         component={AccountScreen}
         options={{ title: 'Account' }}
+      />
+      {/* Wave C: civic + influence + data + state */}
+      <HomeStack.Screen
+        name="CivicVerify"
+        component={CivicVerifyScreen}
+        options={{ title: 'Verify residence' }}
+      />
+      <HomeStack.Screen
+        name="InfluenceExplorer"
+        component={InfluenceExplorerScreen}
+        options={{ title: 'Influence Explorer' }}
+      />
+      <HomeStack.Screen
+        name="InfluenceMap"
+        component={InfluenceMapScreen}
+        options={{ title: 'Spend by State' }}
+      />
+      <HomeStack.Screen
+        name="MoneyFlow"
+        component={MoneyFlowScreen}
+        options={{ title: 'Money Flow' }}
+      />
+      <HomeStack.Screen
+        name="ClosedLoop"
+        component={ClosedLoopScreen}
+        options={{ title: 'Closed Loops' }}
+      />
+      <HomeStack.Screen
+        name="DataExplorer"
+        component={DataExplorerScreen}
+        options={{ title: 'Data Explorer' }}
+      />
+      <HomeStack.Screen
+        name="DataStory"
+        component={DataStoryScreen}
+        options={{ title: 'State of the Data' }}
+      />
+      <HomeStack.Screen
+        name="StateDashboard"
+        component={StateDashboardScreen}
+        options={{ title: '' }}
       />
     </HomeStack.Navigator>
   );

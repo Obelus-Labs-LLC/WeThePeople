@@ -624,6 +624,93 @@ class WTPClient {
     return this.fetchJSON(`${this.baseUrl}/influence/network?${sp}`, opts);
   }
 
+  async getInfluenceStats(opts?: FetchOptions): Promise<any> {
+    return this.fetchJSON(`${this.baseUrl}/influence/stats`, opts);
+  }
+
+  async getSpendingByState(
+    params?: { metric?: 'lobbying' | 'contracts'; sector?: string; limit?: number },
+    opts?: FetchOptions,
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.metric) sp.set('metric', params.metric);
+    if (params?.sector) sp.set('sector', params.sector);
+    if (params?.limit !== undefined) sp.set('limit', String(params.limit));
+    return this.fetchJSON(`${this.baseUrl}/influence/spending-by-state?${sp}`, opts);
+  }
+
+  async getMoneyFlow(
+    // Backend constrains limit to 5..50 via fastapi.Query(ge=5, le=50). Anything
+    // below 5 returns 422 — clamp here so mobile callers can pass a "sensible
+    // default" without thinking about the boundary.
+    params?: { limit?: number; sector?: string },
+    opts?: FetchOptions,
+  ): Promise<{ nodes: Array<{ name: string; group: string }>; links: Array<{ source: number; target: number; value: number }> }> {
+    const sp = new URLSearchParams();
+    const limit = Math.max(5, Math.min(50, params?.limit ?? 15));
+    sp.set('limit', String(limit));
+    if (params?.sector) sp.set('sector', params.sector);
+    return this.fetchJSON(`${this.baseUrl}/influence/money-flow?${sp}`, opts);
+  }
+
+  async getClosedLoops(
+    params?: { entity_type?: string; entity_id?: string; min_donation?: number; year_from?: number; year_to?: number; limit?: number },
+    opts?: FetchOptions,
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.entity_type) sp.set('entity_type', params.entity_type);
+    if (params?.entity_id) sp.set('entity_id', params.entity_id);
+    if (params?.min_donation !== undefined) sp.set('min_donation', String(params.min_donation));
+    if (params?.year_from !== undefined) sp.set('year_from', String(params.year_from));
+    if (params?.year_to !== undefined) sp.set('year_to', String(params.year_to));
+    if (params?.limit !== undefined) sp.set('limit', String(params.limit));
+    return this.fetchJSON(`${this.baseUrl}/influence/closed-loops?${sp}`, opts);
+  }
+
+  // ── Civic verification ──
+
+  async getVerificationStatus(opts?: FetchOptions): Promise<any> {
+    return this.fetchJSON(`${this.baseUrl}/civic/verification`, opts);
+  }
+
+  async verifyResidence(zipCode: string, opts?: FetchOptions): Promise<any> {
+    return this.fetchJSON(`${this.baseUrl}/civic/verify/residence`, {
+      ...(opts || {}),
+      method: 'POST',
+      body: { zip_code: zipCode },
+    });
+  }
+
+  // ── State data (extended) ──
+
+  async getStateLegislators(
+    stateCode: string, params?: { limit?: number; offset?: number; chamber?: string },
+    opts?: FetchOptions,
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', String(params.limit));
+    if (params?.offset !== undefined) sp.set('offset', String(params.offset));
+    if (params?.chamber) sp.set('chamber', params.chamber);
+    return this.fetchJSON(
+      `${this.baseUrl}/states/${encodeURIComponent(stateCode)}/legislators?${sp}`,
+      opts,
+    );
+  }
+
+  async getStateBills(
+    stateCode: string, params?: { limit?: number; offset?: number; status?: string },
+    opts?: FetchOptions,
+  ): Promise<any> {
+    const sp = new URLSearchParams();
+    if (params?.limit !== undefined) sp.set('limit', String(params.limit));
+    if (params?.offset !== undefined) sp.set('offset', String(params.offset));
+    if (params?.status) sp.set('status', params.status);
+    return this.fetchJSON(
+      `${this.baseUrl}/states/${encodeURIComponent(stateCode)}/bills?${sp}`,
+      opts,
+    );
+  }
+
   // ── Activity feed ──
 
   async getRecentActivity(
