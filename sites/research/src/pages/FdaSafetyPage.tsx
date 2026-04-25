@@ -67,35 +67,68 @@ export default function FdaSafetyPage() {
   const [search, setSearch] = useState('');
   const [classFilter, setClassFilter] = useState<string | null>(null);
   const [seriousOnly, setSeriousOnly] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Load companies, then fan out for recalls + adverse events
   useEffect(() => {
-    apiFetch<{ companies: HealthCompany[] }>('/health/companies', { params: { limit: 200 } })
+    const controller = new AbortController();
+    setError(null);
+
+    apiFetch<{ companies: HealthCompany[] }>('/health/companies', {
+      params: { limit: 200 },
+      signal: controller.signal,
+    })
       .then((res) => {
         const comps = res.companies || [];
         setCompanies(comps);
         const subset = comps.slice(0, 20);
 
         const recallPromises = subset.map((c) =>
-          apiFetch<{ recalls: RecallItem[] }>(`/health/companies/${c.company_id}/recalls`, { params: { limit: 50 } })
+          apiFetch<{ recalls: RecallItem[] }>(`/health/companies/${c.company_id}/recalls`, {
+            params: { limit: 50 },
+            signal: controller.signal,
+          })
             .then((r) => (r.recalls || []).map((item) => ({ ...item, companyId: c.company_id, companyName: c.display_name })))
-            .catch(() => [] as RecallWithCompany[])
+            .catch((err) => {
+              if (err?.name !== 'AbortError') {
+                console.warn(`[FdaSafety] recalls failed for ${c.display_name}:`, err);
+              }
+              return [] as RecallWithCompany[];
+            })
         );
 
         const aePromises = subset.map((c) =>
-          apiFetch<{ adverse_events: AdverseEventItem[] }>(`/health/companies/${c.company_id}/adverse-events`, { params: { limit: 50 } })
+          apiFetch<{ adverse_events: AdverseEventItem[] }>(`/health/companies/${c.company_id}/adverse-events`, {
+            params: { limit: 50 },
+            signal: controller.signal,
+          })
             .then((r) => (r.adverse_events || []).map((item) => ({ ...item, companyId: c.company_id, companyName: c.display_name })))
-            .catch(() => [] as AdverseEventWithCompany[])
+            .catch((err) => {
+              if (err?.name !== 'AbortError') {
+                console.warn(`[FdaSafety] adverse events failed for ${c.display_name}:`, err);
+              }
+              return [] as AdverseEventWithCompany[];
+            })
         );
 
         return Promise.all([Promise.all(recallPromises), Promise.all(aePromises)]);
       })
-      .then(([recallArrays, aeArrays]) => {
+      .then((results) => {
+        if (!results) return;
+        const [recallArrays, aeArrays] = results;
         setRecalls(recallArrays.flat().sort((a, b) => (b.recall_initiation_date || '').localeCompare(a.recall_initiation_date || '')));
         setAdverseEvents(aeArrays.flat().sort((a, b) => (b.receive_date || '').localeCompare(a.receive_date || '')));
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        console.error('[FdaSafety] failed to load:', err);
+        setError(err?.message || 'Failed to load FDA safety data');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
   }, []);
 
   const filteredRecalls = useMemo(() => {
@@ -139,6 +172,11 @@ export default function FdaSafetyPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          Could not load FDA safety data: {error}
+        </div>
+      )}
       <ToolHeader
         eyebrow="FDA Safety"
         title="FDA Safety Monitor"

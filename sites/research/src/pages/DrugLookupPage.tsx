@@ -77,11 +77,24 @@ export default function DrugLookupPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ResultTab>('recalls');
 
+  const [companiesError, setCompaniesError] = useState<string | null>(null);
+
   useEffect(() => {
-    apiFetch<{ companies: HealthCompany[] }>('/health/companies', { params: { limit: 200 } })
+    const controller = new AbortController();
+    apiFetch<{ companies: HealthCompany[] }>('/health/companies', {
+      params: { limit: 200 },
+      signal: controller.signal,
+    })
       .then((res) => setCompanies(res.companies || []))
-      .catch(() => {})
-      .finally(() => setInitialLoading(false));
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        console.error('[DrugLookup] failed to load companies:', err);
+        setCompaniesError(err?.message || 'Failed to load company list');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setInitialLoading(false);
+      });
+    return () => controller.abort();
   }, []);
 
   const handleSearch = useCallback(async () => {
@@ -189,6 +202,13 @@ export default function DrugLookupPage() {
           {loading ? 'Searching...' : 'Search'}
         </button>
       </div>
+
+      {/* Companies load error */}
+      {!initialLoading && companiesError && companies.length === 0 && (
+        <div className="mb-6 rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          Could not load company list: {companiesError}. Search is disabled until reload.
+        </div>
+      )}
 
       {/* Loading */}
       {loading && (
