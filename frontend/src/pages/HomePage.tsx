@@ -50,48 +50,6 @@ function formatMoney(n: number): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Hero overline badge — gold dim chip with pulsing dot
-// ─────────────────────────────────────────────────────────────────────
-
-function LiveBadge() {
-  return (
-    <div
-      className="inline-flex items-center"
-      style={{
-        gap: 8,
-        border: "1px solid var(--color-accent-dim)",
-        borderRadius: "var(--radius-pill)",
-        padding: "5px 14px",
-        background: "var(--color-accent-dim)",
-        marginBottom: 36,
-      }}
-    >
-      <span
-        className="animate-pulse-dot"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--color-accent)",
-        }}
-      />
-      <span
-        style={{
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          color: "var(--color-accent-text)",
-        }}
-      >
-        Civic Transparency Platform
-      </span>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────
 // Stats ticker — horizontally scrolling between hero and sector grid
 // ─────────────────────────────────────────────────────────────────────
 
@@ -134,7 +92,6 @@ function StatsTicker({ stats }: { stats: InfluenceStats | null }) {
         }}
       >
         <span
-          className="animate-pulse-dot"
           style={{
             width: 6,
             height: 6,
@@ -205,11 +162,11 @@ function SectorGrid() {
             fontWeight: 700,
             letterSpacing: "0.12em",
             textTransform: "uppercase",
-            color: "var(--color-accent-text)",
+            color: "var(--color-text-3)",
             marginBottom: 8,
           }}
         >
-          Explore by sector
+          Or browse by industry
         </div>
         <h2
           style={{
@@ -286,7 +243,8 @@ function SectorGrid() {
                 {sector.name}
               </div>
 
-              {/* Tagline — only on hover */}
+              {/* Tagline — always visible so each tile telegraphs what's
+                  inside instead of hiding the promise behind a hover. */}
               <div
                 style={{
                   fontFamily: "'Inter', sans-serif",
@@ -294,7 +252,6 @@ function SectorGrid() {
                   color: "var(--color-text-2)",
                   lineHeight: 1.5,
                   marginTop: 6,
-                  display: isHover ? "block" : "none",
                 }}
               >
                 {sector.tagline}
@@ -315,129 +272,6 @@ function SectorGrid() {
                 }}
               />
             </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// Ecosystem row — Civic Hub + sibling sites
-// ─────────────────────────────────────────────────────────────────────
-
-function EcosystemRow() {
-  // Per CLOD prototype: column layout, 20px padding, border & bg both = accent @ 0.15 alpha,
-  // label (14px 600, accent) + sub (12px TEXT2) + "Open →" (marginTop:8, 12px, accent).
-  // Accent colours come from README spec tokens — gold / emerald / violet / crimson.
-  const tiles = [
-    {
-      to: "/civic",
-      external: false,
-      title: "Civic Hub",
-      tagline: "Promises, proposals, badges",
-      accent: "var(--color-accent)",
-      bg: "rgba(197, 160, 40, 0.15)",
-      border: "rgba(197, 160, 40, 0.15)",
-    },
-    {
-      to: "https://verify.wethepeopleforus.com",
-      external: true,
-      title: "Verify Claims",
-      tagline: "Fact-check politicians",
-      accent: "var(--color-verify)",
-      bg: "rgba(16, 185, 129, 0.15)",
-      border: "rgba(16, 185, 129, 0.15)",
-    },
-    {
-      to: "https://research.wethepeopleforus.com",
-      external: true,
-      title: "Research Tools",
-      tagline: "Patents, drugs, trials, trades",
-      accent: "var(--color-research)",
-      bg: "rgba(139, 92, 246, 0.15)",
-      border: "rgba(139, 92, 246, 0.15)",
-    },
-    {
-      to: "https://journal.wethepeopleforus.com",
-      external: true,
-      title: "Influence Journal",
-      tagline: "Data-driven investigations",
-      accent: "var(--color-journal)",
-      bg: "rgba(230, 57, 70, 0.15)",
-      border: "rgba(230, 57, 70, 0.15)",
-    },
-  ];
-
-  return (
-    <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 32px 40px" }}>
-      <div
-        className="grid"
-        style={{
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 12,
-        }}
-      >
-        {tiles.map((t) => {
-          const content = (
-            <>
-              <div
-                style={{
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: t.accent,
-                }}
-              >
-                {t.title}
-              </div>
-              <div
-                style={{
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 12,
-                  color: "var(--color-text-2)",
-                }}
-              >
-                {t.tagline}
-              </div>
-              <div
-                style={{
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 12,
-                  color: t.accent,
-                  marginTop: 8,
-                }}
-              >
-                Open →
-              </div>
-            </>
-          );
-          const commonStyle: React.CSSProperties = {
-            display: "flex",
-            flexDirection: "column",
-            gap: 4,
-            padding: 20,
-            borderRadius: 10,
-            background: t.bg,
-            border: `1px solid ${t.border}`,
-            textDecoration: "none",
-            cursor: "pointer",
-            transition: "background 0.2s",
-          };
-          return t.external ? (
-            <a
-              key={t.title}
-              href={t.to}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={commonStyle}
-            >
-              {content}
-            </a>
-          ) : (
-            <Link key={t.title} to={t.to} style={commonStyle}>
-              {content}
-            </Link>
           );
         })}
       </div>
@@ -608,19 +442,20 @@ function LeaderboardSection({
         )}
       </div>
 
-      <div style={{ marginTop: 14, textAlign: "center" }}>
+      <div style={{ marginTop: 18, textAlign: "center" }}>
         <Link
           to="/influence"
           className="inline-flex items-center"
           style={{
-            gap: 6,
+            gap: 8,
             fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
+            fontSize: 15,
+            fontWeight: 600,
             color: "var(--color-accent-text)",
             textDecoration: "none",
           }}
         >
-          View full Influence Explorer <ArrowRight style={{ width: 14, height: 14 }} />
+          See the full Influence Explorer <ArrowRight style={{ width: 16, height: 16 }} />
         </Link>
       </div>
     </section>
@@ -670,8 +505,6 @@ const HomePage: React.FC = () => {
           position: "relative",
         }}
       >
-        <LiveBadge />
-
         <h1
           style={{
             fontFamily: "'Playfair Display', serif",
@@ -696,12 +529,25 @@ const HomePage: React.FC = () => {
             fontSize: "clamp(20px, 2.5vw, 30px)",
             lineHeight: 1.5,
             color: "var(--color-text-2)",
-            maxWidth: 640,
-            margin: "0 auto 40px",
+            maxWidth: 680,
+            margin: "0 auto 24px",
           }}
         >
-          Follow the money behind every vote, every bill, every contract —
-          across 11 sectors of corporate influence.
+          See who funds your representatives — every vote, every bill,
+          every contract.
+        </p>
+
+        {/* Brief tension line — sharpens relevance without rage-bait. */}
+        <p
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            letterSpacing: "0.02em",
+            color: "var(--color-text-3)",
+            margin: "0 0 28px",
+          }}
+        >
+          Public records, made readable.
         </p>
 
         {/* ZIP form */}
@@ -822,8 +668,9 @@ const HomePage: React.FC = () => {
       {/* ── SECTOR GRID ── */}
       <SectorGrid />
 
-      {/* ── ECOSYSTEM ── */}
-      <EcosystemRow />
+      {/* Sibling sites (Verify / Research / Journal) and Civic Hub now
+          live exclusively in the EcosystemNav switcher at the top of the
+          page; the redundant landing-page tile row was removed. */}
 
       {/* ── BELOW-FOLD DISCOVERY ── */}
       <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 48 }}>
