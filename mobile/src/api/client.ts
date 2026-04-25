@@ -50,20 +50,21 @@ import type {
   RecentActivityItem,
 } from './types';
 
-// Production API URL loaded from app.config.ts extra.apiUrl.
-// Set WTP_API_URL env var at build time — no hardcoded IPs.
+// Last-resort fallback if expo Constants isn't readable for any reason.
+// Normally the URL comes from app.config.ts -> extra.apiUrl, which already
+// defaults to production when WTP_API_URL is unset at build time.
 const PRODUCTION_API = 'https://api.wethepeopleforus.com';
 
 function getApiUrl(): string {
   try {
-    // Prefer env-driven value from app.config.ts if available
+    // app.config.ts is authoritative — return whatever it provides.
     const fromConfig = Constants.expoConfig?.extra?.apiUrl;
-    if (fromConfig && fromConfig !== PRODUCTION_API) return fromConfig;
+    if (fromConfig) return fromConfig;
 
     const manifest = Constants.manifest ?? Constants.manifest2;
     const fromManifest = (manifest as any)?.extra?.apiUrl
       ?? (manifest as any)?.extra?.expoClient?.extra?.apiUrl;
-    if (fromManifest && fromManifest !== PRODUCTION_API) return fromManifest;
+    if (fromManifest) return fromManifest;
   } catch (_) {
     // Constants may not be available in all contexts
   }
