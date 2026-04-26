@@ -9,6 +9,8 @@ All external API calls go through the connector layer — never raw httpx/reques
 
 import logging
 import os
+import threading
+import time as _time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
@@ -22,6 +24,22 @@ from connectors.fec import search_candidates_research
 from connectors.congress import search_bills
 from models.database import get_db
 from utils.sanitize import escape_like
+
+# /bill-text-search runs a 10-table UNION ALL with `LIKE %x%` on
+# lobbying_issues / specific_issues — no index, no LIMIT inside the
+# per-table SELECT. Cache results for 5 minutes by (query, congress, limit)
+# so repeat searches (very common when users explore the page) cost nothing.
+_bill_search_cache: dict = {}
+_bill_search_lock = threading.Lock()
+_BILL_SEARCH_TTL = 300  # 5 minutes
+
+# /company-lookup proxies OpenCorporates which is a paid API; without a
+# cache, a user typing "apple" + "appl" + "apple inc" hits OpenCorporates
+# three times for very similar payloads. Cache by (query, jurisdiction)
+# for 1 hour — corporate registry data rarely changes minute-to-minute.
+_company_lookup_cache: dict = {}
+_company_lookup_lock = threading.Lock()
+_COMPANY_LOOKUP_TTL = 3600  # 1 hour
 
 logger = logging.getLogger(__name__)
 
@@ -192,13 +210,24 @@ def _build_lobbying_union_query(search_term: str) -> str:
 
 @router.get("/bill-text-search")
 def bill_text_search(
-    query: str = Query(..., description="Search term (lobbying issue, industry term, etc.)"),
+    query: str = Query(..., min_length=3, description="Search term (lobbying issue, industry term, etc.)"),
     congress: int = Query(119, description="Congress number"),
     limit: int = Query(25, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     """Search congressional bills via Congress.gov API and cross-reference with
-    lobbying filings from our database that mention the same terms."""
+    lobbying filings from our database that mention the same terms.
+
+    Cached for 5 minutes by (query, congress, limit). Single-character queries
+    are rejected via min_length=3 — `%a%` against 10 unindexed tables would
+    return millions of rows.
+    """
+    cache_key = (query.strip().lower(), congress, limit)
+    now = _time.time()
+    with _bill_search_lock:
+        cached = _bill_search_cache.get(cache_key)
+        if cached and (now - cached["ts"]) < _BILL_SEARCH_TTL:
+            return cached["data"]
 
     # ── 1. Query Congress.gov for matching bills via connector ──
 
@@ -267,11 +296,14 @@ def bill_text_search(
         logger.warning("Lobbying cross-reference query failed: %s", exc)
         # Don't fail the whole request — bills data is still useful
 
-    return {
+    response = {
         "total_bills": total_bills,
         "bills": bills,
         "related_lobbying": related_lobbying,
     }
+    with _bill_search_lock:
+        _bill_search_cache[cache_key] = {"ts": _time.time(), "data": response}
+    return response
 
 
 # ── OpenCorporates (Company Ownership) ─────────────────────────────────────
@@ -279,11 +311,23 @@ def bill_text_search(
 
 @router.get("/company-lookup")
 def company_lookup(
-    query: str = Query(..., min_length=1, description="Company name to search"),
+    query: str = Query(..., min_length=2, description="Company name to search"),
     jurisdiction: Optional[str] = Query(None, description="Jurisdiction code, e.g. us_ny, gb"),
 ):
-    """Search OpenCorporates for company registration, officers, and ownership data."""
-    from connectors.opencorporates import search_companies, get_company_officers
+    """Search OpenCorporates for company registration, officers, and ownership data.
+
+    OpenCorporates is paid per-call; cache by (query, jurisdiction) for 1h
+    to avoid amplifying user typing into many billable hits. min_length=2
+    keeps single-character autocomplete from triggering paid calls.
+    """
+    from connectors.opencorporates import search_companies  # noqa: F401
+
+    cache_key = (query.strip().lower(), jurisdiction or "")
+    now = _time.time()
+    with _company_lookup_lock:
+        cached = _company_lookup_cache.get(cache_key)
+        if cached and (now - cached["ts"]) < _COMPANY_LOOKUP_TTL:
+            return cached["data"]
 
     companies = search_companies(query, jurisdiction_code=jurisdiction)
     results = []
@@ -300,7 +344,10 @@ def company_lookup(
         }
         results.append(item)
 
-    return {"total": len(results), "companies": results}
+    response = {"total": len(results), "companies": results}
+    with _company_lookup_lock:
+        _company_lookup_cache[cache_key] = {"ts": _time.time(), "data": response}
+    return response
 
 
 # ── Follow the Money (State Campaign Finance) ──────────────────────────────

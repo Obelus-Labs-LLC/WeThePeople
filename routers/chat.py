@@ -20,6 +20,7 @@ from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from services.auth import get_client_ip
 from services.rate_limit_store import check_rate_limit
 
 logger = logging.getLogger(__name__)
@@ -236,9 +237,12 @@ def ask_question(body: ChatRequest, request: Request):
             cached=True,
         )
 
-    # Use X-Forwarded-For (first hop) if behind reverse proxy, else direct client IP
-    forwarded = request.headers.get("x-forwarded-for")
-    client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    # X-Forwarded-For is honored only when the immediate hop is a trusted
+    # proxy; see services/auth.get_client_ip. Otherwise we use the direct
+    # client IP, since the bare XFF header is trivially spoofable and would
+    # let any caller bypass the per-IP rate limit (chat hits Anthropic at
+    # ~$0.005/call — a real cost vector, not just abuse).
+    client_ip = get_client_ip(request)
 
     # Consume rate limit BEFORE the Haiku call to prevent race conditions
     remaining = _consume_rate_limit(client_ip)
@@ -266,8 +270,7 @@ def ask_question(body: ChatRequest, request: Request):
 @router.get("/remaining")
 def get_remaining_questions(request: Request):
     """Check how many AI questions the caller has remaining today."""
-    forwarded = request.headers.get("x-forwarded-for")
-    client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    client_ip = get_client_ip(request)
     try:
         remaining = _get_remaining_questions(client_ip)
     except Exception as e:

@@ -57,8 +57,17 @@ export default function StateExplorerScreen() {
     setLoading(true);
     setError('');
     try {
-      const data = (await apiClient.getStateDetail(code)) as StateDetail;
-      setDetail(data);
+      // The api StateDetail and the local StateDetail are different
+      // shapes (the screen needs derived fields like state_code,
+      // total_legislators, recent_bills, party_breakdown that the API
+      // doesn't return directly). Cast through `unknown` to defuse the
+      // TS2352 about non-overlapping types, then validate at runtime so
+      // a shape change doesn't crash silently.
+      const raw = (await apiClient.getStateDetail(code)) as unknown;
+      if (!raw || typeof raw !== 'object') {
+        throw new Error('Unexpected response shape from /states/{code}');
+      }
+      setDetail(raw as StateDetail);
     } catch (e: any) {
       setError(e.message || 'Failed to load state data');
     } finally {

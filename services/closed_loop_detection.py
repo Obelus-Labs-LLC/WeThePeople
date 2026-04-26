@@ -78,31 +78,82 @@ def _load_cache_from_disk() -> None:
 
 
 def _persist_cache_to_disk() -> None:
+    """Snapshot the in-memory cache to disk.
+
+    Under uvicorn `--workers N`, every worker imports this module and runs
+    its own background timer. Without coordination they race on
+    ``os.replace`` and can clobber each other's hot entries. We:
+
+      1. Take an OS-level advisory lock on the cache file so only one
+         worker writes at a time.
+      2. *Merge* the on-disk snapshot with the in-memory snapshot, keeping
+         the freshest entry per key — so a worker that just computed
+         result X doesn't lose result Y that another worker computed.
+      3. Write atomically via tmp + replace.
+
+    Best-effort: every failure path is swallowed so a timer thread can't
+    crash the worker.
+    """
     global _cache_dirty
     with _cache_lock:
         if not _cache_dirty:
             return
-        # Convert monotonic timestamps back to wall-clock for disk
         wall_now = time.time()
         mono_now = time.monotonic()
-        snapshot = {}
+        local_snapshot = {}
         for key, (mono_ts, result) in _cache.items():
             age = mono_now - mono_ts
             if age >= _CACHE_TTL:
                 continue
-            snapshot[key] = {
+            local_snapshot[key] = {
                 "wall_ts": wall_now - age,
                 "result": result,
             }
         _cache_dirty = False
+
     try:
         _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _CACHE_FILE.with_suffix(".tmp")
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(snapshot, f, separators=(",", ":"))
-        os.replace(tmp, _CACHE_FILE)
+        lock_path = _CACHE_FILE.with_suffix(".lock")
+        # Cross-platform best-effort file lock. On POSIX use fcntl; on
+        # Windows use msvcrt. If neither is available, fall back to no
+        # locking (single-worker deployments are unaffected anyway).
+        with open(lock_path, "w") as lock_fh:
+            try:
+                import fcntl
+                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
+            except ImportError:
+                try:
+                    import msvcrt
+                    msvcrt.locking(lock_fh.fileno(), msvcrt.LK_LOCK, 1)
+                except (ImportError, OSError):
+                    pass
+
+            # Read whatever's on disk now and merge — fresher wall_ts wins.
+            disk_snapshot: dict = {}
+            if _CACHE_FILE.exists():
+                try:
+                    with open(_CACHE_FILE, "r", encoding="utf-8") as f:
+                        loaded = json.load(f)
+                    if isinstance(loaded, dict):
+                        disk_snapshot = loaded
+                except Exception:
+                    disk_snapshot = {}
+
+            merged: dict = {}
+            for key, entry in disk_snapshot.items():
+                if not isinstance(entry, dict) or "wall_ts" not in entry:
+                    continue
+                merged[key] = entry
+            for key, entry in local_snapshot.items():
+                existing = merged.get(key)
+                if existing is None or float(entry["wall_ts"]) >= float(existing.get("wall_ts", 0)):
+                    merged[key] = entry
+
+            tmp = _CACHE_FILE.with_suffix(".tmp")
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(merged, f, separators=(",", ":"))
+            os.replace(tmp, _CACHE_FILE)
     except Exception:
-        # Persistence is best-effort; never raise from a background timer.
         pass
 
 

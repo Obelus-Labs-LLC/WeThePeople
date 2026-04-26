@@ -1,8 +1,8 @@
 import React, {
-  createContext, useCallback, useContext, useEffect, useState,
+  createContext, useCallback, useContext, useEffect, useRef, useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiClient } from '../api/client';
+import { apiClient, ApiError } from '../api/client';
 
 // Keep keys namespaced so they don't collide with the onboarding flag etc.
 const ACCESS_KEY = '@wtp_access_token';
@@ -46,7 +46,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Single-flight refresh promise so concurrent fetchMe / authedFetch
+  // calls don't all kick off independent /auth/refresh requests with
+  // the same refresh token (which the new backend revokes on use).
+  const refreshInFlight = useRef<Promise<string | null> | null>(null);
+
+  const purgeTokens = useCallback(async () => {
+    apiClient.setAuthToken(null);
+    setUser(null);
+    try {
+      await AsyncStorage.multiRemove([ACCESS_KEY, REFRESH_KEY]);
+    } catch (storageErr) {
+      console.warn('[AuthContext] token purge failed:', storageErr);
+    }
+  }, []);
+
+  const tryRefresh = useCallback(async (): Promise<string | null> => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+    const run = (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(REFRESH_KEY);
+        if (!stored) return null;
+        const data = await apiClient.refreshToken(stored);
+        apiClient.setAuthToken(data.access_token);
+        await AsyncStorage.multiSet([
+          [ACCESS_KEY, data.access_token],
+          [REFRESH_KEY, data.refresh_token],
+        ]);
+        return data.access_token;
+      } catch (e) {
+        console.warn('[AuthContext] refresh failed:', e);
+        return null;
+      } finally {
+        refreshInFlight.current = null;
+      }
+    })();
+    refreshInFlight.current = run;
+    return run;
+  }, []);
+
   const fetchMe = useCallback(async () => {
+    // Don't blindly purge tokens on every error — only on a confirmed 401
+    // *after* a refresh attempt has also failed. Network blips, server
+    // 5xx, and DNS hiccups used to log the user out silently on cold
+    // start over flaky wifi.
+    try {
+      const data = await apiClient.getMe();
+      setUser({
+        id: data.id,
+        email: data.email,
+        role: data.role,
+        display_name: data.display_name,
+      });
+      return;
+    } catch (e) {
+      const status = (e as ApiError | undefined)?.status;
+      if (status !== 401) {
+        // Network / server failure — keep the existing tokens and just
+        // leave `user` as it was. Next request retries.
+        console.warn('[AuthContext] getMe transient failure:', e);
+        return;
+      }
+    }
+
+    // 401 path: try to refresh the access token and replay /auth/me.
+    const fresh = await tryRefresh();
+    if (!fresh) {
+      await purgeTokens();
+      return;
+    }
     try {
       const data = await apiClient.getMe();
       setUser({
@@ -56,17 +124,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         display_name: data.display_name,
       });
     } catch (e) {
-      // Stale/revoked token — clear it so we stop sending Bearer on future calls.
-      console.warn('[AuthContext] getMe failed:', e);
-      apiClient.setAuthToken(null);
-      setUser(null);
-      try {
-        await AsyncStorage.multiRemove([ACCESS_KEY, REFRESH_KEY]);
-      } catch (storageErr) {
-        console.warn('[AuthContext] token purge failed:', storageErr);
+      const status = (e as ApiError | undefined)?.status;
+      if (status === 401) {
+        await purgeTokens();
+      } else {
+        console.warn('[AuthContext] getMe replay transient failure:', e);
       }
     }
-  }, []);
+  }, [purgeTokens, tryRefresh]);
 
   // Restore token from storage on app start.
   useEffect(() => {

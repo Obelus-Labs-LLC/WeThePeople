@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Target, Shield, Trophy, ChevronRight,
-  ThumbsUp, ThumbsDown, Megaphone, BookOpen, Plus, X,
+  ThumbsUp, ThumbsDown, Megaphone, Plus, X,
 } from 'lucide-react';
 import {
   fetchPromises, fetchProposals,
@@ -30,10 +30,13 @@ const STATUS_TOKEN: Record<string, { token: string; hex: string; label: string }
 const getStatus = (s: string) => STATUS_TOKEN[s] || STATUS_TOKEN.pending;
 
 // Feature nav pills (match HTML prototype order + tokens)
+// Annotations lives inline within bill pages — there is no dedicated
+// /civic/annotations destination, and the route currently bounces back
+// to this page (App.tsx:314). Drop the pill until annotations get a
+// real entry point.
 const FEATURE_PILLS: Array<{ to: string; label: string; icon: typeof Target; token: string; hex: string }> = [
   { to: '/civic/promises',    label: 'Promises',    icon: Target,    token: 'var(--color-accent)', hex: '#C5A028' },
   { to: '/civic/proposals',   label: 'Proposals',   icon: Megaphone, token: 'var(--color-dem)',    hex: '#4A7FDE' },
-  { to: '/civic/annotations', label: 'Annotations', icon: BookOpen,  token: 'var(--color-green)',  hex: '#3DB87A' },
   { to: '/civic/badges',      label: 'Badges',      icon: Trophy,    token: 'var(--color-ind)',    hex: '#B06FD8' },
   { to: '/civic/verify',      label: 'Verify',      icon: Shield,    token: 'var(--color-verify)', hex: '#2EC4B6' },
 ];

@@ -100,8 +100,13 @@ function getProfileRoute(node: NetworkNode): string | null {
 // ── Bounded LRU image cache for photo_url ──
 const IMAGE_CACHE_MAX = 200;
 const imageCache = new Map<string, HTMLImageElement>();
+// Track URLs that errored so we don't re-issue requests for broken
+// images on every render (the previous cache only stored successful
+// loads, so a 404 re-fetched indefinitely).
+const failedImages = new Set<string>();
 
 function getImage(url: string): HTMLImageElement | null {
+  if (failedImages.has(url)) return null;
   const cached = imageCache.get(url);
   if (cached) {
     // Move to end (most recently used)
@@ -118,6 +123,15 @@ function getImage(url: string): HTMLImageElement | null {
       if (oldest !== undefined) imageCache.delete(oldest);
     }
     imageCache.set(url, img);
+  };
+  img.onerror = () => {
+    failedImages.add(url);
+    // Bound the failure set so a long-running session doesn't grow
+    // memory unboundedly if many URLs fail.
+    if (failedImages.size > IMAGE_CACHE_MAX) {
+      const first = failedImages.values().next().value;
+      if (first !== undefined) failedImages.delete(first);
+    }
   };
   return null;
 }

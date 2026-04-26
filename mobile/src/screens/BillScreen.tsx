@@ -33,7 +33,14 @@ export default function BillScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!billId) return;
+    if (!billId) {
+      // Without this branch the spinner spun forever when navigation
+      // landed here without a `bill_id` route param (deep-link typo,
+      // mis-fired navigate).
+      setLoading(false);
+      setError('Missing bill_id; nothing to load.');
+      return;
+    }
     setLoading(true);
     apiClient.getBillDetail(billId)
       .then((res) => {

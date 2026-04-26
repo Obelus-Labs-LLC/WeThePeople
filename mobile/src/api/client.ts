@@ -994,6 +994,23 @@ class WTPClient {
     });
   }
 
+  /**
+   * Exchange a refresh token for a new access + refresh pair. The mobile
+   * client previously stored the refresh token but never used it, so
+   * sessions effectively expired at the access-token TTL. AuthContext
+   * now calls this whenever getMe returns 401.
+   */
+  async refreshToken(
+    refresh_token: string,
+    opts?: FetchOptions,
+  ): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
+    return this.fetchJSON(`${this.baseUrl}/auth/refresh`, {
+      ...(opts || {}),
+      method: 'POST',
+      body: { refresh_token },
+    });
+  }
+
   async getMe(opts?: FetchOptions): Promise<any> {
     return this.fetchJSON(`${this.baseUrl}/auth/me`, opts);
   }

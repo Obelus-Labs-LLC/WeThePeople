@@ -22,26 +22,45 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
   const fadeOut = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Fade in logo + text
-    Animated.timing(fadeAnim, {
+    // Track unmount so the chained `.start(() => ...)` callbacks don't
+    // call `onFinish` after the parent has already swapped us out
+    // (e.g. fast-path AsyncStorage resolved). React StrictMode also
+    // runs effects twice, which used to surface a "setState on
+    // unmounted component" warning here.
+    let cancelled = false;
+
+    const fadeIn = Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
-    }).start();
-
-    // Animate loading bar
-    Animated.timing(barProgress, {
+    });
+    const bar = Animated.timing(barProgress, {
       toValue: 1,
       duration: 2200,
       useNativeDriver: false,
-    }).start(() => {
-      // Fade out then call onFinish
-      Animated.timing(fadeOut, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => onFinish());
     });
+    const fade = Animated.timing(fadeOut, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    });
+
+    fadeIn.start();
+    bar.start(() => {
+      if (cancelled) return;
+      fade.start(() => {
+        if (cancelled) return;
+        onFinish();
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      // Stop in-flight animations so they don't fight a remount.
+      fadeIn.stop();
+      bar.stop();
+      fade.stop();
+    };
   }, []);
 
   const barWidth = barProgress.interpolate({

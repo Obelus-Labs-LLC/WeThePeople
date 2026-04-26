@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, text
 
 from models.database import get_db, Bill, Person
 from models.auth_models import User
@@ -121,10 +121,47 @@ def _serialize_promise(p: Promise) -> dict:
 def _update_scores(db: Session, target_type: str, target_id: int):
     """Recompute Wilson + hot scores after a vote change.
 
-    Uses fresh COUNT queries and applies updates atomically to avoid
-    lost-update races when two concurrent voters modify the same target.
+    Two concurrent voters used to race here: both would read the same
+    counts, both would compute the same `ws` — and the first writer's
+    incremental update was overwritten when the second writer committed.
+
+    Fix: take a row-level write lock on the target row before counting,
+    so the second voter blocks until the first commit lands. On SQLite
+    this maps to ``BEGIN IMMEDIATE`` semantics; on Postgres to
+    ``SELECT ... FOR UPDATE``. SQLAlchemy's ``with_for_update`` does the
+    right thing on Postgres and is a no-op on SQLite, so we also issue
+    a manual ``BEGIN IMMEDIATE`` for the SQLite path.
     """
-    # Get fresh counts in the same transaction
+    if target_type == "promise":
+        model = Promise
+    elif target_type == "proposal":
+        model = Proposal
+    elif target_type == "annotation":
+        model = BillAnnotation
+    else:
+        return
+
+    # SQLite: escalate to a write transaction before counting so the
+    # entire COUNT → write sequence is serialized against other writers.
+    bind = db.get_bind()
+    if bind is not None and bind.dialect.name == "sqlite":
+        try:
+            db.execute(text("BEGIN IMMEDIATE"))
+        except Exception:
+            # Already inside a write transaction (or driver doesn't
+            # support it) — proceed; with_for_update covers Postgres.
+            pass
+
+    obj = (
+        db.query(model)
+        .filter(model.id == target_id)
+        .with_for_update()
+        .first()
+    )
+    if not obj:
+        db.commit()
+        return
+
     ups = db.query(func.count(CivicVote.id)).filter(
         CivicVote.target_type == target_type,
         CivicVote.target_id == target_id,
@@ -137,19 +174,6 @@ def _update_scores(db: Session, target_type: str, target_id: int):
     ).scalar() or 0
 
     ws = wilson_score(ups, downs)
-
-    if target_type == "promise":
-        model = Promise
-    elif target_type == "proposal":
-        model = Proposal
-    elif target_type == "annotation":
-        model = BillAnnotation
-    else:
-        return
-
-    obj = db.query(model).filter(model.id == target_id).first()
-    if not obj:
-        return
 
     obj.confidence_score = ws
     if hasattr(obj, "hot_score") and obj.created_at:

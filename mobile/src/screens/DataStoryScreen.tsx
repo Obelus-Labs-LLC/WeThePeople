@@ -43,8 +43,9 @@ export default function DataStoryScreen() {
         apiClient.getTopContracts({ limit: 5 }),
       ]);
       setStats(s);
-      setTopLob(Array.isArray(lob) ? lob : (lob as any).companies || []);
-      setTopCon(Array.isArray(con) ? con : (con as any).companies || []);
+      // Null-safe coercion: object.companies on a null response throws.
+      setTopLob(Array.isArray(lob) ? lob : (lob && (lob as any).companies) || []);
+      setTopCon(Array.isArray(con) ? con : (con && (con as any).companies) || []);
       setError('');
     } catch (e: any) {
       setError(e?.message || 'Failed to load data story');

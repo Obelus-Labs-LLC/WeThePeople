@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, Alert,
   RefreshControl, ActivityIndicator,
@@ -93,9 +93,16 @@ export default function AccountScreen() {
   }, [isAuthenticated]);
 
   // Re-fetch whenever the screen gains focus (e.g. user comes back after
-  // toggling a follow on some entity detail screen).
+  // toggling a follow on some entity detail screen). Throttled at 5s
+  // to avoid hammering /auth/preferences and /auth/watchlist when the
+  // user navigates rapidly between screens (which used to fire two
+  // un-aborted requests per focus event with no cancellation).
+  const lastFocusFetchRef = useRef(0);
   useFocusEffect(
     useCallback(() => {
+      const now = Date.now();
+      if (now - lastFocusFetchRef.current < 5000) return;
+      lastFocusFetchRef.current = now;
       loadPreferences();
       loadWatchlist();
     }, [loadPreferences, loadWatchlist]),

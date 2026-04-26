@@ -37,9 +37,18 @@ export default function ClosedLoopScreen() {
 
   const load = async () => {
     try {
-      const data = await apiClient.getClosedLoops({ limit: 50, min_donation: 1000 });
-      const raw = Array.isArray(data) ? data : (data.loops || data.items || data.results || []);
-      setLoops(raw as Loop[]);
+      const data: any = await apiClient.getClosedLoops({ limit: 50, min_donation: 1000 });
+      // Defensive shape coercion. Previous code did
+      //   data.loops || data.items || ...
+      // which crashed with "Cannot read properties of null" if the
+      // response was null (e.g. backend returned 204 unexpectedly).
+      let raw: any[] = [];
+      if (Array.isArray(data)) {
+        raw = data;
+      } else if (data && typeof data === 'object') {
+        raw = data.loops || data.items || data.results || [];
+      }
+      setLoops((raw as Loop[]) || []);
       setError('');
     } catch (e: any) {
       setError(e?.message || 'Failed to load closed loops');

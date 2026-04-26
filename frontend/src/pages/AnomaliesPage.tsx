@@ -76,7 +76,7 @@ function entityRoute(
   entityId: string,
   _patternType: string,
   evidence: Record<string, unknown> | null,
-): string {
+): string | null {
   if (entityType === 'person') return `/politics/people/${entityId}`;
   const sector = evidence?.sector as string | undefined;
   if (sector === 'finance') return `/finance/${entityId}`;
@@ -88,9 +88,11 @@ function entityRoute(
   if (sector === 'agriculture') return `/agriculture/${entityId}`;
   if (sector === 'chemicals') return `/chemicals/${entityId}`;
   if (sector === 'telecom' || sector === 'telecommunications')
-    return `/telecommunications/${entityId}`;
+    return `/telecom/${entityId}`;
   if (sector === 'education') return `/education/${entityId}`;
-  return `/`;
+  // Unknown sector → return null so callers can avoid rendering a link
+  // that would have sent the user to landing.
+  return null;
 }
 
 function relativeTime(iso: string | null): string {
@@ -424,16 +426,21 @@ export default function AnomaliesPage() {
                 PATTERN_TO_TYPE[a.pattern_type] || a.pattern_type;
               const patternLabel =
                 PATTERN_LABELS[a.pattern_type] || a.pattern_type;
+              // Resolve once and gate rendering so unknown sectors don't
+              // render a Link to "/" (which used to silently send users
+              // back to the landing page).
+              const route = entityRoute(
+                a.entity_type,
+                a.entity_id,
+                a.pattern_type,
+                a.evidence,
+              );
+              if (!route) return null;
 
               return (
                 <Link
                   key={a.id}
-                  to={entityRoute(
-                    a.entity_type,
-                    a.entity_id,
-                    a.pattern_type,
-                    a.evidence,
-                  )}
+                  to={route}
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '60px 1.8fr 1fr 90px 80px 40px',
