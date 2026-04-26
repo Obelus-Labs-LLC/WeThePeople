@@ -2,6 +2,8 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import Logo from './Logo';
+import UserMenu from './UserMenu';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * Main-site top navigation bar — landing only.
@@ -16,6 +18,7 @@ import Logo from './Logo';
 export default function SiteHeader() {
   const navigate = useNavigate();
   const [query, setQuery] = React.useState('');
+  const { isAuthenticated } = useAuth();
 
   return (
     <header
@@ -97,39 +100,49 @@ export default function SiteHeader() {
           />
         </form>
 
-        <Link
-          to="/login"
-          className="no-underline"
-          style={{
-            padding: '6px 14px',
-            borderRadius: 'var(--radius-sm)',
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--color-text-2)',
-            background: 'transparent',
-            border: '1px solid var(--color-border)',
-          }}
-        >
-          Log in
-        </Link>
+        {/* Show Log in / Sign up only when signed-out; show UserMenu
+            (account / watchlist / log out) when signed-in. The header
+            previously rendered Login/Signup unconditionally even for
+            authed users, which was confusing on a return visit. */}
+        {isAuthenticated ? (
+          <UserMenu />
+        ) : (
+          <>
+            <Link
+              to="/login"
+              className="no-underline"
+              style={{
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-sm)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--color-text-2)',
+                background: 'transparent',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              Log in
+            </Link>
 
-        <Link
-          to="/signup"
-          className="no-underline"
-          style={{
-            padding: '6px 14px',
-            borderRadius: 'var(--radius-sm)',
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--color-accent-text)',
-            background: 'transparent',
-            border: '1px solid var(--color-accent)',
-          }}
-        >
-          Sign up
-        </Link>
+            <Link
+              to="/signup"
+              className="no-underline"
+              style={{
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-sm)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--color-accent-text)',
+                background: 'transparent',
+                border: '1px solid var(--color-accent)',
+              }}
+            >
+              Sign up
+            </Link>
+          </>
+        )}
       </div>
     </header>
   );

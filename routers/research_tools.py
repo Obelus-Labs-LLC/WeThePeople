@@ -33,6 +33,14 @@ _bill_search_cache: dict = {}
 _bill_search_lock = threading.Lock()
 _BILL_SEARCH_TTL = 300  # 5 minutes
 
+# /company-lookup proxies OpenCorporates which is a paid API; without a
+# cache, a user typing "apple" + "appl" + "apple inc" hits OpenCorporates
+# three times for very similar payloads. Cache by (query, jurisdiction)
+# for 1 hour — corporate registry data rarely changes minute-to-minute.
+_company_lookup_cache: dict = {}
+_company_lookup_lock = threading.Lock()
+_COMPANY_LOOKUP_TTL = 3600  # 1 hour
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/research", tags=["research"])
@@ -303,11 +311,23 @@ def bill_text_search(
 
 @router.get("/company-lookup")
 def company_lookup(
-    query: str = Query(..., min_length=1, description="Company name to search"),
+    query: str = Query(..., min_length=2, description="Company name to search"),
     jurisdiction: Optional[str] = Query(None, description="Jurisdiction code, e.g. us_ny, gb"),
 ):
-    """Search OpenCorporates for company registration, officers, and ownership data."""
-    from connectors.opencorporates import search_companies, get_company_officers
+    """Search OpenCorporates for company registration, officers, and ownership data.
+
+    OpenCorporates is paid per-call; cache by (query, jurisdiction) for 1h
+    to avoid amplifying user typing into many billable hits. min_length=2
+    keeps single-character autocomplete from triggering paid calls.
+    """
+    from connectors.opencorporates import search_companies  # noqa: F401
+
+    cache_key = (query.strip().lower(), jurisdiction or "")
+    now = _time.time()
+    with _company_lookup_lock:
+        cached = _company_lookup_cache.get(cache_key)
+        if cached and (now - cached["ts"]) < _COMPANY_LOOKUP_TTL:
+            return cached["data"]
 
     companies = search_companies(query, jurisdiction_code=jurisdiction)
     results = []
@@ -324,7 +344,10 @@ def company_lookup(
         }
         results.append(item)
 
-    return {"total": len(results), "companies": results}
+    response = {"total": len(results), "companies": results}
+    with _company_lookup_lock:
+        _company_lookup_cache[cache_key] = {"ts": _time.time(), "data": response}
+    return response
 
 
 # ── Follow the Money (State Campaign Finance) ──────────────────────────────

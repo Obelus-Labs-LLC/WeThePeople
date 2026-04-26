@@ -330,8 +330,17 @@ export default function AccountPage() {
   };
 
   const createKey = async () => {
-    const name = window.prompt('Name for this API key?', 'Production');
-    if (!name) return;
+    const raw = window.prompt('Name for this API key?', 'Production');
+    if (raw === null) return; // user cancelled
+    const name = raw.trim();
+    if (!name) {
+      alert('API key name cannot be empty.');
+      return;
+    }
+    if (name.length > 100) {
+      alert('API key name must be 100 characters or fewer.');
+      return;
+    }
     try {
       const res = await authedFetch(`${API_BASE}/auth/api-keys`, {
         method: 'POST',
