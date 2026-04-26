@@ -129,7 +129,12 @@ export default function StateDashboardPage() {
         setLegTotal(legs.total);
       })
       .catch((err) => { console.warn('[StateDashboardPage] fetch failed:', err); })
-      .finally(() => { setLoading(false); initialLoadedRef.current = true; });
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+          initialLoadedRef.current = true;
+        }
+      });
     return () => { cancelled = true; };
   }, [code]);
 

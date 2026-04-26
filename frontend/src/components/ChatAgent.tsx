@@ -41,19 +41,23 @@ const NAV_PATTERNS: Array<{ pattern: RegExp; path: string; label: string }> = [
   { pattern: /\b(data explorer|explorer)\b/i, path: "/influence/explorer", label: "Data Explorer" },
   { pattern: /\b(influence timeline)\b/i, path: "/influence/timeline", label: "Influence Timeline" },
   { pattern: /\b(closed loop|closed-loop)\b/i, path: "/influence/closed-loops", label: "Closed Loop Detection" },
-  { pattern: /\b(verify|verification|claim)\b/i, path: "/civic/verify", label: "Claim Verification" },
+  // verify.* lives on its own subdomain now; same for the research tools.
+  { pattern: /\b(verify|verification|claim)\b/i, path: "https://verify.wethepeopleforus.com", label: "Verify Claims" },
   { pattern: /\b(methodology|data sources?|how.*collect)\b/i, path: "/methodology", label: "Methodology" },
   { pattern: /\b(find.*(rep|representative)|my.*(rep|representative)|who represents)\b/i, path: "/politics/find-rep", label: "Find Your Representative" },
   { pattern: /\b(committees?)\b/i, path: "/politics/committees", label: "Committees" },
   { pattern: /\b(legislation|bills?|bill tracker)\b/i, path: "/politics/legislation", label: "Legislation Tracker" },
   { pattern: /\b(balance of power)\b/i, path: "/politics", label: "Politics Dashboard" },
   { pattern: /\b(state explorer|states)\b/i, path: "/politics/states", label: "State Explorer" },
-  { pattern: /\b(insider trad(es?|ing))\b/i, path: "/finance/insider-trades", label: "Insider Trades" },
-  { pattern: /\b(complaints?|cfpb)\b/i, path: "/finance/complaints", label: "CFPB Complaints" },
+  // The /finance, /health, /technology research tools migrated to the
+  // research subdomain. Linking to the in-app paths now redirects via
+  // MovedToResearchPage; point chat directly at the canonical URL.
+  { pattern: /\b(insider trad(es?|ing))\b/i, path: "https://research.wethepeopleforus.com/insider-trades", label: "Insider Trades" },
+  { pattern: /\b(complaints?|cfpb)\b/i, path: "https://research.wethepeopleforus.com/complaints", label: "CFPB Complaints" },
   { pattern: /\b(drug lookup|drugs?)\b/i, path: "/health", label: "Health Dashboard" },
-  { pattern: /\b(clinical trial|pipeline)\b/i, path: "/health/pipeline", label: "Clinical Trial Pipeline" },
-  { pattern: /\b(fda approval)\b/i, path: "/health/fda-approvals", label: "FDA Approvals" },
-  { pattern: /\b(patent)\b/i, path: "/technology/patents", label: "Patent Search" },
+  { pattern: /\b(clinical trial|pipeline)\b/i, path: "https://research.wethepeopleforus.com/pipeline", label: "Clinical Trial Pipeline" },
+  { pattern: /\b(fda approval)\b/i, path: "https://research.wethepeopleforus.com/fda-approvals", label: "FDA Approvals" },
+  { pattern: /\b(patent)\b/i, path: "https://research.wethepeopleforus.com/patents", label: "Patent Search" },
   { pattern: /\b(about)\b/i, path: "/about", label: "About" },
   // Sector dashboards
   { pattern: /\bpolitics\s*(dashboard|home|page)?\b/i, path: "/politics", label: "Politics Dashboard" },
@@ -175,13 +179,17 @@ export default function ChatAgent() {
     if (open) {
       const t = setTimeout(() => inputRef.current?.focus(), 100);
       timersRef.current.push(t);
-      // Fetch remaining questions
+      // Fetch remaining questions; gate on `open` so closing the chat
+      // before the request resolves doesn't setState late.
+      let cancelled = false;
       getRemainingQuestions()
         .then((data) => {
+          if (cancelled) return;
           setRemaining(data.remaining);
           setLimit(data.limit);
         })
         .catch((err) => { console.warn('[ChatAgent] fetch failed:', err); });
+      return () => { cancelled = true; };
     }
   }, [open]);
 
@@ -204,7 +212,14 @@ export default function ChatAgent() {
 
   const handleAction = useCallback((action: ChatAction) => {
     if (action.type === "navigate" && action.path) {
-      navigate(action.path);
+      // External destinations (research/verify subdomains) need a real
+      // top-level navigation — react-router-dom's navigate() treats them
+      // as relative paths and breaks the URL.
+      if (/^https?:\/\//i.test(action.path)) {
+        window.open(action.path, "_blank", "noopener,noreferrer");
+      } else {
+        navigate(action.path);
+      }
       setOpen(false);
     } else if (action.type === "search" && action.query) {
       // Could trigger a search — for now navigate to the search results concept

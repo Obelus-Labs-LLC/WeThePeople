@@ -15,10 +15,24 @@ export default function AnomalyBadge({ entityType, entityId }: AnomalyBadgeProps
 
   useEffect(() => {
     if (!entityType || !entityId) return;
-    fetch(`${API_BASE}/anomalies/entity/${entityType}/${entityId}?min_score=7`)
-      .then((r) => r.json())
-      .then((data) => setCount(data.total || 0))
-      .catch((err) => { console.warn('[AnomalyBadge] fetch failed:', err); });
+    const controller = new AbortController();
+    fetch(
+      `${API_BASE}/anomalies/entity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}?min_score=7`,
+      { signal: controller.signal },
+    )
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        if (!controller.signal.aborted) setCount(data.total || 0);
+      })
+      .catch((err) => {
+        if (err?.name !== 'AbortError') {
+          console.warn('[AnomalyBadge] fetch failed:', err);
+        }
+      });
+    return () => controller.abort();
   }, [entityType, entityId]);
 
   if (count === 0) return null;

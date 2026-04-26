@@ -742,9 +742,12 @@ class WTPClient {
     params?: { limit?: number },
     opts?: FetchOptions
   ): Promise<RecentActivityItem[] | { activity: RecentActivityItem[] }> {
+    // Backend exposes /actions/recent (verified 200). The earlier
+    // /dashboard/recent-actions path returned 404 in production, so the
+    // mobile activity feed was silently broken until this rewrite.
     const sp = new URLSearchParams();
     if (params?.limit !== undefined) sp.set('limit', params.limit.toString());
-    return this.fetchJSON(`${this.baseUrl}/dashboard/recent-actions?${sp}`, opts);
+    return this.fetchJSON(`${this.baseUrl}/actions/recent?${sp}`, opts);
   }
 
   // ── Sector-agnostic helpers (Energy / Transport / Defense / Chemicals / Agriculture / Telecom / Education) ──

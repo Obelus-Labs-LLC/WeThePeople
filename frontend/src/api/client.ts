@@ -98,6 +98,36 @@ export function hasPressApiKey(): boolean {
   return getPressApiKey().length > 0;
 }
 
+/**
+ * Build a richer error from a non-2xx Response. We try to surface the
+ * server-provided detail string (FastAPI's `{detail: "..."}` shape)
+ * before falling back to status text, so callers can render an
+ * actionable message instead of "HTTP 500".
+ */
+async function buildApiError(response: Response): Promise<Error> {
+  let detail = '';
+  try {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const body: unknown = await response.json();
+      if (body && typeof body === 'object') {
+        const d = (body as { detail?: unknown }).detail;
+        if (typeof d === 'string') detail = d;
+        else if (d != null) detail = JSON.stringify(d);
+      }
+    } else {
+      const text = await response.text();
+      if (text && text.length < 200) detail = text;
+    }
+  } catch {
+    // ignore body parse errors — fall through to status-only message
+  }
+  const base = `HTTP ${response.status}${response.statusText ? ': ' + response.statusText : ''}`;
+  const err = new Error(detail ? `${base} — ${detail}` : base);
+  (err as Error & { status?: number }).status = response.status;
+  return err;
+}
+
 export class WTPClient {
   private baseUrl: string;
 
@@ -111,9 +141,15 @@ export class WTPClient {
     try {
       const response = await fetch(url, { signal: controller.signal });
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw await buildApiError(response);
       }
       return response.json();
+    } catch (e: unknown) {
+      // AbortError on timeout becomes a clearer message; otherwise re-throw.
+      if ((e as { name?: string })?.name === 'AbortError') {
+        throw new Error('Request timed out after 30 seconds. The API may be slow or unreachable.');
+      }
+      throw e;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -129,9 +165,14 @@ export class WTPClient {
       if (key) headers['X-WTP-API-KEY'] = key;
       const response = await fetch(url, { headers, signal: controller.signal });
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw await buildApiError(response);
       }
       return response.json();
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name === 'AbortError') {
+        throw new Error('Request timed out after 30 seconds. The API may be slow or unreachable.');
+      }
+      throw e;
     } finally {
       clearTimeout(timeoutId);
     }

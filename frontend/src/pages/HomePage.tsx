@@ -32,6 +32,10 @@ const SECTOR_BG_TINTS: Record<string, string> = {
   education:      "rgba(65, 20, 130, 0.18)",
 };
 
+// Keep in sync with App.tsx routes and SECTORS in src/data/sectors.ts.
+// Leaderboard rows whose sector isn't keyed here are dropped silently —
+// previously that meant chemicals/agriculture/telecom/education entries
+// disappeared from the homepage even though the API returned them.
 const SECTOR_ROUTES: Record<string, string> = {
   finance: "/finance",
   health: "/health",
@@ -40,6 +44,10 @@ const SECTOR_ROUTES: Record<string, string> = {
   energy: "/energy",
   transportation: "/transportation",
   defense: "/defense",
+  chemicals: "/chemicals",
+  agriculture: "/agriculture",
+  telecom: "/telecom",
+  education: "/education",
 };
 
 function formatMoney(n: number): string {

@@ -53,12 +53,20 @@ const METRICS: {
   },
 ];
 
+// All 11 sectors, kept in sync with SECTORS in src/data/sectors.ts and the
+// SectorFilter type union in src/api/influence.ts.
 const SECTORS: { key: SectorFilter | 'all'; label: string; hex: string }[] = [
-  { key: 'all', label: 'All Sectors', hex: '#C5A028' },
-  { key: 'finance', label: 'Finance', hex: '#3DB87A' },
-  { key: 'health', label: 'Health', hex: '#E63946' },
-  { key: 'tech', label: 'Tech', hex: '#B06FD8' },
-  { key: 'energy', label: 'Energy', hex: '#D48B3A' },
+  { key: 'all',            label: 'All Sectors',    hex: '#C5A028' },
+  { key: 'finance',        label: 'Finance',        hex: '#3DB87A' },
+  { key: 'health',         label: 'Health',         hex: '#E63946' },
+  { key: 'tech',           label: 'Tech',           hex: '#B06FD8' },
+  { key: 'energy',         label: 'Energy',         hex: '#D48B3A' },
+  { key: 'transportation', label: 'Transportation', hex: '#0EA5E9' },
+  { key: 'defense',        label: 'Defense',        hex: '#475569' },
+  { key: 'chemicals',      label: 'Chemicals',      hex: '#84CC16' },
+  { key: 'agriculture',    label: 'Agriculture',    hex: '#65A30D' },
+  { key: 'telecom',        label: 'Telecom',        hex: '#06B6D4' },
+  { key: 'education',      label: 'Education',      hex: '#A855F7' },
 ];
 
 // ── State name lookup ──
