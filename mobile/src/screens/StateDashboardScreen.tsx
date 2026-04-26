@@ -145,7 +145,7 @@ export default function StateDashboardScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.billTitle} numberOfLines={2}>{b.title || b.bill_id}</Text>
                 <Text style={styles.billMeta}>
-                  {b.bill_id.toUpperCase()}{b.status_bucket ? ` \u00B7 ${b.status_bucket.replace(/_/g, ' ')}` : ''}{b.introduced_date ? ` \u00B7 ${fmtDate(b.introduced_date)}` : ''}
+                  {(b.bill_id || '').toUpperCase()}{b.status_bucket ? ` \u00B7 ${b.status_bucket.replace(/_/g, ' ')}` : ''}{b.introduced_date ? ` \u00B7 ${fmtDate(b.introduced_date)}` : ''}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={14} color={UI_COLORS.TEXT_MUTED} />

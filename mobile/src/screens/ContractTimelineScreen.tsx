@@ -43,46 +43,38 @@ export default function ContractTimelineScreen() {
 
   const load = async () => {
     try {
-      const compRes = await apiClient.getTechCompanies({ limit: 200 });
-      const companies = ((compRes as any).companies || [])
-        .filter((c: any) => (c.contract_count || 0) > 0)
-        .sort((a: any, b: any) => (b.contract_count || 0) - (a.contract_count || 0))
-        .slice(0, 30);
+      // Single aggregated request instead of 30 parallel per-company
+      // contract fetches. /aggregate/tech/contracts returns every
+      // contract across all tech companies in one round trip; the
+      // bucketing happens client-side just like before.
+      const agg = await apiClient.getAggregateContracts('tech', { limit: 1000 });
+      const contracts = (agg as any).contracts || [];
 
       const perYear = new Map<string, YearBucket>();
-      await Promise.all(
-        companies.map(async (co: any) => {
-          try {
-            const r = await apiClient.getTechCompanyContracts(co.company_id, { limit: 100 });
-            const contracts = (r as any).contracts || [];
-            for (const ct of contracts) {
-              const year = yearOf(ct.start_date) || yearOf(ct.end_date);
-              if (!year) continue;
-              const amount = Number(ct.award_amount || 0);
-              const existing = perYear.get(year);
-              if (existing) {
-                existing.totalAmount += amount;
-                existing.count += 1;
-                const co_existing = existing.topCompanies.find((t) => t.name === co.display_name);
-                if (co_existing) {
-                  co_existing.total += amount;
-                } else {
-                  existing.topCompanies.push({ name: co.display_name, total: amount });
-                }
-              } else {
-                perYear.set(year, {
-                  year,
-                  totalAmount: amount,
-                  count: 1,
-                  topCompanies: [{ name: co.display_name, total: amount }],
-                });
-              }
-            }
-          } catch (e) {
-            log(`contracts fetch ${co.company_id}`, e);
+      for (const ct of contracts) {
+        const year = yearOf(ct.start_date) || yearOf(ct.end_date);
+        if (!year) continue;
+        const amount = Number(ct.award_amount || 0);
+        const coName = ct.company_name || ct.display_name || ct.company_id || 'Unknown';
+        const existing = perYear.get(year);
+        if (existing) {
+          existing.totalAmount += amount;
+          existing.count += 1;
+          const co_existing = existing.topCompanies.find((t) => t.name === coName);
+          if (co_existing) {
+            co_existing.total += amount;
+          } else {
+            existing.topCompanies.push({ name: coName, total: amount });
           }
-        }),
-      );
+        } else {
+          perYear.set(year, {
+            year,
+            totalAmount: amount,
+            count: 1,
+            topCompanies: [{ name: coName, total: amount }],
+          });
+        }
+      }
 
       const sorted = Array.from(perYear.values())
         .sort((a, b) => Number(b.year) - Number(a.year));

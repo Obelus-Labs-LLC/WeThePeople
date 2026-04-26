@@ -31,6 +31,8 @@ from models.response_schemas import (
 from services.jwt_auth import (
     create_access_token,
     create_refresh_token,
+    is_refresh_token_revoked,
+    revoke_refresh_token,
     verify_token,
     get_current_user,
     ACCESS_TOKEN_EXPIRE_HOURS,
@@ -60,6 +62,12 @@ except ImportError:
         "passlib is required for password hashing. "
         "Install it with: pip install passlib[bcrypt]"
     )
+
+# Pre-computed bcrypt hash of an unknown random string. Used in the login
+# path to consume bcrypt's ~250ms wall time when the email is not found,
+# so the response time is indistinguishable from a wrong-password case
+# (closes the email-enumeration timing oracle).
+_DUMMY_BCRYPT_HASH = "$2b$12$wK5pOdt2JzXRJZ9KZ0vQ.O4vGhT6dKQ9j4r8c8sW0u7dW8L7vY1Xe"
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +210,15 @@ def register(body: RegisterRequest, request: Request, db: Session = Depends(get_
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Authenticate with email + password, receive JWT tokens."""
     user = db.query(User).filter(User.email == body.email.lower().strip()).first()
-    if not user or not pwd_context.verify(body.password, user.hashed_password):
+    # Always run a bcrypt verify, even on missing-user, so the response time
+    # for a non-existent email matches that of a wrong password. Without this
+    # the email-not-found path returned ~5 ms while a valid email + wrong
+    # password took ~250 ms — a clear timing oracle for valid emails.
+    if user is None:
+        # Run bcrypt against a fixed dummy hash to consume the same wall time.
+        pwd_context.verify(body.password, _DUMMY_BCRYPT_HASH)
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not pwd_context.verify(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.is_active:
@@ -229,11 +245,20 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
 @router.post("/refresh", response_model=TokenResponse)
 @limiter.limit("10/minute")
 def refresh(body: RefreshRequest, request: Request, db: Session = Depends(get_db)):
-    """Exchange a valid refresh token for a new access + refresh token pair."""
+    """Exchange a valid refresh token for a new access + refresh token pair.
+
+    The presented refresh token's ``jti`` is checked against the revocation
+    list (logout, password change, manual revocation). On success the
+    presented token is rotated — the old jti is added to the revocation
+    list so it can't be reused.
+    """
     payload = verify_token(body.refresh_token)
 
     if payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="Expected a refresh token")
+
+    if is_refresh_token_revoked(payload, db):
+        raise HTTPException(status_code=401, detail="Refresh token has been revoked")
 
     email = payload.get("sub")
     if not email:
@@ -242,6 +267,10 @@ def refresh(body: RefreshRequest, request: Request, db: Session = Depends(get_db
     user = db.query(User).filter(User.email == email).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or deactivated")
+
+    # Rotate: revoke the presented token before issuing a new pair so a
+    # stolen refresh token can only be used once.
+    revoke_refresh_token(payload, db, reason="rotated")
 
     token_data = {"sub": user.email, "user_id": user.id, "role": user.role}
     access_token = create_access_token(token_data)
@@ -584,8 +613,10 @@ def create_enterprise_checkout(
 
     stripe.api_key = stripe_key
 
-    # Determine base URL for redirects
-    origin = "https://wethepeopleforus.com"
+    # Determine base URL for redirects. Defaults to prod, but can be
+    # overridden via WTP_PUBLIC_ORIGIN so staging/dev redirects don't
+    # send users to the production success page after a real charge.
+    origin = os.getenv("WTP_PUBLIC_ORIGIN", "https://wethepeopleforus.com").rstrip("/")
 
     try:
         session = stripe.checkout.Session.create(
@@ -632,12 +663,21 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         logger.error("Stripe webhook verification failed: %s", e)
         raise HTTPException(status_code=400, detail="Invalid webhook")
 
+    # Each event branch runs in its own try/except so a downstream failure
+    # in (say) downgrade processing can't 500 us *after* the upgrade
+    # commit already happened — that would have caused Stripe to retry
+    # and re-apply the role unnecessarily, plus mask the underlying
+    # error. Each commit is a leaf operation; rollback on its branch only.
     try:
         event_type = event.get("type", "") if isinstance(event, dict) else getattr(event, "type", "")
         event_data = event.get("data", {}) if isinstance(event, dict) else getattr(event, "data", {})
         event_obj = event_data.get("object", {}) if isinstance(event_data, dict) else getattr(event_data, "object", {})
+    except Exception as e:
+        logger.error("Stripe webhook event parse error: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid webhook payload")
 
-        if event_type == "checkout.session.completed":
+    if event_type == "checkout.session.completed":
+        try:
             session = event_obj
             user_id = session.get("client_reference_id") or session.get("metadata", {}).get("user_id")
             if user_id:
@@ -646,8 +686,14 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     user.role = "enterprise"
                     db.commit()
                     logger.info("User %s upgraded to enterprise via Stripe", user.email)
+        except Exception as e:
+            logger.error("Stripe upgrade handler failed: %s", e)
+            db.rollback()
+            # Return 500 so Stripe retries — upgrade is idempotent.
+            raise HTTPException(status_code=500, detail="Upgrade processing failed")
 
-        elif event_type in ("customer.subscription.deleted", "customer.subscription.updated"):
+    elif event_type in ("customer.subscription.deleted", "customer.subscription.updated"):
+        try:
             sub = event_obj
             user_id = sub.get("metadata", {}).get("user_id")
             if user_id:
@@ -656,18 +702,27 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     user.role = "free"
                     db.commit()
                     logger.info("User %s downgraded to free (sub %s)", user.email, sub.get("status"))
+        except Exception as e:
+            logger.error("Stripe downgrade handler failed: %s", e)
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Downgrade processing failed")
 
-        elif event_type == "invoice.payment_failed":
+    elif event_type == "invoice.payment_failed":
+        try:
             invoice = event_obj
             customer_email = invoice.get("customer_email")
             if customer_email:
                 user = db.query(User).filter(User.email == customer_email).first()
                 if user:
-                    logger.warning("Payment failed for user %s", user.email)
-
-    except Exception as e:
-        logger.error("Stripe webhook handler error: %s", e)
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Webhook processing failed")
+                    # Surface to operators via WARNING — a real
+                    # payment_failed event suggests dunning is needed.
+                    # If we ever wire an alert channel, hook it here.
+                    logger.warning(
+                        "Payment failed for user %s (customer=%s, invoice=%s)",
+                        user.email, invoice.get("customer"), invoice.get("id"),
+                    )
+        except Exception as e:
+            logger.error("Stripe payment_failed handler error: %s", e)
+            # Don't block the webhook on logging failure.
 
     return {"status": "ok"}

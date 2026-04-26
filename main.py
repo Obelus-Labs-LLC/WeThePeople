@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -27,8 +26,12 @@ _logger = get_logger(__name__)
 
 # --- Rate Limiter ---
 # Default: 60 requests/minute per IP. Override with WTP_RATE_LIMIT env var.
+# Uses get_client_ip (trusted-proxy aware) instead of slowapi's
+# get_remote_address, which blindly trusts X-Forwarded-For. See
+# services/auth.get_client_ip for the trust model.
+from services.auth import get_client_ip as _trusted_get_client_ip
 _rate_limit = os.getenv("WTP_RATE_LIMIT", "60/minute")
-limiter = Limiter(key_func=get_remote_address, default_limits=[_rate_limit])
+limiter = Limiter(key_func=_trusted_get_client_ip, default_limits=[_rate_limit])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

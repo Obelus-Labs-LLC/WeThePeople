@@ -88,7 +88,7 @@ function entityRoute(
   if (sector === 'agriculture') return `/agriculture/${entityId}`;
   if (sector === 'chemicals') return `/chemicals/${entityId}`;
   if (sector === 'telecom' || sector === 'telecommunications')
-    return `/telecommunications/${entityId}`;
+    return `/telecom/${entityId}`;
   if (sector === 'education') return `/education/${entityId}`;
   return `/`;
 }

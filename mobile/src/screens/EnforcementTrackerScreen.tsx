@@ -65,31 +65,17 @@ export default function EnforcementTrackerScreen() {
 
   const load = async () => {
     try {
-      // Fetch all tech companies, then fan-out per-company enforcement.
-      // Capped at 50 companies to keep the mobile experience snappy.
-      const compRes = await apiClient.getTechCompanies({ limit: 200 });
-      const companies = (compRes as any).companies || [];
-      const withEnforcement = companies.filter((c: any) => (c.enforcement_count || 0) > 0).slice(0, 50);
-
-      const results: Action[] = [];
-      await Promise.all(
-        withEnforcement.map(async (co: any) => {
-          try {
-            const r = await apiClient.getTechCompanyEnforcement(co.company_id, { limit: 20 });
-            const items = (r as any).actions || [];
-            for (const a of items) {
-              results.push({
-                ...a,
-                company_id: co.company_id,
-                company_name: co.display_name || co.company_id,
-              });
-            }
-          } catch (e) {
-            log(`enforcement fetch ${co.company_id}`, e);
-          }
-        }),
-      );
-
+      // Single aggregated request instead of fanning out 50 parallel
+      // per-company calls. The previous fan-out on cold LTE could stall
+      // the screen for ~20s and partially time out — `/aggregate/tech/
+      // enforcement` returns the same data in one round trip.
+      const agg = await apiClient.getAggregateEnforcement('tech', { limit: 500 });
+      const items = (agg as any).actions || [];
+      const results: Action[] = items.map((a: any) => ({
+        ...a,
+        company_id: a.company_id,
+        company_name: a.company_name || a.display_name || a.company_id,
+      }));
       results.sort((a, b) => (b.penalty_amount || 0) - (a.penalty_amount || 0));
       setActions(results);
       setError('');

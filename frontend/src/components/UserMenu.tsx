@@ -57,7 +57,7 @@ export default function UserMenu() {
             <Settings size={14} />
             Account
           </Link>
-          <Link to="/account?tab=watchlist" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
+          <Link to="/account?tab=follows" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">
             <Star size={14} />
             Watchlist
           </Link>

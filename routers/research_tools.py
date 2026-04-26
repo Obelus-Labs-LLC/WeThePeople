@@ -9,6 +9,8 @@ All external API calls go through the connector layer — never raw httpx/reques
 
 import logging
 import os
+import threading
+import time as _time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
@@ -22,6 +24,14 @@ from connectors.fec import search_candidates_research
 from connectors.congress import search_bills
 from models.database import get_db
 from utils.sanitize import escape_like
+
+# /bill-text-search runs a 10-table UNION ALL with `LIKE %x%` on
+# lobbying_issues / specific_issues — no index, no LIMIT inside the
+# per-table SELECT. Cache results for 5 minutes by (query, congress, limit)
+# so repeat searches (very common when users explore the page) cost nothing.
+_bill_search_cache: dict = {}
+_bill_search_lock = threading.Lock()
+_BILL_SEARCH_TTL = 300  # 5 minutes
 
 logger = logging.getLogger(__name__)
 
@@ -192,13 +202,24 @@ def _build_lobbying_union_query(search_term: str) -> str:
 
 @router.get("/bill-text-search")
 def bill_text_search(
-    query: str = Query(..., description="Search term (lobbying issue, industry term, etc.)"),
+    query: str = Query(..., min_length=3, description="Search term (lobbying issue, industry term, etc.)"),
     congress: int = Query(119, description="Congress number"),
     limit: int = Query(25, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     """Search congressional bills via Congress.gov API and cross-reference with
-    lobbying filings from our database that mention the same terms."""
+    lobbying filings from our database that mention the same terms.
+
+    Cached for 5 minutes by (query, congress, limit). Single-character queries
+    are rejected via min_length=3 — `%a%` against 10 unindexed tables would
+    return millions of rows.
+    """
+    cache_key = (query.strip().lower(), congress, limit)
+    now = _time.time()
+    with _bill_search_lock:
+        cached = _bill_search_cache.get(cache_key)
+        if cached and (now - cached["ts"]) < _BILL_SEARCH_TTL:
+            return cached["data"]
 
     # ── 1. Query Congress.gov for matching bills via connector ──
 
@@ -267,11 +288,14 @@ def bill_text_search(
         logger.warning("Lobbying cross-reference query failed: %s", exc)
         # Don't fail the whole request — bills data is still useful
 
-    return {
+    response = {
         "total_bills": total_bills,
         "bills": bills,
         "related_lobbying": related_lobbying,
     }
+    with _bill_search_lock:
+        _bill_search_cache[cache_key] = {"ts": _time.time(), "data": response}
+    return response
 
 
 # ── OpenCorporates (Company Ownership) ─────────────────────────────────────
