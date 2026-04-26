@@ -101,6 +101,11 @@ export function Footer() {
                 <a
                   key={l.label}
                   href={l.href}
+                  // Footer links to other ecosystem sites and external
+                  // resources — open in a new tab so the visitor's
+                  // current story stays in their browser history.
+                  target="_blank"
+                  rel="noopener noreferrer"
                   style={linkStyle}
                   onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-accent-text)')}
                   onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-3)')}

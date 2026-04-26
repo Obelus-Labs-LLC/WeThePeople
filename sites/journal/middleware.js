@@ -204,15 +204,21 @@ async function handleStoryForBot(slug) {
         'Cache-Control': 'public, max-age=3600, s-maxage=3600',
       },
     });
-  } catch {
-    return; // Fall through to SPA on any error.
+  } catch (err) {
+    // Surface the failure in Vercel logs so a regression — say, the
+    // API going down or returning an unexpected shape — gets noticed
+    // instead of silently falling through to the SPA shell (which
+    // ships blank OG tags to every crawler).
+    console.error('[middleware] story bot fetch failed:', err);
+    return;
   }
 }
 
 async function handleSitemap() {
-  // Cap the response. The API list endpoint is expected to return
-  // recent stories first; very deep history doesn't need to be in the
-  // primary sitemap (and we'd want a paginated index for that).
+  // The API list endpoint returns most-recent first. The published
+  // corpus is currently ~150 stories so a single limit=500 call covers
+  // it; if the corpus ever exceeds 500 we should add a paginated
+  // sitemap-index instead of bumping the cap further.
   let stories = [];
   try {
     const res = await fetch(`${API_BASE}/stories/latest?limit=500`, {
@@ -221,8 +227,18 @@ async function handleSitemap() {
     if (res.ok) {
       const data = await res.json();
       stories = Array.isArray(data) ? data : (data?.stories ?? []);
+    } else {
+      // Don't silently swallow — a 422 or 5xx here means an empty
+      // sitemap goes out, which is worse than the 500 search engines
+      // would briefly retry on. Logging surfaces it in Vercel.
+      console.error(
+        '[middleware] sitemap API returned non-OK:',
+        res.status,
+        res.statusText,
+      );
     }
-  } catch {
+  } catch (err) {
+    console.error('[middleware] sitemap API fetch failed:', err);
     // Falls through with `stories = []`. Even an empty sitemap is
     // better than a 500 — search engines will recrawl later.
   }

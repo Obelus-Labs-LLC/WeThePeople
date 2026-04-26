@@ -136,7 +136,11 @@ def list_stories(
 
 @router.get("/latest", response_model=StoriesListResponse)
 def latest_stories(
-    limit: int = Query(5, ge=1, le=50),
+    # Cap raised to 500 so the journal home (search index) and the
+    # sitemap edge function can ask for the full corpus in one call.
+    # The dataset is ~150 published stories — well within memory and
+    # well within FastAPI's response time budget.
+    limit: int = Query(5, ge=1, le=500),
     category: Optional[str] = Query(None),
     sector: Optional[str] = Query(None),
     db: Session = Depends(get_db),
