@@ -8,6 +8,7 @@ import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
 import { apiClient } from '../api/client';
+import { openExternalUrl } from '../utils/openExternal';
 const ACCENT = '#2563EB';
 const log = (msg: string, err: unknown) => console.warn(`[PromiseDetailScreen] ${msg}:`, err);
 
@@ -118,7 +119,7 @@ export default function PromiseDetailScreen() {
           </View>
           <TouchableOpacity
             style={styles.linkCard}
-            onPress={() => Linking.openURL(promise.source_url).catch((e) => log('open source', e))}
+            onPress={() => openExternalUrl(promise.source_url, 'source')}
           >
             <Ionicons name="link" size={16} color="#10B981" />
             <Text style={styles.linkText} numberOfLines={2}>{promise.source_url}</Text>

@@ -68,9 +68,20 @@ def _build_svg(
     accent: str,
 ) -> str:
     """Build an SVG card string (1200x630)."""
-    # Escape XML entities
-    name_escaped = name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    sector_escaped = sector.upper().replace("&", "&amp;")
+    # Escape XML for both element-content and attribute contexts. The
+    # previous version skipped quotes, leaving an SVG-injection vector
+    # if an entity name contained a `"` (which would close the
+    # surrounding attribute when consumers embed the SVG inline in HTML).
+    def _xml_escape(s: str) -> str:
+        return (
+            s.replace("&", "&amp;")
+             .replace("<", "&lt;")
+             .replace(">", "&gt;")
+             .replace('"', "&quot;")
+             .replace("'", "&apos;")
+        )
+    name_escaped = _xml_escape(name)
+    sector_escaped = _xml_escape(sector.upper())
 
     stat_blocks = ""
     x_start = 80
@@ -78,8 +89,8 @@ def _build_svg(
     for i, (label, value) in enumerate(stats[:4]):
         x = x_start + (i % 4) * col_width
         y = 380
-        label_esc = label.replace("&", "&amp;")
-        value_esc = value.replace("&", "&amp;")
+        label_esc = _xml_escape(label)
+        value_esc = _xml_escape(value)
         stat_blocks += f'''
         <text x="{x}" y="{y}" fill="rgba(255,255,255,0.5)" font-size="16" font-family="system-ui, sans-serif" font-weight="500">{label_esc}</text>
         <text x="{x}" y="{y + 36}" fill="white" font-size="32" font-family="system-ui, sans-serif" font-weight="700">{value_esc}</text>

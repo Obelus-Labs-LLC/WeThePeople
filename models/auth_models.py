@@ -105,6 +105,28 @@ class UserWatchlistItem(Base):
     user = relationship("User", backref="watchlist_items")
 
 
+class RevokedToken(Base):
+    """Refresh-token revocation list.
+
+    Each refresh token carries a `jti` claim (UUID) issued at login. When the
+    user logs out, changes their password, or revokes the token explicitly,
+    the jti is inserted here. `verify_token` rejects any refresh token whose
+    jti is present, even if the underlying signature is still valid.
+
+    Stale rows (where ``expires_at < now()``) are safe to delete: the JWT
+    library would reject those tokens for being expired anyway.
+    """
+
+    __tablename__ = "revoked_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    jti = Column(String(64), nullable=False, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    reason = Column(String(50), nullable=True)  # logout, password_change, manual, etc.
+
+
 class AuditLog(Base):
     """Immutable security audit trail."""
 

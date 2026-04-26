@@ -41,6 +41,10 @@ function fmtDate(s?: string): string {
 
 export default function SectorContractsScreen() {
   const route = useRoute<any>();
+  // Default kept at 'tech' for back-compat with the original tech-tab
+  // entry point; accept any of the 11 sector slugs the API supports.
+  // The hero title (`{sectorLabel} Contracts`) makes the active sector
+  // visible so users know what they're looking at.
   const sector: string = route.params?.sector || 'tech';
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);

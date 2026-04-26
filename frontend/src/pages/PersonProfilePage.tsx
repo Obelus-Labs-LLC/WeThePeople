@@ -298,10 +298,16 @@ function profileReducer(state: ProfileState, action: ProfileAction): ProfileStat
       const patch: Partial<ProfileState> = { overviewLoading: false };
 
       if (d.person) patch.person = d.person as Person;
+      // The combined /people/{id}/full endpoint may legitimately omit a
+      // sub-field for an entity that doesn't have it yet (e.g. a freshly
+      // tracked member with no photos/profile yet). The previous reducer
+      // flipped *Error to true any time the field was missing, rendering
+      // the whole section as "errored" instead of just unavailable.
+      // Only set Error when LOAD_FULL_ERROR is dispatched (network-level
+      // failure) — here we just preserve the prior value so partial
+      // payloads stay neutral.
       if (d.profile) { patch.profile = d.profile as PersonProfile; patch.profileError = false; }
-      else { patch.profileError = true; }
       if (d.performance) { patch.performance = d.performance as PersonPerformance; patch.performanceError = false; }
-      else { patch.performanceError = true; }
       if (d.stats) patch.stats = d.stats as PersonStats;
       if (d.committees) patch.committees = (d.committees as { committees?: unknown[] }).committees as Record<string, unknown>[] || [];
       if (d.activity) {

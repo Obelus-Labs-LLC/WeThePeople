@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { askQuestion, getRemainingQuestions, type ChatResponse, type ChatAction } from "../api/chat";
-import { globalSearch, type SearchResults } from "../api/search";
+// globalSearch / SearchResults import was unused — removing.
 
 // ── FAQ map (Tier 1 — free, no API call) ──
 
@@ -92,12 +92,22 @@ function matchIntent(input: string): IntentResult | null {
     }
   }
 
-  // Compare intent
+  // Compare intent. We deliberately do NOT attach a `search` action here:
+  // the previous behavior auto-navigated to /politics/people regardless
+  // of subject, so "compare Apple and Boeing" landed on the
+  // Congresspeople list with zero results. Compare flows are sector-
+  // specific (Finance vs. Health vs. Tech all have their own compare
+  // page), so we tell the user where to go and let them pick.
   const compareMatch = lower.match(COMPARE_PATTERN);
   if (compareMatch) {
+    const a = compareMatch[1].trim();
+    const b = compareMatch[2].trim();
     return {
-      answer: `I'll search for those entities so you can compare them. Try the compare page in the relevant sector.`,
-      action: { type: "search", query: compareMatch[1].trim() },
+      answer:
+        `To compare ${a} and ${b}, open the dashboard for whichever sector ` +
+        `they're in (Finance, Health, Technology, Energy, etc.) and use the ` +
+        `Compare button on the sector page. Each sector has its own compare ` +
+        `surface so the metrics line up.`,
     };
   }
 
@@ -222,7 +232,11 @@ export default function ChatAgent() {
       }
       setOpen(false);
     } else if (action.type === "search" && action.query) {
-      // Could trigger a search — for now navigate to the search results concept
+      // PeoplePage reads `?q=` and filters its list, so this route is
+      // honest for politician searches. Compare-of-companies intents
+      // no longer emit a `search` action (see matchIntent's compare
+      // branch) so this no longer mis-routes "compare Apple and Boeing"
+      // here.
       navigate(`/politics/people?q=${encodeURIComponent(action.query)}`);
       setOpen(false);
     }

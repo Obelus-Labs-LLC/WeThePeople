@@ -8,6 +8,7 @@ import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
 import { apiClient } from '../api/client';
+import { openExternalUrl } from '../utils/openExternal';
 const ACCENT = '#6366F1';
 const log = (msg: string, err: unknown) => console.warn(`[ClaimDetailScreen] ${msg}:`, err);
 
@@ -141,7 +142,7 @@ export default function ClaimDetailScreen() {
           </View>
           <TouchableOpacity
             style={styles.linkCard}
-            onPress={() => Linking.openURL(claim.source_url).catch((e) => log('open source', e))}
+            onPress={() => openExternalUrl(claim.source_url, 'source')}
           >
             <Ionicons name="link" size={16} color="#10B981" />
             <Text style={styles.linkText} numberOfLines={2}>{claim.source_url}</Text>
@@ -164,7 +165,7 @@ export default function ClaimDetailScreen() {
               {e.source_url && (
                 <TouchableOpacity
                   style={styles.evLink}
-                  onPress={() => Linking.openURL(e.source_url).catch((err) => log('open evidence', err))}
+                  onPress={() => openExternalUrl(e.source_url, 'evidence link')}
                 >
                   <Ionicons name="open-outline" size={12} color={ACCENT} />
                   <Text style={styles.evLinkText}>View source</Text>

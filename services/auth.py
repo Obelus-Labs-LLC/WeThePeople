@@ -16,6 +16,7 @@ Usage in FastAPI:
 import os
 import re
 import hmac
+import ipaddress
 from typing import Optional
 
 from fastapi import Header, HTTPException, Query, Request, Depends
@@ -28,11 +29,84 @@ _CLAIMS_FREE_LIMIT = int(os.getenv("WTP_CLAIMS_FREE_LIMIT", "5"))  # per day per
 _CLAIMS_WINDOW = 86400  # 24 hours
 
 
+# ---------------------------------------------------------------------------
+# Trusted-proxy IP resolution
+# ---------------------------------------------------------------------------
+# X-Forwarded-For is trivially spoofable by any client that talks directly
+# to uvicorn — `curl -H "X-Forwarded-For: 1.1.1.1"` would have made every
+# rate-limit bucket per-spoofed-IP, defeating the limit entirely.
+#
+# Only honor XFF when the immediate connection came from an IP listed in
+# WTP_TRUSTED_PROXIES (comma-separated CIDRs). Default 127.0.0.0/8 +
+# 10.0.0.0/8 covers the typical "uvicorn behind nginx on the same box"
+# topology; production deployments behind a managed proxy should set the
+# env var to that proxy's egress range.
+
+def _parse_trusted_proxies() -> list:
+    raw = os.getenv("WTP_TRUSTED_PROXIES", "127.0.0.0/8,10.0.0.0/8")
+    networks = []
+    for chunk in raw.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(chunk, strict=False))
+        except ValueError:
+            # Malformed CIDR — skip silently rather than refuse to boot.
+            pass
+    return networks
+
+
+_TRUSTED_PROXY_NETWORKS = _parse_trusted_proxies()
+
+
+def get_client_ip(request: Request) -> str:
+    """Resolve the real client IP, honoring X-Forwarded-For only when the
+    direct connection came from a configured trusted proxy.
+
+    Returns ``"unknown"`` if the connection IP can't be determined.
+    """
+    direct = request.client.host if request.client else None
+    if direct is None:
+        return "unknown"
+
+    # Only trust XFF if the immediate hop is a configured proxy
+    try:
+        direct_ip = ipaddress.ip_address(direct)
+    except ValueError:
+        return direct
+
+    direct_is_trusted = any(direct_ip in net for net in _TRUSTED_PROXY_NETWORKS)
+    if direct_is_trusted:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            # First IP is the original client. Strip whitespace; reject
+            # malformed entries.
+            first = forwarded.split(",")[0].strip()
+            if first:
+                try:
+                    ipaddress.ip_address(first)
+                    return first
+                except ValueError:
+                    pass
+    return direct
+
+
 def _require_auth() -> bool:
+    """Fail-closed: auth is required unless BOTH ``WTP_ENV=development`` AND
+    ``WTP_REQUIRE_AUTH=0`` are set. Either alone falls back to enforcement.
+
+    The previous logic let an operator silence local-dev auth errors with
+    a one-line ``WTP_REQUIRE_AUTH=0`` in a personal ``.env`` file — which
+    then leaked to prod if the file was copied without ``WTP_ENV`` being
+    flipped back. Tying the override to both env vars makes that misuse
+    much harder.
+    """
     env = os.getenv("WTP_ENV", "production").lower()
-    # Default to requiring auth in production/staging; opt-in to disable in dev
-    default = "0" if env == "development" else "1"
-    return os.getenv("WTP_REQUIRE_AUTH", default) == "1"
+    explicit_disable = os.getenv("WTP_REQUIRE_AUTH", "1") == "0"
+    if env == "development" and explicit_disable:
+        return False
+    return True
 
 
 def _press_api_key() -> str:
@@ -175,11 +249,7 @@ def require_enterprise_or_rate_limit(
         return {"tier": "pro", "rate_limited": False}
 
     # --- 4. Anonymous free tier: persistent IP rate limit ---
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        client_ip = forwarded.split(",")[0].strip()
-    else:
-        client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
 
     allowed, remaining, reset_time = check_rate_limit(
         ip=client_ip,

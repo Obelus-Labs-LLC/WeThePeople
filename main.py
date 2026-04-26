@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -27,20 +26,53 @@ _logger = get_logger(__name__)
 
 # --- Rate Limiter ---
 # Default: 60 requests/minute per IP. Override with WTP_RATE_LIMIT env var.
+# Uses get_client_ip (trusted-proxy aware) instead of slowapi's
+# get_remote_address, which blindly trusts X-Forwarded-For. See
+# services/auth.get_client_ip for the trust model.
+from services.auth import get_client_ip as _trusted_get_client_ip
 _rate_limit = os.getenv("WTP_RATE_LIMIT", "60/minute")
-limiter = Limiter(key_func=get_remote_address, default_limits=[_rate_limit])
+limiter = Limiter(key_func=_trusted_get_client_ip, default_limits=[_rate_limit])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context: startup/shutdown logic."""
+    """Lifespan context: startup/shutdown logic.
+
+    Federal Register backfill runs only on the worker that wins a tiny
+    file-based lock. Without this, every uvicorn worker (`--workers N`)
+    fired its own `fetch_presidential_documents(pages=3)` on cold start,
+    hammering api.federalregister.gov in parallel and producing duplicate
+    inserts that the connector then had to dedupe.
+    """
     if os.getenv("DISABLE_STARTUP_FETCH") != "1":
         def _bg_fetch():
+            from pathlib import Path
+            lock_dir = Path(os.getenv("WTP_RUNTIME_DIR", ".")) / "data"
+            lock_dir.mkdir(parents=True, exist_ok=True)
+            lock_path = lock_dir / "fr_startup_fetch.lock"
             try:
-                from connectors.federal_register import fetch_presidential_documents
-                fetch_presidential_documents(pages=3)
-                _logger.info("Federal Register data loaded successfully")
+                lock_fh = open(lock_path, "w")
+                try:
+                    import fcntl
+                    try:
+                        fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except OSError:
+                        # Another worker holds the lock; back off.
+                        lock_fh.close()
+                        return
+                except ImportError:
+                    # Windows fallback: best-effort, no lock.
+                    pass
+
+                try:
+                    from connectors.federal_register import fetch_presidential_documents
+                    fetch_presidential_documents(pages=3)
+                    _logger.info("Federal Register data loaded successfully")
+                except Exception as e:
+                    _logger.warning("Failed to load Federal Register data: %s", e)
+                finally:
+                    lock_fh.close()
             except Exception as e:
-                _logger.warning("Failed to load Federal Register data: %s", e)
+                _logger.warning("Startup fetch lock acquisition failed: %s", e)
         threading.Thread(target=_bg_fetch, daemon=True).start()
     yield
 

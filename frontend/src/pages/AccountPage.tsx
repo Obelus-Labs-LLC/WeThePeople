@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrl } from '../api/client';
 import { PRESS_TIER_PRICE } from '../config';
@@ -210,7 +210,24 @@ function formatDate(iso: string | null | undefined): string {
 
 export default function AccountPage() {
   const { user, isAuthenticated, loading, logout, authedFetch } = useAuth();
-  const [tab, setTab] = useState<TabId>('profile');
+
+  // Tab is driven by `?tab=` so deep-links from UserMenu / external nav
+  // land on the right pane (e.g. /account?tab=follows for the watchlist).
+  // Falls back to 'profile' for unknown / missing values.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const validTabs: TabId[] = ['profile', 'notifications', 'follows', 'apikeys', 'billing', 'dangerzone'];
+  const initialTab = (() => {
+    const q = searchParams.get('tab');
+    return (q && (validTabs as string[]).includes(q)) ? (q as TabId) : 'profile';
+  })();
+  const [tab, _setTab] = useState<TabId>(initialTab);
+  const setTab = (next: TabId) => {
+    _setTab(next);
+    const params = new URLSearchParams(searchParams);
+    if (next === 'profile') params.delete('tab');
+    else params.set('tab', next);
+    setSearchParams(params, { replace: true });
+  };
 
   // Watchlist (real data) - track an explicit error so the empty list is
   // not silently shown when the API actually failed.
@@ -313,8 +330,17 @@ export default function AccountPage() {
   };
 
   const createKey = async () => {
-    const name = window.prompt('Name for this API key?', 'Production');
-    if (!name) return;
+    const raw = window.prompt('Name for this API key?', 'Production');
+    if (raw === null) return; // user cancelled
+    const name = raw.trim();
+    if (!name) {
+      alert('API key name cannot be empty.');
+      return;
+    }
+    if (name.length > 100) {
+      alert('API key name must be 100 characters or fewer.');
+      return;
+    }
     try {
       const res = await authedFetch(`${API_BASE}/auth/api-keys`, {
         method: 'POST',

@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { UI_COLORS } from '../constants/colors';
 import { apiClient } from '../api/client';
+import { openExternalUrl } from '../utils/openExternal';
 import WatchlistButton from '../components/WatchlistButton';
 import type { LedgerEntry, PersonProfile, PersonFinance, PersonPerformance } from '../api/types';
 import {
@@ -161,7 +162,7 @@ function ExpandableClaim({ entry, onBillPress }: { entry: LedgerEntry; onBillPre
           {entry.source_url && (
             <TouchableOpacity
               style={styles.sourceLink}
-              onPress={() => Linking.openURL(entry.source_url)}
+              onPress={() => openExternalUrl(entry.source_url, 'source')}
             >
               <Ionicons name="link-outline" size={14} color={UI_COLORS.ACCENT} />
               <Text style={styles.sourceLinkText}>View Source</Text>
@@ -195,7 +196,11 @@ export default function PersonScreen() {
   const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   useEffect(() => {
-    if (!person_id) return;
+    if (!person_id) {
+      // No route param → don't keep the spinner up forever.
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     Promise.all([
       apiClient.getLedgerForPerson(person_id, { limit: 100 }),

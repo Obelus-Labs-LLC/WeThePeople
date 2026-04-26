@@ -121,6 +121,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (r.status === 401) {
         // Refresh succeeded yet still 401 — token is genuinely revoked.
         clearTokens();
+      } else if (r.status === 403) {
+        // Authenticated but forbidden (banned account, role demoted,
+        // etc.). Don't clear tokens — but make the state distinguishable
+        // from "logged out" so the UI can surface a banner instead of
+        // showing the public Sign-up button.
+        console.warn('[AuthContext] /auth/me 403 — account is forbidden, not unauthenticated');
+        // Leave tokens; leave user null. The next call gets the same
+        // 403 and the auth-required pages will redirect to /login,
+        // which is the right experience for a denied account.
       } else {
         // 5xx or unexpected — keep tokens, surface to console.
         console.warn('[AuthContext] /auth/me unexpected status:', r.status);
@@ -175,18 +184,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return response;
   }, [clearTokens, refreshOnce]);
 
+  // FastAPI's pydantic validation errors come back as
+  // `{detail: [{loc, msg, type}, ...]}` — using `d.detail` directly
+  // rendered as `[object Object]` in the login form. Render the first
+  // message string when present; otherwise fall back to JSON.
+  const formatDetail = (raw: unknown, fallback: string): string => {
+    if (typeof raw === 'string') return raw;
+    if (Array.isArray(raw) && raw.length > 0) {
+      const first = raw[0];
+      if (first && typeof first === 'object' && typeof (first as { msg?: string }).msg === 'string') {
+        return (first as { msg: string }).msg;
+      }
+    }
+    if (raw && typeof raw === 'object') {
+      try { return JSON.stringify(raw); } catch { /* ignore */ }
+    }
+    return fallback;
+  };
+
   const login = async (email: string, password: string) => {
+    const cleanEmail = email.trim().toLowerCase();
     const r = await fetch(`${API}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: cleanEmail, password }),
     });
     if (!r.ok) {
       const d = await r.json().catch((err) => {
         console.warn('[AuthContext] login error body parse failed:', err);
         return { detail: 'Login failed' };
       });
-      throw new Error(d.detail || 'Login failed');
+      throw new Error(formatDetail(d?.detail, 'Login failed'));
     }
     const data = await r.json();
     localStorage.setItem(ACCESS_KEY, data.access_token);
@@ -195,8 +223,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const register = async (email: string, password: string, options: RegisterOptions = {}) => {
+    const cleanEmail = email.trim().toLowerCase();
     const body: Record<string, unknown> = {
-      email,
+      email: cleanEmail,
       password,
       display_name: options.displayName,
     };
@@ -214,9 +243,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('[AuthContext] register error body parse failed:', err);
         return { detail: 'Registration failed' };
       });
-      throw new Error(d.detail || 'Registration failed');
+      throw new Error(formatDetail(d?.detail, 'Registration failed'));
     }
-    await login(email, password);
+    await login(cleanEmail, password);
   };
 
   const logout = () => {

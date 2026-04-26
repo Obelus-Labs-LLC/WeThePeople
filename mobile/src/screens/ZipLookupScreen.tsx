@@ -132,7 +132,7 @@ export default function ZipLookupScreen() {
             </Text>
           </View>
 
-          {result.representatives.length === 0 ? (
+          {(!Array.isArray(result.representatives) || result.representatives.length === 0) ? (
             <EmptyState title="No Representatives" message="No representatives found for this ZIP code." />
           ) : (
             result.representatives.map((rep, idx) => {

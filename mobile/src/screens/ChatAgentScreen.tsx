@@ -135,8 +135,12 @@ export default function ChatAgentScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      // Android needs `height` behavior + a non-zero offset so the
+      // text input doesn't get hidden under the soft keyboard. The
+      // previous `behavior=undefined, offset=0` shipped the input
+      // overlapping the keyboard on Android.
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 24}
     >
       <ScrollView
         ref={scrollRef}

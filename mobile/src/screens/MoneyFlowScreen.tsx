@@ -46,12 +46,16 @@ export default function MoneyFlowScreen() {
         .map((l) => {
           const src = nodes[l.source];
           const tgt = nodes[l.target];
+          // Guard against NaN — `Number(undefined)` is NaN, which then
+          // poisons sums and renders as `$NaN` in the hero total.
+          const rawAmount = Number(l.value);
+          const amount = Number.isFinite(rawAmount) ? rawAmount : 0;
           return {
             source_name: src?.name,
             source_type: src?.group,
             target_name: tgt?.name,
             target_type: tgt?.group,
-            amount: Number(l.value || 0),
+            amount,
           };
         })
         .filter((f) => f.source_name && f.target_name)
