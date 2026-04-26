@@ -284,38 +284,55 @@ def get_engine_kwargs() -> dict:
 
 
 def lobby_spend(model):
-    """SQLAlchemy expression: per-row total lobbying spend for a filing.
+    """SQLAlchemy expression: per-row dollar value for an LDA filing.
 
-    Returns COALESCE(income, 0) + COALESCE(expenses, 0) as a SQLAlchemy
-    column expression. Wrap with func.sum(...) to get an aggregate:
+    Senate LDA convention: a filing is either an *outside-firm* filing
+    (the firm reports `income` from its client) OR an *in-house* filing
+    (the registrant reports its own `expenses`, which already include
+    fees paid to outside firms). Earlier code summed both columns —
+    which double-counted every dollar a company paid to an outside
+    firm, since the firm reported it as income AND the company already
+    counted it under expenses.
 
-        func.sum(lobby_spend(LobbyingRecord))
+    This expression returns ``expenses`` when the row is an in-house
+    filing, otherwise ``income``. Wrap with func.sum(...) for a
+    correctly-deduplicated aggregate.
 
-    Callers should always use this instead of reading `Model.income`
-    directly when what they want is "total dollars associated with this
-    filing/lobbying relationship".
+    NOTE: For per-(entity, year) totals where you want the
+    prefer-expenses-when-present convention, use
+    ``services.lobby_spend.lobby_spend_total_sql`` — that helper does
+    the right thing across mixed in-house + outside-firm filings for
+    the same (entity, year). This row-level helper is correct for
+    things like CSV exports of individual filings, where each row
+    stands on its own.
     """
-    return func.coalesce(model.income, 0) + func.coalesce(model.expenses, 0)
+    return func.case(
+        (func.coalesce(model.expenses, 0) > 0, func.coalesce(model.expenses, 0)),
+        else_=func.coalesce(model.income, 0),
+    )
 
 
 def lobby_spend_sql(alias: str = "") -> str:
-    """Raw-SQL fragment for per-row total lobbying spend.
+    """Raw-SQL fragment for per-row dollar value of a single filing.
 
-    Returns the string `COALESCE(income, 0) + COALESCE(expenses, 0)`,
-    optionally qualified with a table alias:
+    Senate LDA convention: take ``expenses`` when populated (in-house
+    filing — already includes any outside-firm fees), otherwise
+    ``income`` (outside-firm filing). Adding both double-counts.
 
-        lobby_spend_sql()        -> 'COALESCE(income, 0) + COALESCE(expenses, 0)'
-        lobby_spend_sql('l')     -> 'COALESCE(l.income, 0) + COALESCE(l.expenses, 0)'
-
-    Wrap in SUM(...) to aggregate:
-
-        f"SELECT SUM({lobby_spend_sql()}) FROM {table} WHERE ..."
+    For per-(entity, year) aggregates that span mixed filing types,
+    use ``services.lobby_spend.lobby_spend_total_sql`` — the
+    prefer-expenses convention has to be applied per-year, not
+    per-row, to be fully correct.
     """
     if alias:
         p = f"{alias}."
     else:
         p = ""
-    return f"COALESCE({p}income, 0) + COALESCE({p}expenses, 0)"
+    return (
+        f"CASE WHEN COALESCE({p}expenses, 0) > 0 "
+        f"THEN COALESCE({p}expenses, 0) "
+        f"ELSE COALESCE({p}income, 0) END"
+    )
 
 
 def get_oracle_connection_url() -> str:
