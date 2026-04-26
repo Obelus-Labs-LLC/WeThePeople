@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useCallback, useMemo } from 'react';
+import React, { useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient, getApiBaseUrl } from '../api/client';
@@ -376,21 +376,35 @@ export default function PersonProfilePage() {
   const setVoteFilter = useCallback((v: string) => dispatch({ type: 'SET_VOTE_FILTER', value: v }), []);
 
   // ── Single combined fetch for all person data ──
+  // Tracks the active controller in a ref so loadMoreActivity / loadMoreVotes
+  // can be cancelled if the component unmounts or person_id changes mid-flight.
+  const activeAbortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     if (!person_id) return;
-    let cancelled = false;
+    const controller = new AbortController();
+    activeAbortRef.current = controller;
     dispatch({ type: 'SET_OVERVIEW_LOADING', value: true });
 
-    fetch(`${getApiBaseUrl()}/people/${person_id}/full`)
+    fetch(`${getApiBaseUrl()}/people/${encodeURIComponent(person_id)}/full`, {
+      signal: controller.signal,
+    })
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((data) => {
-        if (!cancelled) dispatch({ type: 'LOAD_FULL', data });
+        if (!controller.signal.aborted) dispatch({ type: 'LOAD_FULL', data });
       })
-      .catch(() => {
-        if (!cancelled) dispatch({ type: 'LOAD_FULL_ERROR' });
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        // Log so transient backend failures are debuggable instead of just
+        // collapsing to a generic LOAD_FULL_ERROR with no signal.
+        console.warn('[PersonProfilePage] /people/{id}/full failed:', err);
+        if (!controller.signal.aborted) dispatch({ type: 'LOAD_FULL_ERROR' });
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      controller.abort();
+      if (activeAbortRef.current === controller) activeAbortRef.current = null;
+    };
   }, [person_id]);
 
   // ── Load more: legislation ──
@@ -398,13 +412,18 @@ export default function PersonProfilePage() {
     if (!person_id || !activity) return;
     const nextOffset = activityEntries.length;
     if (nextOffset >= activity.total) return;
+    const signal = activeAbortRef.current?.signal;
     dispatch({ type: 'SET_ACTIVITY_LOADING', value: true });
     apiClient
       .getPersonActivity(person_id, { limit: 50, offset: nextOffset })
       .then((res) => {
+        if (signal?.aborted) return;
         dispatch({ type: 'APPEND_ACTIVITY', entries: res.entries || [] });
       })
-      .catch(() => { dispatch({ type: 'SET_ACTIVITY_LOADING', value: false }); });
+      .catch(() => {
+        if (signal?.aborted) return;
+        dispatch({ type: 'SET_ACTIVITY_LOADING', value: false });
+      });
   }, [person_id, activity, activityEntries.length]);
 
   // ── Load more: votes ──
@@ -412,13 +431,18 @@ export default function PersonProfilePage() {
     if (!person_id || !votesData) return;
     const nextOffset = voteEntries.length;
     if (nextOffset >= votesData.total) return;
+    const signal = activeAbortRef.current?.signal;
     dispatch({ type: 'SET_VOTES_LOADING', value: true });
     apiClient
       .getPersonVotes(person_id, { limit: 50, offset: nextOffset })
       .then((res) => {
+        if (signal?.aborted) return;
         dispatch({ type: 'APPEND_VOTES', votes: res.votes || [] });
       })
-      .catch(() => { dispatch({ type: 'SET_VOTES_LOADING', value: false }); });
+      .catch(() => {
+        if (signal?.aborted) return;
+        dispatch({ type: 'SET_VOTES_LOADING', value: false });
+      });
   }, [person_id, votesData, voteEntries.length]);
 
   // ── Derived ──
