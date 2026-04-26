@@ -74,14 +74,17 @@ class LobbyCorrection:
     entity_label: str
 
 LOBBY_DOUBLE_COUNT_FIXES = [
-    LobbyCorrection(125, "general-atomics",      "defense",        "defense_lobbying_records",        "company_id", "General Atomics"),
-    LobbyCorrection(127, "johnson-johnson",      "health",         "health_lobbying_records",         "company_id", "Johnson & Johnson"),
-    LobbyCorrection(128, "qualcomm-incorporated","tech",           "lobbying_records",                "company_id", "QUALCOMM"),
-    LobbyCorrection(143, "molson-coors-beverage-company", "agriculture", "agriculture_lobbying_records", "company_id", "Molson Coors"),
-    LobbyCorrection(166, "fedex-corporation",    "transportation", "transportation_lobbying_records", "company_id", "FedEx"),
-    LobbyCorrection(220, "stride-inc",           "education",      "education_lobbying_records",      "company_id", "Stride Inc."),
-    LobbyCorrection(226, "vistra-corp",          "energy",         "energy_lobbying_records",         "company_id", "Vistra Corp."),
-    LobbyCorrection(228, "t-mobile-us-inc",      "telecom",        "telecom_lobbying_records",        "company_id", "T-Mobile US Inc."),
+    # company_id slugs are short forms in the DB ("qualcomm", "fedex",
+    # not "qualcomm-incorporated"). Verified by querying
+    # SELECT DISTINCT company_id FROM <table> WHERE LOWER(client_name) LIKE '%X%'.
+    LobbyCorrection(125, "general-atomics",  "defense",        "defense_lobbying_records",        "company_id", "General Atomics"),
+    LobbyCorrection(127, "johnson-johnson",  "health",         "health_lobbying_records",         "company_id", "Johnson & Johnson"),
+    LobbyCorrection(128, "qualcomm",         "tech",           "lobbying_records",                "company_id", "QUALCOMM"),
+    LobbyCorrection(143, "molson-coors",     "agriculture",    "agriculture_lobbying_records",    "company_id", "Molson Coors"),
+    LobbyCorrection(166, "fedex",            "transportation", "transportation_lobbying_records", "company_id", "FedEx"),
+    LobbyCorrection(220, "stride",           "education",      "education_lobbying_records",      "company_id", "Stride Inc."),
+    LobbyCorrection(226, "vistra",           "energy",         "energy_lobbying_records",         "company_id", "Vistra Corp."),
+    LobbyCorrection(228, "t-mobile",         "telecom",        "telecom_lobbying_records",        "company_id", "T-Mobile US Inc."),
 ]
 
 CORRECTION_TAG = "lobby_double_count_v2"
