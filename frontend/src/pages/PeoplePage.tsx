@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search, SearchX, MapPin, Users, X } from 'lucide-react';
 import CSVExport from '../components/CSVExport';
 import { motion } from 'framer-motion';
@@ -398,9 +398,16 @@ function PageButton({
 // ── Page ──
 
 export default function PeoplePage() {
+  // Header search and ChatAgent both navigate to `/politics/people?q=...`,
+  // so PeoplePage must read `q` from the URL on mount and seed the filter
+  // input. Without this every header search silently dropped the query and
+  // showed an unfiltered list of all members.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialQuery = searchParams.get('q') ?? '';
+
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialQuery);
   const [partyFilter, setPartyFilter] = useState<PartyFilter>('all');
   const [chamberFilter, setChamberFilter] = useState<ChamberFilter>('all');
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
@@ -409,12 +416,36 @@ export default function PeoplePage() {
   const [zipRepIds, setZipRepIds] = useState<string[]>([]);
 
   useEffect(() => {
+    const controller = new AbortController();
     apiClient
       .getPeople({ limit: 600 })
-      .then((res) => setPeople(res.people || []))
-      .catch((err) => { console.warn('[PeoplePage] fetch failed:', err); })
-      .finally(() => setLoading(false));
+      .then((res) => {
+        if (!controller.signal.aborted) setPeople(res.people || []);
+      })
+      .catch((err) => {
+        if (err?.name !== 'AbortError') {
+          console.warn('[PeoplePage] fetch failed:', err);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, []);
+
+  // Keep the URL in sync with the user's edits to the search box so
+  // back/forward and link sharing work as expected. Replace, don't push,
+  // so each keystroke doesn't bloat history.
+  useEffect(() => {
+    const current = searchParams.get('q') ?? '';
+    if (search !== current) {
+      const next = new URLSearchParams(searchParams);
+      if (search) next.set('q', search);
+      else next.delete('q');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const handleZipSearch = () => {
     if (zipCode.length < 5) return;

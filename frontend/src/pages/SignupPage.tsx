@@ -201,7 +201,7 @@ export default function SignupPage() {
           value={zipCode}
           onChange={(v) => setZipCode(v.replace(/\D/g, '').slice(0, 5))}
           placeholder="94103"
-          helper="Used only to show your reps. Never stored."
+          helper="Used to show your reps and personalize your weekly digest. You can change or remove it later from Account."
           autoComplete="postal-code"
           maxLength={5}
         />

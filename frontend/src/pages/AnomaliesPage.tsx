@@ -134,6 +134,7 @@ export default function AnomaliesPage() {
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>(patternQP || 'all');
 
   useEffect(() => {
@@ -157,12 +158,13 @@ export default function AnomaliesPage() {
     params.set('limit', '200');
 
     const url = entityFilter
-      ? `${API_BASE}/anomalies/entity/${entityTypeQP}/${entityFilter}`
+      ? `${API_BASE}/anomalies/entity/${encodeURIComponent(entityTypeQP)}/${encodeURIComponent(entityFilter)}`
       : `${API_BASE}/anomalies?${params}`;
 
+    setError(null);
     fetch(url)
       .then((r) => {
-        if (!r.ok) throw new Error(r.statusText);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((data: AnomalyResponse) => {
@@ -170,10 +172,14 @@ export default function AnomaliesPage() {
         setAnomalies(data.anomalies || []);
         setTotal(data.total || 0);
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
+        // Distinguish "no anomalies" from "couldn't load" so users can
+        // tell whether to retry or accept the empty state.
+        console.warn('[AnomaliesPage] fetch failed:', err);
         setAnomalies([]);
         setTotal(0);
+        setError(err?.message || 'Could not load anomalies');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -369,6 +375,21 @@ export default function AnomaliesPage() {
             }}
           >
             Loading flags…
+          </div>
+        ) : error ? (
+          <div
+            style={{
+              background: SURF,
+              border: `1px solid ${B}`,
+              borderRadius: 12,
+              padding: '80px 24px',
+              textAlign: 'center',
+              color: 'var(--color-red)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+            }}
+          >
+            Could not load anomalies: {error}. Refresh the page to try again.
           </div>
         ) : anomalies.length === 0 ? (
           <div

@@ -97,19 +97,27 @@ const ChoroplethMap: React.FC<ChoroplethMapProps> = ({ data, metric, onStateClic
   const tooltipRef = useRef<L.Control | null>(null);
   const geoJsonRef = useRef<L.GeoJSON | null>(null);
 
-  // Fetch GeoJSON
+  // Fetch GeoJSON. The payload is ~2 MB, so navigating away mid-download
+  // used to setState on an unmounted component; gate on the abort signal.
   useEffect(() => {
-    fetch(GEOJSON_URL)
+    const controller = new AbortController();
+    fetch(GEOJSON_URL, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to load map data: ${res.status}`);
         return res.json();
       })
-      .then((json) => setGeoData(json as GeoJSONCollection))
-      .catch((err) => {
-        console.warn('[ChoroplethMap] geojson load failed:', err);
-        setError(err.message);
+      .then((json) => {
+        if (!controller.signal.aborted) setGeoData(json as GeoJSONCollection);
       })
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        console.warn('[ChoroplethMap] geojson load failed:', err);
+        if (!controller.signal.aborted) setError(err.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, []);
 
   // Compute min/max for color scale

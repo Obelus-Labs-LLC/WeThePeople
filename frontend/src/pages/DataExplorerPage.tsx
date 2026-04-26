@@ -135,8 +135,15 @@ export default function DataExplorerPage() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [leaders, setLeaders] = useState<LobbyingLeader[]>([]);
   const [loading, setLoading] = useState(true);
+  // All 11 sectors selected by default; the original 4-sector default
+  // silently filtered out chemicals/agriculture/telecom/education/defense/
+  // transportation/politics rows even when the API returned them.
   const [selectedSectors, setSelectedSectors] = useState<Set<string>>(
-    new Set(['finance', 'health', 'tech', 'energy']),
+    new Set([
+      'finance', 'health', 'tech', 'energy',
+      'transportation', 'defense', 'chemicals',
+      'agriculture', 'telecom', 'education', 'politics',
+    ]),
   );
   const [metric, setMetric] = useState<'lobbying' | 'contracts' | 'enforcement'>(
     'lobbying',

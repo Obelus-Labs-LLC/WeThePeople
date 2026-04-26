@@ -11,11 +11,22 @@ const PARTY_COLORS: Record<string, string> = {
   I: '#A855F7',
 };
 
+// Keep this in sync with SECTORS in src/data/sectors.ts. Nodes whose sector
+// isn't keyed here fall back to a neutral gray, which used to be the case
+// for 6 of 11 sectors.
 const SECTOR_COLORS: Record<string, string> = {
   finance: '#10B981',
   health: '#F43F5E',
   tech: '#8B5CF6',
+  technology: '#8B5CF6',
   energy: '#F97316',
+  defense: '#475569',
+  transportation: '#0EA5E9',
+  chemicals: '#84CC16',
+  agriculture: '#65A30D',
+  telecom: '#06B6D4',
+  education: '#A855F7',
+  politics: '#C5A028',
 };
 
 const EDGE_COLORS: Record<string, string> = {
@@ -55,17 +66,30 @@ function formatMoney(n: number): string {
   return '';
 }
 
+// Maps node.sector → URL prefix. Keep in sync with App.tsx routes and the
+// SECTORS table in src/data/sectors.ts. Without entries for sectors beyond
+// the original 4, clicking a company node in those sectors did nothing.
+const SECTOR_ROUTE_PREFIX: Record<string, string> = {
+  finance: '/finance',
+  health: '/health',
+  tech: '/technology',
+  technology: '/technology',
+  energy: '/energy',
+  defense: '/defense',
+  transportation: '/transportation',
+  chemicals: '/chemicals',
+  agriculture: '/agriculture',
+  telecom: '/telecom',
+  education: '/education',
+};
+
 function getProfileRoute(node: NetworkNode): string | null {
   if (node.type === 'person' && node.person_id) {
     return `/politics/people/${node.person_id}`;
   }
   if (node.type === 'company') {
-    const sector = node.sector;
-    const eid = node.entity_id;
-    if (sector === 'finance') return `/finance/${eid}`;
-    if (sector === 'health') return `/health/${eid}`;
-    if (sector === 'tech') return `/technology/${eid}`;
-    if (sector === 'energy') return `/energy/${eid}`;
+    const prefix = SECTOR_ROUTE_PREFIX[node.sector ?? ''];
+    if (prefix && node.entity_id) return `${prefix}/${node.entity_id}`;
   }
   if (node.type === 'bill' && node.bill_id) {
     return `/politics/bill/${node.bill_id}`;

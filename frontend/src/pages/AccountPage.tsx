@@ -209,16 +209,19 @@ function formatDate(iso: string | null | undefined): string {
 // ── Main ─────────────────────────────────────────────────────────────
 
 export default function AccountPage() {
-  const { user, isAuthenticated, loading, logout } = useAuth();
+  const { user, isAuthenticated, loading, logout, authedFetch } = useAuth();
   const [tab, setTab] = useState<TabId>('profile');
 
-  // Watchlist (real data)
+  // Watchlist (real data) - track an explicit error so the empty list is
+  // not silently shown when the API actually failed.
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [wlLoading, setWlLoading] = useState(true);
+  const [wlError, setWlError] = useState<string | null>(null);
 
   // API keys (real data)
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [akLoading, setAkLoading] = useState(true);
+  const [akError, setAkError] = useState<string | null>(null);
   const [newKeyRaw, setNewKeyRaw] = useState<string | null>(null);
 
   // Local-only notification preferences until backend lands
@@ -239,16 +242,15 @@ export default function AccountPage() {
     }
   }, [user]);
 
-  // Watchlist fetch
+  // Watchlist fetch — uses authedFetch so a 401 mid-session triggers
+  // refresh + replay instead of silently rendering "no items".
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
-    const token = localStorage.getItem('wtp_access_token');
-    fetch(`${API_BASE}/auth/watchlist`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(r.statusText);
+    setWlError(null);
+    authedFetch(`${API_BASE}/auth/watchlist`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((d) => {
@@ -256,6 +258,7 @@ export default function AccountPage() {
       })
       .catch((err) => {
         console.warn('[AccountPage] watchlist fetch failed:', err);
+        if (!cancelled) setWlError(err?.message || 'Could not load watchlist');
       })
       .finally(() => {
         if (!cancelled) setWlLoading(false);
@@ -263,18 +266,16 @@ export default function AccountPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authedFetch]);
 
   // API keys fetch
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
-    const token = localStorage.getItem('wtp_access_token');
-    fetch(`${API_BASE}/auth/api-keys`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(r.statusText);
+    setAkError(null);
+    authedFetch(`${API_BASE}/auth/api-keys`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((d) => {
@@ -282,6 +283,7 @@ export default function AccountPage() {
       })
       .catch((err) => {
         console.warn('[AccountPage] api-keys fetch failed:', err);
+        if (!cancelled) setAkError(err?.message || 'Could not load API keys');
       })
       .finally(() => {
         if (!cancelled) setAkLoading(false);
@@ -289,39 +291,39 @@ export default function AccountPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authedFetch]);
 
   const removeWatchlist = async (id: number) => {
-    const token = localStorage.getItem('wtp_access_token');
+    // Optimistic remove. On failure, restore the row and show why so the
+    // user isn't left thinking the unfollow worked.
+    const removed = watchlist.find((i) => i.id === id);
+    setWatchlist((prev) => prev.filter((i) => i.id !== id));
     try {
-      const res = await fetch(`${API_BASE}/auth/watchlist/${id}`, {
+      const res = await authedFetch(`${API_BASE}/auth/watchlist/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error(res.statusText);
-      setWatchlist((prev) => prev.filter((i) => i.id !== id));
+      if (!res.ok && res.status !== 204) {
+        throw new Error(`HTTP ${res.status}`);
+      }
     } catch (err) {
       console.warn('[AccountPage] watchlist delete failed:', err);
-      // Delete failed — keep the row in UI so the user can retry
+      if (removed) setWatchlist((prev) => [removed, ...prev]);
+      alert('Could not remove item from watchlist. Try again.');
     }
   };
 
   const createKey = async () => {
     const name = window.prompt('Name for this API key?', 'Production');
     if (!name) return;
-    const token = localStorage.getItem('wtp_access_token');
     try {
-      const res = await fetch(`${API_BASE}/auth/api-keys`, {
+      const res = await authedFetch(`${API_BASE}/auth/api-keys`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, scopes: ['read'] }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.detail || 'Could not create key');
+        alert(err.detail || `Could not create key (HTTP ${res.status})`);
         return;
       }
       const data = await res.json();
@@ -337,38 +339,42 @@ export default function AccountPage() {
         },
         ...prev,
       ]);
-    } catch {
-      alert('Network error creating key');
+    } catch (err) {
+      console.warn('[AccountPage] createKey failed:', err);
+      alert('Network error creating key. Check your connection and try again.');
     }
   };
 
   const revokeKey = async (id: number) => {
     if (!window.confirm('Revoke this key? This cannot be undone.')) return;
-    const token = localStorage.getItem('wtp_access_token');
     try {
-      const res = await fetch(`${API_BASE}/auth/api-keys/${id}`, {
+      const res = await authedFetch(`${API_BASE}/auth/api-keys/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error(res.statusText);
+      if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
       setApiKeys((prev) => prev.filter((k) => k.id !== id));
-    } catch {
-      alert('Could not revoke key');
+    } catch (err) {
+      console.warn('[AccountPage] revokeKey failed:', err);
+      alert('Could not revoke key.');
     }
   };
 
   const upgradeEnterprise = async () => {
-    const token = localStorage.getItem('wtp_access_token');
     try {
-      const r = await fetch(`${API_BASE}/auth/checkout/enterprise`, {
+      const r = await authedFetch(`${API_BASE}/auth/checkout/enterprise`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
       });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        alert(err.detail || `Checkout unavailable (HTTP ${r.status})`);
+        return;
+      }
       const d = await r.json();
       if (d.checkout_url) window.location.href = d.checkout_url;
       else alert(d.detail || 'Checkout unavailable');
-    } catch {
-      alert('Checkout unavailable');
+    } catch (err) {
+      console.warn('[AccountPage] upgradeEnterprise failed:', err);
+      alert('Checkout unavailable. Try again in a moment.');
     }
   };
 
@@ -818,7 +824,21 @@ export default function AccountPage() {
                   overflow: 'hidden',
                 }}
               >
-                {watchlist.length === 0 && !wlLoading && (
+                {wlError && !wlLoading && (
+                  <div
+                    style={{
+                      padding: '24px 20px',
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 13,
+                      color: 'var(--color-red)',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    Could not load your watchlist: {wlError}. Refresh the page
+                    to try again.
+                  </div>
+                )}
+                {!wlError && watchlist.length === 0 && !wlLoading && (
                   <div
                     style={{
                       padding: '24px 20px',
@@ -1013,7 +1033,20 @@ export default function AccountPage() {
                     Loading keys\u2026
                   </div>
                 )}
-                {!akLoading && apiKeys.length === 0 && (
+                {akError && !akLoading && (
+                  <div
+                    style={{
+                      padding: '20px',
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 13,
+                      color: 'var(--color-red)',
+                    }}
+                  >
+                    Could not load API keys: {akError}. Refresh the page to
+                    try again.
+                  </div>
+                )}
+                {!akError && !akLoading && apiKeys.length === 0 && (
                   <div
                     style={{
                       padding: '20px',
