@@ -51,9 +51,11 @@ const TechComparePage = React.lazy(() => import("./pages/TechComparePage"));
 const TechCompanyProfilePage = React.lazy(() => import("./pages/TechCompanyProfilePage"));
 // PatentSearchPage moved to wtp-research; /technology/patents redirects via
 // MovedToResearchPage.
-const LobbyingBreakdownPage = React.lazy(() => import("./pages/LobbyingBreakdownPage"));
-const ContractTimelinePage = React.lazy(() => import("./pages/ContractTimelinePage"));
-const EnforcementTrackerPage = React.lazy(() => import("./pages/EnforcementTrackerPage"));
+// LobbyingBreakdownPage / ContractTimelinePage / EnforcementTrackerPage
+// were lazy-imported here but never referenced by any <Route>, so they
+// were pulling weight in the bundle for nothing. The mobile app still
+// has equivalent screens; if a web route ever needs them, restore the
+// imports alongside the matching <Route> definitions.
 const HealthDashboardPage = React.lazy(() => import("./pages/HealthDashboardPage"));
 const HealthCompaniesPage = React.lazy(() => import("./pages/HealthCompaniesPage"));
 const HealthComparePage = React.lazy(() => import("./pages/HealthComparePage"));

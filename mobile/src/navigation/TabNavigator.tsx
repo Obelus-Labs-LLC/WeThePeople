@@ -437,6 +437,12 @@ function HomeStackScreen() {
   );
 }
 
+// Auth-flow screens (Login / Signup / Account) are registered in every
+// stack so a "Sign in" tap on a deep entity-detail screen has somewhere
+// to go. Without these the WatchlistButton on Person/Company/Institution
+// detail screens called navigation.navigate('Login') from a stack that
+// didn't register it, and the navigation silently no-op'd.
+
 function PoliticsStackScreen() {
   return (
     <PoliticsStack.Navigator screenOptions={stackScreenOptions}>
@@ -465,6 +471,9 @@ function PoliticsStackScreen() {
         component={CommitteeDetailScreen}
         options={{ title: '' }}
       />
+      <PoliticsStack.Screen name="Login" component={LoginScreen} options={{ title: 'Sign in' }} />
+      <PoliticsStack.Screen name="Signup" component={SignupScreen} options={{ title: 'Create account' }} />
+      <PoliticsStack.Screen name="Account" component={AccountScreen} options={{ title: 'Account' }} />
     </PoliticsStack.Navigator>
   );
 }
@@ -493,6 +502,9 @@ function FinanceStackScreen() {
         component={PersonScreen}
         options={{ title: '' }}
       />
+      <FinanceStack.Screen name="Login" component={LoginScreen} options={{ title: 'Sign in' }} />
+      <FinanceStack.Screen name="Signup" component={SignupScreen} options={{ title: 'Create account' }} />
+      <FinanceStack.Screen name="Account" component={AccountScreen} options={{ title: 'Account' }} />
     </FinanceStack.Navigator>
   );
 }
@@ -521,6 +533,9 @@ function HealthStackScreen() {
         component={PersonScreen}
         options={{ title: '' }}
       />
+      <HealthStack.Screen name="Login" component={LoginScreen} options={{ title: 'Sign in' }} />
+      <HealthStack.Screen name="Signup" component={SignupScreen} options={{ title: 'Create account' }} />
+      <HealthStack.Screen name="Account" component={AccountScreen} options={{ title: 'Account' }} />
     </HealthStack.Navigator>
   );
 }
@@ -554,6 +569,9 @@ function TechnologyStackScreen() {
         component={PersonScreen}
         options={{ title: '' }}
       />
+      <TechnologyStack.Screen name="Login" component={LoginScreen} options={{ title: 'Sign in' }} />
+      <TechnologyStack.Screen name="Signup" component={SignupScreen} options={{ title: 'Create account' }} />
+      <TechnologyStack.Screen name="Account" component={AccountScreen} options={{ title: 'Account' }} />
     </TechnologyStack.Navigator>
   );
 }

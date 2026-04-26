@@ -502,14 +502,31 @@ def run_verification_from_url(db: Session, url: str) -> Dict[str, Any]:
     }, timeout=30)
 
     if not result:
-        # Fallback: fetch and extract text ourselves, using pinned IP to prevent DNS rebinding
+        # Fallback: fetch and extract text ourselves.
+        #
+        # Earlier versions tried to pin the IP by rewriting the URL into
+        # `https://<ip>/...` plus a `Host:` header — but TLS verification
+        # on `requests` happens against the URL host (the IP), not the
+        # `Host` header, so cert verification fails on every HTTPS site.
+        #
+        # The fix: re-resolve DNS at fetch time and confirm the hostname
+        # still maps to the same safe IP `_is_safe_url` validated. That
+        # closes the DNS-rebinding window down to milliseconds (between
+        # re-resolution and the TCP connect that requests does next),
+        # while letting `requests` use the original URL so TLS verifies
+        # the cert against the real hostname.
         try:
             parsed = urlparse(url)
-            port = parsed.port or (443 if parsed.scheme == "https" else 80)
-            pinned_url = f"{parsed.scheme}://{safe_ip}:{port}{parsed.path}"
-            if parsed.query:
-                pinned_url += f"?{parsed.query}"
-            resp = requests.get(pinned_url, headers={"Host": parsed.hostname}, timeout=30, verify=parsed.scheme == "https")
+            try:
+                live_ip = socket.gethostbyname(parsed.hostname)
+            except (socket.gaierror, socket.herror) as e:
+                raise ValueError("DNS resolution failed: %s" % e) from e
+            if live_ip != safe_ip:
+                raise ValueError(
+                    "DNS rebinding detected: %s now resolves to %s (expected %s)"
+                    % (parsed.hostname, live_ip, safe_ip)
+                )
+            resp = requests.get(url, timeout=30)
             resp.raise_for_status()
             try:
                 from trafilatura import extract

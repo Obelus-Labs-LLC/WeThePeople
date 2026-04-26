@@ -24,13 +24,41 @@ from models.telecom_models import TrackedTelecomCompany
 from models.response_schemas import SearchResponse
 from utils.sanitize import escape_like
 
+import threading
+import time as _time
+
 router = APIRouter(prefix="/search", tags=["search"])
+
+# Global search runs 23 ILIKE queries (politicians + 11 sector tables × 2
+# columns). Cache by query for 60 seconds to absorb autocomplete spam and
+# repeat-search noise.
+_search_cache: dict = {}
+_search_lock = threading.Lock()
+_SEARCH_TTL = 60  # seconds
 
 
 @router.get("", response_model=SearchResponse)
-def global_search(q: str = Query(..., min_length=1, max_length=200), db: Session = Depends(get_db)):
-    """Search across politicians and companies in all sectors."""
+def global_search(
+    q: str = Query(
+        ...,
+        # 2-char minimum: "%a%" against 23 unindexed tables effectively
+        # returns most rows of the largest sector and was a trivial DoS
+        # vector. 2 chars cuts the candidate set dramatically while still
+        # supporting state-code and short-name searches.
+        min_length=2,
+        max_length=200,
+    ),
+    db: Session = Depends(get_db),
+):
+    """Search across politicians and companies in all sectors. Cached 60s."""
     logger.info("Global search: q=%r", q)
+    cache_key = q.strip().lower()
+    now = _time.time()
+    with _search_lock:
+        cached = _search_cache.get(cache_key)
+        if cached and (now - cached["ts"]) < _SEARCH_TTL:
+            return cached["data"]
+
     # Escape LIKE wildcards so user input like '%' or '_' doesn't match everything
     pattern = f"%{escape_like(q)}%"
 
@@ -207,8 +235,11 @@ def global_search(q: str = Query(..., min_length=1, max_length=200), db: Session
     import html as _html
     safe_q = _html.escape(q)
 
-    return {
+    response = {
         "politicians": politicians,
         "companies": companies,
         "query": safe_q,
     }
+    with _search_lock:
+        _search_cache[cache_key] = {"ts": _time.time(), "data": response}
+    return response

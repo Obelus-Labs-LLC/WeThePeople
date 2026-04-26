@@ -56,12 +56,27 @@ _FRESHNESS_TTL = 300  # seconds
 
 _stats_cache: dict = {"ts": 0, "data": None, "computing": False}
 _stats_lock = threading.Lock()
-_STATS_TTL = 60  # seconds
+_STATS_TTL = 300  # 5 minutes — see top-lobbying/top-contracts caches
+
+# Top-lobbying / top-contracts: each runs 10 unindexed GROUP-BY scans
+# (one per sector). Cache the result by `limit` for 5 minutes; the
+# underlying numbers are aggregates over months/years and don't move
+# minute-to-minute, so this is safe.
+_top_lobby_cache: dict = {}
+_top_lobby_lock = threading.Lock()
+_top_contract_cache: dict = {}
+_top_contract_lock = threading.Lock()
+_TOP_TTL = 300  # 5 minutes
 
 
 @router.get("/data-freshness")
 def data_freshness(db: Session = Depends(get_db)):
-    """Return last-updated timestamps and record counts for each major data type."""
+    """Return last-updated timestamps and record counts for each major data type.
+
+    The `computing` flag is set when a recompute starts and cleared in a
+    `finally` block — without that guarantee a transient DB error left the
+    flag permanently `True` and no future request ever recomputed.
+    """
     now = _time.time()
     with _freshness_lock:
         if _freshness_cache["data"] is not None and (now - _freshness_cache["ts"]) < _FRESHNESS_TTL:
@@ -77,6 +92,17 @@ def data_freshness(db: Session = Depends(get_db)):
         date_str = str(latest) if latest else None
         return date_str, count
 
+    try:
+        return _compute_freshness(db, _max_date_and_count)
+    except Exception:
+        # Clear computing flag so the next request retries instead of
+        # serving stale data forever.
+        with _freshness_lock:
+            _freshness_cache["computing"] = False
+        raise
+
+
+def _compute_freshness(db: Session, _max_date_and_count):
     # -- Lobbying: filing_year is int, not a date. Use created_at as best proxy. --
     lobbying_models = [
         (LobbyingRecord, LobbyingRecord.created_at),
@@ -166,7 +192,11 @@ def data_freshness(db: Session = Depends(get_db)):
 
 @router.get("/stats", response_model=InfluenceStatsResponse)
 def get_influence_stats(db: Session = Depends(get_db)):
-    """Aggregate influence stats across all sectors."""
+    """Aggregate influence stats across all sectors.
+
+    The `computing` flag is cleared in a `try/except` even on transient
+    failure so a single DB error doesn't lock out future recomputes.
+    """
     now = _time.time()
     with _stats_lock:
         if _stats_cache["data"] is not None and (now - _stats_cache["ts"]) < _STATS_TTL:
@@ -175,6 +205,15 @@ def get_influence_stats(db: Session = Depends(get_db)):
             return _stats_cache["data"]  # serve stale while another thread recomputes
         _stats_cache["computing"] = True
 
+    try:
+        return _compute_influence_stats(db)
+    except Exception:
+        with _stats_lock:
+            _stats_cache["computing"] = False
+        raise
+
+
+def _compute_influence_stats(db: Session):
     # Lobbying totals
     finance_lobbying = db.query(func.sum(lobby_spend(FinanceLobbyingRecord))).scalar() or 0
     health_lobbying = db.query(func.sum(lobby_spend(HealthLobbyingRecord))).scalar() or 0
@@ -247,7 +286,21 @@ def get_influence_stats(db: Session = Depends(get_db)):
 
 @router.get("/top-lobbying")
 def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(get_db)):
-    """Top lobbying spenders across all sectors."""
+    """Top lobbying spenders across all sectors. Cached for 5 minutes."""
+    cache_key = limit
+    now = _time.time()
+    with _top_lobby_lock:
+        cached = _top_lobby_cache.get(cache_key)
+        if cached and (now - cached["ts"]) < _TOP_TTL:
+            return cached["data"]
+
+    data = _compute_top_lobbying(db, limit)
+    with _top_lobby_lock:
+        _top_lobby_cache[cache_key] = {"ts": _time.time(), "data": data}
+    return data
+
+
+def _compute_top_lobbying(db: Session, limit: int):
     results = []
 
     # Finance
@@ -480,7 +533,21 @@ def get_spending_by_state(
 
 @router.get("/top-contracts")
 def get_top_contracts(limit: int = Query(10, ge=1, le=50), db: Session = Depends(get_db)):
-    """Top government contract recipients across all sectors."""
+    """Top government contract recipients across all sectors. Cached for 5 minutes."""
+    cache_key = limit
+    now = _time.time()
+    with _top_contract_lock:
+        cached = _top_contract_cache.get(cache_key)
+        if cached and (now - cached["ts"]) < _TOP_TTL:
+            return cached["data"]
+
+    data = _compute_top_contracts(db, limit)
+    with _top_contract_lock:
+        _top_contract_cache[cache_key] = {"ts": _time.time(), "data": data}
+    return data
+
+
+def _compute_top_contracts(db: Session, limit: int):
     results = []
 
     # Finance
