@@ -91,7 +91,9 @@ export default function RepresentativeLookupPage() {
     setSubmittedZip(cleaned);
 
     try {
-      const res = await fetch(`${getApiBaseUrl()}/representatives?zip=${cleaned}`);
+      const res = await fetch(
+        `${getApiBaseUrl()}/representatives?zip=${encodeURIComponent(cleaned)}`,
+      );
       if (res.status === 404) {
         setDataUnavailable(true);
         setReps([]);
@@ -100,8 +102,14 @@ export default function RepresentativeLookupPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: RepLookupResponse = await res.json();
       setReps(data.representatives || []);
-    } catch {
-      setError('Unable to load data. Please try again.');
+    } catch (err) {
+      console.warn('[RepresentativeLookupPage] zip lookup failed:', err);
+      const detail = err instanceof Error ? err.message : '';
+      setError(
+        detail
+          ? `Unable to load data (${detail}). Please try again.`
+          : 'Unable to load data. Please try again.',
+      );
       setReps([]);
     } finally {
       setLoading(false);

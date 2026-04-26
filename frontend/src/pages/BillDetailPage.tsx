@@ -196,7 +196,9 @@ export default function BillDetailPage() {
             simple: true,
             limit: 10,
           })
-          .then((actionsRes) => setRelatedActions(actionsRes.actions || []))
+          .then((actionsRes) => {
+            if (!cancelled) setRelatedActions(actionsRes.actions || []);
+          })
           .catch((err) => { console.warn('[BillDetailPage] fetch failed:', err); });
       })
       .catch((err) => { if (!cancelled) setError(err.message || 'Failed to load bill'); })

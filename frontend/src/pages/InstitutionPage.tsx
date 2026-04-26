@@ -215,46 +215,53 @@ export default function InstitutionPage() {
   useEffect(() => {
     if (!institution_id) return;
     // Complaints tab hidden — lazy load removed
+    // Loaded flags must flip on BOTH success and failure so a tab that
+    // errors once doesn't spin forever — `.finally` is the right home.
     if (activeTab === 'insider' && !tradesLoaded) {
       getInstitutionInsiderTrades(institution_id, { limit: 100, transaction_type: tradeFilter || undefined })
-        .then((r) => { setTrades(r.trades || []); setTradesLoaded(true); })
-        .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
+        .then((r) => { setTrades(r.trades || []); })
+        .catch((err) => { console.warn('[InstitutionPage] insider fetch failed:', err); })
+        .finally(() => setTradesLoaded(true));
     }
     if (activeTab === 'lobbying' && !lobbyingLoaded) {
       getInstitutionLobbying(institution_id, { limit: 100 })
-        .then((r) => { setLobbyingData(r.filings || []); setLobbyingTotal(r.total || 0); setLobbyingLoaded(true); })
-        .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
+        .then((r) => { setLobbyingData(r.filings || []); setLobbyingTotal(r.total || 0); })
+        .catch((err) => { console.warn('[InstitutionPage] lobbying fetch failed:', err); })
+        .finally(() => setLobbyingLoaded(true));
     }
     if (activeTab === 'contracts' && !contractsLoaded) {
       getInstitutionContracts(institution_id, { limit: 100 })
-        .then((r) => { setContractsData(r.contracts || []); setContractsTotal(r.total || 0); setContractsLoaded(true); })
-        .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
+        .then((r) => { setContractsData(r.contracts || []); setContractsTotal(r.total || 0); })
+        .catch((err) => { console.warn('[InstitutionPage] contracts fetch failed:', err); })
+        .finally(() => setContractsLoaded(true));
     }
     if (activeTab === 'enforcement' && !enforcementLoaded) {
       getInstitutionEnforcement(institution_id, { limit: 100 })
-        .then((r) => { setEnforcementData(r.actions || []); setEnforcementTotal(r.total || 0); setEnforcementPenalties(r.total_penalties || 0); setEnforcementLoaded(true); })
-        .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
+        .then((r) => { setEnforcementData(r.actions || []); setEnforcementTotal(r.total || 0); setEnforcementPenalties(r.total_penalties || 0); })
+        .catch((err) => { console.warn('[InstitutionPage] enforcement fetch failed:', err); })
+        .finally(() => setEnforcementLoaded(true));
     }
     if (activeTab === 'donations' && !donationsLoaded) {
       getInstitutionDonations(institution_id, { limit: 100 })
-        .then((r) => { setDonationsData(r.donations || []); setDonationsTotal(r.total || 0); setDonationsLoaded(true); })
-        .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
+        .then((r) => { setDonationsData(r.donations || []); setDonationsTotal(r.total || 0); })
+        .catch((err) => { console.warn('[InstitutionPage] donations fetch failed:', err); })
+        .finally(() => setDonationsLoaded(true));
     }
     if (activeTab === 'financials' && (!pressLoaded || !fredLoaded)) {
       // Press releases + FRED observations both surface in the financials
-      // tab. Previously the outer guard was `!pressLoaded`, so once press
-      // loaded successfully on visit #1, FRED was never re-tried on visit
-      // #2 even if it had failed (Apr 24 audit F4). Each loader now has
-      // its own gate.
+      // tab. Each loader has its own gate so one failing doesn't block
+      // the other from being retried on the next visit.
       if (!pressLoaded) {
         getInstitutionPressReleases(institution_id, { limit: 50 })
-          .then((pr) => { setPressReleases(pr.press_releases || []); setPressLoaded(true); })
-          .catch((err) => { console.warn('[InstitutionPage] press fetch failed:', err); });
+          .then((pr) => { setPressReleases(pr.press_releases || []); })
+          .catch((err) => { console.warn('[InstitutionPage] press fetch failed:', err); })
+          .finally(() => setPressLoaded(true));
       }
       if (!fredLoaded) {
         getInstitutionFRED(institution_id, { limit: 200 })
-          .then((fr) => { setFredData(fr.observations || []); setFredLoaded(true); })
-          .catch((err) => { console.warn('[InstitutionPage] FRED fetch failed:', err); });
+          .then((fr) => { setFredData(fr.observations || []); })
+          .catch((err) => { console.warn('[InstitutionPage] FRED fetch failed:', err); })
+          .finally(() => setFredLoaded(true));
       }
     }
   }, [activeTab, institution_id, tradesLoaded, pressLoaded, fredLoaded, lobbyingLoaded, contractsLoaded, enforcementLoaded, donationsLoaded, tradeFilter]);

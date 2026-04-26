@@ -493,10 +493,17 @@ export default function ClosedLoopPage() {
               color: T3,
               fontFamily: 'var(--font-mono)',
               fontSize: 12,
+              lineHeight: 1.7,
             }}
           >
             Analyzing influence chains across lobbying, bills, committees, and
             donations…
+            <br />
+            <span style={{ opacity: 0.65 }}>
+              First load can take 5–10 seconds while we cross-reference 100k+
+              donations against committee-bill memberships. Subsequent loads
+              are cached.
+            </span>
           </div>
         )}
 

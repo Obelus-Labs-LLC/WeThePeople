@@ -283,7 +283,7 @@ export default function TechCompanyProfilePage() {
                   <p className="font-mono text-[11px] uppercase tracking-wider text-[var(--color-text-3)] mb-2">Related Bills</p>
                   <div className="flex flex-col gap-2">
                     {patentPolicy.related_bills.slice(0, 5).map((b) => (
-                      <Link key={b.bill_id} to={`/politics/bills/${b.bill_id}`} className="flex items-center gap-3 rounded-lg bg-[var(--color-surface-alt)] px-3 py-2 hover:bg-[var(--color-surface-hover)] transition-colors no-underline">
+                      <Link key={b.bill_id} to={`/politics/bill/${b.bill_id}`} className="flex items-center gap-3 rounded-lg bg-[var(--color-surface-alt)] px-3 py-2 hover:bg-[var(--color-surface-hover)] transition-colors no-underline">
                         <span className="rounded bg-[var(--color-dem)]/20 px-2 py-0.5 font-mono text-[10px] font-bold text-[var(--color-dem)] uppercase shrink-0">{b.bill_type}{b.bill_number}</span>
                         <span className="font-body text-sm text-[var(--color-text-2)] truncate flex-1">{b.title || 'Untitled Bill'}</span>
                       </Link>
