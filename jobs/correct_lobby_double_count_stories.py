@@ -401,25 +401,52 @@ def correct_mtg_ibit_gold_medal(db, dry_run: bool = False) -> dict:
 
 
 def correct_peters_swk_pluralization(db, dry_run: bool = False) -> dict:
-    """Story 240 — headline says '1 Days Before'. Pluralization bug.
-    Detector now produces correct grammar; this fixes the existing row."""
+    """Story 240 — headline had two grammar bugs: '1 Days Before' (plural)
+    and 'sponsored Bill Action' (lowercase). Both came from a SQL field
+    being interpolated raw into the title template in detect_stories.
+    The detector now formats both correctly; this fixes the legacy row."""
     row = db.execute(
         text("SELECT id, title, correction_history FROM stories WHERE id = 240"),
     ).fetchone()
     if row is None:
         return {"story_id": 240, "status": "missing"}
     sid, title, history_raw = row
-    if _already_corrected(history_raw):
+
+    # Idempotency check — only skip if THIS specific repair already ran.
+    history = []
+    try:
+        history = json.loads(history_raw) if isinstance(history_raw, str) else history_raw
+        if not isinstance(history, list):
+            history = []
+    except (json.JSONDecodeError, TypeError):
+        history = []
+    already = any(
+        isinstance(h, dict) and h.get("method") == "title_pluralization_v2"
+        for h in history
+    )
+    if already:
         return {"story_id": sid, "status": "already_corrected"}
 
-    new_title = (title or "").replace("1 Days Before", "1 Day Before").replace("0 Days Before", "the Same Day as")
+    new_title = (
+        (title or "")
+        .replace("1 Days Before", "1 Day Before")
+        .replace("0 Days Before", "the Same Day as")
+        # Bill-action relation came in as "sponsored" / "cosponsored"
+        # straight from the bill_actions.relation column. Capitalise so
+        # the title reads as English prose, not as a SQL field name.
+        .replace(" sponsored Bill Action", " Sponsored Bill Action")
+        .replace(" cosponsored Bill Action", " Cosponsored Bill Action")
+    )
     if new_title == title:
         return {"story_id": sid, "status": "no_match"}
 
     history_entry = {
         "ts": _now_iso(),
-        "method": "title_pluralization_v1",
-        "reason": "Title-template pluralization bug: '1 Days' / '0 Days' grammatically wrong",
+        "method": "title_pluralization_v2",
+        "reason": (
+            "Title grammar bugs: '1 Days' / '0 Days' (plural) and lowercase "
+            "'sponsored'/'cosponsored' interpolated raw from SQL field."
+        ),
     }
     new_history = _append_history(history_raw, history_entry)
     if dry_run:
