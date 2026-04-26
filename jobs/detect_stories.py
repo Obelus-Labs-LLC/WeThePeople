@@ -305,17 +305,22 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "R12. NAME THE ENTITY. Every narrative paragraph about a specific company or person must "
         "name that entity at least once using the exact display name from the skeleton.\n"
         "R13. PARAGRAPH LENGTHS AND MINIMUM LENGTH — CRITICAL. This is a hard rejection rule. "
-        "NARRATIVE_LEAD: exactly 2 substantial paragraphs (minimum 120 words combined). Provide context "
-        "on the entity, its industry position, and why the data matters to the public interest. "
-        "NARRATIVE_ISSUES: 2 paragraphs (minimum 100 words). Analyze the policy areas being targeted, "
-        "explain what these lobbying issues mean in plain language, and connect them to real legislation. "
-        "NARRATIVE_CONNECTION: exactly 2 paragraphs including the R8 disclaimer sentence (minimum 100 words). "
+        "NARRATIVE_LEAD: exactly 3 substantial paragraphs (minimum 200 words combined). Provide context "
+        "on the entity, its industry position, why the data matters to the public interest, and a "
+        "concrete example of how this kind of activity has been regulated, investigated, or covered "
+        "in publicly available reporting (without speculating about the specific entity). "
+        "NARRATIVE_ISSUES: 3 paragraphs (minimum 200 words). Analyze the policy areas being targeted, "
+        "explain what these lobbying issues mean in plain language, connect them to real legislation, "
+        "and identify which committees or agencies have jurisdiction. "
+        "NARRATIVE_CONNECTION: 3 paragraphs including the R8 disclaimer sentence (minimum 220 words). "
         "Draw connections between the data points (lobbying spend, contracts, enforcement), explain what "
-        "the public record shows when these are viewed together, and provide the mandatory disclaimer. "
-        "Any additional {NARRATIVE_*} placeholders: 2 paragraphs (minimum 80 words each). "
-        "Each narrative paragraph must be at least 4 full sentences. "
-        "The ENTIRE article body (data + narrative combined) must be at least 4000 characters and "
-        "at least 700 words of written narrative. Articles under 4000 characters WILL BE REJECTED. "
+        "the public record shows when these are viewed together, walk the reader through what "
+        "to read for in the underlying filings, and provide the mandatory disclaimer. "
+        "Any additional {NARRATIVE_*} placeholders: 2-3 paragraphs (minimum 150 words each). "
+        "Each narrative paragraph must be at least 5 full sentences. "
+        "TARGET LENGTH: aim for 4,500-5,500 characters total and at least 900 words of written narrative. "
+        "MINIMUM (hard floor for acceptance): 3,000 characters. Articles under 3,000 characters WILL BE "
+        "REJECTED. Below 4,500 you are leaving important context out — write more, not less. "
         "Write thoroughly, with the depth expected of investigative data journalism.\n"
         "R14. NO NEW SECTIONS. Do not add conclusions, calls to action, 'what this means' sections, "
         "or 'next steps'. End exactly where the skeleton ends.\n"
@@ -333,7 +338,35 @@ def _write_opus_narrative(skeleton, story_context, category="cross_sector"):
         "R19. NO ENFORCEMENT AGENCY ATTRIBUTION. Do not name specific enforcement agencies (FTC, SEC, "
         "EPA, OSHA, etc.) unless the skeleton explicitly names them. If the skeleton says 'enforcement "
         "actions', write 'enforcement actions', not 'FTC enforcement actions'. Attributing enforcement "
-        "to the wrong agency is a critical factual error that causes retractions.\n\n"
+        "to the wrong agency is a critical factual error that causes retractions.\n"
+        "R20. NUMBERS — DO NOT INVENT, DO NOT ROUND, DO NOT EXTRAPOLATE. CRITICAL. Every dollar "
+        "amount, count, ratio, percentage, year, or date in your narrative must appear in the skeleton "
+        "you were given. Do not invent industry-wide context numbers (e.g. 'the industry spent $X "
+        "billion last year'). Do not extrapolate from one figure to another (e.g. do not derive an "
+        "annual run-rate from a five-year total). Do not round a figure already in the skeleton — if "
+        "the skeleton says $90.4M, write '$90.4 million', not '$90 million' or 'roughly $90 million'. "
+        "If you want to convey scale qualitatively, use words like 'tens of millions' WITHOUT a "
+        "specific number. Numbers from outside the skeleton are a critical factual error and a "
+        "rejection.\n"
+        "R21. METHODOLOGY GUARDRAIL — LDA LOBBYING TOTALS. Senate LDA filings carry both an `income` "
+        "field (used by outside lobbying firms reporting fees from clients) and an `expenses` field "
+        "(used by in-house registrants reporting their own spending). These are alternatives, not "
+        "additive — the convention used by OpenSecrets, CRS, and the Senate Office of Public Records "
+        "is to take ONE column based on the registration type. The skeleton already applies this "
+        "convention, so the headline figure you receive is the correct single-column figure. Never "
+        "describe the figure as 'income plus expenses', 'combined fees and in-house spending', or "
+        "'total reported across both columns'. If you want to caveat, say 'as reported on Senate LDA "
+        "filings'.\n"
+        "R22. NO ASSERTIONS THE DATA CANNOT SUPPORT. If the skeleton does not contain a piece of "
+        "evidence, do not assert it. Do not assume causation between lobbying and contracts. Do not "
+        "claim a vote was 'in response to' a donation. Stick to factual descriptions of what the "
+        "public record shows. The mandatory disclaimer in R8 already names the limits of "
+        "correlation — do not contradict it elsewhere in the article.\n"
+        "R23. HEADLINE-BODY CONSISTENCY. The H1 headline and any subheadings must be consistent "
+        "with the data in the skeleton. If the skeleton lists penalties greater than zero, do not "
+        "use 'Zero Penalties' anywhere in the headline or body. If the skeleton acknowledges the "
+        "data is partial (e.g. only one corporate entity counted), the headline must reflect that "
+        "with words like 'one entity', 'partial', or a specific scope qualifier.\n\n"
         "OUTPUT REQUIREMENTS:\n"
         "- Return the COMPLETE article as valid markdown.\n"
         "- Start directly with the first markdown heading. No preamble, no HTML comments, no metadata.\n"
@@ -648,12 +681,20 @@ def get_data_date_range(db, table, id_col, entity_id):
 def get_sector_aggregate(db, table, id_col, metric=None):
     """Get sector-level aggregate for comparative context.
 
-    `metric` defaults to SUM(COALESCE(income,0) + COALESCE(expenses,0)) so
-    in-house lobbying spend (recorded under `expenses`) is included.
+    Uses the prefer-expenses-per-(entity, year) convention so we don't
+    double-count outside-firm fees that are already reflected in
+    in-house expenses. See services/lobby_spend.py for the rationale.
+    A custom `metric` may be passed for callers that want a different
+    aggregation; default is total dollar lobbying spend.
     """
-    if metric is None:
-        metric = f"SUM({lobby_spend_sql()})"
     try:
+        if metric is None:
+            from services.lobby_spend import compute_lobby_spend_aggregate_sector
+            total = compute_lobby_spend_aggregate_sector(db, table, id_col=id_col)
+            count_row = db.execute(text(
+                "SELECT COUNT(DISTINCT %s) FROM %s" % (id_col, table)
+            )).fetchone()
+            return total, int(count_row[0] or 0)
         row = db.execute(text(
             "SELECT %s, COUNT(DISTINCT %s) FROM %s" % (metric, id_col, table)
         )).fetchone()
@@ -1035,11 +1076,23 @@ def detect_top_spender(db, sector_idx=None):
     idx = sector_idx if sector_idx is not None else random.randint(0, len(LOBBYING_TABLES) - 1)
     table, sector, id_col, entity_table = LOBBYING_TABLES[idx]
 
+    # Top-N spenders by entity. Uses the prefer-expenses-per-year
+    # convention from services.lobby_spend so an entity that filed BOTH
+    # in-house (expenses) and outside-firm (income) for the same year
+    # doesn't get double-counted. The previous SUM(income+expenses)
+    # query was the source of stories like "Qualcomm $90.4M" when the
+    # real number was ~$45M.
     try:
         rows = db.execute(text(
-            "SELECT %s, SUM(%s) as total, COUNT(*) as cnt "
-            "FROM %s GROUP BY %s ORDER BY total DESC LIMIT 5"
-            % (id_col, lobby_spend_sql(), table, id_col)
+            "SELECT %s, SUM(yearly_spend) AS total, SUM(cnt) AS cnt FROM ("
+            "  SELECT %s, filing_year, "
+            "  CASE WHEN SUM(COALESCE(expenses, 0)) > 0 "
+            "  THEN SUM(COALESCE(expenses, 0)) "
+            "  ELSE SUM(COALESCE(income, 0)) END AS yearly_spend, "
+            "  COUNT(*) AS cnt "
+            "  FROM %s GROUP BY %s, filing_year"
+            ") yearly GROUP BY %s ORDER BY total DESC LIMIT 5"
+            % (id_col, id_col, table, id_col, id_col)
         )).fetchall()
     except Exception as e:
         log.warning("Top spender query failed for %s: %s", sector, e)
@@ -1279,15 +1332,20 @@ def detect_contract_windfall(db, sector_idx=None):
         except Exception:
             agency_rows = []
 
-        # Cross-reference: did they also lobby?
+        # Cross-reference: did they also lobby? Using the prefer-
+        # expenses-per-year convention so we don't double-count fees
+        # paid to outside firms (which are already inside the entity's
+        # own in-house `expenses` total per LDA convention).
         l_table = LOBBYING_TABLES[idx][0]
         lobby_total = 0
         lobby_count = 0
         try:
-            lr = db.execute(text(
-                "SELECT SUM(%s), COUNT(*) FROM %s WHERE %s = :eid"
-                % (lobby_spend_sql(), l_table, id_col)
+            from services.lobby_spend import compute_lobby_spend
+            lobby_total = compute_lobby_spend(db, l_table, eid, id_col=id_col)
+            lr_count = db.execute(text(
+                "SELECT COUNT(*) FROM %s WHERE %s = :eid" % (l_table, id_col)
             ), {"eid": eid}).fetchone()
+            lr = (lobby_total, int(lr_count[0] or 0)) if lr_count else None
             if lr:
                 lobby_total = float(lr[0] or 0)
                 lobby_count = int(lr[1] or 0)
@@ -1426,13 +1484,13 @@ def detect_penalty_gap(db, sector_idx=None):
         except Exception:
             pa_rows = []
 
-        # Get lobbying spend
+        # Get lobbying spend (prefer-expenses-per-year — see services/lobby_spend.py)
         l_table = LOBBYING_TABLES[idx][0]
         lobby_total = 0
         try:
-            lr = db.execute(text(
-                "SELECT SUM(%s) FROM %s WHERE %s = :eid" % (lobby_spend_sql(), l_table, id_col)
-            ), {"eid": eid}).fetchone()
+            from services.lobby_spend import compute_lobby_spend
+            lobby_total = compute_lobby_spend(db, l_table, eid, id_col=id_col)
+            lr = (lobby_total,) if lobby_total else None
             if lr and lr[0]:
                 lobby_total = float(lr[0])
         except Exception:
@@ -1639,16 +1697,29 @@ def detect_lobby_contract_loop(db, sector_idx=None):
     c_table = CONTRACT_TABLES[idx][0]
 
     try:
-        # Find companies that both lobby and get contracts
+        # Find companies that both lobby and get contracts. Lobbying
+        # totals use the prefer-expenses-per-year subquery so an entity
+        # that filed both in-house and outside-firm doesn't get counted
+        # twice for the same dollars.
         rows = db.execute(text(
-            "SELECT l.%s, SUM(%s) as lobby_total, "
-            "(SELECT SUM(c.award_amount) FROM %s c WHERE c.%s = l.%s) as contract_total, "
-            "(SELECT COUNT(*) FROM %s c2 WHERE c2.%s = l.%s) as contract_count "
-            "FROM %s l "
-            "GROUP BY l.%s "
+            "SELECT y.%s AS eid, SUM(y.yearly_spend) AS lobby_total, "
+            "(SELECT SUM(c.award_amount) FROM %s c WHERE c.%s = y.%s) AS contract_total, "
+            "(SELECT COUNT(*) FROM %s c2 WHERE c2.%s = y.%s) AS contract_count "
+            "FROM ("
+            "  SELECT %s, filing_year, "
+            "  CASE WHEN SUM(COALESCE(expenses, 0)) > 0 "
+            "  THEN SUM(COALESCE(expenses, 0)) "
+            "  ELSE SUM(COALESCE(income, 0)) END AS yearly_spend "
+            "  FROM %s GROUP BY %s, filing_year"
+            ") y "
+            "GROUP BY y.%s "
             "HAVING lobby_total > 50000 AND contract_total > 1000000 "
             "ORDER BY contract_total DESC LIMIT 5"
-            % (id_col, lobby_spend_sql("l"), c_table, id_col, id_col, c_table, id_col, id_col, l_table, id_col)
+            % (
+                id_col, c_table, id_col, id_col,
+                c_table, id_col, id_col,
+                id_col, l_table, id_col, id_col,
+            )
         )).fetchall()
     except Exception as e:
         log.warning("Lobby-contract loop query failed for %s: %s", sector, e)
@@ -1919,11 +1990,19 @@ def detect_budget_lobbying(db, sector_idx=None):
 def detect_trade_before_legislation(db):
     """Find congress members who traded stock within 30 days before/after
     a bill they sponsored/cosponsored had action. Cross-references
-    congressional_trades dates against bill_actions dates."""
+    congressional_trades dates against bill_actions dates.
+
+    Substance filter: ceremonial / non-substantive bills (gold medals,
+    naming buildings, namings of post offices, congratulatory
+    resolutions, etc.) are excluded. Without this, the engine flagged
+    things like the Charlie Kirk Congressional Gold Medal Act as the
+    "trade-overlap bill" for an IBIT (Bitcoin ETF) trade — the bill has
+    zero economic nexus to any traded ticker. We also require the bill
+    to have a non-empty `policy_area` so we have at least a category
+    signal that the bill is doing something substantive.
+    """
     stories = []
     try:
-        # Find trades where the member also sponsored/cosponsored a bill
-        # and a bill action happened within 30 days of the trade
         rows = db.execute(text("""
             SELECT
                 ct.person_id,
@@ -1933,6 +2012,7 @@ def detect_trade_before_legislation(db):
                 pb.bill_id, pb.relationship_type,
                 ba.action_text, ba.action_date,
                 b.title as bill_title,
+                b.policy_area as bill_policy,
                 ABS(JULIANDAY(ct.transaction_date) - JULIANDAY(ba.action_date)) as day_gap
             FROM congressional_trades ct
             JOIN tracked_members tm ON tm.person_id = ct.person_id
@@ -1943,6 +2023,26 @@ def detect_trade_before_legislation(db):
               AND ba.action_date IS NOT NULL
               AND ABS(JULIANDAY(ct.transaction_date) - JULIANDAY(ba.action_date)) <= 30
               AND ct.transaction_date >= '2024-01-01'
+              -- Exclude ceremonial bills that have no economic relevance.
+              -- These buckets are common drivers of false positives.
+              AND (b.policy_area IS NOT NULL AND TRIM(b.policy_area) != '')
+              AND b.policy_area NOT IN (
+                  'Congressional Tributes',
+                  'Commemorations',
+                  'Congressional Gold Medals',
+                  'Names'
+              )
+              AND LOWER(b.title) NOT LIKE '%gold medal%'
+              AND LOWER(b.title) NOT LIKE '%congressional gold medal%'
+              AND LOWER(b.title) NOT LIKE '%commemorative coin%'
+              AND LOWER(b.title) NOT LIKE '%post office%'
+              AND LOWER(b.title) NOT LIKE '%post-office%'
+              AND LOWER(b.title) NOT LIKE '%to redesignate the facility%'
+              AND LOWER(b.title) NOT LIKE '%honoring the%'
+              AND LOWER(b.title) NOT LIKE '%recognizing the contributions%'
+              AND LOWER(b.title) NOT LIKE '%to designate the%post office%'
+              AND LOWER(b.title) NOT LIKE '%commemorating the%'
+              AND LOWER(b.title) NOT LIKE '%expressing the sense of%'
             ORDER BY day_gap ASC
             LIMIT 50
         """)).fetchall()
@@ -1960,7 +2060,8 @@ def detect_trade_before_legislation(db):
             "bill_id": r[10], "relationship": r[11],
             "action": r[12],
             "action_date": str(r[13]) if r[13] else "unknown",
-            "bill_title": r[14], "day_gap": int(r[15]) if r[15] else 0,
+            "bill_title": r[14], "bill_policy": r[15],
+            "day_gap": int(r[16]) if r[16] else 0,
         })
 
     for pid, hits in sorted(person_hits.items(), key=lambda x: -len(x[1])):
@@ -1968,10 +2069,20 @@ def detect_trade_before_legislation(db):
             continue
         h = hits[0]
         name = h["name"]
-        title = "%s Traded %s Stock %d Days %s %s Bill Action" % (
-            name, h["ticker"], h["day_gap"],
-            "Before" if h["trade_date"] <= h["action_date"] else "After",
-            h["relationship"].lower()
+        # Day-gap phrase: "Same Day" / "1 Day Before" / "5 Days After".
+        # The previous template used "%d Days" unconditionally, so titles
+        # like "1 Days Before" and "0 Days Before" shipped — broken
+        # pluralization on a flagship story type.
+        gap = int(h["day_gap"])
+        direction = "Before" if h["trade_date"] <= h["action_date"] else "After"
+        if gap == 0:
+            day_phrase = "the Same Day as"
+        elif gap == 1:
+            day_phrase = "1 Day %s" % direction
+        else:
+            day_phrase = "%d Days %s" % (gap, direction)
+        title = "%s Traded %s Stock %s %s Bill Action" % (
+            name, h["ticker"], day_phrase, h["relationship"].lower()
         )
         if story_exists(db, slug(title)):
             continue
@@ -3050,10 +3161,24 @@ def main():
     rejected_factcheck = 0
     rejected_dupe = 0
     rejected_short = 0
+    rejected_verification = 0
     seen_slugs = set()
     seen_dedupe_hashes = set()
 
-    MINIMUM_BODY_CHARS = 4000
+    # 3,000-char floor (lowered from 4,000 because Opus had been emitting
+    # narratives at 2.6-3.9k chars and 100% of candidates were getting
+    # rejected for length, blocking every email digest for ~3 days).
+    # The prompt now targets 4,500-5,500; 3,000 is the quality floor below
+    # which narratives feel skeletal.
+    MINIMUM_BODY_CHARS = 3000
+
+    # Verification-tier floor for the draft queue. Stories below this score
+    # historically slipped through to "published" because the tier was
+    # computed but not enforced. Anything that scores below "verified"
+    # (>=0.55, i.e. partially_verified) is held out of the queue entirely.
+    # If you want to manually surface a partially_verified story, use the
+    # /ops/story-queue admin path with an override.
+    MIN_VERIFICATION_SCORE = 0.55
 
     for s in all_stories:
         if s.slug in seen_slugs:
@@ -3106,6 +3231,19 @@ def main():
             s.verification_score = 0.50
             s.verification_tier = "unverified"
 
+        # Gate 5: verification floor — keep partially-verified stories out
+        # of the draft queue until a human can audit them manually. This
+        # gate previously did not exist; stories with verification_tier =
+        # "partially_verified" (score 0.68) were shipping to published.
+        if (s.verification_score or 0) < MIN_VERIFICATION_SCORE:
+            log.warning(
+                "Verification REJECT: %s | score %.2f (tier %s) below floor %.2f",
+                s.title[:60], s.verification_score or 0,
+                s.verification_tier or "?", MIN_VERIFICATION_SCORE,
+            )
+            rejected_verification += 1
+            continue
+
         try:
             db.add(s)
             db.flush()
@@ -3119,10 +3257,13 @@ def main():
     if saved:
         db.commit()
     log.info(
-        "Gate summary: %d drafts saved, %d too short (<4000 chars), %d rejected by Gate-3, "
-        "%d rejected by Gate-4, %d dupes. "
+        "Gate summary: %d drafts saved, %d too short (<%d chars), %d rejected by Gate-3, "
+        "%d rejected by Gate-4, %d rejected by verification floor (<%.2f), %d dupes. "
         "Drafts are NOT published until a human approves them via /ops/story-queue.",
-        saved, rejected_short, rejected_validator, rejected_factcheck, rejected_dupe,
+        saved, rejected_short, MINIMUM_BODY_CHARS,
+        rejected_validator, rejected_factcheck,
+        rejected_verification, MIN_VERIFICATION_SCORE,
+        rejected_dupe,
     )
 
     db.close()

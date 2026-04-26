@@ -164,19 +164,24 @@ def fact_check(db: Session, story) -> Tuple[bool, List[FactIssue]]:
         if claimed is None or claimed <= 0 or not sector_tables:
             continue
         lobby_table, _, _, id_col, _ = sector_tables
-        # LDA filings split spend across `income` (outside-firm) and `expenses`
-        # (in-house). Aggregators elsewhere sum both via utils.db_compat.lobby_spend;
-        # the fact-checker must match or it rejects correctly-numbered stories.
-        spend_expr = "COALESCE(income, 0) + COALESCE(expenses, 0)"
+        # LDA filings split spend across `income` (outside-firm fee) and
+        # `expenses` (in-house total which already includes outside fees).
+        # Adding both double-counts. Use the prefer-expenses-per-year
+        # convention from services.lobby_spend so the fact-checker
+        # matches the corrected aggregators in detect_stories.py / etc.
+        from services.lobby_spend import (
+            compute_lobby_spend,
+            compute_lobby_spend_aggregate_sector,
+        )
         if is_sector_agg:
-            actual = _sum_table(db, lobby_table, spend_expr)
-            label = f"{lobby_table}.income+expenses (sector total)"
+            actual = compute_lobby_spend_aggregate_sector(db, lobby_table, id_col=id_col)
+            label = f"{lobby_table} prefer-expenses (sector total)"
             miss_detail = f"no rows in {lobby_table}"
         else:
             if not entity_ids:
                 continue
-            actual = _sum_col(db, lobby_table, spend_expr, id_col, entity_ids[0])
-            label = f"{lobby_table}.income+expenses"
+            actual = compute_lobby_spend(db, lobby_table, entity_ids[0], id_col=id_col)
+            label = f"{lobby_table} prefer-expenses"
             miss_detail = f"no rows in {lobby_table} for {entity_ids[0]}"
         money_tol = SECTOR_AGG_MONEY_TOLERANCE if is_sector_agg else MONEY_TOLERANCE
         if actual is None:
