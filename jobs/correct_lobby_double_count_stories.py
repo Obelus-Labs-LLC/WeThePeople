@@ -171,15 +171,69 @@ def correct_lobby_double_count(db, fix: LobbyCorrection, dry_run: bool = False) 
 
     corrected_label = _fmt_money(corrected_total)
 
-    # Pull the OLD figure from the title using a regex over $X.XB / $X.XM / $X.XK / $X.XX
+    # Pull the OLD lobbying figure. We need to find the right money
+    # token in the title — story 166 has both a contract figure ($6.3B)
+    # and a lobbying figure ($84.7M); naively replacing the first
+    # match would corrupt the contract number. Strategy: read the
+    # claimed total from evidence, format it, and look for that exact
+    # token. Fall back to "$X.XM in Lobbying" / "$X.XM Lobbying"
+    # patterns. Last resort: first money token (only safe for titles
+    # with one figure).
     import re
-    money_pat = re.compile(r"\$[\d,.]+(?:[BMK])?")
-    old_match = money_pat.search(title or "")
-    old_label = old_match.group(0) if old_match else "(unknown)"
 
-    new_title = title
-    if old_match:
-        new_title = title[: old_match.start()] + corrected_label + title[old_match.end():]
+    old_total = 0.0
+    try:
+        ev = json.loads(evidence_raw) if isinstance(evidence_raw, str) else evidence_raw
+        if isinstance(ev, dict):
+            for key in ("total_spend", "lobby_total", "lobbying_total", "total_lobbying_spend"):
+                v = ev.get(key)
+                if isinstance(v, (int, float)) and v > 0:
+                    old_total = float(v)
+                    break
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    money_pat = re.compile(r"\$[\d,.]+(?:[BMK])?")
+    old_match = None
+    old_label = None
+
+    if old_total > 0:
+        # Try the exact formatted value first
+        target = _fmt_money(old_total)
+        idx = (title or "").find(target)
+        if idx >= 0:
+            old_match = re.match(re.escape(target), title[idx:])
+            old_label = target
+            # Manually craft the replacement since we want indices
+            new_title = title[:idx] + corrected_label + title[idx + len(target):]
+
+    if old_label is None:
+        # Try the "in Lobbying" / "Lobbying Congress" anchor — replace
+        # the money token that immediately precedes those words.
+        for anchor in (" in Lobbying", " Lobbying Congress", " Lobbying"):
+            anchor_idx = (title or "").find(anchor)
+            if anchor_idx > 0:
+                # Find the most recent money token before the anchor
+                for m in money_pat.finditer(title or "", 0, anchor_idx):
+                    old_match = m
+                old_label = old_match.group(0) if old_match else None
+                if old_label:
+                    new_title = (
+                        title[: old_match.start()]
+                        + corrected_label
+                        + title[old_match.end():]
+                    )
+                break
+
+    if old_label is None:
+        # Last resort: first money token
+        old_match = money_pat.search(title or "")
+        if old_match:
+            old_label = old_match.group(0)
+            new_title = title[: old_match.start()] + corrected_label + title[old_match.end():]
+        else:
+            old_label = "(unknown)"
+            new_title = title
 
     # Prepend a correction notice to the body
     correction_note = (
