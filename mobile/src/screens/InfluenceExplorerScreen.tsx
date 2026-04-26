@@ -36,8 +36,9 @@ export default function InfluenceExplorerScreen() {
         apiClient.getTopContracts({ limit: 15 }),
       ]);
       setStats(s);
-      setTopLobbying(Array.isArray(lob) ? lob : (lob as any).companies || []);
-      setTopContracts(Array.isArray(con) ? con : (con as any).companies || []);
+      // Null-safe coercion: object.companies on a null response throws.
+      setTopLobbying(Array.isArray(lob) ? lob : (lob && (lob as any).companies) || []);
+      setTopContracts(Array.isArray(con) ? con : (con && (con as any).companies) || []);
       setError('');
     } catch (e: any) {
       setError(e?.message || 'Failed to load');

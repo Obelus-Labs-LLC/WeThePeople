@@ -8,6 +8,7 @@ import { UI_COLORS } from '../constants/colors';
 import { LoadingSpinner, EmptyState } from '../components/ui';
 
 import { apiClient } from '../api/client';
+import { openExternalUrl } from '../utils/openExternal';
 const ACCENT = '#2563EB';
 const log = (msg: string, err: unknown) => console.warn(`[VoteDetailScreen] ${msg}:`, err);
 
@@ -179,7 +180,7 @@ export default function VoteDetailScreen() {
       {vote.source_url && (
         <TouchableOpacity
           style={styles.sourceButton}
-          onPress={() => Linking.openURL(vote.source_url).catch((e) => log('open source', e))}
+          onPress={() => openExternalUrl(vote.source_url, 'source')}
         >
           <Ionicons name="open-outline" size={16} color={ACCENT} />
           <Text style={[styles.sourceText, { color: ACCENT }]}>View on Congress.gov</Text>

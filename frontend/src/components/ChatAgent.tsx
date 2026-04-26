@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { askQuestion, getRemainingQuestions, type ChatResponse, type ChatAction } from "../api/chat";
-import { globalSearch, type SearchResults } from "../api/search";
+// globalSearch / SearchResults import was unused — removing.
 
 // ── FAQ map (Tier 1 — free, no API call) ──
 

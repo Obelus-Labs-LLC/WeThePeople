@@ -38,8 +38,11 @@ export default function InfluenceMapScreen() {
 
   const load = useCallback(async () => {
     try {
-      const data = await apiClient.getSpendingByState({ metric, limit: 55 });
-      const raw = Array.isArray(data) ? data : (data.states || data.items || []);
+      const data: any = await apiClient.getSpendingByState({ metric, limit: 55 });
+      // Null-safe shape coercion (see ClosedLoopScreen for the pattern).
+      let raw: any[] = [];
+      if (Array.isArray(data)) raw = data;
+      else if (data && typeof data === 'object') raw = data.states || data.items || [];
       const parsed: StateRow[] = raw.map((r: any) => ({
         state_code: r.state_code || r.state,
         state_name: r.state_name,
