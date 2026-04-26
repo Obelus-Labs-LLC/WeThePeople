@@ -250,13 +250,16 @@ def lookup_entity_data(session, entity: Dict[str, Any]) -> Dict[str, Any]:
     for lobby_table, lobby_id_col, lobby_entity_table in LOBBYING_TABLES:
         if lobby_entity_table == table:
             try:
-                row = session.execute(text(
-                    f"SELECT COALESCE(SUM(COALESCE(income, 0) + COALESCE(expenses, 0)), 0), COUNT(*) "
-                    f"FROM {lobby_table} WHERE {lobby_id_col} = :eid"
+                # Prefer-expenses-per-year (see services/lobby_spend.py).
+                from services.lobby_spend import compute_lobby_spend
+                lobby_total = compute_lobby_spend(
+                    session, lobby_table, entity_id, id_col=lobby_id_col,
+                )
+                count_row = session.execute(text(
+                    f"SELECT COUNT(*) FROM {lobby_table} WHERE {lobby_id_col} = :eid"
                 ), {"eid": entity_id}).fetchone()
-                if row:
-                    data["lobbying_total"] += float(row[0] or 0)
-                    data["lobbying_filings"] += int(row[1] or 0)
+                data["lobbying_total"] += float(lobby_total or 0)
+                data["lobbying_filings"] += int((count_row[0] if count_row else 0) or 0)
             except Exception as e:
                 log.debug("Lobbying lookup failed for %s in %s: %s", entity_id, lobby_table, e)
 

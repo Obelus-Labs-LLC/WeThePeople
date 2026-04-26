@@ -296,7 +296,11 @@ def get_tech_company_patent_policy(company_id: str, db: Session = Depends(get_db
         ip_lobby_filters.append(LobbyingRecord.specific_issues.ilike(pattern))
     ip_lobbying = db.query(LobbyingRecord).filter(LobbyingRecord.company_id == company_id, or_(*ip_lobby_filters)).order_by(desc(LobbyingRecord.filing_year)).all()
     total_lobbying_on_ip = len(ip_lobbying)
-    total_ip_lobbying_spend = sum((r.income or 0) + (r.expenses or 0) for r in ip_lobbying)
+    # Aggregate via the prefer-expenses-per-year helper so we don't
+    # double-count outside-firm fees against in-house expenses (which
+    # already include them). See services/lobby_spend.py for details.
+    from services.lobby_spend import python_aggregate_filings
+    total_ip_lobbying_spend = python_aggregate_filings(ip_lobbying)
     ip_lobbying_items = [{"id": r.id, "filing_uuid": r.filing_uuid, "filing_year": r.filing_year, "filing_period": r.filing_period, "income": r.income, "expenses": r.expenses, "registrant_name": r.registrant_name, "lobbying_issues": r.lobbying_issues} for r in ip_lobbying[:20]]
     bill_keywords = ["patent", "intellectual property", "copyright", "innovation", "technology transfer"]
     bill_filters = []

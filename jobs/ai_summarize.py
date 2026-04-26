@@ -678,10 +678,20 @@ def summarize_company_profiles(conn, limit: int = 0, dry_run: bool = False) -> i
             eid = r[id_col]
             name = r["display_name"]
 
-            # Aggregate stats — use the correct FK column per sector
+            # Aggregate stats — use the correct FK column per sector.
+            # Lobbying total uses the prefer-expenses-per-year convention
+            # so we don't double-count outside-firm fees. See
+            # services/lobby_spend.py for the rationale.
             lob = conn.execute(
-                f"SELECT COUNT(*) as cnt, COALESCE(SUM(COALESCE(income, 0) + COALESCE(expenses, 0)), 0) as total "
-                f"FROM {tables['lobbying']} WHERE {fk_col} = ?", (eid,)
+                f"SELECT (SELECT COUNT(*) FROM {tables['lobbying']} WHERE {fk_col} = ?) as cnt, "
+                f"COALESCE(SUM(yearly_spend), 0) as total FROM ("
+                f"  SELECT filing_year, "
+                f"  CASE WHEN SUM(COALESCE(expenses, 0)) > 0 "
+                f"  THEN SUM(COALESCE(expenses, 0)) "
+                f"  ELSE SUM(COALESCE(income, 0)) END AS yearly_spend "
+                f"  FROM {tables['lobbying']} WHERE {fk_col} = ? "
+                f"  GROUP BY filing_year"
+                f") yearly", (eid, eid)
             ).fetchone()
             con = conn.execute(
                 f"SELECT COUNT(*) as cnt, COALESCE(SUM(award_amount), 0) as total "

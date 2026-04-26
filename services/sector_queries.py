@@ -200,7 +200,12 @@ def get_recent_activity(
             "meta": {
                 "income": r.income,
                 "expenses": r.expenses,
-                "total_spend": (r.income or 0) + (r.expenses or 0),
+                # Per-row dollar value: in-house filings report the total
+                # under expenses (already includes any outside-firm fees),
+                # outside-firm filings report under income. See
+                # services/lobby_spend.py for the prefer-expenses
+                # convention.
+                "total_spend": float(r.expenses or 0) if (r.expenses or 0) > 0 else float(r.income or 0),
                 "filing_period": period_str,
                 "registrant_name": r.registrant_name,
             },

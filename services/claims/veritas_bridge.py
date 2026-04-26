@@ -239,14 +239,17 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> Dict[str, Any]:
         sector = entity["sector"]
         url = _url(sector, eid)
 
-        # Lobbying
+        # Lobbying — prefer-expenses-per-year (see services/lobby_spend.py)
         if any(w in claim_lower for w in ["lobby", "spend", "influence", "million", "billion"]):
             lt = lobbying_tables.get(sector)
             if lt:
                 try:
-                    r = db.execute(text(
-                        "SELECT SUM(COALESCE(income, 0) + COALESCE(expenses, 0)), COUNT(*) FROM %s WHERE %s = :eid" % (lt[0], lt[1])
+                    from services.lobby_spend import compute_lobby_spend
+                    total = compute_lobby_spend(db, lt[0], eid, id_col=lt[1])
+                    cnt_row = db.execute(text(
+                        "SELECT COUNT(*) FROM %s WHERE %s = :eid" % (lt[0], lt[1])
                     ), {"eid": eid}).fetchone()
+                    r = (total, int(cnt_row[0] or 0)) if cnt_row else None
                     if r and r[0]:
                         evidence.append({
                             "source": "WTP Senate LDA Database",
