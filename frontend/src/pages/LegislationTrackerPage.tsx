@@ -672,7 +672,10 @@ export default function LegislationTrackerPage() {
               {error}
             </p>
             <button
-              onClick={() => fetchBills(0)}
+              onClick={() => {
+                const c = new AbortController();
+                fetchBills(0, c.signal);
+              }}
               style={{
                 marginTop: 14,
                 padding: '8px 16px',
