@@ -161,8 +161,10 @@ export default function CommitteesPage() {
         if (cancelled) return;
         if (data) setCommittees(data.committees || []);
       })
-      .catch(() => {
-        if (!cancelled) setDataUnavailable(true);
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn('[CommitteesPage] fetch failed:', err);
+        setDataUnavailable(true);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

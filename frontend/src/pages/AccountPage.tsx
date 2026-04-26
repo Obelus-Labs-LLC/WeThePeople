@@ -326,15 +326,29 @@ export default function AccountPage() {
         alert(err.detail || `Could not create key (HTTP ${res.status})`);
         return;
       }
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      // Validate response shape before mutating local state. A backend
+      // shape drift (renamed field, missing id) used to cause runtime
+      // TypeErrors when the new key was rendered.
+      if (
+        !data ||
+        typeof data !== 'object' ||
+        typeof data.id !== 'number' ||
+        typeof data.raw_key !== 'string' ||
+        typeof data.name !== 'string'
+      ) {
+        console.warn('[AccountPage] unexpected /auth/api-keys POST shape:', data);
+        alert('Key created, but the server returned an unexpected shape. Refresh the page to see it.');
+        return;
+      }
       setNewKeyRaw(data.raw_key);
       setApiKeys((prev) => [
         {
           id: data.id,
           name: data.name,
-          scopes: data.scopes,
-          created_at: data.created_at,
-          expires_at: data.expires_at,
+          scopes: Array.isArray(data.scopes) ? data.scopes : ['read'],
+          created_at: data.created_at ?? new Date().toISOString(),
+          expires_at: data.expires_at ?? null,
           is_active: true,
         },
         ...prev,

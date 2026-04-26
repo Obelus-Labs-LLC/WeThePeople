@@ -90,9 +90,11 @@ export default function HealthDashboardPage() {
   const [stats, setStats] = useState<HealthDashboardStats | null>(null);
   const [companies, setCompanies] = useState<CompanyListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(null);
     Promise.all([
       getHealthDashboardStats(),
       getHealthCompanies({ limit: 100 }),
@@ -102,7 +104,11 @@ export default function HealthDashboardPage() {
         setStats(statsRes);
         setCompanies(compRes.companies || []);
       })
-      .catch((err) => { console.warn('[HealthDashboardPage] fetch failed:', err); })
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn('[HealthDashboardPage] fetch failed:', err);
+        setLoadError(err?.message || 'Could not load Health dashboard');
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
@@ -138,6 +144,24 @@ export default function HealthDashboardPage() {
 
   return (
     <DashboardShellLayout sector="health" header={<HealthSectorHeader />}>
+      {loadError && (
+        <div
+          role="alert"
+          style={{
+            margin: '0 0 24px',
+            padding: '12px 16px',
+            borderRadius: 12,
+            border: '1px solid rgba(230, 57, 70, 0.35)',
+            background: 'rgba(230, 57, 70, 0.08)',
+            color: 'var(--color-red)',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+          }}
+        >
+          Could not load Health data: {loadError}. Numbers may be stale or
+          missing. Refresh the page to retry.
+        </div>
+      )}
       <SectorHero
         eyebrow="Healthcare transparency"
         titleLine1="Pharma's"

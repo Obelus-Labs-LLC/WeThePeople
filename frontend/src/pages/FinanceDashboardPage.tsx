@@ -99,10 +99,12 @@ export default function FinanceDashboardPage() {
   const [institutions, setInstitutions] = useState<InstitutionListItem[]>([]);
   const [trades, setTrades] = useState<InsiderTradeItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [expandedTrade, setExpandedTrade] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(null);
     Promise.all([
       getFinanceDashboardStats(),
       getInstitutions({ limit: 6 }),
@@ -114,7 +116,11 @@ export default function FinanceDashboardPage() {
         setInstitutions(instRes.institutions || []);
         setTrades(tradesRes.trades || []);
       })
-      .catch((err) => { console.warn('[FinanceDashboardPage] fetch failed:', err); })
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn('[FinanceDashboardPage] fetch failed:', err);
+        setLoadError(err?.message || 'Could not load Finance dashboard');
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
@@ -137,6 +143,24 @@ export default function FinanceDashboardPage() {
 
   return (
     <DashboardShellLayout sector="finance" header={<FinanceSectorHeader />}>
+      {loadError && (
+        <div
+          role="alert"
+          style={{
+            margin: '0 0 24px',
+            padding: '12px 16px',
+            borderRadius: 12,
+            border: '1px solid rgba(230, 57, 70, 0.35)',
+            background: 'rgba(230, 57, 70, 0.08)',
+            color: 'var(--color-red)',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+          }}
+        >
+          Could not load Finance data: {loadError}. Numbers may be stale or
+          missing. Refresh the page to retry.
+        </div>
+      )}
       <SectorHero
         eyebrow="Financial transparency"
         titleLine1="Wall Street's"
