@@ -2,8 +2,36 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, BarChart3, Users, Building2, Scale } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import { usePageMeta } from '../hooks/usePageMeta';
 import { CATEGORY_META, SECTOR_LABELS } from '../types';
 import type { Story, StoriesResponse } from '../types';
+
+/**
+ * Walk a parsed `evidence` object and harvest any `party` values it
+ * contains, recursing into nested objects/arrays. Replaces the previous
+ * approach of stringifying the whole evidence and substring-matching
+ * `"party":"d"`, which broke whenever JSON.stringify whitespace shifted
+ * or a story used a different field name. Pulling the values out of
+ * the parsed structure is both faster and far less brittle.
+ */
+function collectParties(evidence: unknown, into: Set<string>): void {
+  if (!evidence) return;
+  if (Array.isArray(evidence)) {
+    for (const item of evidence) collectParties(item, into);
+    return;
+  }
+  if (typeof evidence !== 'object') return;
+  for (const [key, value] of Object.entries(evidence as Record<string, unknown>)) {
+    if (key === 'party' && typeof value === 'string' && value) {
+      const upper = value.toUpperCase();
+      if (upper === 'D' || upper === 'DEMOCRAT') into.add('D');
+      else if (upper === 'R' || upper === 'REPUBLICAN') into.add('R');
+      else if (upper === 'I' || upper === 'IND' || upper === 'INDEPENDENT') into.add('I');
+    } else if (value && typeof value === 'object') {
+      collectParties(value, into);
+    }
+  }
+}
 
 const backLinkStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
@@ -58,12 +86,14 @@ function PartyBar({
   max,
   color,
   Icon,
+  ariaLabel,
 }: {
   label: string;
   count: number;
   max: number;
   color: string;
   Icon: typeof Users;
+  ariaLabel?: string;
 }) {
   const pct = Math.round((count / max) * 100);
   return (
@@ -80,7 +110,7 @@ function PartyBar({
             color,
           }}
         >
-          <Icon size={13} /> {label}
+          <Icon size={13} aria-hidden /> {label}
         </span>
         <span
           style={{
@@ -92,7 +122,15 @@ function PartyBar({
           {count} {count === 1 ? 'story' : 'stories'}
         </span>
       </div>
+      {/* Accessible progress bar — colour conveys party, but the
+          aria-label and the count text above also encode the value so
+          colour-blind users and screen readers don't lose information. */}
       <div
+        role="progressbar"
+        aria-label={ariaLabel ?? `${label}: ${count} stories`}
+        aria-valuenow={count}
+        aria-valuemin={0}
+        aria-valuemax={max}
         style={{
           height: 8,
           borderRadius: '999px',
@@ -120,6 +158,13 @@ export default function CoverageBalancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  usePageMeta({
+    title: 'Coverage Balance — The Influence Journal',
+    description:
+      'Live, non-partisan breakdown of every published Influence Journal story by party, sector, and category.',
+    canonical: 'https://journal.wethepeopleforus.com/coverage',
+  });
+
   useEffect(() => {
     const controller = new AbortController();
     apiFetch<StoriesResponse | Story[]>('/stories/latest', {
@@ -127,15 +172,20 @@ export default function CoverageBalancePage() {
       signal: controller.signal,
     })
       .then((data) => {
+        if (controller.signal.aborted) return;
         const items = Array.isArray(data) ? data : data.stories ?? [];
         setStories(items);
       })
       .catch((err) => {
-        if (err.name !== 'AbortError') {
-          setError(err.message || 'Failed to load stories');
+        if (controller.signal.aborted) return;
+        if ((err as { name?: string })?.name !== 'AbortError') {
+          setError("We couldn't load coverage data right now. Please refresh the page.");
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (controller.signal.aborted) return;
+        setLoading(false);
+      });
     return () => controller.abort();
   }, []);
 
@@ -146,35 +196,19 @@ export default function CoverageBalancePage() {
     let noParty = 0;
 
     for (const story of stories) {
-      const evidence = story.evidence as Record<string, unknown> | undefined;
-      const entityIds = story.entity_ids ?? [];
       const storyParties = new Set<string>();
 
-      if (evidence) {
-        const evidenceStr = JSON.stringify(evidence).toLowerCase();
-        if (
-          evidenceStr.includes('"party":"d"') ||
-          evidenceStr.includes('"party": "d"') ||
-          evidenceStr.includes('democrat')
-        ) {
-          storyParties.add('D');
-        }
-        if (
-          evidenceStr.includes('"party":"r"') ||
-          evidenceStr.includes('"party": "r"') ||
-          evidenceStr.includes('republican')
-        ) {
-          storyParties.add('R');
-        }
-        if (
-          evidenceStr.includes('"party":"i"') ||
-          evidenceStr.includes('"party": "i"') ||
-          evidenceStr.includes('independent')
-        ) {
-          storyParties.add('I');
-        }
+      if (story.evidence && typeof story.evidence === 'object') {
+        collectParties(story.evidence, storyParties);
       }
 
+      // Entity IDs occasionally encode party in the suffix (e.g.
+      // `pelosi_nancy:D` or `:R-CA`). Keep this branch — it's the
+      // only signal we have for stories whose evidence object doesn't
+      // include a party key.
+      const entityIds = (story.entity_ids ?? []).filter(
+        (e): e is string => typeof e === 'string',
+      );
       for (const eid of entityIds) {
         const upper = eid.toUpperCase();
         if (upper.includes(':D:') || upper.includes(':D-') || upper.endsWith(':D')) storyParties.add('D');
