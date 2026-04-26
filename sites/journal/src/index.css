@@ -144,4 +144,16 @@ article p:last-child { margin-bottom: 0; }
 .animate-fade-up-3    { animation: fade-up 0.5s 0.2s ease both; }
 .animate-pulse-dot    { animation: pulse 2s ease-in-out infinite; }
 .animate-ticker       { animation: ticker 28s linear infinite; }
+
+/* Skeleton shimmer for placeholder loading states (related stories,
+   etc.). Reduced-motion users get a flat opacity so we don't strobe. */
+@keyframes wtp-skeleton {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes wtp-skeleton {
+    0%, 100% { background-position: 0 0; }
+  }
+}
 .animate-ticker:hover { animation-play-state: paused; }

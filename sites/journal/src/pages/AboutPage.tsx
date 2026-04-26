@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Database, Shield, Eye, Bot, AlertTriangle, ArrowRight } from 'lucide-react';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 // ── Shared styles for journal static pages ──────────────────────────
 const backLinkStyle: React.CSSProperties = {
@@ -63,6 +64,12 @@ const pillButtonStyle: React.CSSProperties = {
 };
 
 export default function AboutPage() {
+  usePageMeta({
+    title: 'About — The Influence Journal',
+    description:
+      'How The Influence Journal works, what data we use, and the editorial standards behind every story.',
+    canonical: 'https://journal.wethepeopleforus.com/about',
+  });
   return (
     <main id="main-content" className="flex-1 px-4 py-10 sm:py-16" style={{ color: 'var(--color-text-1)' }}>
       <article className="max-w-[720px] mx-auto">

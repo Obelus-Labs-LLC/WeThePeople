@@ -47,6 +47,12 @@ export interface StoryCorrection {
 }
 
 export interface Story {
+  /**
+   * Story primary key. Backend serialises both numeric IDs (legacy
+   * SQLite autoincrement) and string IDs (slugged, post-2026 schema)
+   * — keep the union so neither path needs a runtime cast at the
+   * call-site, and treat the value as opaque (don't math it).
+   */
   id: string | number;
   slug: string;
   title: string;

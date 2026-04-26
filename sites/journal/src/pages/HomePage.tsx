@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { StoryCard } from '../components/StoryCard';
 import { NewsletterCTA } from '../components/NewsletterCTA';
 import { EmptyState } from '../components/EmptyState';
 import { useStories } from '../hooks/useStories';
+import { usePageMeta } from '../hooks/usePageMeta';
 import { CATEGORY_META, type StoryCategory } from '../types';
 
 /**
@@ -44,9 +45,32 @@ const categories: StoryCategory[] = [
 ];
 
 export default function HomePage() {
-  const { stories: displayStories, loading, error } = useStories({ limit: 10 });
-  const { stories: allStories } = useStories({ limit: 200 });
+  // Single fetch covers both the home rail (first 10) and the search
+  // index (full set). Avoids two parallel /stories/latest calls on
+  // every cold visit and removes the brief race where the second
+  // request resolved out-of-order and replaced the displayed list.
+  const { stories: allStories, loading, error } = useStories({ limit: 200 });
+  const displayStories = useMemo(() => allStories.slice(0, 10), [allStories]);
   const [search, setSearch] = useState('');
+
+  usePageMeta({
+    title: 'The Influence Journal — Data-Driven Civic Investigations',
+    description:
+      'Data-driven investigations into corporate influence on American democracy. Every claim cited, every dollar traced.',
+    canonical: 'https://journal.wethepeopleforus.com/',
+    ogType: 'website',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'The Influence Journal',
+      url: 'https://journal.wethepeopleforus.com/',
+      publisher: {
+        '@type': 'Organization',
+        name: 'WeThePeople Research',
+        url: 'https://wethepeopleforus.com',
+      },
+    },
+  });
 
   const q = search.trim().toLowerCase();
   const filteredStories = q
@@ -172,7 +196,24 @@ export default function HomePage() {
             </div>
           </div>
         )}
-        {error && !loading && <EmptyState message={error} />}
+        {error && !loading && (
+          <div
+            role="alert"
+            style={{
+              borderRadius: '14px',
+              border: '1px solid rgba(230,57,70,0.35)',
+              background: 'rgba(230,57,70,0.06)',
+              padding: '18px 22px',
+              marginBottom: 24,
+              textAlign: 'center',
+              fontFamily: 'var(--font-body)',
+              fontSize: '14px',
+              color: 'var(--color-red)',
+            }}
+          >
+            {error}
+          </div>
+        )}
         {!loading && !error && displayStories.length === 0 && <EmptyState />}
 
         {/* ── Search results count (only while filtering) ───────────── */}

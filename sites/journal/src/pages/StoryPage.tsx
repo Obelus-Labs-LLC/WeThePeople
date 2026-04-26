@@ -1,16 +1,40 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Clock, FileText, Link2, Share2, ShieldCheck, ShieldAlert, ShieldQuestion,
+  ArrowLeft, Check, Clock, FileText, Link2, Share2, ShieldCheck, ShieldAlert, ShieldQuestion,
   AlertTriangle, Bot, Flag, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { CategoryBadge } from '../components/CategoryBadge';
 import { SectorTag } from '../components/SectorTag';
 import { StoryCard } from '../components/StoryCard';
 import { useStory } from '../hooks/useStories';
+import { usePageMeta } from '../hooks/usePageMeta';
 import { getApiBase } from '../api/client';
 
 const API_BASE = getApiBase();
+
+/**
+ * Allow only protocols that can't execute script. Defends against a
+ * malicious or buggy CMS putting `javascript:` or `data:` in a markdown
+ * link href — even though our API content is internally trusted, this
+ * is a cheap belt-and-braces guard for the public site.
+ */
+function safeHref(raw: string): string {
+  if (!raw) return '#';
+  const trimmed = raw.trim();
+  // Anchors, query strings, relative paths, and absolute paths are fine.
+  if (trimmed.startsWith('#') || trimmed.startsWith('?') || trimmed.startsWith('/')) {
+    return trimmed;
+  }
+  if (/^(https?:|mailto:|tel:)/i.test(trimmed)) {
+    return trimmed;
+  }
+  // Bare host like "example.com/page" — assume https.
+  if (/^[\w-]+\.[\w.-]+/.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return '#';
+}
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -19,10 +43,6 @@ function formatDate(dateStr: string): string {
     day: 'numeric',
     year: 'numeric',
   });
-}
-
-function copyLink() {
-  navigator.clipboard.writeText(window.location.href).catch(() => {});
 }
 
 function shareOnTwitter(title: string) {
@@ -86,11 +106,12 @@ function renderInline(text: string): React.ReactNode[] {
 
     if (best.type === 'link' && linkMatch) {
       if (linkMatch[1]) parts.push(<span key={key++}>{linkMatch[1]}</span>);
-      const isExternal = linkMatch[3].startsWith('http');
+      const href = safeHref(linkMatch[3]);
+      const isExternal = href.startsWith('http');
       parts.push(
         <a
           key={key++}
-          href={linkMatch[3]}
+          href={href}
           style={inlineLinkStyle}
           {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
         >
@@ -161,9 +182,26 @@ function renderContent(content: string) {
       lines[0].includes('|') &&
       lines[1].trim().replace(/[\s|:-]/g, '') === '';
     if (isTable) {
-      const parseRow = (row: string) => row.split('|').map((c) => c.trim()).filter(Boolean);
+      // Strip the leading and trailing pipe so a row like `| a | b |`
+      // doesn't produce empty cells at the ends. Keep interior empties
+      // — `| a |  | b |` is a valid two-column-with-blank middle table.
+      const parseRow = (row: string) => {
+        const trimmed = row.trim().replace(/^\|/, '').replace(/\|$/, '');
+        return trimmed.split('|').map((c) => c.trim());
+      };
       const headers = parseRow(lines[0]);
-      const dataRows = lines.slice(2).map(parseRow);
+      const dataRows = lines.slice(2)
+        .map(parseRow)
+        // Pad short rows / truncate long ones so the column count is
+        // always uniform — a malformed row used to render with extra
+        // <td>s, breaking striping and CSS grid behaviour.
+        .map((row) => {
+          if (row.length === headers.length) return row;
+          if (row.length < headers.length) {
+            return [...row, ...Array(headers.length - row.length).fill('')];
+          }
+          return row.slice(0, headers.length);
+        });
       return (
         <div
           key={i}
@@ -352,8 +390,12 @@ const buttonChromeStyle: React.CSSProperties = {
 };
 
 export default function StoryPage() {
-  const { slug } = useParams<{ slug: string }>();
-  const { story, related, loading, error } = useStory(slug);
+  // Slug can legally be undefined when React Router can't match the
+  // param (e.g. malformed URL). Defensive cast, then a hard guard
+  // before the data hook fires.
+  const params = useParams<{ slug?: string }>();
+  const slug = params.slug;
+  const { story, related, loading, relatedLoading, error } = useStory(slug);
 
   const [reportOpen, setReportOpen] = useState(false);
   const [reportEmail, setReportEmail] = useState('');
@@ -361,6 +403,114 @@ export default function StoryPage() {
   const [reportSubmitted, setReportSubmitted] = useState(false);
   const [reportError, setReportError] = useState('');
   const [correctionsOpen, setCorrectionsOpen] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  const copyLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopyState('copied');
+    } catch {
+      setCopyState('error');
+    }
+  }, []);
+
+  // Auto-clear the copy-link feedback after a few seconds so the
+  // button doesn't stay frozen on "Copied!" for the rest of the visit.
+  useEffect(() => {
+    if (copyState === 'idle') return;
+    const t = setTimeout(() => setCopyState('idle'), 2400);
+    return () => clearTimeout(t);
+  }, [copyState]);
+
+  // Drive per-page <title>, OG tags, JSON-LD. Bots get this from
+  // middleware.js; this hook covers human users and JS-executing
+  // crawlers (Googlebot, Bingbot).
+  const pageDescription = useMemo(() => {
+    if (!story?.summary) return undefined;
+    const trimmed = story.summary.trim();
+    if (trimmed.length <= 200) return trimmed;
+    const slice = trimmed.slice(0, 200);
+    const lastSpace = slice.lastIndexOf(' ');
+    return slice.slice(0, lastSpace > 120 ? lastSpace : 200).trimEnd() + '…';
+  }, [story?.summary]);
+
+  usePageMeta(
+    story
+      ? {
+          title: story.title,
+          description: pageDescription,
+          canonical: `https://journal.wethepeopleforus.com/story/${story.slug}`,
+          ogType: 'article',
+          ogImage: story.hero_image_url,
+          publishedAt: story.published_at,
+          modifiedAt: story.updated_at,
+          category: story.category,
+          jsonLd: {
+            '@context': 'https://schema.org',
+            '@type': 'NewsArticle',
+            headline: story.title,
+            description: pageDescription,
+            datePublished: story.published_at,
+            dateModified: story.updated_at ?? story.published_at,
+            articleSection: story.category,
+            url: `https://journal.wethepeopleforus.com/story/${story.slug}`,
+            author: {
+              '@type': 'Organization',
+              name: 'WeThePeople Research',
+              url: 'https://wethepeopleforus.com',
+            },
+            publisher: {
+              '@type': 'Organization',
+              name: 'The Influence Journal',
+              logo: {
+                '@type': 'ImageObject',
+                url: 'https://journal.wethepeopleforus.com/og-image.png',
+              },
+            },
+            ...(story.hero_image_url ? { image: [story.hero_image_url] } : {}),
+          },
+        }
+      : {
+          title: error ? 'Story Not Found' : 'Loading…',
+          description: 'The Influence Journal',
+        },
+  );
+
+  if (!slug) {
+    return (
+      <main id="main-content" className="flex-1 px-4 py-20" role="main">
+        <div className="max-w-xl mx-auto text-center">
+          <h1
+            className="mb-4"
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 900,
+              fontSize: 'clamp(32px, 5vw, 48px)',
+              color: 'var(--color-text-1)',
+            }}
+          >
+            Missing story link
+          </h1>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 no-underline"
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '12px',
+              fontWeight: 700,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: 'var(--color-accent-text)',
+            }}
+          >
+            <ArrowLeft size={14} />
+            Back to Journal
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   if (loading) {
     return (
@@ -425,8 +575,9 @@ export default function StoryPage() {
   }
 
   const handleReportSubmit = async () => {
-    if (!reportDescription.trim()) return;
+    if (!reportDescription.trim() || reportSubmitting) return;
     setReportError('');
+    setReportSubmitting(true);
     try {
       const res = await fetch(`${API_BASE}/stories/report-error`, {
         method: 'POST',
@@ -439,11 +590,17 @@ export default function StoryPage() {
       });
       if (res.ok) {
         setReportSubmitted(true);
+      } else if (res.status >= 500) {
+        setReportError('Our server is having trouble. Please try again in a few seconds.');
+      } else if (res.status === 429) {
+        setReportError("You've sent a lot of reports — give it a moment and try again.");
       } else {
-        setReportError('Failed to submit report. Please try again.');
+        setReportError("We couldn't accept that report. Please check the form and try again.");
       }
     } catch {
-      setReportError('Network error. Please try again.');
+      setReportError('Network error. Check your connection and try again.');
+    } finally {
+      setReportSubmitting(false);
     }
   };
 
@@ -763,6 +920,26 @@ export default function StoryPage() {
           )}
         </div>
 
+        {/* Hero image — rendered when the API supplies a hero_image_url.
+            Lazy-loaded so it doesn't block the rest of the page paint. */}
+        {story.hero_image_url && (
+          <figure className="mb-8" style={{ margin: 0 }}>
+            <img
+              src={story.hero_image_url}
+              alt={story.title}
+              loading="lazy"
+              decoding="async"
+              style={{
+                width: '100%',
+                height: 'auto',
+                display: 'block',
+                borderRadius: '14px',
+                border: '1px solid rgba(235,229,213,0.08)',
+              }}
+            />
+          </figure>
+        )}
+
         {/* Summary / lede */}
         <div className="mb-10">
           <p
@@ -791,19 +968,40 @@ export default function StoryPage() {
           <span style={{ ...metaTextStyle, marginRight: 4 }}>Share</span>
           <button
             onClick={copyLink}
-            style={buttonChromeStyle}
+            style={{
+              ...buttonChromeStyle,
+              border:
+                copyState === 'copied'
+                  ? '1px solid rgba(16,185,129,0.45)'
+                  : copyState === 'error'
+                    ? '1px solid rgba(230,57,70,0.45)'
+                    : buttonChromeStyle.border,
+              color:
+                copyState === 'copied'
+                  ? 'var(--color-verify)'
+                  : copyState === 'error'
+                    ? 'var(--color-red)'
+                    : buttonChromeStyle.color,
+            }}
+            aria-live="polite"
             onMouseEnter={(e) => {
+              if (copyState !== 'idle') return;
               e.currentTarget.style.borderColor = 'rgba(197,160,40,0.35)';
               e.currentTarget.style.color = 'var(--color-text-1)';
             }}
             onMouseLeave={(e) => {
+              if (copyState !== 'idle') return;
               e.currentTarget.style.borderColor = 'rgba(235,229,213,0.12)';
               e.currentTarget.style.color = 'var(--color-text-2)';
             }}
             className="inline-flex items-center gap-1.5"
           >
-            <Link2 size={12} />
-            Copy Link
+            {copyState === 'copied' ? <Check size={12} /> : <Link2 size={12} />}
+            {copyState === 'copied'
+              ? 'Copied!'
+              : copyState === 'error'
+                ? "Couldn't copy"
+                : 'Copy Link'}
           </button>
           <button
             onClick={() => shareOnTwitter(story.title)}
@@ -953,7 +1151,7 @@ export default function StoryPage() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleReportSubmit}
-                    disabled={!reportDescription.trim()}
+                    disabled={!reportDescription.trim() || reportSubmitting}
                     style={{
                       fontFamily: 'var(--font-mono)',
                       fontSize: '11px',
@@ -962,14 +1160,23 @@ export default function StoryPage() {
                       textTransform: 'uppercase',
                       padding: '10px 18px',
                       borderRadius: '10px',
-                      background: reportDescription.trim() ? 'var(--color-accent)' : 'rgba(235,229,213,0.06)',
-                      color: reportDescription.trim() ? '#07090C' : 'var(--color-text-3)',
+                      background:
+                        reportDescription.trim() && !reportSubmitting
+                          ? 'var(--color-accent)'
+                          : 'rgba(235,229,213,0.06)',
+                      color:
+                        reportDescription.trim() && !reportSubmitting
+                          ? '#07090C'
+                          : 'var(--color-text-3)',
                       border: 0,
-                      cursor: reportDescription.trim() ? 'pointer' : 'not-allowed',
+                      cursor:
+                        reportDescription.trim() && !reportSubmitting
+                          ? 'pointer'
+                          : 'not-allowed',
                       transition: 'background 0.2s',
                     }}
                   >
-                    Submit Report
+                    {reportSubmitting ? 'Sending…' : 'Submit Report'}
                   </button>
                   <button
                     onClick={() => setReportOpen(false)}
@@ -1121,7 +1328,8 @@ export default function StoryPage() {
             )}
 
             {/* Entities */}
-            {story.entity_ids && story.entity_ids.length > 0 && (
+            {Array.isArray(story.entity_ids) &&
+              story.entity_ids.filter((e): e is string => typeof e === 'string' && e.length > 0).length > 0 && (
               <div className="mb-6">
                 <h3
                   className="mb-3"
@@ -1137,7 +1345,15 @@ export default function StoryPage() {
                   Entities Referenced
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {story.entity_ids.map((eid, i) => {
+                  {story.entity_ids
+                    .filter((e): e is string => typeof e === 'string' && e.length > 0)
+                    .map((eid, i) => {
+                    // Person IDs in our schema are snake_case (e.g.
+                    // `peters_gary`, `pelosi_nancy`). Company / org IDs
+                    // are kebab-case or single words (`qualcomm`,
+                    // `general-atomics`). The presence of an underscore
+                    // is the strongest signal we have without an
+                    // explicit `entity_type` on the API response.
                     const isPerson = eid.includes('_') && !eid.includes('-');
                     const sectorRouteMap: Record<string, string> = {
                       tech: 'technology',
@@ -1294,8 +1510,10 @@ export default function StoryPage() {
           .
         </div>
 
-        {/* Related stories */}
-        {related.length > 0 && (
+        {/* Related stories. Render a skeleton while related is fetching
+            so the slot doesn't pop in awkwardly after the rest of the
+            page has settled. */}
+        {(relatedLoading || related.length > 0) && (
           <section>
             <h2
               className="mb-5"
@@ -1309,11 +1527,30 @@ export default function StoryPage() {
             >
               More Investigations
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {related.map((s) => (
-                <StoryCard key={s.slug} story={s} />
-              ))}
-            </div>
+            {relatedLoading && related.length === 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" aria-hidden>
+                {[0, 1].map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      height: 140,
+                      borderRadius: '14px',
+                      border: '1px solid rgba(235,229,213,0.08)',
+                      background:
+                        'linear-gradient(90deg, rgba(235,229,213,0.02) 0%, rgba(235,229,213,0.06) 50%, rgba(235,229,213,0.02) 100%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'wtp-skeleton 1.4s ease-in-out infinite',
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {related.map((s) => (
+                  <StoryCard key={s.slug} story={s} />
+                ))}
+              </div>
+            )}
           </section>
         )}
       </article>

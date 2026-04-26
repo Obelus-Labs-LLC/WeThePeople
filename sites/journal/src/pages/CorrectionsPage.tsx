@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, AlertTriangle, RefreshCw, FileX, Edit3, ArrowRight } from 'lucide-react';
 
-import { getApiBase } from '../api/client';
+import { apiFetch } from '../api/client';
+import { usePageMeta } from '../hooks/usePageMeta';
 
-const API_BASE = getApiBase();
+interface CorrectionsResponse {
+  corrections?: Correction[];
+}
 
 interface Correction {
   id: number;
@@ -109,27 +112,36 @@ export default function CorrectionsPage() {
 
   const [error, setError] = useState<string | null>(null);
 
+  usePageMeta({
+    title: 'Corrections & Retractions — The Influence Journal',
+    description:
+      "WeThePeople's full record of corrections, updates, and retractions across every Influence Journal story.",
+    canonical: 'https://journal.wethepeopleforus.com/corrections',
+  });
+
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
 
-    fetch(`${API_BASE}/stories/corrections/all?limit=100`, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
+    apiFetch<CorrectionsResponse>('/stories/corrections/all', {
+      params: { limit: 100 },
+      signal: controller.signal,
+    })
       .then((data) => {
+        if (controller.signal.aborted) return;
         setCorrections(
-          (data.corrections || []).filter((c: Correction) => c.type !== 'reader_report')
+          (data.corrections ?? []).filter((c: Correction) => c.type !== 'reader_report'),
         );
       })
       .catch((err) => {
-        if (err?.name === 'AbortError') return;
-        setError(err?.message || 'Failed to load corrections');
+        if (controller.signal.aborted) return;
+        if ((err as { name?: string })?.name === 'AbortError') return;
+        setError("We couldn't load corrections right now. Please refresh the page.");
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (controller.signal.aborted) return;
+        setLoading(false);
       });
 
     return () => controller.abort();

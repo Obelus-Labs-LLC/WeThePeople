@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Mail, BarChart3, Shield, Zap } from 'lucide-react';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 const backLinkStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
@@ -13,6 +14,12 @@ const backLinkStyle: React.CSSProperties = {
 };
 
 export default function SubscribePage() {
+  usePageMeta({
+    title: 'Subscribe — The Influence Journal',
+    description:
+      'Get the weekly Influence Journal newsletter — data-driven civic investigations, free, in your inbox.',
+    canonical: 'https://journal.wethepeopleforus.com/subscribe',
+  });
   return (
     <main
       id="main-content"
