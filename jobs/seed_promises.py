@@ -33,102 +33,16 @@ from models.civic_models import Promise  # noqa: E402
 
 
 PROMISES = [
-    # ── Trump (2024 campaign) ──
-    {
-        "person_id": "donald_trump",
-        "person_name": "Donald J. Trump",
-        "title": "End the war in Ukraine before taking office",
-        "description": "Repeatedly pledged during the 2024 campaign that the war between Russia and Ukraine would be ended before his January 2025 inauguration.",
-        "source_url": "https://www.reuters.com/world/europe/trump-says-he-will-end-russia-ukraine-war-before-taking-office-2024-07-19/",
-        "promise_date": "2024-07-19",
-        "category": "foreign_policy",
-        "status": "broken",
-        "progress": 0,
-    },
-    {
-        "person_id": "donald_trump",
-        "person_name": "Donald J. Trump",
-        "title": "Mass deportation of undocumented immigrants",
-        "description": "Pledged to launch the largest deportation operation in American history beginning on day one of the second term.",
-        "source_url": "https://www.donaldjtrump.com/platform",
-        "promise_date": "2024-07-08",
-        "category": "immigration",
-        "status": "in_progress",
-        "progress": 25,
-    },
-    {
-        "person_id": "donald_trump",
-        "person_name": "Donald J. Trump",
-        "title": "Impose 10% universal tariff on all imports",
-        "description": "Campaign-trail proposal to apply a baseline 10% tariff on all imported goods, with higher rates for China.",
-        "source_url": "https://apnews.com/article/trump-tariffs-economy-import-china-2024-3d75c9e0b62c2c54e8a4f1b9e",
-        "promise_date": "2024-08-14",
-        "category": "economy",
-        "status": "partially_fulfilled",
-        "progress": 60,
-    },
-    {
-        "person_id": "donald_trump",
-        "person_name": "Donald J. Trump",
-        "title": "Eliminate federal income tax on tips",
-        "description": "Stated at a Las Vegas rally that workers earning tip income would pay no federal income tax on those tips.",
-        "source_url": "https://www.cnbc.com/2024/06/09/trump-no-tax-on-tips.html",
-        "promise_date": "2024-06-09",
-        "category": "economy",
-        "status": "in_progress",
-        "progress": 30,
-    },
-    # ── Biden (Inauguration 2021 + 2024 campaign carry-overs) ──
-    {
-        "person_id": "joseph_biden",
-        "person_name": "Joseph R. Biden Jr.",
-        "title": "Cancel up to $10,000 in federal student debt per borrower",
-        "description": "Campaigned on broad federal student-loan forgiveness; the original 2022 plan was struck down by the Supreme Court.",
-        "source_url": "https://www.whitehouse.gov/briefing-room/statements-releases/2022/08/24/fact-sheet-president-biden-announces-student-loan-relief-for-borrowers-who-need-it-most/",
-        "promise_date": "2020-10-01",
-        "category": "education",
-        "status": "partially_fulfilled",
-        "progress": 50,
-    },
-    {
-        "person_id": "joseph_biden",
-        "person_name": "Joseph R. Biden Jr.",
-        "title": "Rejoin the Paris climate agreement",
-        "description": "Pledged on day one to reverse the U.S. withdrawal from the Paris Agreement.",
-        "source_url": "https://www.whitehouse.gov/briefing-room/statements-releases/2021/01/20/paris-climate-agreement/",
-        "promise_date": "2020-11-05",
-        "category": "environment",
-        "status": "fulfilled",
-        "progress": 100,
-    },
-    {
-        "person_id": "joseph_biden",
-        "person_name": "Joseph R. Biden Jr.",
-        "title": "Pass federal voting-rights legislation",
-        "description": "Pledged to sign the John Lewis Voting Rights Advancement Act and the Freedom to Vote Act into law.",
-        "source_url": "https://www.whitehouse.gov/briefing-room/statements-releases/2022/01/11/remarks-by-president-biden-on-protecting-the-right-to-vote/",
-        "promise_date": "2020-11-05",
-        "category": "civil_rights",
-        "status": "broken",
-        "progress": 10,
-    },
-    # ── Harris (2024) ──
-    {
-        "person_id": "kamala_harris",
-        "person_name": "Kamala D. Harris",
-        "title": "Federal ban on price-gouging on groceries",
-        "description": "Proposed first-ever federal ban on price gouging by food retailers as part of her 2024 economic platform.",
-        "source_url": "https://kamalaharris.com/issues/lower-costs/",
-        "promise_date": "2024-08-16",
-        "category": "economy",
-        "status": "retired",
-        "retire_reason": "lost election; promise no longer applicable",
-        "progress": 0,
-    },
+    # NOTE: Executive-branch figures (Trump, Biden, Harris, Vance) are not
+    # in the `tracked_members` table — that table only holds members of
+    # Congress. Their promises were dropped from this seed. A separate
+    # `tracked_executive` table or a relaxed person_id constraint would
+    # be needed to add them; tracked separately.
+
     # ── Schumer ──
     {
-        "person_id": "charles_schumer",
-        "person_name": "Charles E. Schumer",
+        "person_id": "chuck_schumer",
+        "person_name": "Chuck Schumer",
         "title": "Bring SAFE Banking Act to a Senate vote",
         "description": "Announced as Majority Leader that the SAFE Banking Act, which would allow cannabis businesses to access banking services, would be brought to the Senate floor.",
         "source_url": "https://www.schumer.senate.gov/newsroom/press-releases/majority-leader-schumer-on-cannabis-policy",
@@ -163,8 +77,8 @@ PROMISES = [
     },
     # ── Bernie Sanders ──
     {
-        "person_id": "bernard_sanders",
-        "person_name": "Bernard Sanders",
+        "person_id": "bernie_sanders",
+        "person_name": "Bernie Sanders",
         "title": "Push Medicare for All as Senate HELP Committee Chair",
         "description": "Pledged to use his chairmanship of the Senate Health, Education, Labor and Pensions Committee to hold hearings on Medicare for All.",
         "source_url": "https://www.sanders.senate.gov/press-releases/",
@@ -199,8 +113,8 @@ PROMISES = [
     },
     # ── Manchin (retired) ──
     {
-        "person_id": "joseph_manchin",
-        "person_name": "Joseph Manchin III",
+        "person_id": "joe_manchin",
+        "person_name": "Joe Manchin",
         "title": "Permitting reform for energy infrastructure",
         "description": "Promised to make permitting reform — particularly for natural gas pipelines like Mountain Valley — a condition of his Inflation Reduction Act vote.",
         "source_url": "https://www.manchin.senate.gov/newsroom/press-releases",
@@ -211,7 +125,7 @@ PROMISES = [
     },
     # ── Romney (retired) ──
     {
-        "person_id": "willard_romney",
+        "person_id": "mitt_romney",
         "person_name": "Mitt Romney",
         "title": "Vote against Trump on every conviction-worthy article of impeachment",
         "description": "Stated explicitly that he would vote his conscience on impeachment regardless of party pressure.",
@@ -247,7 +161,7 @@ PROMISES = [
     },
     # ── Johnson (Speaker) ──
     {
-        "person_id": "michael_johnson",
+        "person_id": "mike_johnson",
         "person_name": "Mike Johnson",
         "title": "Pass standalone appropriations bills, no omnibus",
         "description": "On taking the Speakership, pledged to return Congress to passing the 12 appropriations bills individually rather than via continuing resolutions or omnibus packages.",
@@ -257,18 +171,7 @@ PROMISES = [
         "status": "broken",
         "progress": 15,
     },
-    # ── Vance (VP) ──
-    {
-        "person_id": "james_vance",
-        "person_name": "JD Vance",
-        "title": "End federal lawsuits against police departments",
-        "description": "Committed to ending DOJ pattern-or-practice investigations of state and local police departments.",
-        "source_url": "https://www.vance.senate.gov/press-releases",
-        "promise_date": "2024-08-21",
-        "category": "criminal_justice",
-        "status": "in_progress",
-        "progress": 40,
-    },
+    # Vance dropped: now Vice President, no longer in tracked_members.
     # ── Klobuchar ──
     {
         "person_id": "amy_klobuchar",
@@ -283,7 +186,7 @@ PROMISES = [
     },
     # ── Cotton ──
     {
-        "person_id": "thomas_cotton",
+        "person_id": "tom_cotton",
         "person_name": "Tom Cotton",
         "title": "Block any TikTok divestiture deal that retains Chinese ownership",
         "description": "Stated he would oppose any deal that didn't fully separate TikTok from ByteDance and Chinese government influence.",
@@ -307,7 +210,7 @@ PROMISES = [
     },
     # ── Khanna ──
     {
-        "person_id": "rohit_khanna",
+        "person_id": "ro_khanna",
         "person_name": "Ro Khanna",
         "title": "End congressional stock trading via personal example",
         "description": "Voluntarily refrains from individual stock trading and pledges to introduce ban legislation each Congress.",
