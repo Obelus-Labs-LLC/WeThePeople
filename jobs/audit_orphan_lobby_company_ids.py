@@ -34,6 +34,7 @@ from models.database import SessionLocal  # noqa: E402
 
 SECTOR_MAPPING = {
     "lobbying_records":                 "tracked_tech_companies",
+    "health_lobbying_records":          "tracked_companies",  # health uses the unprefixed name (legacy)
     "energy_lobbying_records":          "tracked_energy_companies",
     "transportation_lobbying_records":  "tracked_transportation_companies",
     "defense_lobbying_records":         "tracked_defense_companies",
@@ -68,18 +69,6 @@ def main():
                 f"{lr_table:40s}  total={total:4d}  matched={matched:4d}  "
                 f"orphan={orphan:4d}  ({tracked_table})"
             )
-
-        # health_lobbying_records has no tracked_health_companies table.
-        try:
-            total_h = db.execute(
-                text("SELECT COUNT(DISTINCT company_id) FROM health_lobbying_records")
-            ).scalar()
-            print(
-                f"health_lobbying_records                  total={total_h}  "
-                f"no tracked_health_companies — all are 'orphan' by definition"
-            )
-        except Exception as e:
-            print(f"health_lobbying_records: {e}")
 
         print()
         print(f"TOTAL ORPHANS across mapped sectors: {orphan_total}")
