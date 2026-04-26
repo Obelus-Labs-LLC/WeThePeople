@@ -168,28 +168,33 @@ export default function CongressionalTradesPage() {
     }
     setTimelineLoading(true);
     fetchTradeTimeline(search.toUpperCase(), undefined, timelineRange)
-      .then((data) => setTimelineTrades(data.trades || []))
-      .catch(() => setTimelineTrades([]))
-      .finally(() => setTimelineLoading(false));
+      .then((data) => { if (!cancelled) setTimelineTrades(data.trades || []); })
+      .catch(() => { if (!cancelled) setTimelineTrades([]); })
+      .finally(() => { if (!cancelled) setTimelineLoading(false); });
     return () => { cancelled = true; };
   }, [search, timelineRange]);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
     const params = new URLSearchParams({ limit: '200' });
     if (filter !== 'all') params.set('transaction_type', filter);
     if (search) params.set('ticker', search.toUpperCase());
-    fetch(`${API_BASE}/congressional-trades?${params}`)
+    fetch(`${API_BASE}/congressional-trades?${params}`, { signal: controller.signal })
       .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
       .then((data) => {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         setTrades(data.trades || []);
         setTotal(data.total || 0);
       })
-      .catch((err) => { console.warn('[CongressionalTradesPage] fetch failed:', err); })
-      .finally(() => setLoading(false));
-    return () => { cancelled = true; };
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        console.warn('[CongressionalTradesPage] fetch failed:', err);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => { controller.abort(); };
   }, [filter, search]);
 
   // Client-side member name filter

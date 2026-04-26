@@ -13,21 +13,121 @@ Performance safeguards:
 - Lobbying IN clauses batched at 100
 - Assembly loop early-terminates at limit * 3
 - 8-second timeout returns partial results
-- In-memory cache (5 min TTL) for repeated requests
+- File-backed in-memory cache (1h TTL) for repeated requests; survives
+  process restarts so cold loads after a redeploy don't pay the full
+  5+ second computation cost.
 """
 
+import atexit
+import os
+import threading
 import time
 import hashlib
 import json
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy import func, text, desc
 from sqlalchemy.orm import Session
 
 from utils.db_compat import limit_sql
 
-# Simple in-memory cache: key -> (timestamp, result)
+# In-memory cache: key -> (timestamp, result). Persisted to disk on a
+# background timer + atexit so process restarts (e.g., after deploys)
+# don't lose hot results.
 _cache: Dict[str, Tuple[float, Dict]] = {}
-_CACHE_TTL = 300  # 5 minutes
+_cache_lock = threading.Lock()
+_CACHE_TTL = 3600  # 1 hour — closed loops aggregate annual / multi-year data
+_CACHE_FILE = Path(os.environ.get(
+    "CLOSED_LOOP_CACHE_PATH",
+    str(Path(__file__).resolve().parent.parent / "data" / "closed_loop_cache.json"),
+))
+_CACHE_PERSIST_INTERVAL = 60  # snapshot to disk every minute when dirty
+_cache_dirty = False
+_persist_timer: Optional[threading.Timer] = None
+
+
+def _load_cache_from_disk() -> None:
+    """Restore cache from disk on import. Stale entries are dropped on restore."""
+    global _cache
+    if not _CACHE_FILE.exists():
+        return
+    try:
+        with open(_CACHE_FILE, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        if not isinstance(raw, dict):
+            return
+        now = time.monotonic()
+        wall_now = time.time()
+        # Disk format stores wall-clock timestamps; convert to monotonic
+        # offset so the in-memory comparator still works.
+        with _cache_lock:
+            for key, entry in raw.items():
+                if not isinstance(entry, dict):
+                    continue
+                wall_ts = entry.get("wall_ts")
+                result = entry.get("result")
+                if wall_ts is None or result is None:
+                    continue
+                age = wall_now - float(wall_ts)
+                if age >= _CACHE_TTL:
+                    continue
+                _cache[key] = (now - age, result)
+    except Exception:
+        # Corrupt cache file: ignore and start fresh
+        pass
+
+
+def _persist_cache_to_disk() -> None:
+    global _cache_dirty
+    with _cache_lock:
+        if not _cache_dirty:
+            return
+        # Convert monotonic timestamps back to wall-clock for disk
+        wall_now = time.time()
+        mono_now = time.monotonic()
+        snapshot = {}
+        for key, (mono_ts, result) in _cache.items():
+            age = mono_now - mono_ts
+            if age >= _CACHE_TTL:
+                continue
+            snapshot[key] = {
+                "wall_ts": wall_now - age,
+                "result": result,
+            }
+        _cache_dirty = False
+    try:
+        _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _CACHE_FILE.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, separators=(",", ":"))
+        os.replace(tmp, _CACHE_FILE)
+    except Exception:
+        # Persistence is best-effort; never raise from a background timer.
+        pass
+
+
+def _start_persist_timer() -> None:
+    global _persist_timer
+    if _persist_timer is not None:
+        return
+    def _tick() -> None:
+        _persist_cache_to_disk()
+        # Reschedule
+        t = threading.Timer(_CACHE_PERSIST_INTERVAL, _tick)
+        t.daemon = True
+        t.start()
+        global _persist_timer
+        _persist_timer = t
+    t = threading.Timer(_CACHE_PERSIST_INTERVAL, _tick)
+    t.daemon = True
+    t.start()
+    _persist_timer = t
+
+
+# Initialise on import
+_load_cache_from_disk()
+_start_persist_timer()
+atexit.register(_persist_cache_to_disk)
 
 from models.database import (
     TrackedMember, Bill, BillAction, CompanyDonation,
@@ -97,14 +197,16 @@ def find_closed_loops(
     """
     Find closed-loop influence chains using a SQL-first approach.
     """
-    # Check cache first
+    # Check cache first (in-memory + disk-restored on import)
     cache_key = hashlib.md5(json.dumps({
         "et": entity_type, "eid": entity_id, "pid": person_id,
         "md": min_donation, "yf": year_from, "yt": year_to, "l": limit
     }, sort_keys=True).encode()).hexdigest()
     now = time.monotonic()
-    if cache_key in _cache:
-        cached_time, cached_result = _cache[cache_key]
+    with _cache_lock:
+        cached = _cache.get(cache_key)
+    if cached:
+        cached_time, cached_result = cached
         if now - cached_time < _CACHE_TTL:
             return cached_result
 
@@ -437,8 +539,11 @@ def find_closed_loops(
         "closed_loops": loops,
         "stats": stats,
     }
-    # Cache the result
-    _cache[cache_key] = (time.monotonic(), result)
+    # Cache the result. Mark dirty so the periodic timer flushes to disk.
+    with _cache_lock:
+        _cache[cache_key] = (time.monotonic(), result)
+        global _cache_dirty
+        _cache_dirty = True
     return result
 
 

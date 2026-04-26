@@ -49,7 +49,11 @@ async function searchEntities(q: string): Promise<SearchResult[]> {
       }
     }
     return results;
-  } catch {
+  } catch (err) {
+    // Search swallows errors and returns []; the caller can't tell the
+    // difference between "no matches" and "search backend down". Log so
+    // the failure is at least visible in dev tools.
+    console.warn('[InfluenceNetworkPage] searchEntities failed:', err);
     return [];
   }
 }

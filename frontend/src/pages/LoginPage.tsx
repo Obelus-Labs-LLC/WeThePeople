@@ -12,7 +12,6 @@ import AuthShell, { AuthField } from '../components/AuthShell';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -138,54 +137,18 @@ export default function LoginPage() {
           required
         />
 
-        {/* Remember me + forgot password */}
+        {/* Forgot password — the "Remember me" checkbox was removed
+            because tokens already persist across sessions via
+            localStorage. The checkbox didn't change behavior, so it
+            was a UX promise we couldn't keep. */}
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             alignItems: 'center',
             marginBottom: 20,
           }}
         >
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              cursor: 'pointer',
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 12,
-              color: 'var(--color-text-2)',
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-            />
-            <span
-              aria-hidden
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: 3,
-                border: `1.5px solid ${
-                  remember ? 'var(--color-accent)' : 'var(--color-border-hover)'
-                }`,
-                background: remember ? 'var(--color-accent)' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#07090C',
-                fontSize: 9,
-                fontWeight: 700,
-              }}
-            >
-              {remember ? '✓' : ''}
-            </span>
-            Remember me
-          </label>
           <button
             type="button"
             onClick={() =>

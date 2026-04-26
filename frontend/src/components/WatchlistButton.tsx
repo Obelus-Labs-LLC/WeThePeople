@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function WatchlistButton({ entityType, entityId, entityName, sector, size = 18 }: Props) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, authedFetch } = useAuth();
   const navigate = useNavigate();
   const [watching, setWatching] = useState(false);
   const [itemId, setItemId] = useState<number | null>(null);
@@ -23,32 +23,39 @@ export default function WatchlistButton({ entityType, entityId, entityName, sect
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const token = localStorage.getItem('wtp_access_token');
-    fetch(`${API_BASE}/auth/watchlist/check?entity_type=${entityType}&entity_id=${entityId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((d) => { setWatching(d.watching); setItemId(d.item_id); })
+    let cancelled = false;
+    authedFetch(`${API_BASE}/auth/watchlist/check?entity_type=${encodeURIComponent(entityType)}&entity_id=${encodeURIComponent(entityId)}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => {
+        if (cancelled) return;
+        setWatching(!!d.watching);
+        setItemId(d.item_id ?? null);
+      })
       .catch((err) => {
+        // Transient failure: leave button unfilled; do not flip state
+        // based on a partially-parsed body.
         console.warn('[WatchlistButton] check failed:', err);
       });
-  }, [isAuthenticated, entityType, entityId]);
+    return () => { cancelled = true; };
+  }, [isAuthenticated, entityType, entityId, authedFetch]);
 
   const toggle = async () => {
     if (!isAuthenticated) { navigate('/login'); return; }
     if (busy) return;
     setBusy(true);
-    const token = localStorage.getItem('wtp_access_token');
     try {
       if (watching && itemId) {
-        const r = await fetch(`${API_BASE}/auth/watchlist/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-        if (!r.ok) throw new Error(`DELETE watchlist failed: HTTP ${r.status}`);
+        const r = await authedFetch(`${API_BASE}/auth/watchlist/${itemId}`, { method: 'DELETE' });
+        if (!r.ok && r.status !== 204) throw new Error(`DELETE watchlist failed: HTTP ${r.status}`);
         setWatching(false);
         setItemId(null);
       } else {
-        const r = await fetch(`${API_BASE}/auth/watchlist`, {
+        const r = await authedFetch(`${API_BASE}/auth/watchlist`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ entity_type: entityType, entity_id: entityId, entity_name: entityName, sector: sector || '' }),
         });
         if (!r.ok) throw new Error(`POST watchlist failed: HTTP ${r.status}`);

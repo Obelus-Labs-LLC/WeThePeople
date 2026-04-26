@@ -168,37 +168,45 @@ export default function LegislationTrackerPage() {
     setBills([]);
   }, [debouncedSearch, statusFilter, chamberFilter]);
 
-  // Fetch bills
-  const fetchBills = useCallback(async (currentOffset: number) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      params.set('limit', String(PAGE_SIZE));
-      params.set('offset', String(currentOffset));
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      if (chamberFilter !== 'all') params.set('chamber', chamberFilter);
-      if (debouncedSearch) params.set('q', debouncedSearch);
+  // Fetch bills with cancellation so rapid filter changes don't race —
+  // the most recent fetch always wins, earlier ones are aborted.
+  const fetchBills = useCallback(
+    async (currentOffset: number, signal: AbortSignal) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set('limit', String(PAGE_SIZE));
+        params.set('offset', String(currentOffset));
+        if (statusFilter !== 'all') params.set('status', statusFilter);
+        if (chamberFilter !== 'all') params.set('chamber', chamberFilter);
+        if (debouncedSearch) params.set('q', debouncedSearch);
 
-      const res = await fetch(`${getApiBaseUrl()}/bills?${params}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: BillsResponse = await res.json();
+        const res = await fetch(`${getApiBaseUrl()}/bills?${params}`, { signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: BillsResponse = await res.json();
+        if (signal.aborted) return;
 
-      if (currentOffset === 0) {
-        setBills(data.bills || []);
-      } else {
-        setBills((prev) => [...prev, ...(data.bills || [])]);
+        if (currentOffset === 0) {
+          setBills(data.bills || []);
+        } else {
+          setBills((prev) => [...prev, ...(data.bills || [])]);
+        }
+        setTotal(data.total || 0);
+      } catch (err: unknown) {
+        if ((err as { name?: string })?.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : 'Failed to load bills');
+      } finally {
+        if (!signal.aborted) setLoading(false);
       }
-      setTotal(data.total || 0);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load bills');
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter, chamberFilter, debouncedSearch]);
+    },
+    [statusFilter, chamberFilter, debouncedSearch],
+  );
 
   useEffect(() => {
-    fetchBills(offset);
+    const controller = new AbortController();
+    fetchBills(offset, controller.signal);
+    return () => controller.abort();
   }, [fetchBills, offset]);
 
   const loadMore = () => {
