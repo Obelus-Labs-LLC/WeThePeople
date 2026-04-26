@@ -135,6 +135,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { fetchMe(); }, [fetchMe]);
 
+  // Cross-tab logout sync. The `storage` event fires on every tab
+  // *except* the one that triggered the change, so this handler only
+  // runs in inactive tabs after another tab signs out (clears the token)
+  // or signs in (sets a fresh one). Re-running fetchMe rebuilds the
+  // local user object — clearing it on logout, refreshing it on login.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== ACCESS_KEY && e.key !== REFRESH_KEY) return;
+      // null `newValue` means another tab cleared the token (logout).
+      // A new value means another tab logged in.
+      fetchMe();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [fetchMe]);
+
   const authedFetch = useCallback(async (input: RequestInfo, init: RequestInit = {}): Promise<Response> => {
     const buildInit = (bearer: string | null): RequestInit => {
       const headers = new Headers(init.headers || {});

@@ -360,6 +360,11 @@ function ProposalSubmitForm({ onSubmitted, onCancel }: { onSubmitted: () => void
       onSubmitted();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Submission failed');
+    } finally {
+      // Always re-enable the button. The previous code only reset on
+      // error; on success the parent was expected to unmount the form,
+      // but if the parent kept the form mounted the button stayed
+      // disabled forever.
       setSubmitting(false);
     }
   };
@@ -526,6 +531,7 @@ function PromiseSubmitForm({ onSubmitted, onCancel }: { onSubmitted: () => void;
       onSubmitted();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Submission failed');
+    } finally {
       setSubmitting(false);
     }
   };

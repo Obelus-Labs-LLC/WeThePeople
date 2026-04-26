@@ -246,6 +246,22 @@ export async function getInstitutionStock(id: string): Promise<StockResponse> {
   return fetchJSON<StockResponse>(`${API_BASE}/finance/institutions/${encodeURIComponent(id)}/stock`);
 }
 
+export interface InstitutionTrendsResponse {
+  years: number[];
+  series: Record<string, number[]>;
+}
+
+/**
+ * Per-institution trend series (revenue, lobbying spend, contract value, etc.).
+ * Goes through the typed client so it inherits the 30s timeout + structured
+ * error handling that raw fetch() in InstitutionPage was bypassing.
+ */
+export async function getInstitutionTrends(id: string): Promise<InstitutionTrendsResponse> {
+  return fetchJSON<InstitutionTrendsResponse>(
+    `${API_BASE}/finance/institutions/${encodeURIComponent(id)}/trends`,
+  );
+}
+
 // ── Per-Institution Complaints ──
 
 export async function getInstitutionComplaints(
