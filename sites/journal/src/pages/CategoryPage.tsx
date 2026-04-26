@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { StoryCard } from '../components/StoryCard';
 import { EmptyState } from '../components/EmptyState';
 import { useStories } from '../hooks/useStories';
+import { usePageMeta } from '../hooks/usePageMeta';
 import { CATEGORY_META, type StoryCategory } from '../types';
 
 const validCategories: string[] = Object.keys(CATEGORY_META);
@@ -27,6 +28,14 @@ export default function CategoryPage() {
 
   const meta = isValid ? CATEGORY_META[cat] : null;
   const filtered = isValid ? stories.filter((s) => s.category === cat) : stories;
+
+  usePageMeta({
+    title: meta ? `${meta.label} — The Influence Journal` : 'Unknown Category',
+    description: meta
+      ? `Investigations tracking ${meta.label.toLowerCase()} activity across all sectors.`
+      : `No category called "${category}" exists.`,
+    canonical: `https://journal.wethepeopleforus.com/category/${cat}`,
+  });
 
   if (!isValid) {
     return (

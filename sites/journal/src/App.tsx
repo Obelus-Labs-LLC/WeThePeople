@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Analytics } from '@vercel/analytics/react';
 import { EcosystemNav } from './components/EcosystemNav';
 import { Footer } from './components/Footer';
@@ -14,6 +14,7 @@ const SubscribePage = lazy(() => import('./pages/SubscribePage'));
 const CoverageBalancePage = lazy(() => import('./pages/CoverageBalancePage'));
 const VerifyDataPage = lazy(() => import('./pages/VerifyDataPage'));
 const CorrectionsPage = lazy(() => import('./pages/CorrectionsPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 // ── Loading fallback ──
 
@@ -41,23 +42,41 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 // ── App ──
 
+/**
+ * Routing notes:
+ *   - Canonical story URL is `/story/:slug`. The legacy `/stories/:slug`
+ *     pattern redirects to it so inbound links still resolve, but search
+ *     engines and crawlers consistently see one canonical path.
+ *   - Unknown routes hit the dedicated NotFoundPage. The previous
+ *     fallback rendered HomePage, which made broken links invisible to
+ *     analytics and gave bots a 200-OK on missing pages.
+ */
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout><HomePage /></Layout>} />
         <Route path="/story/:slug" element={<Layout><StoryPage /></Layout>} />
-        <Route path="/stories/:slug" element={<Layout><StoryPage /></Layout>} />
+        <Route path="/stories/:slug" element={<RedirectToStory />} />
         <Route path="/category/:category" element={<Layout><CategoryPage /></Layout>} />
         <Route path="/about" element={<Layout><AboutPage /></Layout>} />
         <Route path="/subscribe" element={<Layout><SubscribePage /></Layout>} />
         <Route path="/coverage" element={<Layout><CoverageBalancePage /></Layout>} />
         <Route path="/verify-our-data" element={<Layout><VerifyDataPage /></Layout>} />
         <Route path="/corrections" element={<Layout><CorrectionsPage /></Layout>} />
-        {/* Catch-all back to home */}
-        <Route path="*" element={<Layout><HomePage /></Layout>} />
+        <Route path="*" element={<Layout><NotFoundPage /></Layout>} />
       </Routes>
       <Analytics />
     </BrowserRouter>
   );
+}
+
+/**
+ * Redirect legacy `/stories/:slug` → `/story/:slug`. Replaces the entry
+ * in history so the user's Back button takes them to where they came
+ * from, not the old URL.
+ */
+function RedirectToStory() {
+  const slug = window.location.pathname.replace(/^\/stories\//, '').replace(/\/$/, '');
+  return <Navigate to={`/story/${slug}${window.location.search}${window.location.hash}`} replace />;
 }
