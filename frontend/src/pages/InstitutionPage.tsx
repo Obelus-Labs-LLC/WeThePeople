@@ -23,6 +23,7 @@ import {
   getInstitutionContracts,
   getInstitutionEnforcement,
   getInstitutionDonations,
+  getInstitutionTrends,
   type InstitutionDetail,
   type SECFiling,
   type FDICFinancial,
@@ -37,7 +38,6 @@ import {
   type DonationItem,
 } from '../api/finance';
 import { fmtDollar } from '../utils/format';
-import { getApiBaseUrl } from '../api/client';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
 import TrendChart from '../components/TrendChart';
@@ -203,11 +203,12 @@ export default function InstitutionPage() {
       })
       .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
-    // Fetch trends separately (non-blocking)
-    fetch(`${getApiBaseUrl()}/finance/institutions/${encodeURIComponent(institution_id)}/trends`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (!cancelled && d) setTrends(d); })
-      .catch((err) => { console.warn('[InstitutionPage] fetch failed:', err); });
+    // Fetch trends separately (non-blocking). Uses the typed helper so it
+    // inherits the 30s timeout + structured-error path; the previous raw
+    // fetch could hang forever if the backend stalled.
+    getInstitutionTrends(institution_id)
+      .then((d) => { if (!cancelled) setTrends(d); })
+      .catch((err) => { console.warn('[InstitutionPage] trends fetch failed:', err); });
     return () => { cancelled = true; };
   }, [institution_id]);
 

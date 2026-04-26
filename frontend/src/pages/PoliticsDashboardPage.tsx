@@ -533,6 +533,10 @@ export default function PoliticsDashboardPage() {
   const [breakdown, setBreakdown] = useState<ChamberPartyBreakdown | null>(null);
   const [actions, setActions] = useState<RecentAction[]>([]);
   const [loading, setLoading] = useState(true);
+  // Distinguish API failure from "no data". Without this the dashboard
+  // rendered all-zero stat cards on a 5xx, indistinguishable from
+  // congress actually being on recess.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -551,9 +555,12 @@ export default function PoliticsDashboardPage() {
         setPeople(p.people || []);
         setActions(a || []);
         setBreakdown(bp);
+        setLoadError(null);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.warn('[PoliticsDashboardPage] load failed:', err);
+        setLoadError(err?.message || 'Could not load dashboard data');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -672,6 +679,26 @@ export default function PoliticsDashboardPage() {
         className="mx-auto"
         style={{ maxWidth: 1280, padding: '40px 40px 80px' }}
       >
+        {loadError && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 24,
+              padding: '14px 18px',
+              borderRadius: 12,
+              border: '1px solid rgba(230, 57, 70, 0.35)',
+              background: 'rgba(230, 57, 70, 0.08)',
+              color: 'var(--color-red)',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            Could not load dashboard data: {loadError}. Stat cards may
+            show stale or empty values until you refresh.
+          </div>
+        )}
+
         {/* ── HERO ── single column per CLOD prototype */}
         <div className="animate-fade-up" style={{ marginBottom: 40 }}>
           <p
