@@ -106,12 +106,32 @@ def build_snapshot(src_db: Path, work_dir: Path) -> Path:
             if t in tables:
                 conn.execute(f"DELETE FROM {t} WHERE NOT ({where})")
 
-        # Drop any orphan indices on tables we removed.
-        conn.execute("REINDEX")
-        conn.commit()
+        # Drop any orphan indices on tables we removed. REINDEX rebuilds
+        # every index, which on a 4GB DB needs ~1-2GB temporary space.
+        # On a tight host we skip it; consumers can REINDEX locally.
+        try:
+            conn.execute("REINDEX")
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            if "disk is full" in str(e).lower() or "database or disk" in str(e).lower():
+                print(f"  warning: skipping REINDEX (insufficient free disk): {e}",
+                      file=sys.stderr)
+                conn.rollback()
+            else:
+                raise
         # Reclaim space so the snapshot isn't bloated by deleted rows.
-        conn.execute("VACUUM")
-        conn.commit()
+        # VACUUM needs ~2x disk space (it writes a new file then renames).
+        # On a tight host we skip it — the gzip pass downstream squeezes
+        # the deleted-row holes back out anyway.
+        try:
+            conn.execute("VACUUM")
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            if "disk is full" in str(e).lower() or "database or disk" in str(e).lower():
+                print(f"  warning: skipping VACUUM (insufficient free disk): {e}",
+                      file=sys.stderr)
+            else:
+                raise
     finally:
         conn.close()
 
