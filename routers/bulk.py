@@ -184,7 +184,8 @@ def export_csv(
     headers = {
         "Content-Disposition": f'attachment; filename="wtp-{table}.csv"',
         "X-WTP-Row-Cap": str(spec["max_rows"]),
-        "X-WTP-Source": "https://wethepeopleforus.com — AGPL-3.0; data is public-domain US government records",
+        # HTTP headers must be latin-1 — keep this ASCII-only.
+        "X-WTP-Source": "https://wethepeopleforus.com - AGPL-3.0; data is public-domain US government records",
     }
     return StreamingResponse(
         _stream_csv(sql, params, spec["columns"]),
