@@ -97,6 +97,13 @@ app.add_middleware(TracingMiddleware)
 from middleware.security import SecurityHeadersMiddleware
 app.add_middleware(SecurityHeadersMiddleware)
 
+# --- Public-facing rate-limit headers ---
+# Surfaces RateLimit-Limit / RateLimit-Remaining / RateLimit-Reset on
+# every JSON / CSV / XML response so API consumers can self-pace rather
+# than discover the limit by getting blocked.
+from middleware.rate_limit_headers import RateLimitHeadersMiddleware
+app.add_middleware(RateLimitHeadersMiddleware)
+
 # --- CORS ---
 _cors_origins_raw = os.getenv(
     "CORS_ALLOW_ORIGINS",
@@ -148,6 +155,7 @@ from routers.research_tools import router as research_tools_router
 from routers.fara import router as fara_router
 from routers.lookup import router as lookup_router
 from routers.civic import router as civic_router
+from routers.bulk import router as bulk_export_router, bulk_router
 
 # --- Backward-compatible mounts (unprefixed, existing clients) ---
 app.include_router(auth_router)
@@ -185,6 +193,8 @@ app.include_router(research_tools_router)
 app.include_router(fara_router)
 app.include_router(lookup_router)
 app.include_router(civic_router)
+app.include_router(bulk_export_router)  # /export/{table}.csv
+app.include_router(bulk_router)         # /bulk/snapshot, /bulk/manifest
 
 _logger.info("WeThePeople API started, env=%s", os.getenv("WTP_ENV", "production"))
 
@@ -223,5 +233,7 @@ v1.include_router(metrics_router)
 v1.include_router(ops_router)
 v1.include_router(lookup_router)
 v1.include_router(civic_router)
+v1.include_router(bulk_export_router)
+v1.include_router(bulk_router)
 
 app.include_router(v1)
