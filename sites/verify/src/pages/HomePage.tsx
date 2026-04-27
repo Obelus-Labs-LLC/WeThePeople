@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiPost, apiFetch, humanizeError, ApiError } from '../api/client';
+import {
+  apiPost, apiFetch, humanizeError, ApiError,
+  isAuthenticated, loginRedirectUrl,
+} from '../api/client';
+import QuotaBadge from '../components/QuotaBadge';
 
 /**
  * Verify (Veritas) home page — hero pill + URL/text submit form + recent
@@ -83,7 +87,15 @@ export default function HomePage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [textMode, setTextMode] = useState(false);
   const [inputFocus, setInputFocus] = useState(false);
+  /** Bumped after every verify call so the QuotaBadge refetches. */
+  const [quotaRefresh, setQuotaRefresh] = useState(0);
+  /** Soft-paywall state — set when /claims/verify returns 401/429. */
+  const [authWall, setAuthWall] = useState<{
+    type: 'auth' | 'rate' | null;
+    message?: string;
+  }>({ type: null });
 
+  const authed = isAuthenticated();
   const inputType = detectInputType(input);
 
   // Stats are non-fatal — log if they fail so we don't silently hide a
@@ -113,8 +125,21 @@ export default function HomePage() {
       return;
     }
 
+    // Hard auth gate — anonymous use of Veritas is no longer allowed.
+    // Show the inline auth wall before even calling the API so the
+    // failure mode is "click to sign up" rather than "click then see
+    // a 401 toast".
+    if (!isAuthenticated()) {
+      setAuthWall({
+        type: 'auth',
+        message: 'Verification requires a free account — get 5 verifications per day, no credit card.',
+      });
+      return;
+    }
+
     setLoading(true);
     setError('');
+    setAuthWall({ type: null });
 
     try {
       const detected = detectInputType(trimmed);
@@ -123,15 +148,30 @@ export default function HomePage() {
           ? await apiPost('/claims/verify-url', { url: trimmed })
           : await apiPost('/claims/verify', { text: trimmed });
 
+      // A successful verify just consumed one of the user's daily
+      // budget — bump the refresh key so the badge re-reads /auth/quota.
+      setQuotaRefresh((n) => n + 1);
       navigate('/results/quick', { state: { result, inputText: trimmed } });
     } catch (err) {
-      if (err instanceof ApiError && err.status === 429) {
-        setError(
-          'Daily verification limit reached. Try again tomorrow, or contact us about enterprise access for unlimited checks.',
-        );
-      } else {
-        setError(humanizeError(err));
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setAuthWall({
+            type: 'auth',
+            message: 'Your session expired. Sign back in to keep verifying.',
+          });
+          return;
+        }
+        if (err.status === 429) {
+          // Bump quota so the badge updates to "0 of N · Upgrade".
+          setQuotaRefresh((n) => n + 1);
+          setAuthWall({
+            type: 'rate',
+            message: "You've used today's free verifications. Upgrade for more, or come back tomorrow.",
+          });
+          return;
+        }
       }
+      setError(humanizeError(err));
     } finally {
       setLoading(false);
     }
@@ -180,6 +220,96 @@ export default function HomePage() {
       }}
     >
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 40px' }}>
+        {/* ── Quota / auth pill (top right of content) ──────────────── */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+          <QuotaBadge refreshKey={quotaRefresh} />
+        </div>
+
+        {/* ── Soft paywall: shown when /verify returns 401 or 429 ──── */}
+        {authWall.type && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 24,
+              padding: '16px 20px',
+              border: '1.5px solid rgba(16,185,129,0.5)',
+              background: 'rgba(16,185,129,0.06)',
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <strong style={{ color: ACCENT_TEXT, fontFamily: FONT_BODY, fontSize: 14 }}>
+                {authWall.type === 'auth' ? 'Sign in to verify' : 'Daily limit reached'}
+              </strong>
+              <p style={{
+                margin: '4px 0 0', fontFamily: FONT_BODY, fontSize: 13,
+                color: T2, lineHeight: 1.5,
+              }}>
+                {authWall.message}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {authWall.type === 'auth' ? (
+                <>
+                  <a
+                    href={loginRedirectUrl()}
+                    style={{
+                      fontFamily: FONT_MONO, fontSize: 11, fontWeight: 700,
+                      letterSpacing: '0.18em', textTransform: 'uppercase',
+                      padding: '10px 16px', borderRadius: 10,
+                      background: ACCENT, color: '#07090C', textDecoration: 'none',
+                    }}
+                  >
+                    Sign in
+                  </a>
+                  <a
+                    href="https://wethepeopleforus.com/signup?next=https://verify.wethepeopleforus.com"
+                    style={{
+                      fontFamily: FONT_MONO, fontSize: 11, fontWeight: 700,
+                      letterSpacing: '0.18em', textTransform: 'uppercase',
+                      padding: '10px 16px', borderRadius: 10,
+                      border: `1px solid ${BORDER_HOVER}`, color: T1,
+                      textDecoration: 'none', background: 'transparent',
+                    }}
+                  >
+                    Create account
+                  </a>
+                </>
+              ) : (
+                <>
+                  <a
+                    href="https://wethepeopleforus.com/pricing"
+                    style={{
+                      fontFamily: FONT_MONO, fontSize: 11, fontWeight: 700,
+                      letterSpacing: '0.18em', textTransform: 'uppercase',
+                      padding: '10px 16px', borderRadius: 10,
+                      background: ACCENT, color: '#07090C', textDecoration: 'none',
+                    }}
+                  >
+                    See plans
+                  </a>
+                  <button
+                    onClick={() => setAuthWall({ type: null })}
+                    style={{
+                      fontFamily: FONT_MONO, fontSize: 11, fontWeight: 700,
+                      letterSpacing: '0.18em', textTransform: 'uppercase',
+                      padding: '10px 16px', borderRadius: 10,
+                      border: `1px solid ${BORDER_HOVER}`, color: T2,
+                      background: 'transparent', cursor: 'pointer',
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── Hero ───────────────────────────────────────────────────── */}
         <section style={{ marginBottom: 40, maxWidth: 680 }}>
           <div

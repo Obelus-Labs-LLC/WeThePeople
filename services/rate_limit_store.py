@@ -121,3 +121,65 @@ def check_rate_limit(
     finally:
         if close_db:
             db.close()
+
+
+def get_rate_limit_status(
+    ip: str,
+    endpoint: str,
+    max_requests: int,
+    window_seconds: int,
+    db: Session | None = None,
+) -> Tuple[int, int, int]:
+    """Read-only count of requests in the current sliding window.
+
+    Distinct from `check_rate_limit`, which DECREMENTS the budget by
+    inserting a record. This one is purely informational — used by
+    /auth/quota to render the 'X of N today' UI without consuming a
+    request.
+
+    Returns:
+        (used, remaining, reset_seconds)
+    """
+    close_db = False
+    if db is None:
+        db = next(get_db())
+        close_db = True
+
+    try:
+        now = time.time()
+        window_start = now - window_seconds
+
+        used = (
+            db.query(RateLimitRecord)
+            .filter(
+                RateLimitRecord.ip_address == ip,
+                RateLimitRecord.endpoint == endpoint,
+                RateLimitRecord.window_start >= window_start,
+            )
+            .count()
+        )
+        remaining = max(0, max_requests - used)
+        # Reset is when the oldest record in the window expires.
+        oldest = (
+            db.query(RateLimitRecord.window_start)
+            .filter(
+                RateLimitRecord.ip_address == ip,
+                RateLimitRecord.endpoint == endpoint,
+                RateLimitRecord.window_start >= window_start,
+            )
+            .order_by(RateLimitRecord.window_start.asc())
+            .first()
+        )
+        if oldest:
+            reset_seconds = max(0, int(oldest[0] + window_seconds - now))
+        else:
+            reset_seconds = window_seconds
+        return used, remaining, reset_seconds
+
+    except Exception:
+        logger.exception("get_rate_limit_status error for ip=%s endpoint=%s", ip, endpoint)
+        return 0, max_requests, window_seconds
+
+    finally:
+        if close_db:
+            db.close()
