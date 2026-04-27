@@ -1,0 +1,139 @@
+# Deploy verify.wethepeopleforus.com to Hetzner whenever its source
+# changes on main.
+#
+# Why this exists: verify is the only WTP frontend NOT on Vercel — it's
+# served by nginx on the Hetzner production box from /var/www/verify.
+# Without this workflow, every change to sites/verify/ has to be built
+# and rsync'd by hand, which is what just caused 17 days of redesign
+# work + audit fixes + OG cards to silently sit on main without
+# reaching the live site.
+#
+# Triggers:
+#   - Any push to main that touches sites/verify/** (the typical case).
+#   - Manual run via the Actions tab "Run workflow" button (for forcing
+#     a redeploy after a backend / API change that affects verify but
+#     doesn't touch its source).
+#
+# Secrets (one-time setup, already done 2026-04-27):
+#   HETZNER_DEPLOY_KEY  — ed25519 private key whose pubkey lives in
+#                          /root/.ssh/authorized_keys on wtp-prod.
+#   HETZNER_HOST        — 138.199.214.174
+#   HETZNER_USER        — root
+#
+# Failure mode: if the build or upload fails, the live site is left
+# untouched (we extract into a temp dir on the server and atomically
+# swap, so a half-finished tar can't leave /var/www/verify in a
+# partial state).
+
+name: Deploy verify (Hetzner)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sites/verify/**'
+      - '.github/workflows/deploy-verify.yml'
+  workflow_dispatch:    # manual trigger for emergency re-deploys
+
+concurrency:
+  # Cancel an in-flight deploy if a new push lands; we only ever want
+  # the latest version of main on the server.
+  group: deploy-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: sites/verify
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sites/verify/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        # Catch TS errors before we ship a broken build to the live
+        # site. Cheap; takes ~10s on this size of project.
+        run: npx tsc --noEmit
+
+      - name: Build production bundle
+        run: npx vite build
+
+      - name: Tar the dist for transport
+        run: tar -czf /tmp/verify-dist.tar.gz -C dist .
+
+      - name: Set up SSH agent with deploy key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_DEPLOY_KEY }}
+
+      - name: Add Hetzner host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.HETZNER_HOST }} >> ~/.ssh/known_hosts
+        working-directory: .
+
+      - name: Upload tarball to Hetzner
+        run: |
+          scp /tmp/verify-dist.tar.gz \
+            ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/verify-dist.tar.gz
+        working-directory: .
+
+      - name: Extract atomically + swap into place
+        # We extract into /var/www/verify.new, then mv-swap it with
+        # the current /var/www/verify. This way an interrupted extract
+        # can't leave the live site half-broken.
+        run: |
+          ssh ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }} bash -s << 'EOF'
+            set -euo pipefail
+            STAGE=/var/www/verify.new.$$
+            BACKUP=/var/www/verify.bak.$(date -u +%Y%m%dT%H%M%S)
+            mkdir -p "$STAGE"
+            tar -xzf /tmp/verify-dist.tar.gz -C "$STAGE"
+            chown -R www-data:www-data "$STAGE"
+            chmod -R u=rwX,go=rX "$STAGE"
+            # Atomic swap. If the new dir doesn't exist after this, the
+            # backup is right there for `mv $BACKUP /var/www/verify`.
+            if [ -e /var/www/verify ]; then
+              mv /var/www/verify "$BACKUP"
+            fi
+            mv "$STAGE" /var/www/verify
+            # Trim old backups, keep the 3 most recent so we don't
+            # accumulate gigabytes over time.
+            ls -1dt /var/www/verify.bak.* 2>/dev/null | tail -n +4 | xargs -r rm -rf
+            rm -f /tmp/verify-dist.tar.gz
+            echo "Deployed: $(stat -c '%y' /var/www/verify/index.html)"
+          EOF
+        working-directory: .
+
+      - name: Smoke-test the live URL
+        # The deploy isn't done until the new index.html is actually
+        # being served. Compare a fingerprint from the just-built
+        # tarball to what the live URL serves; fail loudly if they
+        # don't match within 60s.
+        run: |
+          EXPECTED=$(sha256sum dist/index.html | awk '{print $1}')
+          for i in $(seq 1 12); do
+            LIVE=$(curl -fsSL -H 'Cache-Control: no-cache' \
+              "https://verify.wethepeopleforus.com/?cb=$(date +%s)" \
+              | sha256sum | awk '{print $1}')
+            if [ "$LIVE" = "$EXPECTED" ]; then
+              echo "Smoke check passed on attempt $i"
+              exit 0
+            fi
+            echo "attempt $i: live=$LIVE expected=$EXPECTED — waiting"
+            sleep 5
+          done
+          echo "ERROR: live URL didn't match the deployed index.html after 60s"
+          exit 1
