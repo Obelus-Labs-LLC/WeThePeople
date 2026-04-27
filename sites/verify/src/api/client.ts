@@ -23,12 +23,72 @@ export interface FetchOptions {
 export class ApiError extends Error {
   status: number;
   body: string;
-  constructor(status: number, message: string, body: string) {
+  /** Parsed JSON body when available — surfaces structured FastAPI errors
+   *  like {detail: {error: "auth_required", signup_url: "..."}}. */
+  detail: unknown;
+  /** Per-tier daily quota echoed back on /claims/verify responses
+   *  (and on the 429s when the quota is exhausted). Lets the UI
+   *  render the "X of N today" badge without a second round-trip. */
+  quota?: {
+    tier?: string;
+    daily_limit?: number;
+    remaining?: number;
+    reset_seconds?: number;
+  };
+  constructor(status: number, message: string, body: string, detail?: unknown, quota?: ApiError['quota']) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
+    this.detail = detail;
+    this.quota = quota;
   }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Auth-token plumbing
+// ──────────────────────────────────────────────────────────────────────
+// The main frontend stores the JWT under 'wtp_access_token' in
+// localStorage (see frontend/src/contexts/AuthContext.tsx). The verify
+// SPA shares the same auth surface — same login on the main site, same
+// API. We re-read from localStorage on every call so a login in another
+// tab is honored on the next request.
+
+const ACCESS_TOKEN_KEY = 'wtp_access_token';
+
+export function getAccessToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function isAuthenticated(): boolean {
+  return Boolean(getAccessToken());
+}
+
+/**
+ * Build the /login URL on the main site, with a `next` param so the
+ * user lands back on verify after logging in. Used by the auth wall
+ * on the verify HomePage.
+ */
+export function loginRedirectUrl(): string {
+  if (typeof window === 'undefined') return 'https://wethepeopleforus.com/login';
+  const next = encodeURIComponent(window.location.href);
+  return `https://wethepeopleforus.com/login?next=${next}`;
+}
+
+function _quotaFromHeaders(res: Response): ApiError['quota'] | undefined {
+  const limit = res.headers.get('X-Veritas-Daily-Limit');
+  if (!limit) return undefined;
+  return {
+    tier: res.headers.get('X-Veritas-Tier') || undefined,
+    daily_limit: limit ? Number(limit) : undefined,
+    remaining: Number(res.headers.get('X-Veritas-Remaining') ?? -1),
+    reset_seconds: Number(res.headers.get('X-Veritas-Reset-Seconds') ?? 0),
+  };
 }
 
 /**
@@ -66,14 +126,26 @@ export async function apiFetch<T>(path: string, opts?: FetchOptions): Promise<T>
     }
   }
 
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const token = getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const res = await fetch(url.toString(), {
     signal: opts?.signal,
-    headers: { Accept: 'application/json' },
+    headers,
   });
 
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new ApiError(res.status, res.statusText || `HTTP ${res.status}`, body);
+    const text = await res.text().catch(() => '');
+    let detail: unknown;
+    try { detail = JSON.parse(text)?.detail; } catch { /* not JSON */ }
+    throw new ApiError(
+      res.status,
+      res.statusText || `HTTP ${res.status}`,
+      text,
+      detail,
+      _quotaFromHeaders(res),
+    );
   }
 
   return res.json();
@@ -81,7 +153,12 @@ export async function apiFetch<T>(path: string, opts?: FetchOptions): Promise<T>
 
 /**
  * Typed POST fetch wrapper. Sends JSON body, returns parsed JSON.
- * Throws ApiError on non-2xx responses.
+ * Throws ApiError on non-2xx responses; structured FastAPI error
+ * bodies are parsed and exposed on err.detail so the UI can render
+ * actionable messages (auth_required, edu_required, rate_limited).
+ *
+ * Auth: forwards the JWT bearer from localStorage when present so
+ * /claims/verify can identify the user and apply their tier quota.
  */
 export async function apiPost<T>(path: string, body: unknown, opts?: FetchOptions): Promise<T> {
   const base = getApiBase();
@@ -95,19 +172,31 @@ export async function apiPost<T>(path: string, body: unknown, opts?: FetchOption
     }
   }
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  const token = getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const res = await fetch(url.toString(), {
     method: 'POST',
     signal: opts?.signal,
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new ApiError(res.status, res.statusText || `HTTP ${res.status}`, text);
+    let detail: unknown;
+    try { detail = JSON.parse(text)?.detail; } catch { /* not JSON */ }
+    throw new ApiError(
+      res.status,
+      res.statusText || `HTTP ${res.status}`,
+      text,
+      detail,
+      _quotaFromHeaders(res),
+    );
   }
 
   return res.json();

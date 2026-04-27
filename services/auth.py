@@ -199,24 +199,44 @@ def _resolve_new_system_user(api_key: str, db: Session) -> Optional[dict]:
 def require_enterprise_or_rate_limit(
     request: Request,
     x_wtp_api_key: str = Header(default=""),
+    authorization: str = Header(default=""),
     db: Session = Depends(get_db),
 ) -> dict:
     """
-    Allow free users with rate limit (5/day by IP) or enterprise key for unlimited.
+    Authenticated-only access to Veritas verification.
+
+    As of the 2026-04-27 tier rollout, anonymous use is no longer
+    permitted. Users must either:
+      • Be authenticated via JWT bearer token (web/mobile session), OR
+      • Send a valid X-WTP-API-KEY header (CI / scripts / partners)
 
     Checks in order:
       1. Legacy WTP_ENTERPRISE_API_KEY env var
       2. New per-user API key system (role-based limits)
       3. Legacy WTP_PRESS_API_KEY (treated as pro tier)
-      4. Anonymous IP-based rate limiting (persistent SQLite store)
+      4. JWT bearer token from a logged-in session
+
+    If none of those identify the caller, raises 401 with a structured
+    detail object the frontend can use to render the signup CTA.
 
     Returns:
-        {"tier": "enterprise"|"pro"|"free", "rate_limited": bool}
+        {
+            "tier": "free|student|pro|newsroom|enterprise",
+            "rate_limited": bool,
+            "daily_limit": int,         # 0 = unlimited
+            "remaining_today": int,
+            "reset_seconds": int,
+            "user_id": int | None,
+        }
     """
 
     # --- 1. Legacy enterprise key ---
     if _check_legacy_enterprise_key(x_wtp_api_key):
-        return {"tier": "enterprise", "rate_limited": False}
+        return {
+            "tier": "enterprise", "rate_limited": False,
+            "daily_limit": 0, "remaining_today": -1,
+            "reset_seconds": 0, "user_id": None,
+        }
 
     # --- 2. New API key system ---
     if x_wtp_api_key:
@@ -224,11 +244,13 @@ def require_enterprise_or_rate_limit(
         if result:
             from services.rbac import get_daily_limit
             limit = get_daily_limit(result["role"])
-            rate_limited = limit > 0
             tier = result["tier"]
-            if not rate_limited:
-                return {"tier": tier, "rate_limited": False}
-            # Apply role-based rate limit via persistent store
+            if limit == 0:
+                return {
+                    "tier": tier, "rate_limited": False,
+                    "daily_limit": 0, "remaining_today": -1,
+                    "reset_seconds": 0, "user_id": result["user_id"],
+                }
             key_for_limit = f"user:{result['user_id']}"
             allowed, remaining, reset_time = check_rate_limit(
                 ip=key_for_limit,
@@ -240,29 +262,86 @@ def require_enterprise_or_rate_limit(
             if not allowed:
                 raise HTTPException(
                     status_code=429,
-                    detail=f"Rate limit exceeded: {limit} verification requests per day for {tier} tier.",
+                    detail={
+                        "error": "rate_limited",
+                        "message": f"You've used today's {limit} {tier} verifications. Resets in {reset_time}s.",
+                        "tier": tier,
+                        "daily_limit": limit,
+                        "reset_seconds": reset_time,
+                    },
                 )
-            return {"tier": tier, "rate_limited": True}
+            return {
+                "tier": tier, "rate_limited": True,
+                "daily_limit": limit, "remaining_today": remaining,
+                "reset_seconds": reset_time, "user_id": result["user_id"],
+            }
 
     # --- 3. Legacy press key (treat as pro) ---
-    if _check_legacy_press_key(x_wtp_api_key):
-        return {"tier": "pro", "rate_limited": False}
+    if x_wtp_api_key and _check_legacy_press_key(x_wtp_api_key):
+        return {
+            "tier": "pro", "rate_limited": False,
+            "daily_limit": 200, "remaining_today": -1,
+            "reset_seconds": 0, "user_id": None,
+        }
 
-    # --- 4. Anonymous free tier: persistent IP rate limit ---
-    client_ip = get_client_ip(request)
+    # --- 4. JWT bearer token from a web/mobile session ---
+    # We import here to avoid a circular dep at module load.
+    if authorization.startswith("Bearer "):
+        try:
+            from services.jwt_auth import decode_access_token
+            from models.auth_models import User
+            token = authorization.split(" ", 1)[1].strip()
+            payload = decode_access_token(token)
+            user_id = int(payload.get("sub")) if payload.get("sub") else None
+            user = db.query(User).filter(User.id == user_id, User.is_active == 1).first() if user_id else None
+            if user:
+                from services.rbac import get_daily_limit
+                limit = get_daily_limit(user.role)
+                tier = user.role if user.role != "admin" else "enterprise"
+                if limit == 0:
+                    return {
+                        "tier": tier, "rate_limited": False,
+                        "daily_limit": 0, "remaining_today": -1,
+                        "reset_seconds": 0, "user_id": user.id,
+                    }
+                key_for_limit = f"user:{user.id}"
+                allowed, remaining, reset_time = check_rate_limit(
+                    ip=key_for_limit,
+                    endpoint="claims",
+                    max_requests=limit,
+                    window_seconds=_CLAIMS_WINDOW,
+                    db=db,
+                )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=429,
+                        detail={
+                            "error": "rate_limited",
+                            "message": f"You've used today's {limit} {tier} verifications. Upgrade or wait for reset.",
+                            "tier": tier,
+                            "daily_limit": limit,
+                            "reset_seconds": reset_time,
+                        },
+                    )
+                return {
+                    "tier": tier, "rate_limited": True,
+                    "daily_limit": limit, "remaining_today": remaining,
+                    "reset_seconds": reset_time, "user_id": user.id,
+                }
+        except HTTPException:
+            raise
+        except Exception:
+            # Token invalid / expired — fall through to the 401 below
+            # so the response is consistently structured.
+            pass
 
-    allowed, remaining, reset_time = check_rate_limit(
-        ip=client_ip,
-        endpoint="claims",
-        max_requests=_CLAIMS_FREE_LIMIT,
-        window_seconds=_CLAIMS_WINDOW,
-        db=db,
+    # --- No identity established — anonymous use is no longer permitted. ---
+    raise HTTPException(
+        status_code=401,
+        detail={
+            "error": "auth_required",
+            "message": "Verification requires a free account. Sign up to get 5 verifications per day.",
+            "signup_url": "/auth/register",
+            "pricing_url": "https://wethepeopleforus.com/api",
+        },
     )
-    if not allowed:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limit exceeded: {_CLAIMS_FREE_LIMIT} verification requests per day. "
-                   f"Register for an account or set X-WTP-API-KEY header for higher limits.",
-        )
-
-    return {"tier": "free", "rate_limited": True}
