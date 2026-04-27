@@ -7,7 +7,7 @@ GET endpoints are free with no auth required.
 
 import logging
 
-from fastapi import APIRouter, Query, HTTPException, Request, Depends
+from fastapi import APIRouter, Query, HTTPException, Request, Depends, Response
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from sqlalchemy import func, desc
@@ -20,6 +20,18 @@ from services.claims.veritas_bridge import (
     run_verification as veritas_verify,
     run_verification_from_url as veritas_verify_url,
 )
+
+
+def _attach_quota_headers(response: Response, auth: dict) -> None:
+    """Echo the per-tier daily quota on the response so the frontend
+    can render the 'X of N today' badge without a second round-trip.
+    These are distinct from the global RateLimit-* headers (which apply
+    to ALL endpoints at 60/minute); these specifically reflect the
+    per-day Veritas verification budget."""
+    response.headers["X-Veritas-Tier"] = auth.get("tier", "free")
+    response.headers["X-Veritas-Daily-Limit"] = str(auth.get("daily_limit", 5))
+    response.headers["X-Veritas-Remaining"] = str(auth.get("remaining_today", -1))
+    response.headers["X-Veritas-Reset-Seconds"] = str(auth.get("reset_seconds", 0))
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +58,7 @@ class VerifyUrlRequest(BaseModel):
 @router.post("/verify", response_model=VerificationResponse)
 def verify_text(
     body: VerifyTextRequest,
+    response: Response,
     auth: dict = Depends(require_enterprise_or_rate_limit),
     db: Session = Depends(get_db),
 ):
@@ -58,9 +71,16 @@ def verify_text(
 
     No entity_id required. The system auto-detects entities from the text.
 
-    Rate limited: 5/day for free tier, unlimited with enterprise API key.
+    **Authentication required.** Daily limits by tier:
+      - free       — 5 / day
+      - student    — 50 / day
+      - pro        — 200 / day
+      - newsroom   — 1000 / day (pooled across team)
+      - enterprise — unlimited
     """
-    logger.info("Veritas verification request: %d chars", len(body.text))
+    logger.info("Veritas verification request: %d chars (tier=%s)", len(body.text), auth.get("tier"))
+
+    _attach_quota_headers(response, auth)
 
     try:
         result = veritas_verify(
@@ -69,6 +89,14 @@ def verify_text(
             source_url=body.source_url,
         )
         result["auth_tier"] = auth["tier"]
+        # Echo quota into the JSON body too, so SDKs that don't surface
+        # response headers can still display the "X of N today" UI.
+        result["quota"] = {
+            "tier": auth.get("tier"),
+            "daily_limit": auth.get("daily_limit"),
+            "remaining_today": auth.get("remaining_today"),
+            "reset_seconds": auth.get("reset_seconds"),
+        }
         return result
     except Exception as e:
         logger.error("Verification failed: %s", e)
@@ -78,6 +106,7 @@ def verify_text(
 @router.post("/verify-url", response_model=VerificationResponse)
 def verify_url(
     body: VerifyUrlRequest,
+    response: Response,
     auth: dict = Depends(require_enterprise_or_rate_limit),
     db: Session = Depends(get_db),
 ):
@@ -89,13 +118,21 @@ def verify_url(
 
     No entity_id required. The system auto-detects entities from the text.
 
-    Rate limited: 5/day for free tier, unlimited with enterprise API key.
+    **Authentication required.** See /claims/verify for tier limits.
     """
-    logger.info("Veritas URL verification request: %s", body.url)
+    logger.info("Veritas URL verification request: %s (tier=%s)", body.url, auth.get("tier"))
+
+    _attach_quota_headers(response, auth)
 
     try:
         result = veritas_verify_url(db, url=body.url)
         result["auth_tier"] = auth["tier"]
+        result["quota"] = {
+            "tier": auth.get("tier"),
+            "daily_limit": auth.get("daily_limit"),
+            "remaining_today": auth.get("remaining_today"),
+            "reset_seconds": auth.get("reset_seconds"),
+        }
         return result
     except Exception as e:
         logger.error("URL verification failed: %s", e)

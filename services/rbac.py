@@ -37,9 +37,11 @@ logger = logging.getLogger(__name__)
 
 ROLE_HIERARCHY = {
     "free": 0,
-    "pro": 1,
-    "enterprise": 2,
-    "admin": 3,
+    "student": 1,    # .edu users — same hierarchy slot as paid-but-cheap
+    "pro": 2,        # journalists / independent researchers
+    "newsroom": 3,   # team plan, pooled quota
+    "enterprise": 4, # unlimited + SLA
+    "admin": 5,
 }
 
 VALID_SCOPES = {"read", "write", "verify", "chat", "admin"}
@@ -205,10 +207,82 @@ def require_scope(scope: str):
 # ---------------------------------------------------------------------------
 
 ROLE_RATE_LIMITS = {
-    "free": 5,          # 5 per day
-    "pro": 100,         # 100 per day
-    "enterprise": 0,    # 0 = unlimited
-    "admin": 0,         # 0 = unlimited
+    "free": 5,          # 5 verifications per day (logged-in only)
+    "student": 50,      # 50/day — .edu users, $5/mo
+    "pro": 200,         # 200/day — journalists, $19/mo
+    "newsroom": 1000,   # 1000/day pooled across seats, $99/mo
+    "enterprise": 0,    # unlimited
+    "admin": 0,         # unlimited
+}
+
+
+# Display metadata for each tier — single source of truth so the API,
+# pricing page, and account-management UI never drift on numbers.
+TIER_DISPLAY = {
+    "free": {
+        "label": "Free",
+        "daily_limit": 5,
+        "monthly_price_cents": 0,
+        "annual_price_cents": 0,
+        "audience": "Casual users",
+        "features": [
+            "5 verifications per day",
+            "Full read access to all civic data",
+            "Public stories + research tools",
+        ],
+    },
+    "student": {
+        "label": "Student",
+        "daily_limit": 50,
+        "monthly_price_cents": 500,
+        "annual_price_cents": 5000,
+        "audience": ".edu users — academic + journalism school",
+        "features": [
+            "50 verifications per day",
+            "Same engine as Pro",
+            "Cancel anytime",
+            "Requires .edu email",
+        ],
+    },
+    "pro": {
+        "label": "Pro / Journalist",
+        "daily_limit": 200,
+        "monthly_price_cents": 1900,
+        "annual_price_cents": 19000,
+        "audience": "Independent journalists, podcasters, substack writers",
+        "features": [
+            "200 verifications per day",
+            "Priority queue",
+            "API key with verify scope",
+            "Email support",
+        ],
+    },
+    "newsroom": {
+        "label": "Newsroom",
+        "daily_limit": 1000,
+        "monthly_price_cents": 9900,
+        "annual_price_cents": 99000,
+        "audience": "Local + regional newsrooms (up to 5 seats)",
+        "features": [
+            "1,000 verifications per day pooled across team",
+            "Up to 5 seats",
+            "Priority support",
+            "Custom onboarding",
+        ],
+    },
+    "enterprise": {
+        "label": "Enterprise",
+        "daily_limit": 0,
+        "monthly_price_cents": 99900,
+        "annual_price_cents": None,
+        "audience": "National outlets, foundations, government",
+        "features": [
+            "Unlimited verifications",
+            "SLA + dedicated support",
+            "Custom integrations",
+            "Single sign-on",
+        ],
+    },
 }
 
 

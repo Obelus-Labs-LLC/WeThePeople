@@ -596,26 +596,81 @@ def check_watchlist(
 
 # ── Stripe Checkout ────────────────────────────────────────────────────
 
+# Maps a (plan, billing) selection to:
+#   1. The env var holding the Stripe price ID
+#   2. The role the webhook should set on `checkout.session.completed`
+#   3. Whether the plan requires a .edu email (student gating)
+#
+# Adding a new plan = add a row here, set the env var, push a Stripe
+# product+price in the dashboard, restart. Webhook auto-handles it.
+PLAN_PRICES = {
+    ("student", "monthly"):    {"env": "STRIPE_WTP_STUDENT_MONTHLY_PRICE_ID",    "role": "student",    "requires_edu": True},
+    ("student", "annual"):     {"env": "STRIPE_WTP_STUDENT_ANNUAL_PRICE_ID",     "role": "student",    "requires_edu": True},
+    ("pro", "monthly"):        {"env": "STRIPE_WTP_PRO_MONTHLY_PRICE_ID",        "role": "pro",        "requires_edu": False},
+    ("pro", "annual"):         {"env": "STRIPE_WTP_PRO_ANNUAL_PRICE_ID",         "role": "pro",        "requires_edu": False},
+    ("newsroom", "monthly"):   {"env": "STRIPE_WTP_NEWSROOM_MONTHLY_PRICE_ID",   "role": "newsroom",   "requires_edu": False},
+    ("newsroom", "annual"):    {"env": "STRIPE_WTP_NEWSROOM_ANNUAL_PRICE_ID",    "role": "newsroom",   "requires_edu": False},
+    ("enterprise", "monthly"): {"env": "STRIPE_WTP_ENTERPRISE_PRICE_ID",         "role": "enterprise", "requires_edu": False},
+}
 
-@router.post("/checkout/enterprise")
-def create_enterprise_checkout(
+
+def _is_edu_email(email: str) -> bool:
+    """Lightweight .edu check — accepts <user>@<anything>.edu and
+    common international academic suffixes (.ac.uk, .edu.au, etc.).
+    For finer-grained verification (student-ID upload, SheerID), revisit
+    once the student tier has actual paying users."""
+    if not email or "@" not in email:
+        return False
+    domain = email.rsplit("@", 1)[1].lower()
+    return domain.endswith(".edu") or domain.endswith(".ac.uk") or ".edu." in domain or ".ac." in domain
+
+
+class CheckoutRequest(BaseModel):
+    plan: str = Field(..., pattern="^(student|pro|newsroom|enterprise)$")
+    billing: str = Field("monthly", pattern="^(monthly|annual)$")
+
+
+@router.post("/checkout")
+def create_checkout(
+    body: CheckoutRequest,
     user: User = Depends(get_current_user),
     request: Request = None,
 ):
-    """Create a Stripe Checkout session for Enterprise upgrade."""
+    """Create a Stripe Checkout session for any subscription plan.
+
+    The `plan` field must be one of: student, pro, newsroom, enterprise.
+    The `billing` field must be one of: monthly, annual. Enterprise is
+    monthly-only via self-serve; annual enterprise is hand-sold.
+
+    Student plans require a .edu (or international academic) email.
+    """
     import stripe
 
-    stripe_key = os.getenv("STRIPE_SECRET_KEY")
-    price_id = os.getenv("STRIPE_WTP_ENTERPRISE_PRICE_ID")
+    spec = PLAN_PRICES.get((body.plan, body.billing))
+    if spec is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown plan/billing combo: {body.plan}/{body.billing}",
+        )
 
+    if spec["requires_edu"] and not _is_edu_email(user.email):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "edu_required",
+                "message": "The Student plan requires a .edu email. Sign in with your school email or choose another plan.",
+            },
+        )
+
+    stripe_key = os.getenv("STRIPE_SECRET_KEY")
+    price_id = os.getenv(spec["env"])
     if not stripe_key or not price_id:
-        raise HTTPException(status_code=503, detail="Payment system not configured")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Plan '{body.plan}/{body.billing}' not yet configured (missing {spec['env']})",
+        )
 
     stripe.api_key = stripe_key
-
-    # Determine base URL for redirects. Defaults to prod, but can be
-    # overridden via WTP_PUBLIC_ORIGIN so staging/dev redirects don't
-    # send users to the production success page after a real charge.
     origin = os.getenv("WTP_PUBLIC_ORIGIN", "https://wethepeopleforus.com").rstrip("/")
 
     try:
@@ -623,20 +678,119 @@ def create_enterprise_checkout(
             mode="subscription",
             payment_method_types=["card"],
             line_items=[{"price": price_id, "quantity": 1}],
-            success_url=f"{origin}/account?upgraded=true",
-            cancel_url=f"{origin}/account?cancelled=true",
+            # Stripe Tax: assumes the tax-id collection feature is on at
+            # the dashboard level (recommended). When enabled, Stripe
+            # auto-applies the correct US sales-tax / EU VAT to each
+            # invoice; nothing extra needed here.
+            automatic_tax={"enabled": True},
+            success_url=f"{origin}/account?upgraded={body.plan}",
+            cancel_url=f"{origin}/api?cancelled=true",
             client_reference_id=str(user.id),
             customer_email=user.email,
+            allow_promotion_codes=True,
             subscription_data={
-                "trial_period_days": 7,
-                "metadata": {"user_id": str(user.id), "project": "wethepeople"},
+                "trial_period_days": 7 if body.plan == "enterprise" else 0,
+                "metadata": {
+                    "user_id": str(user.id),
+                    "project": "wethepeople",
+                    "plan": body.plan,
+                    "billing": body.billing,
+                    "role": spec["role"],
+                },
             },
-            metadata={"user_id": str(user.id), "project": "wethepeople"},
+            metadata={
+                "user_id": str(user.id),
+                "project": "wethepeople",
+                "plan": body.plan,
+                "billing": body.billing,
+                "role": spec["role"],
+            },
         )
-        return {"checkout_url": session.url}
+        return {"checkout_url": session.url, "plan": body.plan, "billing": body.billing}
     except stripe.error.StripeError as e:
         logger.error("Stripe checkout failed: %s", e)
         raise HTTPException(status_code=502, detail="Payment service error")
+
+
+# Backwards-compat: the old enterprise-only endpoint stays so any
+# existing UI button doesn't 404 mid-deploy. New code should call
+# POST /auth/checkout with body={plan: "enterprise", billing: "monthly"}.
+@router.post("/checkout/enterprise")
+def create_enterprise_checkout(
+    user: User = Depends(get_current_user),
+    request: Request = None,
+):
+    """[Deprecated] Use POST /auth/checkout with body={plan:"enterprise"}."""
+    return create_checkout(
+        CheckoutRequest(plan="enterprise", billing="monthly"),
+        user=user,
+        request=request,
+    )
+
+
+# ── Quota endpoint ─────────────────────────────────────────────────────
+
+
+@router.get("/quota")
+def get_quota(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the authenticated user's Veritas verification quota.
+
+    Frontend uses this to render the 'X of N today' counter on the
+    Veritas page. Doesn't decrement the quota — that only happens on
+    actual /claims/verify calls.
+    """
+    from services.rbac import get_daily_limit, TIER_DISPLAY
+    from services.rate_limit_store import get_rate_limit_status
+
+    role = user.role or "free"
+    daily_limit = get_daily_limit(role)
+    tier_meta = TIER_DISPLAY.get(role, TIER_DISPLAY["free"])
+
+    if daily_limit == 0:
+        return {
+            "tier": role,
+            "tier_label": tier_meta["label"],
+            "daily_limit": 0,
+            "used_today": 0,
+            "remaining_today": -1,  # -1 sentinel for "unlimited"
+            "reset_seconds": 0,
+        }
+
+    key_for_limit = f"user:{user.id}"
+    try:
+        used, remaining, reset_seconds = get_rate_limit_status(
+            ip=key_for_limit,
+            endpoint="claims",
+            max_requests=daily_limit,
+            window_seconds=86400,
+            db=db,
+        )
+    except Exception as e:
+        logger.warning("get_rate_limit_status failed for user %s: %s", user.id, e)
+        used, remaining, reset_seconds = 0, daily_limit, 86400
+
+    return {
+        "tier": role,
+        "tier_label": tier_meta["label"],
+        "daily_limit": daily_limit,
+        "used_today": used,
+        "remaining_today": remaining,
+        "reset_seconds": reset_seconds,
+    }
+
+
+@router.get("/pricing")
+def get_pricing():
+    """Public pricing tier metadata. No auth required.
+
+    Lets the frontend render the pricing page from server-driven data
+    so the numbers can't drift across the API, the docs, and the UI.
+    """
+    from services.rbac import TIER_DISPLAY
+    return {"tiers": TIER_DISPLAY}
 
 
 @router.post("/webhook/stripe")
@@ -680,12 +834,26 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         try:
             session = event_obj
             user_id = session.get("client_reference_id") or session.get("metadata", {}).get("user_id")
+            # Resolve target role from session metadata (set in
+            # create_checkout). Fall back to "enterprise" only when no
+            # role was attached — preserves the legacy single-tier path
+            # for any in-flight checkouts created before this rollout.
+            target_role = (
+                session.get("metadata", {}).get("role")
+                or "enterprise"
+            )
+            if target_role not in ("student", "pro", "newsroom", "enterprise"):
+                logger.warning("Stripe checkout completed with unknown role '%s'", target_role)
+                target_role = "enterprise"
             if user_id:
                 user = db.query(User).filter(User.id == int(user_id)).first()
                 if user:
-                    user.role = "enterprise"
+                    user.role = target_role
                     db.commit()
-                    logger.info("User %s upgraded to enterprise via Stripe", user.email)
+                    logger.info(
+                        "User %s upgraded to %s via Stripe (session=%s)",
+                        user.email, target_role, session.get("id"),
+                    )
         except Exception as e:
             logger.error("Stripe upgrade handler failed: %s", e)
             db.rollback()
