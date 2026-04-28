@@ -30,7 +30,7 @@ import os
 import time
 from typing import Tuple
 
-_ALLOWED_ACTIONS = frozenset({"approve", "reject"})
+_ALLOWED_ACTIONS = frozenset({"approve", "reject", "view"})
 _DEFAULT_TTL_SECONDS = 72 * 3600
 
 
