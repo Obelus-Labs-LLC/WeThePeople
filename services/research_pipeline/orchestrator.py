@@ -983,8 +983,14 @@ def run_daily(
     # from WTP_REVIEW_EMAIL (defaults to dshonsmith@gmail.com).
     if story_id and story_id > 0:
         try:
-            _email_draft_for_review(story_draft, story_id, verdict)
-            result.notes.append("editor notified by email")
+            sent = _email_draft_for_review(story_draft, story_id, verdict)
+            if sent:
+                result.notes.append("editor notified by email")
+            else:
+                result.notes.append(
+                    "draft email NOT sent (Resend returned failure or RESEND_API_KEY missing); "
+                    "story #%d still in queue" % story_id
+                )
         except Exception as e:
             logger.warning("draft-review email failed (story persisted, just no email): %s", e)
             result.notes.append(f"draft email failed (non-fatal): {e}")
@@ -1000,15 +1006,15 @@ def _email_draft_for_review(
     story_draft: dict[str, Any],
     story_id: int,
     verdict: dict[str, Any],
-) -> None:
+) -> bool:
     """Fire a Resend email to the editor when a new draft lands.
 
-    Best-effort: failure here does not roll back persistence — the
-    draft already exists in the queue at /ops/story-queue and will
-    show up in the next digest if the per-draft email fails.
+    Returns True on confirmed Resend success, False otherwise.
+    Best-effort: caller does not roll back persistence on failure;
+    draft already lives in the queue at /ops/story-queue.
     """
     from services.email import send_email
-    to_addr = os.getenv("WTP_REVIEW_EMAIL", "dshonsmith@gmail.com")
+    to_addr = os.getenv("WTP_REVIEW_EMAIL", "wethepeopleforus@gmail.com")
     title = story_draft.get("title") or f"Draft #{story_id}"
     summary = story_draft.get("summary") or "(no summary)"
     sector = story_draft.get("sector") or "cross-sector"
@@ -1028,11 +1034,11 @@ def _email_draft_for_review(
         f"</ul>"
         f"<p><a href=\"{review_url}\">Open in queue</a></p>"
     )
-    send_email(
+    return bool(send_email(
         to=[to_addr],
         subject=f"[WTP draft #{story_id}] {title[:80]}",
         html=html,
-    )
+    ))
 
 
 # --- Editor pass + persistence (placeholders for now) ---------------------
