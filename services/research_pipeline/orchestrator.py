@@ -360,13 +360,16 @@ def _run_pre_write_gate(
         return True
 
     try:
+        # Strip orchestrator-internal keys (e.g. _draft_story holds a
+        # raw SQLAlchemy Story object that won't survive json.dumps).
+        evidence = _clean_seed_row(candidate.get("evidence", {}))
         veritas.pre_write_gate(
-            candidate_id=str(candidate.get("evidence", {}).get("filing_uuid")
+            candidate_id=str(evidence.get("filing_uuid")
                               or candidate.get("entity_id")
                               or "unknown"),
             detector_name=candidate.get("signal", "unknown"),
             entity_ids=[str(candidate.get("entity_id"))],
-            supporting_rows=[candidate.get("evidence", {})],
+            supporting_rows=[evidence],
         )
     except VeritasGateRejection as e:
         result.rejected_at = "pre_write_gate"
