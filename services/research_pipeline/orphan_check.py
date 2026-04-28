@@ -142,7 +142,16 @@ def validate_entities(
                 })
         return OrphanCheckResult(passed=not issues, issues=issues)
 
-    # Unknown / missing sector: probe all corporate tables.
+    # Unknown / missing sector: probe all corporate tables, then politicians.
+    # When NOTHING matches and the sector isn't one we have a
+    # tracked-table for (e.g. 'finance' for PAC-driven candidates,
+    # 'cross-sector' for global detectors), we DO NOT fail — orphan
+    # check exists to catch typo'd corporate IDs in lobbying tables,
+    # not to reject every candidate that doesn't fit the corporate
+    # mold. We log it as a soft warning instead so downstream gates
+    # (Veritas pre-write, the existing detect_stories validators)
+    # can still pass the candidate through.
+    soft_warnings: list[dict[str, str]] = []
     for eid in entity_ids:
         if not eid:
             issues.append({"entity_id": "", "reason": "empty_entity_id"})
@@ -152,18 +161,25 @@ def validate_entities(
             if _entity_exists_in(db, table, id_col, str(eid)):
                 found_in = table
                 break
-        # Try politicians as a last resort.
         if found_in is None and _entity_exists_in(
             db, _POLITICS_TABLE[0], _POLITICS_TABLE[1], str(eid),
         ):
             found_in = _POLITICS_TABLE[0]
         if found_in is None:
-            issues.append({
+            soft_warnings.append({
                 "entity_id": str(eid),
                 "sector": sector_lower or "unknown",
-                "reason": "not_in_any_tracked_table",
+                "reason": "not_in_any_tracked_table_soft",
+                "note": "soft warning: candidate from non-corporate detector "
+                        "(PAC, congressional trade, etc.) — downstream gates "
+                        "still validate.",
             })
-        # Found-in-some-table is fine; we don't need to enforce a
-        # particular sector when the candidate didn't specify one.
 
-    return OrphanCheckResult(passed=not issues, issues=issues)
+    if soft_warnings and not issues:
+        logger.info(
+            "orphan_check: %d soft warning(s) on unknown-sector candidate; passing",
+            len(soft_warnings),
+        )
+    # soft_warnings live in `issues` for diagnostic visibility but
+    # don't flip `passed`.
+    return OrphanCheckResult(passed=not issues, issues=issues + soft_warnings)
