@@ -59,6 +59,14 @@ class Story(Base):
     verification_tier = Column(String, nullable=True, index=True)  # 'verified', 'partially_verified', 'unverified'
     verification_data = Column(Text, nullable=True)  # Full JSON from claims pipeline
 
+    # Research-pipeline verification metadata (added by alembic
+    # migration research_pipeline_001). Bumped/stamped by the
+    # orchestrator on every Veritas post-write cycle and consumed by
+    # the daily decay cron.
+    claim_version = Column(Integer, nullable=False, server_default="0")
+    last_seen_at = Column(DateTime(timezone=True), nullable=True)
+    verification_stale = Column(Integer, nullable=False, server_default="0", index=True)
+
     # Editorial metadata
     correction_history = Column(JSON, nullable=True, server_default="[]")
     # List of {date, type, description} entries for corrections/retractions
