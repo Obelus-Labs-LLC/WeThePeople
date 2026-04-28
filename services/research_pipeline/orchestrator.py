@@ -1020,8 +1020,24 @@ def _email_draft_for_review(
     sector = story_draft.get("sector") or "cross-sector"
     category = story_draft.get("category") or "uncategorized"
     verdict_outcome = (verdict or {}).get("verdict", "unknown")
-    queue_url = os.getenv("WTP_QUEUE_URL", "https://wethepeopleforus.com/ops/story-queue")
+    # The review page lives on the API host (FastAPI router), not the
+    # marketing host. Default to the production API base; allow
+    # override per environment.
+    queue_url = os.getenv(
+        "WTP_QUEUE_URL", "https://api.wethepeopleforus.com/ops/story-queue",
+    )
+    # Sign a per-story, view-only token (72h expiry) so the email link
+    # never carries the raw press key.
     review_url = f"{queue_url.rstrip('/')}/{story_id}"
+    try:
+        from services.press_signed_token import sign_story_action
+        view_token = sign_story_action(int(story_id), "view")
+        review_url = f"{review_url}?token={view_token}"
+    except Exception as e:
+        logger.warning(
+            "could not sign view-token for draft #%s; email link will require manual auth: %s",
+            story_id, e,
+        )
 
     html = (
         f"<h2>New draft awaiting review: #{story_id}</h2>"
