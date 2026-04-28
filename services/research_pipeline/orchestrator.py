@@ -1014,7 +1014,7 @@ def _email_draft_for_review(
     draft already lives in the queue at /ops/story-queue.
     """
     from services.email import send_email
-    to_addr = os.getenv("WTP_REVIEW_EMAIL", "dshonsmith@gmail.com")
+    to_addr = os.getenv("WTP_REVIEW_EMAIL", "wethepeopleforus@gmail.com")
     title = story_draft.get("title") or f"Draft #{story_id}"
     summary = story_draft.get("summary") or "(no summary)"
     sector = story_draft.get("sector") or "cross-sector"
