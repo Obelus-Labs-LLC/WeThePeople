@@ -114,7 +114,7 @@ def _press_api_key() -> str:
 
 
 _SIGNED_TOKEN_PATH_RE = re.compile(
-    r"^/(?:api/v1/)?ops/(?:story|draft)-queue/(\d+)/(approve|reject)/?$"
+    r"^/(?:api/v1/)?ops/(?:story|draft)-queue/(\d+)(?:/(approve|reject))?/?$"
 )
 
 
@@ -154,7 +154,8 @@ def require_press_key(
         if m:
             from services.press_signed_token import verify_story_action
             story_id = int(m.group(1))
-            action = m.group(2)
+            # No action suffix in the path => view-only access to the draft page.
+            action = m.group(2) or "view"
             ok, _reason = verify_story_action(token, story_id, action)
             if ok:
                 return

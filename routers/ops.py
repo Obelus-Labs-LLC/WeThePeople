@@ -775,6 +775,115 @@ def story_queue_approve(
     }
 
 
+@router.get("/story-queue/{story_id}")
+def story_queue_view(
+    story_id: int,
+    token: Optional[str] = None,
+    key: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _auth: None = Depends(require_press_key),
+):
+    """Render a single draft for human review with inline approve/reject.
+
+    Auth passes through ``require_press_key``, which accepts:
+      - X-WTP-API-Key header
+      - ``?key=<press key>`` (legacy)
+      - ``?token=<signed view token>`` scoped to this story_id + action="view"
+
+    The draft-arrival email links here with a signed view token so the
+    raw press key never lands in mail server logs / archives. Approve
+    and Reject buttons on this page carry their own action-scoped
+    tokens generated server-side at render time.
+    """
+    from fastapi.responses import HTMLResponse
+    from services.press_signed_token import sign_story_action
+
+    try:
+        story = db.query(Story).filter(Story.id == story_id).first()
+    except Exception as exc:
+        logger.error("Story queue view error: %s", exc)
+        return HTMLResponse("<h2>Error</h2><p>Internal server error.</p>", status_code=500)
+    if not story:
+        return HTMLResponse(
+            f"<h2>Not found</h2><p>Story {story_id} not found.</p>", status_code=404,
+        )
+
+    api_base = os.getenv("WTP_API_BASE", "https://api.wethepeopleforus.com")
+    journal_base = os.getenv("WTP_JOURNAL_BASE", "https://journal.wethepeopleforus.com")
+
+    safe_title = html.escape(story.title or "Untitled")
+    safe_summary = html.escape(story.summary or "")
+    safe_body = html.escape(story.body or "").replace("\n\n", "</p><p>").replace("\n", "<br>")
+    safe_category = html.escape(story.category or "uncategorized")
+    safe_sector = html.escape(story.sector or "cross-sector")
+    safe_status = html.escape(story.status or "?")
+    safe_slug = html.escape(story.slug or "")
+
+    entities = ", ".join(story.entity_ids or []) if isinstance(story.entity_ids, list) else ""
+    sources = ", ".join(story.data_sources or []) if isinstance(story.data_sources, list) else ""
+
+    verification_tier = html.escape(story.verification_tier or "—")
+    verification_score = (
+        f"{story.verification_score:.2f}"
+        if isinstance(story.verification_score, (int, float))
+        else "—"
+    )
+
+    if story.status == "published":
+        published_url = f"{journal_base}/story/{safe_slug}" if safe_slug else journal_base
+        action_block = (
+            f"<div style='padding:16px;background:#dcfce7;border:1px solid #86efac;border-radius:8px;margin-top:24px'>"
+            f"<strong>Already published.</strong> "
+            f"<a href='{published_url}'>View on the journal &rarr;</a>"
+            f"</div>"
+        )
+    elif story.status != "draft":
+        action_block = (
+            f"<div style='padding:16px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;margin-top:24px'>"
+            f"<strong>Status: {safe_status}.</strong> Approve / reject not available."
+            f"</div>"
+        )
+    else:
+        approve_token = sign_story_action(story.id, "approve")
+        reject_token = sign_story_action(story.id, "reject")
+        approve_url = f"{api_base}/ops/story-queue/{story.id}/approve?token={approve_token}"
+        reject_url = f"{api_base}/ops/story-queue/{story.id}/reject?token={reject_token}"
+        action_block = (
+            f"<div style='margin-top:24px;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px'>"
+            f"<a href='{approve_url}' "
+            f"style='display:inline-block;background:#16a34a;color:#fff;text-decoration:none;"
+            f"padding:10px 20px;border-radius:6px;font-weight:600;margin-right:8px'>Approve & Publish</a>"
+            f"<a href='{reject_url}' "
+            f"style='display:inline-block;background:#dc2626;color:#fff;text-decoration:none;"
+            f"padding:10px 20px;border-radius:6px;font-weight:600'>Reject</a>"
+            f"<div style='margin-top:8px;font-size:12px;color:#64748b'>"
+            f"Both buttons require press-key auth (signed tokens, 72h expiry, scoped to this story)."
+            f"</div></div>"
+        )
+
+    return HTMLResponse(
+        f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
+        f"<title>Draft #{story.id}: {safe_title}</title>"
+        f"<meta name='robots' content='noindex,nofollow'>"
+        f"</head><body style='font-family:system-ui,sans-serif;max-width:780px;margin:32px auto;padding:24px;color:#0f172a'>"
+        f"<div style='font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em'>"
+        f"Draft #{story.id} · {safe_category} · {safe_sector} · {safe_status}"
+        f"</div>"
+        f"<h1 style='font-size:26px;margin:8px 0 12px'>{safe_title}</h1>"
+        f"<p style='font-size:15px;color:#475569;font-style:italic;margin:0 0 16px'>{safe_summary}</p>"
+        f"<div style='font-size:13px;color:#64748b;background:#f1f5f9;padding:12px;border-radius:6px;margin-bottom:20px'>"
+        f"<div><strong>Entities:</strong> {html.escape(entities) or '<em>none</em>'}</div>"
+        f"<div><strong>Sources:</strong> {html.escape(sources) or '<em>none</em>'}</div>"
+        f"<div><strong>Verification:</strong> {verification_tier} (score {verification_score})</div>"
+        f"</div>"
+        f"<div style='font-size:14px;line-height:1.65;background:#fff;padding:16px;border-left:3px solid #3b82f6;border-radius:4px'>"
+        f"<p>{safe_body}</p>"
+        f"</div>"
+        f"{action_block}"
+        f"</body></html>"
+    )
+
+
 @router.get("/story-queue/{story_id}/approve")
 def story_queue_approve_get(
     story_id: int,
