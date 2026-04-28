@@ -145,12 +145,11 @@ def validate_entities(
     # Unknown / missing sector: probe all corporate tables, then politicians.
     # When NOTHING matches and the sector isn't one we have a
     # tracked-table for (e.g. 'finance' for PAC-driven candidates,
-    # 'cross-sector' for global detectors), we DO NOT fail — orphan
+    # 'cross-sector' for global detectors), we DO NOT fail. Orphan
     # check exists to catch typo'd corporate IDs in lobbying tables,
     # not to reject every candidate that doesn't fit the corporate
-    # mold. We log it as a soft warning instead so downstream gates
-    # (Veritas pre-write, the existing detect_stories validators)
-    # can still pass the candidate through.
+    # mold. Log as a soft warning instead so downstream gates
+    # (Veritas pre-write, detect_stories validators) still validate.
     soft_warnings: list[dict[str, str]] = []
     for eid in entity_ids:
         if not eid:
@@ -171,7 +170,7 @@ def validate_entities(
                 "sector": sector_lower or "unknown",
                 "reason": "not_in_any_tracked_table_soft",
                 "note": "soft warning: candidate from non-corporate detector "
-                        "(PAC, congressional trade, etc.) — downstream gates "
+                        "(PAC, congressional trade, etc.); downstream gates "
                         "still validate.",
             })
 
@@ -180,6 +179,4 @@ def validate_entities(
             "orphan_check: %d soft warning(s) on unknown-sector candidate; passing",
             len(soft_warnings),
         )
-    # soft_warnings live in `issues` for diagnostic visibility but
-    # don't flip `passed`.
     return OrphanCheckResult(passed=not issues, issues=issues + soft_warnings)
