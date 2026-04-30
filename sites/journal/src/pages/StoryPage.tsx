@@ -1247,6 +1247,55 @@ export default function StoryPage() {
               Don&apos;t take our word for it. Every claim above is built from public government records. Click any link below to read the original filing, view the underlying contract, or browse the full dataset on our platform. If you find something that doesn&apos;t add up, tell us using the &ldquo;Report an error&rdquo; button above.
             </p>
 
+            {/* Wayback Machine permanent archive. When the approve flow
+                snapshotted this story successfully, a stable archived
+                URL is available. Journalists citing this work should
+                link there for permanence. */}
+            {story.wayback_url && (
+              <div
+                className="mb-5"
+                style={{
+                  padding: '10px 14px',
+                  background: 'rgba(235,229,213,0.03)',
+                  border: '1px solid rgba(235,229,213,0.08)',
+                  borderRadius: '8px',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '13px',
+                  color: 'var(--color-text-2)',
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.18em',
+                    textTransform: 'uppercase',
+                    color: 'var(--color-text-3)',
+                    marginRight: 8,
+                  }}
+                >
+                  Citing this story?
+                </span>
+                Use the permanent{' '}
+                <a
+                  href={story.wayback_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: 'var(--color-accent-text)',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '3px',
+                  }}
+                >
+                  Internet Archive snapshot
+                </a>
+                {story.wayback_archived_at &&
+                  ` (archived ${formatDate(story.wayback_archived_at)})`}
+                . Citation survives if this site ever moves.
+              </div>
+            )}
+
             {/* Government data sources */}
             {story.data_sources && story.data_sources.length > 0 && (
               <div className="mb-6">

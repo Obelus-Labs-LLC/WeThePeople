@@ -961,10 +961,12 @@ def run_daily(
             result.finished_at = datetime.now(timezone.utc)
             return result
 
-    # 7: Editor pass — placeholder. The editor pass converts a research
-    #    doc into a publication-shaped Story. Lives in a separate
-    #    module we'll wire as soon as the research agent is producing
-    #    real output.
+    # 7: Editor pass. Runs the implication-review check (flags
+    #    sentences implying causation without explicit evidence) and
+    #    stamps the right-to-respond requirement on
+    #    evidence.right_to_respond. The next iteration of this stage
+    #    will plug a richer editor agent (style guide enforcement,
+    #    headline polish) but the core gates are already running.
     story_draft = _editor_pass(research_doc, candidate)
 
     # 8-11: Post-write gate with revision loop
@@ -1057,7 +1059,7 @@ def _email_draft_for_review(
     ))
 
 
-# --- Editor pass + persistence (placeholders for now) ---------------------
+# --- Editor pass + persistence -------------------------------------------
 
 
 def _editor_pass(
