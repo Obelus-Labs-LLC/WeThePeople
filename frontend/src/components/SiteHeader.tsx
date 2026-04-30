@@ -2,14 +2,17 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import Logo from './Logo';
-import UserMenu from './UserMenu';
-import { useAuth } from '../contexts/AuthContext';
 
 /**
  * Main-site top navigation bar — landing only.
  *
  * Sticky 64px bar with backdrop-blur. Left: Logo (WTP box + WeThePeople
- * wordmark) linked to /. Right: search input + Log in + Sign up buttons.
+ * wordmark) linked to /. Right: search input.
+ *
+ * Auth controls (Log in / Sign up / UserMenu) live in EcosystemNav now,
+ * shared with every sibling site so the affordance is in the same place
+ * across the whole ecosystem. Keeping them here too produced a duplicate
+ * on the landing page.
  *
  * Home/Dashboard toggle removed per redesign — users pick a sector directly
  * from the landing grid. Sector pages use `SectorHeader` (52px) which
@@ -18,7 +21,6 @@ import { useAuth } from '../contexts/AuthContext';
 export default function SiteHeader() {
   const navigate = useNavigate();
   const [query, setQuery] = React.useState('');
-  const { isAuthenticated } = useAuth();
 
   return (
     <header
@@ -58,7 +60,7 @@ export default function SiteHeader() {
         </span>
       </div>
 
-      {/* Right — search + auth */}
+      {/* Right — search only. Auth lives in EcosystemNav. */}
       <div className="flex items-center shrink-0" style={{ gap: 10 }}>
         <form
           onSubmit={(e) => {
@@ -99,50 +101,6 @@ export default function SiteHeader() {
             }}
           />
         </form>
-
-        {/* Show Log in / Sign up only when signed-out; show UserMenu
-            (account / watchlist / log out) when signed-in. The header
-            previously rendered Login/Signup unconditionally even for
-            authed users, which was confusing on a return visit. */}
-        {isAuthenticated ? (
-          <UserMenu />
-        ) : (
-          <>
-            <Link
-              to="/login"
-              className="no-underline"
-              style={{
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-sm)',
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--color-text-2)',
-                background: 'transparent',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              Log in
-            </Link>
-
-            <Link
-              to="/signup"
-              className="no-underline"
-              style={{
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-sm)',
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--color-accent-text)',
-                background: 'transparent',
-                border: '1px solid var(--color-accent)',
-              }}
-            >
-              Sign up
-            </Link>
-          </>
-        )}
       </div>
     </header>
   );
