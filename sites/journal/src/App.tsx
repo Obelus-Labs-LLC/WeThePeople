@@ -15,6 +15,8 @@ const CoverageBalancePage = lazy(() => import('./pages/CoverageBalancePage'));
 const VerifyDataPage = lazy(() => import('./pages/VerifyDataPage'));
 const CorrectionsPage = lazy(() => import('./pages/CorrectionsPage'));
 const StandardsPage = lazy(() => import('./pages/StandardsPage'));
+const MethodologyPage = lazy(() => import('./pages/MethodologyPage'));
+const FundingPage = lazy(() => import('./pages/FundingPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 // ── Loading fallback ──
@@ -66,6 +68,9 @@ export default function App() {
         <Route path="/verify-our-data" element={<Layout><VerifyDataPage /></Layout>} />
         <Route path="/corrections" element={<Layout><CorrectionsPage /></Layout>} />
         <Route path="/standards" element={<Layout><StandardsPage /></Layout>} />
+        <Route path="/methodology" element={<Layout><MethodologyPage /></Layout>} />
+        <Route path="/methodology/:topic" element={<Layout><MethodologyPage /></Layout>} />
+        <Route path="/about/funding" element={<Layout><FundingPage /></Layout>} />
         <Route path="*" element={<Layout><NotFoundPage /></Layout>} />
       </Routes>
       <Analytics />

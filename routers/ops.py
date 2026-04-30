@@ -767,12 +767,33 @@ def story_queue_approve(
         raise HTTPException(status_code=500, detail="Failed to approve story")
     logger.info("story-queue approve: id=%d slug=%s reason=%s",
                 story_id, story.slug, (decision.reason if decision else ""))
+    # Fire-and-forget Wayback snapshot. Best-effort: failure does not
+    # roll back the publish. Press credentials and academic citations
+    # depend on a permanent archived URL.
+    _fire_wayback_snapshot(story.slug)
     return {
         "id": story.id,
         "slug": story.slug,
         "status": "published",
         "published_at": story.published_at.isoformat(),
     }
+
+
+def _fire_wayback_snapshot(slug: str) -> None:
+    """Submit a published story to the Wayback Machine. Best-effort:
+    runs synchronously but never raises and never blocks publish.
+    Logs success / failure for the daily retry sweep to consume."""
+    if not slug:
+        return
+    try:
+        from services.wayback_archive import archive_published_story
+        snapshot = archive_published_story(slug)
+        if snapshot:
+            logger.info("wayback: snapshotted %s -> %s", slug, snapshot)
+        else:
+            logger.warning("wayback: snapshot for %s did not return URL", slug)
+    except Exception as e:
+        logger.warning("wayback: snapshot for %s errored: %s", slug, e)
 
 
 @router.get("/story-queue/{story_id}")
@@ -829,11 +850,37 @@ def story_queue_view(
         else "—"
     )
 
-    # Implication-review flags (set by the orchestrator's editor pass).
-    # Stored on evidence.implication_flags so it round-trips through the
-    # JSON evidence column without a schema change.
-    implication_block = ""
+    # Implication-review flags + right-to-respond requirement (both
+    # set by the orchestrator's editor pass). Stored on evidence.* so
+    # they round-trip through the JSON evidence column without a
+    # schema change.
     evidence_obj = story.evidence if isinstance(story.evidence, dict) else {}
+
+    # Right-to-respond block.
+    rtr_block = ""
+    rtr = evidence_obj.get("right_to_respond") if isinstance(evidence_obj, dict) else None
+    if isinstance(rtr, dict) and rtr.get("entities_to_contact"):
+        ents = rtr.get("entities_to_contact") or []
+        ent_items = "".join(
+            f"<li style='font-size:13px;color:#0f172a;margin-bottom:4px'>"
+            f"<input type='checkbox' style='margin-right:8px' disabled> {html.escape(str(e))}</li>"
+            for e in ents
+        )
+        rtr_status = html.escape(str(rtr.get("status") or "pending"))
+        rtr_block = (
+            f"<div style='margin-bottom:20px;padding:14px 16px;background:#fefce8;"
+            f"border:1px solid #fde047;border-radius:8px'>"
+            f"<div style='font-size:13px;color:#854d0e;font-weight:700;margin-bottom:8px'>"
+            f"Right-to-respond requirement &mdash; status: {rtr_status}"
+            f"</div>"
+            f"<ul style='margin:0 0 8px 0;padding-left:14px;list-style:none'>{ent_items}</ul>"
+            f"<div style='font-size:11px;color:#854d0e;font-style:italic'>"
+            f"{html.escape(str(rtr.get('requirement') or ''))}"
+            f"</div></div>"
+        )
+
+    # Implication-review flags.
+    implication_block = ""
     flags = evidence_obj.get("implication_flags") if isinstance(evidence_obj, dict) else None
     if isinstance(flags, list) and flags:
         items_html = ""
@@ -909,6 +956,7 @@ def story_queue_view(
         f"</div>"
         f"<h1 style='font-size:26px;margin:8px 0 12px'>{safe_title}</h1>"
         f"<p style='font-size:15px;color:#475569;font-style:italic;margin:0 0 16px'>{safe_summary}</p>"
+        f"{rtr_block}"
         f"{implication_block}"
         f"<div style='font-size:13px;color:#64748b;background:#f1f5f9;padding:12px;border-radius:6px;margin-bottom:20px'>"
         f"<div><strong>Entities:</strong> {html.escape(entities) or '<em>none</em>'}</div>"
@@ -1021,6 +1069,7 @@ def story_queue_approve_get(
         logger.error("Failed to approve story %d: %s", story_id, exc)
         return HTMLResponse("<h2>Error</h2><p>Failed to publish story.</p>", status_code=500)
     logger.info("story-queue approve (GET+confirm): id=%d slug=%s", story_id, story.slug)
+    _fire_wayback_snapshot(story.slug)
     return HTMLResponse(
         f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
         f"<h2 style='color:#16a34a'>&#10003; Published</h2>"

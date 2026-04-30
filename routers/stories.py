@@ -92,6 +92,12 @@ def _serialize_story_full(s: Story) -> dict:
         "correction_history": getattr(s, "correction_history", None) or [],
         "retraction_reason": getattr(s, "retraction_reason", None),
         "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+        # The 60-second simplified summary, when generated. Frontend
+        # renders a toggle when this is non-null. The
+        # /{slug}/simplified endpoint generates it on demand the
+        # first time it's requested.
+        "summary_simplified": getattr(s, "summary_simplified", None),
+        "summary_simplified_model": getattr(s, "summary_simplified_model", None),
     })
     return base
 
@@ -311,6 +317,46 @@ def get_story(slug: str, db: Session = Depends(get_db)):
         result["corrections"] = []
 
     return result
+
+
+@router.get("/{slug}/simplified")
+def get_story_simplified(slug: str, db: Session = Depends(get_db)):
+    """Return the 60-second simplified version of a published story.
+
+    Generates lazily on first request via Haiku and caches on the row.
+    Subsequent requests are free. Returns null when generation fails
+    so the frontend can fall back to the full summary.
+    """
+    try:
+        story = db.query(Story).filter(Story.slug == slug).first()
+    except Exception as e:
+        logger.warning("simplified lookup failed: %s", e)
+        raise HTTPException(status_code=404, detail="Stories not available")
+    if not story or story.status not in ("published", "retracted"):
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    if story.summary_simplified and story.summary_simplified.strip():
+        return {
+            "slug": slug,
+            "simplified": story.summary_simplified,
+            "model": story.summary_simplified_model,
+            "generated": False,
+        }
+
+    # Lazy-generate. Best-effort: return null on failure.
+    try:
+        from services.story_simplified_summary import generate_and_cache
+        text = generate_and_cache(story, db)
+    except Exception as e:
+        logger.warning("simplified generation failed: %s", e)
+        text = None
+
+    return {
+        "slug": slug,
+        "simplified": text,
+        "model": story.summary_simplified_model if text else None,
+        "generated": bool(text),
+    }
 
 
 @router.post("/{slug}/publish")
