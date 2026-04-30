@@ -118,3 +118,83 @@ class StoryCorrection(Base):
 
     corrected_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     corrected_by = Column(String, nullable=True)  # 'system', 'editorial', or username
+
+
+class StoryAction(Base):
+    """One Action Panel item for a published story.
+
+    Each story carries 1-3 actions rendered at the bottom: a concrete,
+    time-bounded next step the reader can take in under a minute.
+    Mix of passive (switch banks, check refund portal) and active
+    (call rep with a script, attend hearing) categorized by
+    `is_passive` so the UI can group them.
+
+    Schema lives at alembic/versions/20260430_phase2_personalization.py.
+    """
+
+    __tablename__ = "story_actions"
+
+    # Allowed action_type values. The UI groups by these and chooses
+    # an icon/color per category. Adding a new value requires touching
+    # both the API + the frontend StoryActionPanel renderer.
+    VALID_TYPES = (
+        "call_rep",          # script + phone number; renders with a CTA
+        "switch_provider",   # links to a credit-union locator etc
+        "check_redress",     # CFPB / FTC restitution portal lookups
+        "attend_hearing",    # local meeting calendar entries
+        "read_more",         # link to the underlying public record
+        "verify_data",       # link into our own dataset
+        "register_to_vote",  # state-specific reg portal
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    story_id = Column(
+        Integer, ForeignKey("stories.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+
+    # The category drives icon + grouping in the UI.
+    action_type = Column(String, nullable=False)
+
+    # Headline + 1-2 sentence description. Title is rendered as the
+    # primary CTA; description sits underneath.
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+
+    # 1 = passive (switch banks, check redress); 0 = active
+    # (call rep, attend hearing). UI separates the two so disengaged
+    # readers can take a passive action without committing to a
+    # political activity.
+    is_passive = Column(Integer, nullable=False, server_default="0")
+
+    # When set, the action only shows for users in that state /
+    # district. Used for "call your rep" actions where we don't
+    # know which rep until we know the user's location.
+    geographic_filter = Column(String, nullable=True)
+
+    # For call-your-rep actions: the script template the user can
+    # paste. Placeholder substitutions (e.g. {bill_id}) are resolved
+    # at render time from the story's evidence.
+    script_template = Column(Text, nullable=True)
+
+    # Where the action button links. For passive actions this is the
+    # external destination (CFPB redress, credit-union locator, etc.).
+    # For call-rep actions this is the rep's office number page.
+    external_url = Column(String, nullable=True)
+
+    # Display order within the panel. Lower = higher up.
+    display_order = Column(Integer, nullable=False, server_default="0")
+
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False,
+    )
+
+    @staticmethod
+    def validate_action_type(action_type: str) -> str:
+        """Normalize + validate. Raises ValueError on unknown type."""
+        v = (action_type or "").strip().lower()
+        if v not in StoryAction.VALID_TYPES:
+            raise ValueError(
+                f"action_type must be one of {StoryAction.VALID_TYPES}, got {action_type!r}"
+            )
+        return v
