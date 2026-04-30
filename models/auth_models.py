@@ -53,6 +53,15 @@ class User(Base):
     digest_opt_in = Column(Integer, nullable=False, server_default="1")  # SQLite compat: 0/1
     alert_opt_in = Column(Integer, nullable=False, server_default="1")   # SQLite compat: 0/1
 
+    # Phase 2 personalization fields (alembic phase2_personalization_001).
+    # Power the "Why this matters to you" block on every story and the
+    # personalized action panel.
+    home_state = Column(String(2), nullable=True)            # "MI", "CA", etc.
+    congressional_district = Column(String(10), nullable=True)  # "MI-10", "CA-12"
+    lifestyle_categories = Column(Text, nullable=True)       # JSON list
+    current_concern = Column(String(64), nullable=True)      # "housing", "healthcare", ...
+    personalization_completed_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     api_keys = relationship("APIKeyRecord", back_populates="user", cascade="all, delete-orphan")
 
