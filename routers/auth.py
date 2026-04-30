@@ -569,14 +569,14 @@ def submit_onboarding(
 
 
 # ---------------------------------------------------------------------------
-# Public zip → state lookup
+# Public zip to state lookup
 # ---------------------------------------------------------------------------
 # The journal frontend persists onboarding to localStorage for
 # anonymous readers (the disengaged-audience thesis: zero-friction
 # personalization without account creation). When the user submits a
 # zip we still need to resolve the two-letter state so the rep widget
 # can render. This endpoint exposes the existing _zip_to_state helper
-# without requiring auth — it returns nothing more than a 2-letter
+# without requiring auth. It returns nothing more than a 2-letter
 # postal code for a 5-digit input, which is public-data anyway.
 
 class ZipStateResponse(BaseModel):
