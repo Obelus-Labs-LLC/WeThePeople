@@ -29,6 +29,38 @@ from models.database import (
     GoldLedgerEntry,
     TrackedMember,
 )
+from utils.congress_urls import congress_bill_url
+
+# Pattern for the broken legacy congress.gov URLs we ingested before
+# fixing the URL builder. Matches `.../{slug}-bill/{number}` where
+# {slug} is the short bill_type (hr, s, hjres, ...) instead of the
+# long form (house-bill, senate-bill, ...). When we detect this and we
+# have the bill metadata on the Action, we rebuild from scratch.
+_BROKEN_BILL_URL_PATTERN = re.compile(
+    r"https?://www\.congress\.gov/bill/.*?/(hr|s|hjres|sjres|hconres|sconres|hres|sres)-bill/",
+    re.IGNORECASE,
+)
+
+
+def _normalize_action_source_url(url, action) -> str | None:
+    """Rebuild action.source_url when the stored URL uses the broken
+    short-form bill_type slug. Returns the original URL when it's
+    already correct (or when we can't rebuild because the Action lacks
+    bill identifiers)."""
+    if not url:
+        return url
+    if not _BROKEN_BILL_URL_PATTERN.search(url):
+        return url
+    if action is None:
+        return url
+    rebuilt = congress_bill_url(
+        getattr(action, "bill_congress", None),
+        getattr(action, "bill_type", None),
+        getattr(action, "bill_number", None),
+    )
+    return rebuilt or url
+
+
 from services.claims.match import (
     compute_matches_for_claim,
     auto_classify_claim,
@@ -141,7 +173,7 @@ def recent_actions(limit: int = Query(10, ge=1, le=200), db: Session = Depends(g
             "title": a.title,
             "summary": a.summary,
             "date": a.date.isoformat() if a.date else None,
-            "source_url": url,
+            "source_url": _normalize_action_source_url(url, a),
             "bill_congress": a.bill_congress,
             "bill_type": a.bill_type,
             "bill_number": a.bill_number,
@@ -199,7 +231,8 @@ def search_actions(
     for a, url in rows:
         action_data = {
             "id": a.id, "person_id": a.person_id, "title": a.title, "summary": a.summary,
-            "date": a.date.isoformat() if a.date else None, "source_url": url,
+            "date": a.date.isoformat() if a.date else None,
+            "source_url": _normalize_action_source_url(url, a),
             "bill_congress": a.bill_congress, "bill_type": a.bill_type, "bill_number": a.bill_number,
         }
         if simple:
@@ -238,7 +271,7 @@ def get_action_detail(action_id: int, db: Session = Depends(get_db)):
         "title": a.title,
         "summary": a.summary,
         "date": a.date.isoformat() if a.date else None,
-        "source_url": url,
+        "source_url": _normalize_action_source_url(url, a),
         "bill_congress": a.bill_congress,
         "bill_type": a.bill_type,
         "bill_number": a.bill_number,
@@ -438,7 +471,8 @@ def match_claim_multi_category(
             match_data = {
                 "action_id": a.id, "score": s["score"], "category": category,
                 "category_confidence": confidence, "combined_score": s["score"] * confidence,
-                "title": a.title, "date": a.date.isoformat() if a.date else None, "source_url": url,
+                "title": a.title, "date": a.date.isoformat() if a.date else None,
+                "source_url": _normalize_action_source_url(url, a),
                 "why": {
                     "claim_tokens": s["claim_tokens"], "overlap_basic": s["overlap_basic"],
                     "overlap_enriched": s["overlap_enriched"], "phrase_hits": s.get("phrase_hits", []),
