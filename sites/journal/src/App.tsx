@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Analytics } from '@vercel/analytics/react';
 import { EcosystemNav } from './components/EcosystemNav';
 import { Footer } from './components/Footer';
+import { PersonalizationProvider, OnboardingModal } from './components/Personalization';
 
 // ── Lazy-loaded pages ──
 
@@ -56,25 +57,30 @@ function Layout({ children }: { children: React.ReactNode }) {
  */
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout><HomePage /></Layout>} />
-        <Route path="/story/:slug" element={<Layout><StoryPage /></Layout>} />
-        <Route path="/stories/:slug" element={<RedirectToStory />} />
-        <Route path="/category/:category" element={<Layout><CategoryPage /></Layout>} />
-        <Route path="/about" element={<Layout><AboutPage /></Layout>} />
-        <Route path="/subscribe" element={<Layout><SubscribePage /></Layout>} />
-        <Route path="/coverage" element={<Layout><CoverageBalancePage /></Layout>} />
-        <Route path="/verify-our-data" element={<Layout><VerifyDataPage /></Layout>} />
-        <Route path="/corrections" element={<Layout><CorrectionsPage /></Layout>} />
-        <Route path="/standards" element={<Layout><StandardsPage /></Layout>} />
-        <Route path="/methodology" element={<Layout><MethodologyPage /></Layout>} />
-        <Route path="/methodology/:topic" element={<Layout><MethodologyPage /></Layout>} />
-        <Route path="/about/funding" element={<Layout><FundingPage /></Layout>} />
-        <Route path="*" element={<Layout><NotFoundPage /></Layout>} />
-      </Routes>
-      <Analytics />
-    </BrowserRouter>
+    <PersonalizationProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout><HomePage /></Layout>} />
+          <Route path="/story/:slug" element={<Layout><StoryPage /></Layout>} />
+          <Route path="/stories/:slug" element={<RedirectToStory />} />
+          <Route path="/category/:category" element={<Layout><CategoryPage /></Layout>} />
+          <Route path="/about" element={<Layout><AboutPage /></Layout>} />
+          <Route path="/subscribe" element={<Layout><SubscribePage /></Layout>} />
+          <Route path="/coverage" element={<Layout><CoverageBalancePage /></Layout>} />
+          <Route path="/verify-our-data" element={<Layout><VerifyDataPage /></Layout>} />
+          <Route path="/corrections" element={<Layout><CorrectionsPage /></Layout>} />
+          <Route path="/standards" element={<Layout><StandardsPage /></Layout>} />
+          <Route path="/methodology" element={<Layout><MethodologyPage /></Layout>} />
+          <Route path="/methodology/:topic" element={<Layout><MethodologyPage /></Layout>} />
+          <Route path="/about/funding" element={<Layout><FundingPage /></Layout>} />
+          <Route path="*" element={<Layout><NotFoundPage /></Layout>} />
+        </Routes>
+        {/* OnboardingModal lives at the root so it can render over any
+            page; visibility is driven by PersonalizationContext. */}
+        <OnboardingModal />
+        <Analytics />
+      </BrowserRouter>
+    </PersonalizationProvider>
   );
 }
 
