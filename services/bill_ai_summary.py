@@ -32,20 +32,29 @@ DEFAULT_MODEL = os.getenv("WTP_BILL_SUMMARY_MODEL", "claude-haiku-4-5")
 GENERATION_TIMEOUT_SECONDS = 8
 
 SYSTEM_PROMPT = """You generate short, neutral, factual summaries of US
-Congressional bills for a public-records platform. Each summary must:
+Congressional bills for a public-records platform. You will be given a
+bill title, policy area, and latest legislative action. Your job is to
+infer from the title alone, plus the metadata, what the bill is most
+likely about and write a brief plain-English summary.
 
-- Be 2 to 3 sentences (no more).
-- State what the bill would do, in plain English.
+Each summary must:
+- Be 2 to 3 sentences (no more, no fewer).
+- State what the bill is about based on its title and metadata, in
+  plain English a non-expert can understand.
 - Use neutral language. No editorial framing. No words that imply
   motive, stance, or political alignment.
-- Never assert effects or outcomes the bill text does not state.
+- Never assert specific effects or dollar amounts the title does not
+  imply.
 - Never use words like "controversial", "important", "significant",
   "good", "bad", "should", "needs to".
-- If the title and metadata are insufficient to write a substantive
-  summary, output the literal string "INSUFFICIENT" and nothing else.
+- When the title alone is descriptive (e.g. "No Coffee Tax Act",
+  "Worker Cooperative Development Act"), use the title's plain meaning
+  to write the summary. Do not refuse to summarize a bill just because
+  the full text is not provided.
 
 Output the summary as plain text only. No preamble. No markdown. No
-bullet lists. No quotation marks. No labels."""
+bullet lists. No quotation marks. No labels. No "INSUFFICIENT".
+Always commit to a summary."""
 
 
 def _build_user_prompt(
@@ -184,11 +193,22 @@ def generate_and_cache_summary(bill, db_session) -> Optional[str]:
     if not text:
         return None
 
+<<<<<<< HEAD
+    # Defensive: older prompt allowed an INSUFFICIENT sentinel. The
+    # current prompt forbids it, but if a model still emits it we
+    # treat it as a generation failure rather than caching.
+    if text.upper().startswith("INSUFFICIENT"):
+        return None
+
+    meta = _ensure_meta_dict(getattr(bill, "metadata_json", None))
+    meta["ai_summary"] = text
+=======
     sentinel = text.upper().startswith("INSUFFICIENT")
     cache_value = "INSUFFICIENT" if sentinel else text
 
     meta = _ensure_meta_dict(getattr(bill, "metadata_json", None))
     meta["ai_summary"] = cache_value
+>>>>>>> origin/main
     try:
         bill.metadata_json = meta
         # Mark as modified explicitly when the column is JSON-typed but
@@ -203,4 +223,8 @@ def generate_and_cache_summary(bill, db_session) -> Optional[str]:
         except Exception:
             pass
 
+<<<<<<< HEAD
+    return text
+=======
     return None if sentinel else text
+>>>>>>> origin/main
