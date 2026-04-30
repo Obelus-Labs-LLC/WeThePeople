@@ -249,52 +249,99 @@ export function EcosystemNav({ active }: EcosystemNavProps) {
           })}
         </div>
 
-        {/* Right-side auth controls. Standardized across every page so
-            the login affordance lives in one place and never overlaps
-            the per-page header below. The visual style matches the
-            landing page's SiteHeader (transparent background, thin
-            bordered buttons). Sibling sites send the user to the core
-            domain for /login and /signup since auth lives there. */}
+        {/* Right cluster:
+              - Active-site identifier badge (mark + display name +
+                pulsing dot in the site's accent color). This is the
+                branding element the user wants kept on every site.
+              - Log in (transparent, bordered) + Sign up (filled
+                gold) buttons sitting to the right of the badge.
+            Auth on sibling sites links back to the core domain. */}
         <div
           style={{
             marginLeft: 'auto',
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            gap: 16,
           }}
         >
-          <a
-            href={coreLogin}
+          <div
             style={{
-              padding: '5px 12px',
-              borderRadius: 6,
-              fontFamily: INTER,
-              fontSize: 12,
-              fontWeight: 600,
-              color: T2,
-              background: 'transparent',
-              border: `1px solid ${BORDER}`,
-              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
             }}
           >
-            Log in
-          </a>
-          <a
-            href={coreSignup}
-            style={{
-              padding: '5px 12px',
-              borderRadius: 6,
-              fontFamily: INTER,
-              fontSize: 12,
-              fontWeight: 600,
-              color: GOLD,
-              background: 'transparent',
-              border: `1px solid rgba(197,160,40,0.4)`,
-              textDecoration: 'none',
-            }}
-          >
-            Sign up
-          </a>
+            <div
+              aria-hidden
+              style={{
+                width: 28,
+                height: 28,
+                border: `1.5px solid ${activeSite.accent}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: INTER,
+                fontSize: 9,
+                fontWeight: 700,
+                color: activeSite.accent,
+                letterSpacing: '0.05em',
+              }}
+            >
+              {activeSite.mark}
+            </div>
+            <span
+              className="hidden sm:inline"
+              style={{ fontFamily: INTER, fontSize: 12, fontWeight: 600, color: '#EBE5D5' }}
+            >
+              {activeSite.display}
+            </span>
+            <span
+              aria-hidden
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: activeSite.accent,
+                marginLeft: 4,
+                animation: 'wtp-eco-pulse 2s ease-in-out infinite',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <a
+              href={coreLogin}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                fontFamily: INTER,
+                fontSize: 13,
+                fontWeight: 600,
+                color: T2,
+                background: 'transparent',
+                border: `1px solid ${BORDER}`,
+                textDecoration: 'none',
+              }}
+            >
+              Log in
+            </a>
+            <a
+              href={coreSignup}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                fontFamily: INTER,
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#07090C',
+                background: GOLD,
+                border: `1px solid ${GOLD}`,
+                textDecoration: 'none',
+              }}
+            >
+              Sign up
+            </a>
+          </div>
         </div>
       </nav>
     </>
