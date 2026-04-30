@@ -253,6 +253,8 @@ export default function StandardsPage() {
 
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-12">
           {[
+            { label: 'Methodology', to: '/methodology' },
+            { label: 'Funding Disclosure', to: '/about/funding' },
             { label: 'Corrections', to: '/corrections' },
             { label: 'Verify Our Data', to: '/verify-our-data' },
             { label: 'About', to: '/about' },
