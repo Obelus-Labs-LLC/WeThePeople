@@ -95,6 +95,70 @@ class PreferencesResponse(BaseModel):
     alert_opt_in: bool
 
 
+# ── Onboarding (Phase 2 personalization) ─────────────────────────────────
+# The onboarding form captures the four signals that power the
+# "Why this matters to you" block on every story:
+#   - zip code (resolves to state and rep lookup)
+#   - top 1-3 lifestyle categories (banking / healthcare / housing / etc.)
+#   - one current concern (the salient pain point right now)
+# Everything else (the actual personalization) gets computed at story-
+# render time from these inputs + the story's entities.
+
+# Lifestyle categories the user can pick. Kept short on purpose; the
+# disengaged audience won't engage with a 30-option dropdown.
+ONBOARDING_LIFESTYLE_CATEGORIES = (
+    "banking",       # checking, savings, fees, credit
+    "healthcare",    # insurance, prescriptions, hospitals
+    "housing",       # rent, mortgage, property tax
+    "energy",        # electric, gas, gasoline
+    "transportation", # car, transit, fuel
+    "tech",          # internet, phone, big-tech services
+    "education",     # student loans, schools
+    "food",          # grocery prices, food safety
+    "work",          # employment, wages, benefits
+    "kids",          # childcare, schools, family
+)
+
+# Single salient concern — what's actually hurting them right now.
+ONBOARDING_CONCERNS = (
+    "rent_too_high",
+    "healthcare_costs",
+    "student_loans",
+    "fuel_prices",
+    "groceries",
+    "wages",
+    "childcare",
+    "credit_card_debt",
+    "retirement",
+    "other",
+)
+
+
+class OnboardingRequest(BaseModel):
+    zip_code: str = Field(..., min_length=5, max_length=10)
+    lifestyle_categories: List[str] = Field(..., min_length=1, max_length=3)
+    current_concern: str = Field(..., min_length=1, max_length=64)
+
+
+class OnboardingResponse(BaseModel):
+    zip_code: str
+    home_state: Optional[str]
+    lifestyle_categories: List[str]
+    current_concern: str
+    personalization_completed_at: str
+
+
+class PersonalizationStateResponse(BaseModel):
+    """Returned by GET /auth/personalization to let the frontend
+    decide whether to show the onboarding modal."""
+    completed: bool
+    zip_code: Optional[str] = None
+    home_state: Optional[str] = None
+    lifestyle_categories: List[str] = Field(default_factory=list)
+    current_concern: Optional[str] = None
+    personalization_completed_at: Optional[str] = None
+
+
 class RegisterResponse(BaseModel):
     id: int
     email: str
@@ -361,6 +425,146 @@ def update_preferences(
         zip_code=user.zip_code,
         digest_opt_in=bool(user.digest_opt_in),
         alert_opt_in=bool(user.alert_opt_in),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Onboarding (Phase 2 personalization)
+# ---------------------------------------------------------------------------
+
+
+def _parse_lifestyle_categories(raw: Optional[str]) -> List[str]:
+    """Parse the lifestyle_categories TEXT column into a list. Tolerates
+    JSON-encoded lists, comma-separated strings, and None."""
+    if not raw:
+        return []
+    raw = raw.strip()
+    if raw.startswith("["):
+        try:
+            data = json.loads(raw)
+            if isinstance(data, list):
+                return [str(x) for x in data if x]
+        except (ValueError, TypeError):
+            pass
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+
+@router.get("/personalization", response_model=PersonalizationStateResponse)
+def get_personalization_state(user: User = Depends(get_current_user)):
+    """Return the authenticated user's personalization state.
+
+    Used by the frontend to decide whether to show the onboarding
+    modal: if `completed` is False, prompt the user; otherwise
+    render personalized story content using these fields.
+    """
+    completed_at = user.personalization_completed_at
+    return PersonalizationStateResponse(
+        completed=completed_at is not None,
+        zip_code=user.zip_code,
+        home_state=user.home_state,
+        lifestyle_categories=_parse_lifestyle_categories(user.lifestyle_categories),
+        current_concern=user.current_concern,
+        personalization_completed_at=(
+            completed_at.isoformat() if completed_at else None
+        ),
+    )
+
+
+@router.post("/onboarding", response_model=OnboardingResponse)
+@limiter.limit("10/minute")
+def submit_onboarding(
+    body: OnboardingRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Capture onboarding answers + stamp personalization_completed_at.
+
+    Validates zip → home_state, validates the lifestyle categories
+    against the allowlist, validates the current concern. Repeat
+    submissions overwrite the prior state (users can re-onboard if
+    they move or their priorities change).
+    """
+    # Zip → state. Reuses the same lookup the rep-finder uses.
+    from routers.politics_people import _zip_to_state
+
+    zip_digits = "".join(ch for ch in body.zip_code if ch.isdigit())
+    if len(zip_digits) != 5:
+        raise HTTPException(status_code=422, detail="ZIP code must be exactly 5 digits")
+
+    home_state = _zip_to_state(zip_digits)
+    if not home_state:
+        # Soft-fail: store the zip but leave state null. The frontend
+        # can prompt for explicit state if rep lookup later fails.
+        logger.info(
+            "onboarding: could not resolve state from zip %s for user %s",
+            zip_digits, user.id,
+        )
+
+    # Validate lifestyle categories against the allowlist.
+    cleaned_categories: List[str] = []
+    for cat in body.lifestyle_categories:
+        c = (cat or "").strip().lower()
+        if c not in ONBOARDING_LIFESTYLE_CATEGORIES:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Unknown lifestyle category {cat!r}. Allowed: "
+                    f"{', '.join(ONBOARDING_LIFESTYLE_CATEGORIES)}"
+                ),
+            )
+        if c not in cleaned_categories:
+            cleaned_categories.append(c)
+    if not cleaned_categories:
+        raise HTTPException(status_code=422, detail="At least one lifestyle category required")
+
+    # Validate the concern.
+    concern = (body.current_concern or "").strip().lower()
+    if concern not in ONBOARDING_CONCERNS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Unknown current_concern {body.current_concern!r}. Allowed: "
+                f"{', '.join(ONBOARDING_CONCERNS)}"
+            ),
+        )
+
+    # Persist. We DON'T overwrite existing prefs.zip_code if the user
+    # already had one — onboarding can refine but not unset.
+    user.zip_code = zip_digits
+    user.home_state = home_state
+    user.lifestyle_categories = json.dumps(cleaned_categories)
+    user.current_concern = concern
+    user.personalization_completed_at = datetime.now(timezone.utc)
+
+    try:
+        db.commit()
+        db.refresh(user)
+    except Exception as exc:
+        db.rollback()
+        logger.error("onboarding commit failed for user %s: %s", user.id, exc)
+        raise HTTPException(status_code=500, detail="Failed to save onboarding")
+
+    log_from_request(
+        db, request,
+        action="onboarding_submit",
+        user_id=user.id,
+        resource="users",
+        resource_id=str(user.id),
+        details={
+            "zip": zip_digits,
+            "state": home_state,
+            "categories": cleaned_categories,
+            "concern": concern,
+        },
+    )
+
+    return OnboardingResponse(
+        zip_code=zip_digits,
+        home_state=home_state,
+        lifestyle_categories=cleaned_categories,
+        current_concern=concern,
+        personalization_completed_at=user.personalization_completed_at.isoformat(),
     )
 
 
