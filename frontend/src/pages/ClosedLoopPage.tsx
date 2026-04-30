@@ -51,17 +51,26 @@ interface ClosedLoop {
   };
 }
 
+interface ClosedLoopStats {
+  total_loops_found: number;
+  total_loops_after_diversity?: number;
+  limit?: number;
+  offset?: number;
+  max_per_company?: number;
+  has_more?: boolean;
+  unique_companies: number;
+  unique_politicians: number;
+  unique_bills: number;
+  total_lobbying_spend: number;
+  total_donations: number;
+  donation_pairs_examined?: number;
+  donation_companies_examined?: number;
+  partial?: boolean;
+}
+
 interface ClosedLoopResponse {
   closed_loops: ClosedLoop[];
-  stats: {
-    total_loops_found: number;
-    unique_companies: number;
-    unique_politicians: number;
-    unique_bills: number;
-    total_lobbying_spend: number;
-    total_donations: number;
-    partial?: boolean;
-  };
+  stats: ClosedLoopStats;
 }
 
 // All 11 sectors WTP tracks. The backend ('entity_type' filter) accepts
@@ -124,27 +133,52 @@ const pageShell: React.CSSProperties = {
   fontFamily: 'var(--font-body)',
 };
 
+// Page size and diversity defaults. Diverse mode is on by default
+// (max_per_company=1) so the first 25 results show 25 different
+// companies instead of 25 rows from the same one or two donors.
+// Users who want raw "biggest donations regardless of company" can
+// flip the toggle to off (max_per_company=0).
+const DEFAULT_PAGE_SIZE = 25;
+
 export default function ClosedLoopPage() {
   const [data, setData] = useState<ClosedLoopResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [sector, setSector] = useState<SectorFilter>('All');
   const [minDonation, setMinDonation] = useState(0);
   const [yearStart, setYearStart] = useState(2020);
   const [yearEnd, setYearEnd] = useState(CURRENT_YEAR);
+  const [diverse, setDiverse] = useState(true);
+  const [offset, setOffset] = useState(0);
+
+  // Reset pagination whenever a filter changes; otherwise the
+  // "load more" cursor would point into a different result set.
+  useEffect(() => {
+    setOffset(0);
+  }, [sector, minDonation, yearStart, yearEnd, diverse]);
 
   useEffect(() => {
-    setLoading(true);
+    const isInitialLoad = offset === 0;
+    if (isInitialLoad) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     setError(null);
+
     const params = new URLSearchParams();
     if (sector !== 'All') params.set('entity_type', sector.toLowerCase());
     if (minDonation > 0) params.set('min_donation', String(minDonation));
     params.set('year_from', String(yearStart));
     params.set('year_to', String(yearEnd));
+    params.set('limit', String(DEFAULT_PAGE_SIZE));
+    params.set('offset', String(offset));
+    if (diverse) params.set('max_per_company', '1');
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120_000);
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
 
     fetch(`${API_BASE}/influence/closed-loops?${params}`, {
       signal: controller.signal,
@@ -153,11 +187,24 @@ export default function ClosedLoopPage() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((d: ClosedLoopResponse) => setData(d))
+      .then((d: ClosedLoopResponse) => {
+        if (isInitialLoad) {
+          setData(d);
+        } else {
+          // Append page to the running list when paginating.
+          setData((prev) => {
+            if (!prev) return d;
+            return {
+              closed_loops: [...prev.closed_loops, ...d.closed_loops],
+              stats: d.stats,
+            };
+          });
+        }
+      })
       .catch((e) => {
         if (e.name === 'AbortError') {
           setError(
-            'Request timed out — the server may be under heavy load. Try narrowing filters.',
+            'Request timed out. The server is taking longer than expected. Try narrowing filters or refresh.',
           );
         } else {
           setError(e.message);
@@ -166,13 +213,14 @@ export default function ClosedLoopPage() {
       .finally(() => {
         clearTimeout(timeoutId);
         setLoading(false);
+        setLoadingMore(false);
       });
 
     return () => {
       controller.abort();
       clearTimeout(timeoutId);
     };
-  }, [sector, minDonation, yearStart, yearEnd]);
+  }, [sector, minDonation, yearStart, yearEnd, diverse, offset]);
 
   const stats = data?.stats;
   const loops = data?.closed_loops || [];
@@ -411,6 +459,41 @@ export default function ClosedLoopPage() {
             </div>
           </div>
 
+          {/* Diversity toggle. ON (default) shows one loop per
+              company so the page isn't dominated by a single donor.
+              OFF shows raw "biggest donations" ordering, which can
+              cluster around 1-2 companies. */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginRight: 20,
+            }}
+          >
+            <label
+              style={{
+                color: T3,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={diverse}
+                onChange={(e) => setDiverse(e.target.checked)}
+                style={{ accentColor: GOLD, cursor: 'pointer' }}
+              />
+              One per company
+            </label>
+          </div>
+
           {loops.length > 0 && (
             <span
               style={{
@@ -561,14 +644,44 @@ export default function ClosedLoopPage() {
               background: SURF,
               border: `1px solid ${B}`,
               borderRadius: 12,
-              padding: '80px 24px',
+              padding: '60px 24px',
               textAlign: 'center',
-              color: T3,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 12,
+              color: T2,
+              fontFamily: 'var(--font-body)',
+              fontSize: 14,
+              lineHeight: 1.6,
             }}
           >
-            No closed loops match the current filters.
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 12,
+                color: T3,
+                textTransform: 'uppercase',
+                letterSpacing: '0.18em',
+                marginBottom: 12,
+              }}
+            >
+              No closed loops match the current filters
+            </div>
+            {/* "Why empty" diagnostic. Pulls coverage stats from the
+                response so the user can see whether the sector has
+                any donations in the DB at all. */}
+            {stats && stats.donation_pairs_examined === 0 && sector !== 'All' && (
+              <p style={{ margin: '0 auto', maxWidth: 520 }}>
+                We don&apos;t have any PAC donation data ingested for the {sector.toLowerCase()} sector yet.
+                Closed-loop detection requires (donation, lobbying, bill, committee) overlap, and the
+                first piece is missing. This is a data-coverage gap, not a quiet sector.
+              </p>
+            )}
+            {stats && stats.donation_pairs_examined !== 0 && (
+              <p style={{ margin: '0 auto', maxWidth: 520 }}>
+                We examined {stats.donation_pairs_examined?.toLocaleString()} donation pair
+                {stats.donation_pairs_examined === 1 ? '' : 's'} from {stats.donation_companies_examined?.toLocaleString()} companies,
+                but none had matching lobbying activity tied to a committee bill in this date range.
+                Try widening the year range or removing the minimum donation filter.
+              </p>
+            )}
           </div>
         )}
 
@@ -932,6 +1045,37 @@ export default function ClosedLoopPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Load more — visible when the backend says there's another
+            page available. The button bumps offset by the page size,
+            which triggers the fetch effect to append the next batch
+            to the running list. */}
+        {!loading && !error && loops.length > 0 && stats?.has_more && (
+          <div style={{ marginTop: 28, textAlign: 'center' }}>
+            <button
+              onClick={() => setOffset((o) => o + DEFAULT_PAGE_SIZE)}
+              disabled={loadingMore}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                padding: '12px 28px',
+                borderRadius: 10,
+                border: `1px solid ${B}`,
+                background: loadingMore ? 'transparent' : SURF,
+                color: loadingMore ? T3 : T1,
+                cursor: loadingMore ? 'wait' : 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {loadingMore
+                ? 'Loading more...'
+                : `Load more (${loops.length} of ${(stats?.total_loops_after_diversity ?? stats?.total_loops_found ?? 0).toLocaleString()} shown)`}
+            </button>
           </div>
         )}
       </div>
