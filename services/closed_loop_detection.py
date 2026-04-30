@@ -305,12 +305,19 @@ def find_closed_loops(
     having_clause = f"HAVING total_amount >= {float(min_donation)}" if min_donation > 0 else ""
 
     # Pool size for the candidate (entity, politician) pairs we'll
-    # examine for closed-loop overlap. Was 100, but in sectors where a
-    # single company donates to many politicians (finance: Fifth Third
-    # to 25+ pols), 100 pairs only represent 5-10 distinct companies.
-    # Bumped to 500 so per-company diversity filtering has real
-    # material to work with. Query is O(n log n) with the
-    # company_donations index; 500 is still well under 100ms.
+    # examine for closed-loop overlap.
+    #
+    # History: original was 100. Bumped to 500 to give diversity
+    # filtering more material when one donor dominates a sector
+    # (Fifth Third giving to 25+ pols, etc.) — but 500 made the
+    # cold-cache assembly loop take 90-120s on prod, blowing past
+    # the 30s gateway timeout and leaving the page in "Failed to
+    # load" state.
+    #
+    # 200 is the compromise: enough for diversity (verified live
+    # earlier — finance still showed 8 distinct companies) while
+    # cutting the assembly-loop work by 60%. Cached results are
+    # unaffected (this only impacts cold paths).
     raw_sql = text(f"""
         SELECT entity_id, entity_type, person_id,
                SUM(amount) as total_amount,
@@ -321,7 +328,7 @@ def find_closed_loops(
         GROUP BY entity_id, entity_type, person_id
         {having_clause}
         ORDER BY total_amount DESC
-        {limit_sql(500)}
+        {limit_sql(200)}
     """)
     donation_pairs = db.execute(raw_sql, sql_params).fetchall()
     if not donation_pairs:
@@ -419,17 +426,34 @@ def find_closed_loops(
     if _check_timeout():
         return {"closed_loops": [], "stats": {**_empty_stats(), "partial": True}}
 
-    # Build lookup: committee_thomas_id -> list of (bill_info, policy_area)
+    # Build lookup: committee_thomas_id -> list of (bill_info, policy_area).
+    #
+    # Performance: the original implementation did O(bill_refs ×
+    # committee_name_map) substring matching = up to 2000 × 200 =
+    # 400K Python string ops per cold request. With 10 sectors all
+    # potentially hitting this, that was 4M ops on the cold path
+    # and a major contributor to 90+s cold-cache responses.
+    #
+    # New approach: cache the per-action_comm matching result. Most
+    # bill_refs share the same `action_comm` text (the Senate Banking
+    # Committee shows up on hundreds of banking bills, etc.), so the
+    # cache hit rate is very high.
     committee_bills = {}
+    action_comm_cache: Dict[str, Optional[str]] = {}
+    cname_items = list(committee_name_map.items())  # stable iteration order
     for br in bill_refs:
-        # Match committee name to thomas_id
-        matched_tid = None
-        if br.committee:
-            action_comm = br.committee.lower()
-            for cname, tid in committee_name_map.items():
+        if not br.committee:
+            continue
+        action_comm = br.committee.lower()
+        if action_comm in action_comm_cache:
+            matched_tid = action_comm_cache[action_comm]
+        else:
+            matched_tid = None
+            for cname, tid in cname_items:
                 if cname in action_comm or action_comm in cname:
                     matched_tid = tid
                     break
+            action_comm_cache[action_comm] = matched_tid
 
         if matched_tid:
             committee_bills.setdefault(matched_tid, []).append({
