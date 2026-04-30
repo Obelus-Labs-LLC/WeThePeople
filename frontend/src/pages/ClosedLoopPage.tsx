@@ -73,6 +73,7 @@ interface ClosedLoopResponse {
   stats: ClosedLoopStats;
 }
 
+
 // All 11 sectors WTP tracks. The backend ('entity_type' filter) accepts
 // the lowercase form of any of these. Display labels here match the
 // platform's sector convention; the lowercase hop happens at fetch time.
