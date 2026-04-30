@@ -569,6 +569,46 @@ def submit_onboarding(
 
 
 # ---------------------------------------------------------------------------
+# Public zip to state lookup
+# ---------------------------------------------------------------------------
+# The journal frontend persists onboarding to localStorage for
+# anonymous readers (the disengaged-audience thesis: zero-friction
+# personalization without account creation). When the user submits a
+# zip we still need to resolve the two-letter state so the rep widget
+# can render. This endpoint exposes the existing _zip_to_state helper
+# without requiring auth. It returns nothing more than a 2-letter
+# postal code for a 5-digit input, which is public-data anyway.
+
+class ZipStateResponse(BaseModel):
+    """Returned by GET /auth/personalization/zip-state."""
+    zip_code: str
+    state: Optional[str] = None
+
+
+@router.get("/personalization/zip-state", response_model=ZipStateResponse)
+@limiter.limit("60/minute")
+def public_zip_to_state(
+    request: Request,
+    zip: str = Query(..., min_length=5, max_length=10, description="5-digit US ZIP"),
+):
+    """Resolve a 5-digit ZIP code to a 2-letter US state.
+
+    Public, anonymous-friendly. Used by the journal site's
+    PersonalizationProvider to enrich localStorage-only onboarding so
+    anonymous readers still get the "your representatives" widget.
+    Reuses the same lookup the rep-finder uses, so no new data path.
+    """
+    from routers.politics_people import _zip_to_state
+
+    zip_digits = "".join(ch for ch in (zip or "") if ch.isdigit())
+    if len(zip_digits) != 5:
+        raise HTTPException(status_code=422, detail="ZIP code must be exactly 5 digits")
+
+    home_state = _zip_to_state(zip_digits)
+    return ZipStateResponse(zip_code=zip_digits, state=home_state)
+
+
+# ---------------------------------------------------------------------------
 # API key management
 # ---------------------------------------------------------------------------
 
