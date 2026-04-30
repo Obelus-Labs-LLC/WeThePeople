@@ -67,6 +67,13 @@ class Story(Base):
     last_seen_at = Column(DateTime(timezone=True), nullable=True)
     verification_stale = Column(Integer, nullable=False, server_default="0", index=True)
 
+    # 60-second simplified summary for the disengaged-audience layer
+    # (alembic simplified_summary_001). Generated lazily on first
+    # request via Haiku and cached. Frontend renders a toggle when
+    # non-null; falls back to summary otherwise.
+    summary_simplified = Column(Text, nullable=True)
+    summary_simplified_model = Column(String, nullable=True)
+
     # Editorial metadata
     correction_history = Column(JSON, nullable=True, server_default="[]")
     # List of {date, type, description} entries for corrections/retractions
