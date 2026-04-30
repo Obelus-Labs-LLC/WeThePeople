@@ -85,6 +85,13 @@ def _serialize_story_summary(s: Story) -> dict:
 def _serialize_story_full(s: Story) -> dict:
     """Serialize a Story with all fields for detail endpoints."""
     base = _serialize_story_summary(s)
+    # Pull the Wayback snapshot URL out of evidence if present. Set
+    # by the approve flow when the Save Page Now request succeeds.
+    wayback_url = None
+    wayback_at = None
+    if isinstance(s.evidence, dict):
+        wayback_url = s.evidence.get("wayback_url")
+        wayback_at = s.evidence.get("wayback_archived_at")
     base.update({
         "body": s.body,
         "data_sources": s.data_sources,
@@ -92,6 +99,12 @@ def _serialize_story_full(s: Story) -> dict:
         "correction_history": getattr(s, "correction_history", None) or [],
         "retraction_reason": getattr(s, "retraction_reason", None),
         "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+        # Wayback Machine permanent archive URL, when the approve
+        # flow's Save Page Now request succeeded. Surfaced on the
+        # public story page as "View archived copy" so journalists
+        # citing the story have a permanent URL.
+        "wayback_url": wayback_url,
+        "wayback_archived_at": wayback_at,
         # The 60-second simplified summary, when generated. Frontend
         # renders a toggle when this is non-null. The
         # /{slug}/simplified endpoint generates it on demand the

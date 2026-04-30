@@ -667,6 +667,9 @@ from models.stories_models import Story
 
 class StoryReviewDecision(BaseModel):
     reason: Optional[str] = None
+    # Set true to publish a draft whose right-to-respond is still
+    # 'pending' for one or more entities. The override is logged.
+    override_right_to_respond: Optional[bool] = False
 
 
 class StoryEditPatch(BaseModel):
@@ -675,6 +678,27 @@ class StoryEditPatch(BaseModel):
     body: Optional[str] = None
     category: Optional[str] = None
     sector: Optional[str] = None
+
+
+class RightToRespondEntry(BaseModel):
+    """One entity's right-to-respond state. Editor records this per
+    entity named in the story before approving."""
+    entity_id: str
+    # 'sent'      = comment request sent to the entity, awaiting reply
+    # 'received'  = entity replied (response_text captures the reply)
+    # 'no_reply'  = sent, 24h elapsed, no response received (publishable)
+    # 'skipped'   = editor decided this entity doesn't require a comment
+    #               request (data brief, public official quote, etc.)
+    #               and recorded a reason
+    # 'pending'   = no action recorded yet; the default
+    status: str
+    response_text: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class RightToRespondPatch(BaseModel):
+    """Whole-checklist update. Sent from the review page form."""
+    entries: List[RightToRespondEntry]
 
 
 @router.get("/story-queue")
@@ -738,6 +762,107 @@ def story_queue_stats(db: Session = Depends(get_db)):
     return {"drafts": drafts, "published": published, "retracted": retracted}
 
 
+_RTR_VALID_STATUSES = frozenset({"sent", "received", "no_reply", "skipped", "pending"})
+
+
+def _rtr_entries(story: Story) -> List[Dict[str, Any]]:
+    """Pull the per-entity right-to-respond entries off a story.
+
+    Reads from evidence.right_to_respond.entries (the canonical store).
+    Falls back to constructing a fresh pending list from
+    evidence.right_to_respond.entities_to_contact (the orchestrator's
+    initial stamp) so legacy drafts work without a backfill.
+    """
+    if not isinstance(story.evidence, dict):
+        return []
+    rtr = story.evidence.get("right_to_respond") or {}
+    if not isinstance(rtr, dict):
+        return []
+    entries = rtr.get("entries")
+    if isinstance(entries, list) and entries:
+        return [e for e in entries if isinstance(e, dict) and e.get("entity_id")]
+    # Fallback: build a default pending list from the original stamp.
+    raw_entities = rtr.get("entities_to_contact") or []
+    if not isinstance(raw_entities, list):
+        return []
+    return [
+        {"entity_id": str(eid), "status": "pending", "response_text": None, "reason": None}
+        for eid in raw_entities if eid
+    ]
+
+
+def _rtr_unresolved(story: Story) -> List[str]:
+    """Return entity_ids whose right-to-respond status is still
+    'pending' (i.e. not yet acted on by the editor). Used by the
+    approve flow to warn before publishing."""
+    return [
+        e["entity_id"]
+        for e in _rtr_entries(story)
+        if e.get("status", "pending") == "pending"
+    ]
+
+
+@router.post("/story-queue/{story_id}/respond")
+def story_queue_respond(
+    story_id: int,
+    patch: RightToRespondPatch,
+    db: Session = Depends(get_db),
+):
+    """Record per-entity right-to-respond state on a draft.
+
+    Idempotent: replaces evidence.right_to_respond.entries with the
+    submitted list. Editors call this from the review page form
+    before approving an investigative draft.
+    """
+    try:
+        story = db.query(Story).filter(Story.id == story_id).first()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"DB error: {exc}")
+    if not story:
+        raise HTTPException(status_code=404, detail=f"Story {story_id} not found")
+    if story.status != "draft":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Story {story_id} is '{story.status}', not 'draft'",
+        )
+
+    cleaned: List[Dict[str, Any]] = []
+    for e in patch.entries:
+        status = (e.status or "pending").strip().lower()
+        if status not in _RTR_VALID_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"invalid status '{status}' for entity {e.entity_id}",
+            )
+        cleaned.append({
+            "entity_id": e.entity_id,
+            "status": status,
+            "response_text": (e.response_text or "").strip() or None,
+            "reason": (e.reason or "").strip() or None,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    evidence = dict(story.evidence) if isinstance(story.evidence, dict) else {}
+    rtr = dict(evidence.get("right_to_respond") or {})
+    rtr["entries"] = cleaned
+    evidence["right_to_respond"] = rtr
+    story.evidence = evidence
+    try:
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(story, "evidence")
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Failed to record right-to-respond for story %d: %s", story_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to record right-to-respond")
+
+    return {
+        "story_id": story_id,
+        "entries": cleaned,
+        "unresolved": _rtr_unresolved(story),
+    }
+
+
 @router.post("/story-queue/{story_id}/approve")
 def story_queue_approve(
     story_id: int,
@@ -757,6 +882,28 @@ def story_queue_approve(
             detail=f"Story {story_id} is '{story.status}', not 'draft'",
         )
 
+    # Right-to-respond enforcement. Block by default when entities
+    # named in the story haven't had their right-to-respond resolved.
+    # The decision payload can carry override=true to publish anyway,
+    # which is logged for the audit trail.
+    unresolved = _rtr_unresolved(story)
+    override = bool(getattr(decision, "override_right_to_respond", False)) if decision else False
+    if unresolved and not override:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "right_to_respond_unresolved",
+                "message": (
+                    "This draft names entities that don't have a recorded "
+                    "right-to-respond decision. Resolve them via "
+                    f"/ops/story-queue/{story_id}/respond, or pass "
+                    "override_right_to_respond=true to publish anyway "
+                    "(the override is logged)."
+                ),
+                "unresolved_entities": unresolved,
+            },
+        )
+
     story.status = "published"
     story.published_at = datetime.now(timezone.utc)
     try:
@@ -765,35 +912,90 @@ def story_queue_approve(
         db.rollback()
         logger.error("Failed to approve story %d: %s", story_id, exc)
         raise HTTPException(status_code=500, detail="Failed to approve story")
-    logger.info("story-queue approve: id=%d slug=%s reason=%s",
-                story_id, story.slug, (decision.reason if decision else ""))
+    logger.info(
+        "story-queue approve: id=%d slug=%s reason=%s rtr_override=%s unresolved=%s",
+        story_id,
+        story.slug,
+        (decision.reason if decision else ""),
+        override,
+        unresolved if unresolved else "none",
+    )
     # Fire-and-forget Wayback snapshot. Best-effort: failure does not
     # roll back the publish. Press credentials and academic citations
-    # depend on a permanent archived URL.
-    _fire_wayback_snapshot(story.slug)
+    # depend on a permanent archived URL. Stores the snapshot URL
+    # back to the story when successful.
+    _fire_wayback_snapshot(story.slug, story_id=story.id, db=db)
     return {
         "id": story.id,
         "slug": story.slug,
         "status": "published",
         "published_at": story.published_at.isoformat(),
+        "right_to_respond_override": override if unresolved else None,
     }
 
 
-def _fire_wayback_snapshot(slug: str) -> None:
-    """Submit a published story to the Wayback Machine. Best-effort:
-    runs synchronously but never raises and never blocks publish.
-    Logs success / failure for the daily retry sweep to consume."""
+def _fire_wayback_snapshot(
+    slug: str,
+    story_id: Optional[int] = None,
+    db: Optional[Session] = None,
+) -> Optional[str]:
+    """Submit a published story to the Wayback Machine and persist the
+    archived URL on success.
+
+    Best-effort: runs synchronously, never raises, never blocks
+    publish. On success, writes the snapshot URL to
+    `story.evidence.wayback_url` so the story page can render
+    "View on Wayback" and citations have a permanent URL. On failure,
+    logs the failure for the retry-sweep cron at
+    `jobs/retry_wayback_snapshots.py` to pick up next run.
+
+    Returns the snapshot URL when successful, None otherwise.
+    """
     if not slug:
-        return
+        return None
     try:
         from services.wayback_archive import archive_published_story
         snapshot = archive_published_story(slug)
-        if snapshot:
-            logger.info("wayback: snapshotted %s -> %s", slug, snapshot)
-        else:
-            logger.warning("wayback: snapshot for %s did not return URL", slug)
     except Exception as e:
         logger.warning("wayback: snapshot for %s errored: %s", slug, e)
+        return None
+
+    if not snapshot:
+        logger.warning("wayback: snapshot for %s did not return URL", slug)
+        return None
+
+    logger.info("wayback: snapshotted %s -> %s", slug, snapshot)
+
+    # Persist the URL onto the story so it survives across requests.
+    # Skip persistence when caller didn't pass a story_id+db (legacy
+    # call sites). Failures here are logged and tolerated; the
+    # snapshot URL itself is still in the logs even if the persist
+    # step fails, and the retry sweep will rediscover.
+    if story_id is None or db is None:
+        return snapshot
+    try:
+        from models.stories_models import Story
+        from sqlalchemy.orm.attributes import flag_modified
+        story = db.query(Story).filter(Story.id == story_id).first()
+        if story is None:
+            return snapshot
+        evidence = dict(story.evidence) if isinstance(story.evidence, dict) else {}
+        evidence["wayback_url"] = snapshot
+        evidence["wayback_archived_at"] = datetime.now(timezone.utc).isoformat()
+        story.evidence = evidence
+        flag_modified(story, "evidence")
+        db.commit()
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.warning(
+            "wayback: persist for story_id=%s slug=%s failed (URL still logged): %s",
+            story_id, slug, e,
+        )
+
+    return snapshot
 
 
 @router.get("/story-queue/{story_id}")
@@ -856,27 +1058,105 @@ def story_queue_view(
     # schema change.
     evidence_obj = story.evidence if isinstance(story.evidence, dict) else {}
 
-    # Right-to-respond block.
+    # Right-to-respond block. Renders an interactive form: per-entity
+    # status select + reason/response textarea. Submits to
+    # POST /ops/story-queue/{id}/respond which persists into
+    # evidence.right_to_respond.entries. The approve flow blocks
+    # when any entry is still 'pending' unless explicitly overridden.
     rtr_block = ""
     rtr = evidence_obj.get("right_to_respond") if isinstance(evidence_obj, dict) else None
-    if isinstance(rtr, dict) and rtr.get("entities_to_contact"):
-        ents = rtr.get("entities_to_contact") or []
-        ent_items = "".join(
-            f"<li style='font-size:13px;color:#0f172a;margin-bottom:4px'>"
-            f"<input type='checkbox' style='margin-right:8px' disabled> {html.escape(str(e))}</li>"
-            for e in ents
-        )
-        rtr_status = html.escape(str(rtr.get("status") or "pending"))
+    if isinstance(rtr, dict) and (rtr.get("entities_to_contact") or rtr.get("entries")):
+        rtr_entries = _rtr_entries(story)
+        rows_html = ""
+        # CSRF-style risk note: this admin page is gated by
+        # require_press_key, so the form submission carries the same
+        # auth via the page's cookie/header. Token-tap paths use the
+        # signed-token query string and are read-only on this view
+        # (no JS submit). For full interactivity, the operator hits
+        # this page authenticated.
+        for i, entry in enumerate(rtr_entries):
+            eid = html.escape(str(entry.get("entity_id", "")))
+            current_status = (entry.get("status") or "pending").lower()
+
+            def _opt(val: str, label: str) -> str:
+                sel = " selected" if val == current_status else ""
+                return f"<option value='{val}'{sel}>{label}</option>"
+
+            options_html = (
+                _opt("pending", "Pending — no action recorded")
+                + _opt("sent", "Sent — comment request sent, awaiting reply")
+                + _opt("received", "Received — entity replied")
+                + _opt("no_reply", "No reply — sent + 24h elapsed")
+                + _opt("skipped", "Skipped — comment request not required")
+            )
+            response_text = html.escape(str(entry.get("response_text") or ""))
+            reason = html.escape(str(entry.get("reason") or ""))
+            recorded_at = html.escape(str(entry.get("recorded_at") or "—"))
+            rows_html += (
+                f"<div style='padding:12px;border:1px solid #fde047;border-radius:6px;background:#fffbea;margin-bottom:10px'>"
+                f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>"
+                f"<strong style='font-size:14px;color:#0f172a'>{eid}</strong>"
+                f"<span style='font-size:11px;color:#92400e'>{recorded_at}</span>"
+                f"</div>"
+                f"<input type='hidden' name='entries[{i}][entity_id]' value='{eid}'>"
+                f"<select name='entries[{i}][status]' style='width:100%;padding:6px;font-size:13px;border:1px solid #fbbf24;border-radius:4px'>"
+                f"{options_html}"
+                f"</select>"
+                f"<textarea name='entries[{i}][response_text]' rows='2' "
+                f"placeholder='If received: paste the response or a summary' "
+                f"style='width:100%;margin-top:6px;padding:6px;font-size:12px;border:1px solid #fbbf24;border-radius:4px'>"
+                f"{response_text}</textarea>"
+                f"<input type='text' name='entries[{i}][reason]' value='{reason}' "
+                f"placeholder='If skipped or no_reply: short reason' "
+                f"style='width:100%;margin-top:6px;padding:6px;font-size:12px;border:1px solid #fbbf24;border-radius:4px'>"
+                f"</div>"
+            )
+        # JavaScript: collect form values and POST as JSON with the
+        # press-key passed through the signed token if available.
+        # The page's URL contains the token; we extract it client-side.
         rtr_block = (
-            f"<div style='margin-bottom:20px;padding:14px 16px;background:#fefce8;"
+            f"<div id='rtr-block' style='margin-bottom:20px;padding:14px 16px;background:#fefce8;"
             f"border:1px solid #fde047;border-radius:8px'>"
-            f"<div style='font-size:13px;color:#854d0e;font-weight:700;margin-bottom:8px'>"
-            f"Right-to-respond requirement &mdash; status: {rtr_status}"
+            f"<div style='font-size:13px;color:#854d0e;font-weight:700;margin-bottom:10px'>"
+            f"Right-to-respond &mdash; record per-entity decision before approving"
             f"</div>"
-            f"<ul style='margin:0 0 8px 0;padding-left:14px;list-style:none'>{ent_items}</ul>"
-            f"<div style='font-size:11px;color:#854d0e;font-style:italic'>"
-            f"{html.escape(str(rtr.get('requirement') or ''))}"
+            f"{rows_html}"
+            f"<button type='button' id='rtr-save' "
+            f"style='background:#854d0e;color:#fff;border:0;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer'>"
+            f"Save right-to-respond decisions</button>"
+            f"<span id='rtr-status' style='margin-left:12px;font-size:12px;color:#854d0e'></span>"
+            f"<div style='margin-top:8px;font-size:11px;color:#854d0e;font-style:italic'>"
+            f"Approve will be blocked until every entity is marked with a status other than 'pending', "
+            f"unless an explicit override is recorded."
             f"</div></div>"
+            f"<script>(function(){{"
+            f"var btn = document.getElementById('rtr-save');"
+            f"var statusEl = document.getElementById('rtr-status');"
+            f"if (!btn) return;"
+            f"btn.addEventListener('click', function(){{"
+            f"  var entries = [];"
+            f"  var rows = document.querySelectorAll('#rtr-block input[type=hidden][name$=\"[entity_id]\"]');"
+            f"  rows.forEach(function(h, idx){{"
+            f"    var prefix = 'entries['+idx+']';"
+            f"    var statusEl2 = document.querySelector('[name=\"'+prefix+'[status]\"]');"
+            f"    var respEl = document.querySelector('[name=\"'+prefix+'[response_text]\"]');"
+            f"    var reasonEl = document.querySelector('[name=\"'+prefix+'[reason]\"]');"
+            f"    entries.push({{entity_id: h.value, status: statusEl2.value, response_text: respEl.value || null, reason: reasonEl.value || null}});"
+            f"  }});"
+            f"  var qp = new URLSearchParams(window.location.search);"
+            f"  var url = '/ops/story-queue/{story.id}/respond';"
+            f"  if (qp.get('token')) url += '?token=' + encodeURIComponent(qp.get('token'));"
+            f"  else if (qp.get('key')) url += '?key=' + encodeURIComponent(qp.get('key'));"
+            f"  statusEl.textContent = 'Saving...';"
+            f"  fetch(url, {{method:'POST', headers:{{'Content-Type':'application/json'}}, body: JSON.stringify({{entries: entries}})}})"
+            f"    .then(function(r){{ return r.json().then(function(d){{ return {{status: r.status, body: d}}; }}); }})"
+            f"    .then(function(out){{"
+            f"      if (out.status >= 400){{ statusEl.textContent = 'Error: ' + (out.body.detail || 'failed'); statusEl.style.color = '#7f1d1d'; }}"
+            f"      else {{ statusEl.textContent = 'Saved. Unresolved: ' + (out.body.unresolved || []).length; statusEl.style.color = '#15803d'; }}"
+            f"    }})"
+            f"    .catch(function(e){{ statusEl.textContent = 'Network error'; statusEl.style.color = '#7f1d1d'; }});"
+            f"}});"
+            f"}})();</script>"
         )
 
     # Implication-review flags.
@@ -977,6 +1257,7 @@ def story_queue_approve_get(
     confirm: Optional[str] = None,
     token: Optional[str] = None,
     key: Optional[str] = None,
+    override_rtr: Optional[str] = None,
     db: Session = Depends(get_db),
     _auth: None = Depends(require_press_key),
 ):
@@ -1021,6 +1302,12 @@ def story_queue_approve_get(
             status_code=400,
         )
 
+    # Right-to-respond enforcement at the GET path. The reviewer can
+    # see unresolved entities on the confirmation page and either
+    # resolve them via the review page first OR pass &override_rtr=yes
+    # to publish anyway (the override is logged).
+    unresolved_rtr = _rtr_unresolved(story)
+
     # Step 1: show confirmation page (email scanners stop here)
     if confirm != "yes":
         # Reuse the credential the reviewer arrived with. A signed token is
@@ -1035,31 +1322,70 @@ def story_queue_approve_get(
             cred_param = None
         else:
             cred_param = None
+
+        rtr_warning = ""
+        rtr_extra_param = ""
+        if unresolved_rtr:
+            ents_html = "".join(f"<li>{html.escape(e)}</li>" for e in unresolved_rtr)
+            rtr_warning = (
+                f"<div style='margin:16px 0;padding:14px 16px;background:#fef2f2;"
+                f"border:1px solid #fca5a5;border-radius:8px;color:#7f1d1d'>"
+                f"<strong>Right-to-respond unresolved.</strong>"
+                f"<ul style='margin:8px 0 0 0;padding-left:18px'>{ents_html}</ul>"
+                f"<div style='margin-top:8px;font-size:12px'>"
+                f"Use the review page (<code>/ops/story-queue/{story_id}</code>) "
+                f"to record sent / received / no-reply / skipped per entity, "
+                f"or override below to publish anyway."
+                f"</div></div>"
+            )
+            rtr_extra_param = "&amp;override_rtr=yes"
+
         if cred_param:
-            confirm_url = f"/ops/story-queue/{story_id}/approve?{cred_param}&amp;confirm=yes"
+            confirm_url = f"/ops/story-queue/{story_id}/approve?{cred_param}&amp;confirm=yes{rtr_extra_param}"
+            label = "Override & Publish" if unresolved_rtr else "Confirm Publish"
+            color = "#dc2626" if unresolved_rtr else "#16a34a"
             confirm_button = (
-                f"<a href='{confirm_url}' style='display:inline-block;background:#16a34a;color:#fff;"
+                f"<a href='{confirm_url}' style='display:inline-block;background:{color};color:#fff;"
                 f"text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:16px;'>"
-                f"Confirm Publish</a>"
+                f"{label}</a>"
             )
         else:
             confirm_button = (
                 f"<p style='color:#64748b;font-size:13px;'>Re-submit the URL with "
-                f"<code>&amp;confirm=yes</code> to publish, or use the POST endpoint.</p>"
+                f"<code>&amp;confirm=yes</code> (and <code>&amp;override_rtr=yes</code> "
+                f"if right-to-respond is unresolved) to publish, or use the POST endpoint.</p>"
             )
         return HTMLResponse(
             f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
             f"<h2>Approve this story?</h2>"
             f"<p><strong>{safe_title}</strong></p>"
-            f"<p style='color:#64748b;font-size:13px;margin-bottom:24px;'>"
+            f"<p style='color:#64748b;font-size:13px;margin-bottom:16px;'>"
             f"{html.escape((story.summary or '')[:200])}</p>"
+            f"{rtr_warning}"
             f"{confirm_button}"
             f"<p style='color:#94a3b8;font-size:11px;margin-top:16px;'>Click to confirm. "
             f"This extra step prevents email scanners from auto-approving stories.</p>"
             f"</body></html>"
         )
 
-    # Step 2: confirmed — publish
+    # Step 2: confirmed — gate on right-to-respond unless explicitly
+    # overridden in the URL.
+    if unresolved_rtr and (override_rtr or "").lower() != "yes":
+        return HTMLResponse(
+            f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
+            f"<h2 style='color:#7f1d1d'>Right-to-respond unresolved</h2>"
+            f"<p>This draft names entities without a recorded right-to-respond "
+            f"decision: <strong>{html.escape(', '.join(unresolved_rtr))}</strong>.</p>"
+            f"<p>Resolve them at "
+            f"<a href='/ops/story-queue/{story_id}'>the review page</a> "
+            f"first, or re-submit this approval URL with "
+            f"<code>&amp;override_rtr=yes</code> to publish anyway "
+            f"(the override is logged).</p>"
+            f"</body></html>",
+            status_code=409,
+        )
+
+    # Step 3: confirmed and right-to-respond resolved (or explicitly overridden) — publish
     story.status = "published"
     story.published_at = datetime.now(timezone.utc)
     try:
@@ -1068,8 +1394,11 @@ def story_queue_approve_get(
         db.rollback()
         logger.error("Failed to approve story %d: %s", story_id, exc)
         return HTMLResponse("<h2>Error</h2><p>Failed to publish story.</p>", status_code=500)
-    logger.info("story-queue approve (GET+confirm): id=%d slug=%s", story_id, story.slug)
-    _fire_wayback_snapshot(story.slug)
+    logger.info(
+        "story-queue approve (GET+confirm): id=%d slug=%s rtr_override=%s unresolved=%s",
+        story_id, story.slug, bool(unresolved_rtr), unresolved_rtr or "none",
+    )
+    _fire_wayback_snapshot(story.slug, story_id=story.id, db=db)
     return HTMLResponse(
         f"<html><body style='font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px'>"
         f"<h2 style='color:#16a34a'>&#10003; Published</h2>"
