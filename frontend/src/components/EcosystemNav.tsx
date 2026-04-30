@@ -112,6 +112,7 @@ const INTER = "'Inter', sans-serif";
 
 export default function EcosystemNav({ active = 'core' }: EcosystemNavProps) {
   const { isAuthenticated } = useAuth();
+  const activeSite = SITES[active];
 
   return (
     <>
@@ -210,32 +211,77 @@ export default function EcosystemNav({ active = 'core' }: EcosystemNavProps) {
           })}
         </div>
 
-        {/* Right-side auth controls. Standardized across every page so
-            the login affordance lives in one place and never overlaps
-            the per-page header below. The visual style matches the
-            landing page's SiteHeader (transparent background, thin
-            bordered buttons) so the bar reads as part of the chrome,
-            not a floating pill. */}
+        {/* Right cluster:
+              - Active-site identifier badge (mark + display name +
+                pulsing dot in the site's accent color). Same
+                branding pattern is on every sibling site.
+              - Log in (transparent, bordered) + Sign up (filled
+                gold) buttons sit to the right of the badge, OR
+                the UserMenu when authenticated. */}
         <div
           style={{
             marginLeft: 'auto',
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            gap: 16,
           }}
         >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <div
+              aria-hidden
+              style={{
+                width: 28,
+                height: 28,
+                border: `1.5px solid ${activeSite.accent}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: INTER,
+                fontSize: 9,
+                fontWeight: 700,
+                color: activeSite.accent,
+                letterSpacing: '0.05em',
+              }}
+            >
+              {activeSite.mark}
+            </div>
+            <span
+              className="hidden sm:inline"
+              style={{ fontFamily: INTER, fontSize: 12, fontWeight: 600, color: T1 }}
+            >
+              {activeSite.display}
+            </span>
+            <span
+              aria-hidden
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: activeSite.accent,
+                marginLeft: 4,
+                animation: 'wtp-eco-pulse 2s ease-in-out infinite',
+              }}
+            />
+          </div>
+
           {isAuthenticated ? (
             <UserMenu />
           ) : (
-            <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <a
                 href="/login"
                 className="no-underline"
                 style={{
-                  padding: '5px 12px',
+                  padding: '6px 14px',
                   borderRadius: 6,
                   fontFamily: INTER,
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: 600,
                   color: T2,
                   background: 'transparent',
@@ -249,20 +295,20 @@ export default function EcosystemNav({ active = 'core' }: EcosystemNavProps) {
                 href="/signup"
                 className="no-underline"
                 style={{
-                  padding: '5px 12px',
+                  padding: '6px 14px',
                   borderRadius: 6,
                   fontFamily: INTER,
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: 600,
-                  color: GOLD,
-                  background: 'transparent',
-                  border: `1px solid rgba(197,160,40,0.4)`,
+                  color: '#07090C',
+                  background: GOLD,
+                  border: `1px solid ${GOLD}`,
                   textDecoration: 'none',
                 }}
               >
                 Sign up
               </a>
-            </>
+            </div>
           )}
         </div>
       </nav>
