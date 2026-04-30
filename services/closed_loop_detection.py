@@ -673,9 +673,20 @@ def find_closed_loops(
 def _empty_stats():
     return {
         "total_loops_found": 0,
+        "total_loops_after_diversity": 0,
+        "limit": 0,
+        "offset": 0,
+        "max_per_company": 0,
+        "has_more": False,
         "unique_companies": 0,
         "unique_politicians": 0,
         "unique_bills": 0,
         "total_lobbying_spend": 0,
         "total_donations": 0,
+        # Default coverage diagnostics. Callers that exit early before
+        # the SQL runs (e.g. when donation_pairs is empty) override
+        # these to the actual examined counts so the frontend can
+        # explain "why empty" precisely.
+        "donation_pairs_examined": 0,
+        "donation_companies_examined": 0,
     }
