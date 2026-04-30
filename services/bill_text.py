@@ -103,11 +103,15 @@ def get_congress_gov_text_url(congress: int, bill_type: str, bill_number: int, v
     Returns:
         URL to bill text on congress.gov
     """
-    base = f"https://www.congress.gov/bill/{congress}th-congress/{bill_type.lower()}-bill/{bill_number}/text"
-    
+    # Build using the shared helper so the bill type slug is correct
+    # (house-bill / senate-bill / etc., not the broken {type}-bill).
+    from utils.congress_urls import congress_bill_text_url
+    base = congress_bill_text_url(congress, bill_type, bill_number)
+    if not base:
+        return ""
+
     if version_code:
         return f"{base}?format=txt&r={version_code}"
-    
     return base
 
 

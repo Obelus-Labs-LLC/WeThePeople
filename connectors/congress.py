@@ -18,6 +18,13 @@ from utils.normalization import (
 from sqlalchemy import exists
 from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
+from utils.congress_urls import congress_bill_url
+
+
+def _safe_congress_bill_url(congress, bill_type, bill_number):
+    """Wrap congress_bill_url so a missing field returns "" instead of None,
+    matching the pre-helper fallback contract callers expected."""
+    return congress_bill_url(congress, bill_type, bill_number) or ""
 
 load_dotenv()
 API_KEY = os.getenv("API_KEY_CONGRESS") or os.getenv("CONGRESS_API_KEY", "")
@@ -184,7 +191,7 @@ def search_bills(query: str, congress: int = 119, limit: int = 25) -> Dict[str, 
             "latest_action": latest.get("text", "") if isinstance(latest, dict) else str(latest),
             "latest_action_date": latest.get("actionDate", "") if isinstance(latest, dict) else "",
             "sponsor": b.get("sponsor", {}).get("fullName", "") if isinstance(b.get("sponsor"), dict) else "",
-            "url": b.get("url", f"https://www.congress.gov/bill/{bill_congress}th-congress/{bill_type}-bill/{bill_number}"),
+            "url": b.get("url") or _safe_congress_bill_url(bill_congress, bill_type, bill_number),
         })
 
     return {"total_bills": total_bills, "bills": bills}
@@ -414,12 +421,15 @@ def process_bill_item(session, person_name, bill, action_type):
         title = raw_title
     title = title or f"{bill_type.upper()} {bill_number}"
     source_url = bill.get("url")  # API URL or congress.gov URL
-    
+
     # Try to get congress.gov URL if available
     if not source_url or "api.congress.gov" in source_url:
-        # Construct congress.gov URL from bill data
-        bill_type_lower = bill_type.lower() if bill_type else ""
-        source_url = f"https://www.congress.gov/bill/{congress}th-congress/{bill_type_lower}-bill/{bill_number}"
+        # Construct the canonical congress.gov URL. Use the shared
+        # helper so we get the long-form bill type slug (house-bill,
+        # senate-bill, house-joint-resolution, etc.) instead of the
+        # broken {bill_type}-bill format that congress.gov rejects.
+        from utils.congress_urls import congress_bill_url
+        source_url = congress_bill_url(congress, bill_type, bill_number) or ""
     
     # Find or create SourceDocument
     source = find_or_create_source(session, source_url)
