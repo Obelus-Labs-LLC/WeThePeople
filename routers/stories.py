@@ -377,6 +377,325 @@ def get_story_simplified(
     }
 
 
+# ── Story Action Panel (public read) + personalization ─────────────
+
+
+@router.get("/{slug}/actions")
+@limiter.limit("60/minute")
+def get_story_actions(
+    slug: str,
+    request: Request = None,  # noqa: B008 — required by @limiter.limit
+    state: Optional[str] = Query(None, max_length=2),
+    db: Session = Depends(get_db),
+):
+    """Return the Action Panel items for a published story.
+
+    Optionally filter by `state` (2-letter code). Items with a
+    geographic_filter that doesn't match the requested state are
+    omitted; items without a geographic_filter always show.
+    """
+    from models.stories_models import StoryAction
+
+    try:
+        story = db.query(Story).filter(Story.slug == slug).first()
+    except Exception as e:
+        logger.warning("story actions lookup failed: %s", e)
+        raise HTTPException(status_code=404, detail="Stories not available")
+    if not story or story.status not in ("published", "retracted"):
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    rows = (
+        db.query(StoryAction)
+        .filter(StoryAction.story_id == story.id)
+        .order_by(StoryAction.display_order.asc(), StoryAction.id.asc())
+        .all()
+    )
+    state_norm = (state or "").strip().upper() or None
+    items = []
+    for r in rows:
+        if r.geographic_filter and state_norm and r.geographic_filter.upper() != state_norm:
+            continue
+        items.append({
+            "id": r.id,
+            "action_type": r.action_type,
+            "title": r.title,
+            "description": r.description,
+            "is_passive": bool(r.is_passive),
+            "geographic_filter": r.geographic_filter,
+            "script_template": r.script_template,
+            "external_url": r.external_url,
+            "display_order": r.display_order,
+        })
+    return {"slug": slug, "actions": items}
+
+
+class StoryActionPayload(BaseModel):
+    """Admin write payload for creating / updating an Action Panel item."""
+    action_type: str
+    title: str
+    description: Optional[str] = None
+    is_passive: bool = False
+    geographic_filter: Optional[str] = None
+    script_template: Optional[str] = None
+    external_url: Optional[str] = None
+    display_order: int = 0
+
+
+@router.post("/{slug}/actions")
+@limiter.limit("30/minute")
+def create_story_action(
+    slug: str,
+    body: StoryActionPayload,
+    request: Request,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Admin: create one Action Panel item on a story. Editor uses
+    this to attach 1-3 actions per story before publication."""
+    from models.stories_models import StoryAction
+
+    story = db.query(Story).filter(Story.slug == slug).first()
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+    try:
+        action_type = StoryAction.validate_action_type(body.action_type)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    row = StoryAction(
+        story_id=story.id,
+        action_type=action_type,
+        title=body.title.strip()[:200],
+        description=(body.description or "").strip() or None,
+        is_passive=1 if body.is_passive else 0,
+        geographic_filter=(body.geographic_filter or "").strip().upper() or None,
+        script_template=(body.script_template or "").strip() or None,
+        external_url=(body.external_url or "").strip() or None,
+        display_order=int(body.display_order or 0),
+    )
+    db.add(row)
+    try:
+        db.commit()
+        db.refresh(row)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"DB error: {exc}")
+    return {
+        "id": row.id,
+        "story_id": row.story_id,
+        "action_type": row.action_type,
+        "title": row.title,
+    }
+
+
+@router.get("/{slug}/personalization")
+@limiter.limit("60/minute")
+def get_story_personalization(
+    slug: str,
+    request: Request = None,  # noqa: B008 — required by @limiter.limit
+    state: Optional[str] = Query(None, max_length=2, description="2-letter state code"),
+    lifestyle: Optional[str] = Query(None, description="Comma-separated user lifestyle categories"),
+    concern: Optional[str] = Query(None, max_length=64, description="User's current concern"),
+    db: Session = Depends(get_db),
+):
+    """Build a 'Why this matters to you' payload for a story.
+
+    Public endpoint. Frontend either calls /auth/personalization first
+    (if user is logged in) or reads onboarding state from localStorage
+    (if anonymous), then passes the relevant pieces here as query
+    params. Returns 1-3 personalized hooks that anchor the story to
+    the reader's life:
+
+      - matched_lifestyle: lifestyle categories the user picked that
+        appear in this story's sector / category
+      - your_representatives: senators + house member for the user's
+        state, only when they're named in the story OR the story
+        category implies congressional involvement (legislation,
+        committee, vote, trade)
+      - concern_anchor: a one-line framing that connects the story
+        to the user's current_concern, if a meaningful link exists
+
+    Returns an empty payload (200 OK with empty fields) when the user
+    didn't onboard or when no anchors apply. The frontend gracefully
+    falls back to a generic story header.
+    """
+    from models.stories_models import Story
+    from sqlalchemy import or_
+
+    try:
+        story = db.query(Story).filter(Story.slug == slug).first()
+    except Exception as e:
+        logger.warning("personalization lookup failed: %s", e)
+        raise HTTPException(status_code=404, detail="Stories not available")
+    if not story or story.status not in ("published", "retracted"):
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    state_norm = (state or "").strip().upper() or None
+    lifestyle_norm: List[str] = (
+        [c.strip().lower() for c in (lifestyle or "").split(",") if c.strip()]
+        if lifestyle else []
+    )
+    concern_norm = (concern or "").strip().lower() or None
+
+    # 1. Matched lifestyle. Map story.category and story.sector into
+    #    the user's lifestyle vocabulary.
+    matched_lifestyle = _match_lifestyle(story, lifestyle_norm)
+
+    # 2. Your representatives. Only attach when the story is
+    #    congressional-flavored (politics sector OR a category that
+    #    implies congressional context) AND we have a state.
+    reps = []
+    congressional_categories = {
+        "trade_before_legislation", "lobby_then_win", "lobby_contract_loop",
+        "pac_committee_pipeline", "tax_lobbying", "budget_lobbying",
+        "trade_cluster", "stock_act_violation", "committee_stock_trade",
+        "bipartisan_buying", "trade_timing", "prolific_trader",
+        "full_influence_loop", "regulatory_loop", "education_pipeline",
+    }
+    is_congressional = (
+        (story.sector or "").lower() == "politics"
+        or (story.category or "").lower() in congressional_categories
+    )
+    if state_norm and is_congressional:
+        try:
+            from models.database import TrackedMember
+            rep_rows = (
+                db.query(TrackedMember)
+                .filter(TrackedMember.state == state_norm)
+                .filter(TrackedMember.is_active == 1)
+                .order_by(TrackedMember.chamber.desc(), TrackedMember.display_name.asc())
+                .all()
+            )
+            for r in rep_rows:
+                reps.append({
+                    "person_id": r.person_id,
+                    "display_name": r.display_name,
+                    "chamber": r.chamber,
+                    "party": r.party,
+                    "state": r.state,
+                    "photo_url": r.photo_url,
+                })
+        except Exception as e:
+            logger.warning("rep lookup failed for state %s: %s", state_norm, e)
+
+    # 3. Concern anchor. One-line framing keyed off the user's concern.
+    concern_anchor = _concern_anchor_for_story(story, concern_norm, matched_lifestyle)
+
+    return {
+        "slug": slug,
+        "matched_lifestyle": matched_lifestyle,
+        "your_representatives": reps,
+        "concern_anchor": concern_anchor,
+        "has_personalization": bool(matched_lifestyle or reps or concern_anchor),
+    }
+
+
+def _match_lifestyle(story: Story, user_lifestyle: List[str]) -> List[str]:
+    """Return the subset of `user_lifestyle` that matches the story.
+
+    Mapping is heuristic but stable: each story sector / category
+    points to one or two lifestyle categories the disengaged-audience
+    onboarding form offers. Unknown sectors return an empty list.
+    """
+    if not user_lifestyle:
+        return []
+
+    sector = (story.sector or "").lower()
+    category = (story.category or "").lower()
+
+    # Story-side signals -> user-lifestyle vocabulary.
+    sector_to_lifestyle = {
+        "finance":         {"banking"},
+        "health":          {"healthcare"},
+        "energy":          {"energy", "transportation"},
+        "transportation":  {"transportation"},
+        "tech":            {"tech"},
+        "education":       {"education", "kids"},
+        "agriculture":     {"food"},
+        "telecom":         {"tech"},
+    }
+    category_to_lifestyle = {
+        "tax_lobbying":         {"work"},
+        "budget_lobbying":      {"work"},
+        "lobby_contract_loop":  {"work"},
+        "education_pipeline":   {"kids", "education"},
+    }
+
+    candidates: set[str] = set()
+    candidates |= sector_to_lifestyle.get(sector, set())
+    candidates |= category_to_lifestyle.get(category, set())
+    if not candidates:
+        return []
+    return [c for c in user_lifestyle if c in candidates]
+
+
+def _concern_anchor_for_story(
+    story: Story,
+    concern: Optional[str],
+    matched_lifestyle: List[str],
+) -> Optional[str]:
+    """Generate a one-line plain-English hook tying the story to the
+    reader's current_concern. Returns None when there's no clean
+    mapping — better silence than forced relevance."""
+    if not concern:
+        return None
+    sector = (story.sector or "").lower()
+
+    # Map (concern, sector) -> headline framing. Specific to the
+    # disengaged-audience thesis: anchor in personal cost.
+    table = {
+        ("rent_too_high",      "finance"):  "This story is about the banks that decide your mortgage and rent rules.",
+        ("rent_too_high",      "housing"):  "This story is about the policies that shape what you pay for housing.",
+        ("healthcare_costs",   "health"):   "This story is about the companies and rules that drive what you pay for healthcare.",
+        ("student_loans",      "finance"):  "This story is about the banks involved in student loan servicing.",
+        ("student_loans",      "education"):"This story is about the policies that shape student-loan terms.",
+        ("fuel_prices",        "energy"):   "This story is about the energy industry that affects what you pay at the pump.",
+        ("fuel_prices",        "transportation"): "This story is about the transport sector that affects fuel costs.",
+        ("groceries",          "agriculture"): "This story is about the agriculture industry that affects food prices.",
+        ("groceries",          "tech"):     "This story is about the tech platforms that affect grocery delivery and pricing.",
+        ("wages",              "finance"):  "This story is about the financial-services rules that affect wages and employment.",
+        ("wages",              "tech"):     "This story is about tech-industry policies that affect tech-sector wages and labor rules.",
+        ("childcare",          "education"):"This story is about the policies that affect childcare costs and access.",
+        ("credit_card_debt",   "finance"):  "This story is about the banks that issue your credit cards.",
+        ("retirement",         "finance"):  "This story is about the financial firms that hold your retirement money.",
+    }
+    msg = table.get((concern, sector))
+    if msg:
+        return msg
+    # Fallback: if the user has a matched lifestyle, mention the sector
+    # without the concern.
+    if matched_lifestyle:
+        return f"This story touches {matched_lifestyle[0]} — one of the categories you flagged in onboarding."
+    return None
+
+
+@router.delete("/{slug}/actions/{action_id}")
+@limiter.limit("30/minute")
+def delete_story_action(
+    slug: str,
+    action_id: int,
+    request: Request,
+    user=Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Admin: delete an Action Panel item."""
+    from models.stories_models import StoryAction
+
+    story = db.query(Story).filter(Story.slug == slug).first()
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+    row = (
+        db.query(StoryAction)
+        .filter(StoryAction.id == action_id, StoryAction.story_id == story.id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Action not found")
+    db.delete(row)
+    db.commit()
+    return {"deleted": action_id}
+
+
 @router.post("/{slug}/publish")
 @limiter.limit("10/minute")
 def publish_story(slug: str, request: Request, user=Depends(require_role("admin")), db: Session = Depends(get_db)):
