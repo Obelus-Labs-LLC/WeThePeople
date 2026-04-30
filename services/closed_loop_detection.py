@@ -188,6 +188,12 @@ from models.tech_models import LobbyingRecord, TrackedTechCompany
 from models.finance_models import FinanceLobbyingRecord, TrackedInstitution
 from models.health_models import HealthLobbyingRecord, TrackedCompany
 from models.energy_models import EnergyLobbyingRecord, TrackedEnergyCompany
+from models.transportation_models import TransportationLobbyingRecord, TrackedTransportationCompany
+from models.defense_models import DefenseLobbyingRecord, TrackedDefenseCompany
+from models.chemicals_models import ChemicalLobbyingRecord, TrackedChemicalCompany
+from models.agriculture_models import AgricultureLobbyingRecord, TrackedAgricultureCompany
+from models.telecom_models import TelecomLobbyingRecord, TrackedTelecomCompany
+from models.education_models import EducationLobbyingRecord, TrackedEducationCompany
 
 
 # Map lobbying issue codes to bill policy areas
@@ -222,7 +228,14 @@ for issue, policies in ISSUE_TO_POLICY.items():
         POLICY_TO_ISSUES.setdefault(p, set()).add(issue)
 
 # Timeout in seconds for the entire function
-_TIMEOUT_SECONDS = 8
+# Hard wall-clock cap. The gateway in front of FastAPI (Vercel/CF)
+# kills inflight requests at 30s. We need to return SOMETHING (even
+# partial results) before that, so cap at 25s and rely on the
+# is_partial flag in stats to tell the frontend the result is
+# truncated. With the compound (company_id, filing_year) indexes
+# present on every sector lobbying table, a cold request usually
+# finishes in <2s, so the 25s budget is mostly a safety net.
+_TIMEOUT_SECONDS = 25
 
 
 def _batched_in_query(db, query_fn, ids, batch_size=100):
@@ -423,11 +436,20 @@ def find_closed_loops(
     for eid, etype, _ in donation_map.keys():
         entity_ids_by_sector.setdefault(etype, set()).add(eid)
 
+    # All 11 sectors WTP tracks. (Politics is the 12th vertical but
+    # politicians appear here as donation recipients, not as lobbying
+    # entities, so they don't get a row in this list.)
     lobby_configs = [
-        ("finance", FinanceLobbyingRecord, FinanceLobbyingRecord.institution_id, TrackedInstitution),
-        ("health", HealthLobbyingRecord, HealthLobbyingRecord.company_id, TrackedCompany),
-        ("tech", LobbyingRecord, LobbyingRecord.company_id, TrackedTechCompany),
-        ("energy", EnergyLobbyingRecord, EnergyLobbyingRecord.company_id, TrackedEnergyCompany),
+        ("finance",        FinanceLobbyingRecord,        FinanceLobbyingRecord.institution_id, TrackedInstitution),
+        ("health",         HealthLobbyingRecord,         HealthLobbyingRecord.company_id,      TrackedCompany),
+        ("tech",           LobbyingRecord,               LobbyingRecord.company_id,            TrackedTechCompany),
+        ("energy",         EnergyLobbyingRecord,         EnergyLobbyingRecord.company_id,      TrackedEnergyCompany),
+        ("transportation", TransportationLobbyingRecord, TransportationLobbyingRecord.company_id, TrackedTransportationCompany),
+        ("defense",        DefenseLobbyingRecord,        DefenseLobbyingRecord.company_id,     TrackedDefenseCompany),
+        ("chemicals",      ChemicalLobbyingRecord,       ChemicalLobbyingRecord.company_id,    TrackedChemicalCompany),
+        ("agriculture",    AgricultureLobbyingRecord,    AgricultureLobbyingRecord.company_id, TrackedAgricultureCompany),
+        ("telecom",        TelecomLobbyingRecord,        TelecomLobbyingRecord.company_id,     TrackedTelecomCompany),
+        ("education",      EducationLobbyingRecord,      EducationLobbyingRecord.company_id,   TrackedEducationCompany),
     ]
 
     # lobby_data[sector][entity_id] = {issues: set, total_income: float, filing_count: int}

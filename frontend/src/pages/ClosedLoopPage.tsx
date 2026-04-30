@@ -64,7 +64,22 @@ interface ClosedLoopResponse {
   };
 }
 
-const SECTORS = ['All', 'Finance', 'Health', 'Tech', 'Energy'] as const;
+// All 11 sectors WTP tracks. The backend ('entity_type' filter) accepts
+// the lowercase form of any of these. Display labels here match the
+// platform's sector convention; the lowercase hop happens at fetch time.
+const SECTORS = [
+  'All',
+  'Finance',
+  'Health',
+  'Tech',
+  'Energy',
+  'Transportation',
+  'Defense',
+  'Chemicals',
+  'Agriculture',
+  'Telecom',
+  'Education',
+] as const;
 type SectorFilter = (typeof SECTORS)[number];
 
 const CURRENT_YEAR = new Date().getFullYear();
