@@ -193,6 +193,7 @@ def generate_and_cache_summary(bill, db_session) -> Optional[str]:
     if not text:
         return None
 
+<<<<<<< HEAD
     # Defensive: older prompt allowed an INSUFFICIENT sentinel. The
     # current prompt forbids it, but if a model still emits it we
     # treat it as a generation failure rather than caching.
@@ -201,6 +202,13 @@ def generate_and_cache_summary(bill, db_session) -> Optional[str]:
 
     meta = _ensure_meta_dict(getattr(bill, "metadata_json", None))
     meta["ai_summary"] = text
+=======
+    sentinel = text.upper().startswith("INSUFFICIENT")
+    cache_value = "INSUFFICIENT" if sentinel else text
+
+    meta = _ensure_meta_dict(getattr(bill, "metadata_json", None))
+    meta["ai_summary"] = cache_value
+>>>>>>> origin/main
     try:
         bill.metadata_json = meta
         # Mark as modified explicitly when the column is JSON-typed but
@@ -215,4 +223,8 @@ def generate_and_cache_summary(bill, db_session) -> Optional[str]:
         except Exception:
             pass
 
+<<<<<<< HEAD
     return text
+=======
+    return None if sentinel else text
+>>>>>>> origin/main
