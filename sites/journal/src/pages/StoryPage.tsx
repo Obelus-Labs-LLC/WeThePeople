@@ -816,6 +816,21 @@ export default function StoryPage() {
             WeThePeople Research
           </span>
           <span style={metaPipeStyle}>|</span>
+          <span style={metaTextStyle}>
+            Edited by{' '}
+            <Link
+              to="/standards"
+              style={{
+                color: 'var(--color-text-2)',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+                textDecorationThickness: '1px',
+              }}
+            >
+              Dshon Smith
+            </Link>
+          </span>
+          <span style={metaPipeStyle}>|</span>
           <span style={metaTextStyle}>{formatDate(story.published_at)}</span>
           <span style={metaPipeStyle}>|</span>
           <span style={{ ...metaTextStyle, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -1208,18 +1223,18 @@ export default function StoryPage() {
             style={{ borderBottom: '1px solid rgba(235,229,213,0.08)' }}
           >
             <h2 className="mb-3" style={sectionHeadingStyle}>
-              Sources &amp; Data
+              Verify This Yourself
             </h2>
             <p
               className="mb-5"
               style={{
                 fontFamily: 'var(--font-body)',
-                fontSize: '13px',
+                fontSize: '14px',
                 lineHeight: 1.6,
                 color: 'var(--color-text-2)',
               }}
             >
-              All data sourced from public government records. Click to view original sources or explore on our platform.
+              Don&apos;t take our word for it. Every claim above is built from public government records. Click any link below to read the original filing, view the underlying contract, or browse the full dataset on our platform. If you find something that doesn&apos;t add up, tell us using the &ldquo;Report an error&rdquo; button above.
             </p>
 
             {/* Government data sources */}

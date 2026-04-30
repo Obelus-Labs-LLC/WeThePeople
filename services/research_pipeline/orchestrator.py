@@ -1066,16 +1066,48 @@ def _editor_pass(
 ) -> dict[str, Any]:
     """Convert a ResearchDocument into a publication-shaped story.
 
-    Placeholder. Lives here until we wire the editor module — for now
-    it's a passthrough that just adds the candidate metadata so the
-    persistence step has something to write.
+    Currently:
+      - merges candidate metadata onto the research_doc so the
+        persistence step has the right category / sector / entity_ids
+      - runs the implication-review pass to flag sentences that
+        imply causation without explicit evidence; flags get attached
+        to evidence.implication_flags for the human reviewer
+
+    Eventually this is the seam where we'd plug a richer editor agent
+    (style guide enforcement, length normalization, headline polish).
     """
-    return {
+    draft = {
         **research_doc,
         "category": candidate.get("category") or candidate.get("signal"),
         "sector": candidate.get("sector"),
         "entity_ids": [candidate.get("entity_id")] if candidate.get("entity_id") else [],
     }
+
+    # Implication review. Best-effort, non-fatal: a missing API key,
+    # rate-limit, or parse failure all degrade to "no flags" with a log
+    # line. Flags do NOT block publication; they surface in the editor
+    # review UI for human judgment.
+    try:
+        from services.research_pipeline.implication_review import (
+            review_story_implications,
+            attach_flags_to_draft,
+        )
+        body = draft.get("body") or research_doc.get("body") or ""
+        title = draft.get("title") or research_doc.get("title") or ""
+        flags = review_story_implications(
+            title=str(title),
+            body=str(body),
+            category=str(draft.get("category") or "unknown"),
+        )
+        if flags:
+            logger.info(
+                "implication_review: %d flag(s) on draft '%s'", len(flags), title[:60],
+            )
+        draft = attach_flags_to_draft(draft, flags)
+    except Exception as e:
+        logger.warning("implication_review pass failed (non-fatal): %s", e)
+
+    return draft
 
 
 def _draft_story_to_research_doc(draft_story, candidate: dict[str, Any]) -> dict[str, Any]:

@@ -600,9 +600,18 @@ SECTOR_EXPECTED_AGENCIES = {
 def validate_entity_sector(db, entity_id, sector, contract_table, id_col):
     """Validate that an entity's contracts make sense for its sector.
 
-    Returns (is_valid, warning_message). Rejects when >80% of contract value
-    comes from agencies NOT expected for the entity's sector, which signals
-    likely entity misattribution (e.g., Avient getting Navient's DoE contracts).
+    Returns (is_valid, warning_message). Rejects when >50% of contract
+    value comes from agencies NOT expected for the entity's sector,
+    which signals likely entity misattribution (e.g., Avient getting
+    Navient's DoE contracts).
+
+    History: the threshold used to be split — hard kill at >80%
+    unexpected, soft warning at 50-80%. The soft warning still let
+    candidates proceed, which created a libel surface (publishing a
+    story about the wrong entity is worse than dropping a borderline-
+    real one). Threshold collapsed to a single hard kill at >50%
+    after the apr-28 strategy review. Anything below 50% unexpected
+    is treated as legitimate cross-agency work.
     """
     try:
         rows = db.execute(text(
@@ -631,17 +640,12 @@ def validate_entity_sector(db, entity_id, sector, contract_table, id_col):
     )
 
     unexpected_pct = unexpected_value / total_value
-    if unexpected_pct > 0.80:
+    if unexpected_pct > 0.50:
         top_agency = rows[0][0] if rows else "unknown"
         return False, (
             "Entity %s (sector: %s) has %.0f%% of contract value from unexpected agencies "
             "(top: %s). Likely entity misattribution."
             % (entity_id, sector, unexpected_pct * 100, top_agency)
-        )
-    elif unexpected_pct > 0.50:
-        return True, (
-            "Warning: %s has %.0f%% of contract value from unexpected agencies for sector %s"
-            % (entity_id, unexpected_pct * 100, sector)
         )
 
     return True, None
