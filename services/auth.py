@@ -114,8 +114,19 @@ def _press_api_key() -> str:
 
 
 _SIGNED_TOKEN_PATH_RE = re.compile(
-    r"^/(?:api/v1/)?ops/(?:story|draft)-queue/(\d+)(?:/(approve|reject))?/?$"
+    r"^/(?:api/v1/)?ops/(?:story|draft)-queue/(\d+)(?:/(approve|reject|respond))?/?$"
 )
+
+# Methods we accept signed tokens on, per action. GET for the email-tap
+# flows (approve/reject/view); POST for the right-to-respond form
+# submission (the editor arrived via signed-token GET and the JS posts
+# back with the same token).
+_TOKEN_METHODS_BY_ACTION = {
+    "approve": {"GET"},
+    "reject": {"GET"},
+    "view": {"GET"},
+    "respond": {"GET", "POST"},
+}
 
 
 def require_press_key(
@@ -128,8 +139,13 @@ def require_press_key(
 
     1. Global press key via `X-WTP-API-Key` header (operators)
     2. Global press key via `?key=` query parameter (legacy)
-    3. Per-story signed `?token=` scoped to a specific story_id and action —
-       accepted ONLY on GET /ops/{story,draft}-queue/{id}/{approve,reject}.
+    3. Per-story signed `?token=` scoped to a specific story_id and action.
+       Accepted on GET /ops/{story,draft}-queue/{id}/{approve,reject},
+       GET on the bare /ops/{story,draft}-queue/{id} (action='view'),
+       and BOTH GET+POST on /ops/{story,draft}-queue/{id}/respond
+       (action='respond'). The respond-POST exception lets the email
+       flow submit the right-to-respond form without the operator's
+       root press key.
        See services/press_signed_token.py for the signing format.
 
     The signed-token path is what the Gate 5 review emails now use, so the
@@ -148,17 +164,22 @@ def require_press_key(
     if provided and hmac.compare_digest(provided, expected):
         return
 
-    # Path 3: per-story signed token — narrow surface.
-    if token and request.method == "GET":
+    # Path 3: per-story signed token — narrow surface, gated by the
+    # action's allowed-methods set. Most actions are GET-only; respond
+    # accepts POST too so the JS form submission works from the email
+    # flow.
+    if token:
         m = _SIGNED_TOKEN_PATH_RE.match(request.url.path)
         if m:
             from services.press_signed_token import verify_story_action
             story_id = int(m.group(1))
             # No action suffix in the path => view-only access to the draft page.
             action = m.group(2) or "view"
-            ok, _reason = verify_story_action(token, story_id, action)
-            if ok:
-                return
+            allowed_methods = _TOKEN_METHODS_BY_ACTION.get(action, {"GET"})
+            if request.method in allowed_methods:
+                ok, _reason = verify_story_action(token, story_id, action)
+                if ok:
+                    return
 
     raise HTTPException(status_code=401, detail="unauthorized")
 

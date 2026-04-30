@@ -1279,7 +1279,7 @@ export default function StoryPage() {
                 </span>
                 Use the permanent{' '}
                 <a
-                  href={story.wayback_url}
+                  href={safeHref(story.wayback_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -1665,8 +1665,16 @@ function SimplifiedToggle({
     }
     setLoading(true);
     setErrored(false);
+    // 25-second cap. Cold generation takes ~5s; the gateway kills
+    // requests at 30s. If we time out, hide the toggle so the user
+    // doesn't keep re-clicking and triggering more LLM calls.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25_000);
     try {
-      const res = await fetch(`${API_BASE}/stories/${slug}/simplified`);
+      const res = await fetch(
+        `${API_BASE}/stories/${slug}/simplified`,
+        { signal: controller.signal },
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data?.simplified && typeof data.simplified === 'string') {
@@ -1678,6 +1686,7 @@ function SimplifiedToggle({
     } catch {
       setErrored(true);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }, [simplified, slug]);

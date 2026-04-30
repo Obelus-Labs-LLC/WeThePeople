@@ -4,7 +4,9 @@ Cross-sector influence routes — aggregate lobbying, contracts, enforcement, do
 
 import logging
 
-from fastapi import APIRouter, Query, HTTPException, Depends
+from fastapi import APIRouter, Query, HTTPException, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import Optional
@@ -49,6 +51,7 @@ import threading
 import time as _time
 
 router = APIRouter(prefix="/influence", tags=["influence"])
+limiter = Limiter(key_func=get_remote_address)
 
 _freshness_cache: dict = {"ts": 0, "data": None, "computing": False}
 _freshness_lock = threading.Lock()
@@ -706,7 +709,9 @@ def get_influence_network(
 
 
 @router.get("/closed-loops")
+@limiter.limit("60/minute")
 def get_closed_loops(
+    request: Request,
     entity_type: Optional[str] = Query(None, description="Filter by sector: finance, health, tech, energy, transportation, defense, chemicals, agriculture, telecom, education"),
     entity_id: Optional[str] = Query(None, description="Filter by company ID"),
     person_id: Optional[str] = Query(None, description="Filter by politician person_id"),
