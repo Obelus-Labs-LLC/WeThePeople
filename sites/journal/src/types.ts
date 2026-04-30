@@ -78,6 +78,11 @@ export interface Story {
   // present.
   summary_simplified?: string | null;
   summary_simplified_model?: string | null;
+  // Wayback Machine permanent archive URL, set when the approve flow
+  // successfully snapshotted this story. Citations and journalists
+  // use this for stable references that survive site moves.
+  wayback_url?: string | null;
+  wayback_archived_at?: string | null;
   featured?: boolean;
   hero_image_url?: string;
   tags?: string[];
