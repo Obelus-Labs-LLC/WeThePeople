@@ -17,7 +17,6 @@ import EducationLayout from "./layouts/EducationLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ChatAgent from "./components/ChatAgent";
-import UserMenu from "./components/UserMenu";
 import EcosystemNav from "./components/EcosystemNav";
 
 // ── Lazy-loaded pages ──
@@ -132,27 +131,16 @@ const MethodologyPage = React.lazy(() => import("./pages/MethodologyPage"));
 // Landing page has its own SiteHeader with search + Log in/Sign up.
 // All other pages rely on the global floating overlays.
 //
-// The EcosystemNav is a 52px sticky bar pinned at top:0 on every page.
-// User pill rides INSIDE that bar (top-[10px]) so it doesn't overlap the
-// per-sector nav (which sits at top-[52px]). The Ctrl+K GlobalSearch pill
-// was a duplicate entry-point into ChatAgent; ChatAgent already exposes
-// a floating draggable widget, so we removed the pill.
+// The EcosystemNav is a 52px sticky bar pinned at top:0 on every page,
+// and now hosts the auth controls on its right side. The previous
+// floating UserMenu pill at top-[10px] right-4 is gone because it
+// routinely overlapped EcosystemNav's right-side WTP identifier on
+// pages like /civic. Auth lives in exactly one place now.
 const GlobalOverlays: React.FC = () => {
   const { pathname } = useLocation();
   const isLanding = pathname === "/";
   if (isLanding) return null;
-  return (
-    <>
-      <ChatAgent />
-      {/* User pill rides inside the 52px EcosystemNav strip so it lives
-          on the same row as the WTP logo + ecosystem switcher rather
-          than floating into the per-sector nav below. z-[9997] keeps
-          it under any modal layers. */}
-      <div className="fixed top-[10px] right-4 z-[9997]">
-        <UserMenu />
-      </div>
-    </>
-  );
+  return <ChatAgent />;
 };
 
 const App: React.FC = () => (

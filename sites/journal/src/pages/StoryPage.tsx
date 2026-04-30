@@ -1671,11 +1671,45 @@ function SimplifiedToggle({
   const [loading, setLoading] = useState(false);
   const [errored, setErrored] = useState(false);
 
+  // Background prefetch. The simplified version is generated lazily
+  // and the first call can take 5-15 seconds (Haiku cold). Firing
+  // the request as soon as the story mounts means the toggle is
+  // usually instant by the time the user clicks. We never set
+  // `loading` for the prefetch path so the toggle UI doesn't show
+  // a spinner the user didn't ask for; failures stay silent.
+  useEffect(() => {
+    if (simplified || !slug) return;
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 25_000);
+    fetch(`${API_BASE}/stories/${slug}/simplified`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.simplified && typeof d.simplified === 'string') {
+          setSimplified(d.simplified);
+        }
+      })
+      .catch(() => {
+        /* silent — explicit click can still surface the error */
+      })
+      .finally(() => clearTimeout(t));
+    return () => {
+      controller.abort();
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
   const requestSimplified = useCallback(async () => {
     if (simplified) {
       setMode('simple');
       return;
     }
+    // Switch to simple mode immediately so the reader sees the
+    // loading state in-context (under the lede) instead of being
+    // stuck staring at a Loading button. The simple-mode block
+    // below renders its own spinner-style message until the
+    // request resolves.
+    setMode('simple');
     setLoading(true);
     setErrored(false);
     // 25-second cap. Cold generation takes ~5s; the gateway kills
@@ -1692,12 +1726,13 @@ function SimplifiedToggle({
       const data = await res.json();
       if (data?.simplified && typeof data.simplified === 'string') {
         setSimplified(data.simplified);
-        setMode('simple');
       } else {
         setErrored(true);
+        setMode('full');
       }
     } catch {
       setErrored(true);
+      setMode('full');
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);
@@ -1786,6 +1821,38 @@ function SimplifiedToggle({
           }}
         >
           {simplified}
+        </div>
+      ) : mode === 'simple' && loading ? (
+        <div
+          className="mb-12 flex items-center gap-3"
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '15px',
+            lineHeight: 1.6,
+            color: 'var(--color-text-2)',
+            background: 'rgba(197,160,40,0.04)',
+            border: '1px solid rgba(197,160,40,0.18)',
+            borderRadius: '14px',
+            padding: '20px 22px',
+          }}
+          aria-live="polite"
+        >
+          <div
+            aria-hidden
+            className="animate-spin"
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              border: '2px solid rgba(197,160,40,0.4)',
+              borderTopColor: 'var(--color-accent)',
+              flexShrink: 0,
+            }}
+          />
+          <span>
+            Writing the 60-second version. Takes a few seconds the first
+            time someone asks for this story.
+          </span>
         </div>
       ) : (
         <div className="mb-12">{renderContent(fullBody)}</div>

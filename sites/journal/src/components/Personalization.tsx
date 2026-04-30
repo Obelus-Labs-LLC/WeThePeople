@@ -53,21 +53,30 @@ const STORAGE_KEY = 'wtp.personalization.v1';
 // re-prompts so we capture changes (move, shift in priorities).
 const STORAGE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
-// Allowlists must match the backend's ONBOARDING_LIFESTYLE_CATEGORIES
-// + ONBOARDING_CONCERNS in routers/auth.py. Keep in sync.
-export const LIFESTYLE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'banking',        label: 'Banking & credit' },
-  { value: 'healthcare',     label: 'Healthcare' },
-  { value: 'housing',        label: 'Housing & rent' },
-  { value: 'energy',         label: 'Energy & utilities' },
+// Sector allowlist — must match the platform's 11 reporting sectors.
+// These directly drive the Journal homepage feed filter and the
+// "Why this matters" matched_lifestyle block. The "lifestyle"
+// backend column stays the authoritative store; we map sectors
+// onto it 1-to-1 where possible. Sectors that don't have a
+// corresponding lifestyle bucket (politics, defense) still pass
+// through but only filter the feed; they don't drive lifestyle
+// matching on individual stories.
+export const SECTOR_OPTIONS: { value: string; label: string }[] = [
+  { value: 'finance',        label: 'Finance' },
+  { value: 'health',         label: 'Healthcare' },
+  { value: 'housing',        label: 'Housing' },
+  { value: 'energy',         label: 'Energy' },
   { value: 'transportation', label: 'Transportation' },
-  { value: 'tech',           label: 'Tech & internet' },
+  { value: 'technology',     label: 'Technology' },
+  { value: 'telecom',        label: 'Telecommunications' },
   { value: 'education',      label: 'Education' },
-  { value: 'food',           label: 'Food & groceries' },
-  { value: 'work',           label: 'Work & wages' },
-  { value: 'kids',           label: 'Kids & family' },
+  { value: 'agriculture',    label: 'Agriculture & Food' },
+  { value: 'chemicals',      label: 'Chemicals' },
+  { value: 'defense',        label: 'Defense' },
 ];
 
+// Pocketbook concerns. Multi-select. Drives the concern_anchor
+// sentence on each story and is also a soft signal on the feed.
 export const CONCERN_OPTIONS: { value: string; label: string }[] = [
   { value: 'rent_too_high',     label: 'Rent or mortgage costs' },
   { value: 'healthcare_costs',  label: 'Healthcare costs' },
@@ -78,13 +87,27 @@ export const CONCERN_OPTIONS: { value: string; label: string }[] = [
   { value: 'childcare',         label: 'Childcare costs' },
   { value: 'credit_card_debt',  label: 'Credit card debt' },
   { value: 'retirement',        label: 'Retirement savings' },
+  { value: 'taxes',             label: 'Taxes' },
   { value: 'other',             label: 'Other' },
 ];
+
+// Backwards-compat re-export for any caller that still expects
+// the old prop name. Lifestyle is the API name; sectors is what
+// the user sees. Both arrays are interchangeable for the
+// localStorage layer.
+export const LIFESTYLE_OPTIONS = SECTOR_OPTIONS;
 
 interface PersonalizationState {
   zip: string;
   state: string | null;
+  // `lifestyle` is named for backward-compat with the v1 schema +
+  // backend column. Semantically these are now sector picks.
   lifestyle: string[];
+  // Multi-select. The single-string `concern` value is preserved on
+  // disk for older clients (set to concerns[0] when writing).
+  concerns: string[];
+  // Legacy single concern. Read by older bundles; written for new
+  // bundles as concerns[0] || ''.
   concern: string;
   savedAt: number; // unix ms
 }
@@ -106,10 +129,26 @@ function loadFromStorage(): PersonalizationState | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as PersonalizationState;
+    const parsed = JSON.parse(raw) as Partial<PersonalizationState> & {
+      concern?: string;
+      concerns?: string[];
+    };
     if (typeof parsed?.savedAt !== 'number') return null;
     if (Date.now() - parsed.savedAt > STORAGE_TTL_MS) return null;
-    return parsed;
+    // Migrate v1 single-concern records to v2 multi-concern shape.
+    const concerns = Array.isArray(parsed.concerns)
+      ? parsed.concerns
+      : parsed.concern
+        ? [parsed.concern]
+        : [];
+    return {
+      zip: parsed.zip ?? '',
+      state: parsed.state ?? null,
+      lifestyle: Array.isArray(parsed.lifestyle) ? parsed.lifestyle : [],
+      concerns,
+      concern: concerns[0] ?? '',
+      savedAt: parsed.savedAt,
+    };
   } catch {
     return null;
   }
@@ -286,20 +325,39 @@ const chipActiveStyle: React.CSSProperties = {
   borderColor: 'var(--color-accent)',
 };
 
+// Cap on multi-select picks. Five each keeps the call narrow enough
+// that the resulting feed isn't just every story we publish, while
+// still letting a reader who actually has eclectic interests pick
+// more than the original three.
+const MAX_SECTORS = 5;
+const MAX_CONCERNS = 5;
+
 export function OnboardingModal() {
-  const { isModalOpen, closeModal, save } = usePersonalization();
-  const [zip, setZip] = useState('');
-  const [lifestyle, setLifestyle] = useState<string[]>([]);
-  const [concern, setConcern] = useState<string>('');
+  const { isModalOpen, closeModal, save, state: existing } = usePersonalization();
+  const [zip, setZip] = useState(() => existing?.zip ?? '');
+  const [lifestyle, setLifestyle] = useState<string[]>(
+    () => existing?.lifestyle ?? [],
+  );
+  const [concerns, setConcerns] = useState<string[]>(
+    () => existing?.concerns ?? (existing?.concern ? [existing.concern] : []),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isModalOpen) return null;
 
-  const toggleLifestyle = (val: string) => {
+  const toggleSector = (val: string) => {
     setLifestyle((prev) => {
       if (prev.includes(val)) return prev.filter((x) => x !== val);
-      if (prev.length >= 3) return prev; // cap at 3
+      if (prev.length >= MAX_SECTORS) return prev;
+      return [...prev, val];
+    });
+  };
+
+  const toggleConcern = (val: string) => {
+    setConcerns((prev) => {
+      if (prev.includes(val)) return prev.filter((x) => x !== val);
+      if (prev.length >= MAX_CONCERNS) return prev;
       return [...prev, val];
     });
   };
@@ -311,16 +369,21 @@ export function OnboardingModal() {
       return;
     }
     if (lifestyle.length === 0) {
-      setError('Pick at least one category.');
+      setError('Pick at least one sector you want to follow.');
       return;
     }
-    if (!concern) {
-      setError('Pick what matters most to you right now.');
+    if (concerns.length === 0) {
+      setError('Pick at least one thing that matters to you right now.');
       return;
     }
     setSubmitting(true);
     try {
-      await save({ zip: zip.trim(), lifestyle, concern });
+      await save({
+        zip: zip.trim(),
+        lifestyle,
+        concerns,
+        concern: concerns[0] ?? '',
+      });
     } catch {
       setError("Something went wrong saving that. We'll try again next visit.");
     } finally {
@@ -336,13 +399,12 @@ export function OnboardingModal() {
       }}
     >
       <div style={modalCardStyle} role="dialog" aria-modal="true">
-        <h2 style={modalHeadingStyle}>Make this about you</h2>
+        <h2 style={modalHeadingStyle}>Personalize your story feed</h2>
         <p style={modalSubheadStyle}>
-          Most stories about money in politics aren&apos;t written for you.
-          They&apos;re written for people who already follow this stuff.
-          Three quick answers and we&apos;ll show you what each story means
-          for your bills, your senators, and your bank. We don&apos;t ask
-          for your name or email.
+          Tell us a few things about you and we&apos;ll surface the stories
+          that affect your bills, your reps, and the sectors you care
+          about. You still have access to every story in the Journal.
+          We don&apos;t ask for your name or email.
         </p>
 
         {/* ZIP */}
@@ -375,21 +437,23 @@ export function OnboardingModal() {
           </div>
         </div>
 
-        {/* Lifestyle */}
+        {/* Sectors — multi-select chip picker (replaces the lifestyle
+            buckets so the filter maps directly onto our 11 reporting
+            sectors). */}
         <div style={{ marginBottom: 20 }}>
           <label style={fieldLabelStyle}>
-            What do you spend money on? Pick up to 3
+            Sectors to follow ({lifestyle.length}/{MAX_SECTORS})
           </label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {LIFESTYLE_OPTIONS.map((opt) => {
+            {SECTOR_OPTIONS.map((opt) => {
               const active = lifestyle.includes(opt.value);
               return (
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => toggleLifestyle(opt.value)}
+                  onClick={() => toggleSector(opt.value)}
                   style={active ? chipActiveStyle : chipBaseStyle}
-                  disabled={!active && lifestyle.length >= 3}
+                  disabled={!active && lifestyle.length >= MAX_SECTORS}
                 >
                   {opt.label}
                 </button>
@@ -398,24 +462,29 @@ export function OnboardingModal() {
           </div>
         </div>
 
-        {/* Concern */}
+        {/* Concerns — chip picker too (replaces the previous native
+            <select>, which inherited the OS dropdown styling and
+            rendered illegibly on dark backgrounds). */}
         <div style={{ marginBottom: 20 }}>
-          <label style={fieldLabelStyle} htmlFor="onb-concern">
-            What&apos;s hurting your wallet most right now?
+          <label style={fieldLabelStyle}>
+            What matters to your wallet right now? ({concerns.length}/{MAX_CONCERNS})
           </label>
-          <select
-            id="onb-concern"
-            value={concern}
-            onChange={(e) => setConcern(e.target.value)}
-            style={inputStyle}
-          >
-            <option value="">Pick one…</option>
-            {CONCERN_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {CONCERN_OPTIONS.map((opt) => {
+              const active = concerns.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => toggleConcern(opt.value)}
+                  style={active ? chipActiveStyle : chipBaseStyle}
+                  disabled={!active && concerns.length >= MAX_CONCERNS}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {error && (
@@ -455,7 +524,7 @@ export function OnboardingModal() {
               opacity: submitting ? 0.6 : 1,
             }}
           >
-            {submitting ? 'Saving…' : 'Show me'}
+            {submitting ? 'Saving…' : 'Show me my feed'}
           </button>
         </div>
       </div>
@@ -497,7 +566,12 @@ export function WhyThisMattersBlock({ slug }: { slug: string }) {
     const params = new URLSearchParams();
     if (state.state) params.set('state', state.state);
     if (state.lifestyle?.length) params.set('lifestyle', state.lifestyle.join(','));
-    if (state.concern) params.set('concern', state.concern);
+    if (state.concerns?.length) {
+      params.set('concerns', state.concerns.join(','));
+    } else if (state.concern) {
+      // v1 fallback for users still on a single-concern record.
+      params.set('concern', state.concern);
+    }
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 8_000);
     fetch(`${API_BASE}/stories/${slug}/personalization?${params}`, {
@@ -513,44 +587,16 @@ export function WhyThisMattersBlock({ slug }: { slug: string }) {
     };
   }, [slug, state]);
 
-  // Soft-prompt to onboard for anonymous readers.
+  // Hide for anonymous readers entirely. The homepage already
+  // surfaces the personalize prompt; doubling it on every story
+  // makes the page feel like a paywall. The block only renders for
+  // onboarded users with a meaningful payload.
   if (!state) {
-    return (
-      <div
-        style={{
-          marginBottom: 24,
-          padding: '14px 18px',
-          border: '1px solid rgba(197,160,40,0.25)',
-          background: 'rgba(197,160,40,0.06)',
-          borderRadius: 12,
-          fontFamily: 'var(--font-body)',
-          fontSize: 14,
-          lineHeight: 1.55,
-          color: 'var(--color-text-1)',
-        }}
-      >
-        <strong>Make this story about you.</strong>{' '}
-        Three quick answers and we&apos;ll show you what this means for
-        your bills and your senators.{' '}
-        <button
-          type="button"
-          onClick={openModal}
-          style={{
-            background: 'transparent',
-            border: 0,
-            padding: 0,
-            color: 'var(--color-accent-text)',
-            textDecoration: 'underline',
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            fontSize: 'inherit',
-          }}
-        >
-          Personalize (30 seconds)
-        </button>
-      </div>
-    );
+    return null;
   }
+  // Use openModal for the not-anonymous path's "edit" affordance
+  // below; eslint complains otherwise.
+  void openModal;
 
   if (!data || !data.has_personalization) {
     return null;

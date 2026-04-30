@@ -494,8 +494,9 @@ def get_story_personalization(
     slug: str,
     request: Request = None,  # noqa: B008 — required by @limiter.limit
     state: Optional[str] = Query(None, max_length=2, description="2-letter state code"),
-    lifestyle: Optional[str] = Query(None, description="Comma-separated user lifestyle categories"),
-    concern: Optional[str] = Query(None, max_length=64, description="User's current concern"),
+    lifestyle: Optional[str] = Query(None, description="Comma-separated user lifestyle/sector categories"),
+    concern: Optional[str] = Query(None, max_length=64, description="User's primary concern (v1, single-string)"),
+    concerns: Optional[str] = Query(None, description="Comma-separated list of user concerns (v2, multi-select)"),
     db: Session = Depends(get_db),
 ):
     """Build a 'Why this matters to you' payload for a story.
@@ -535,7 +536,16 @@ def get_story_personalization(
         [c.strip().lower() for c in (lifestyle or "").split(",") if c.strip()]
         if lifestyle else []
     )
-    concern_norm = (concern or "").strip().lower() or None
+    # Concerns: prefer the v2 multi-select param; fall back to the v1
+    # single-string. The anchor lookup is keyed by (concern, sector),
+    # so we walk the list and pick the first concern that produces a
+    # non-empty anchor for this story.
+    concerns_list: List[str] = (
+        [c.strip().lower() for c in (concerns or "").split(",") if c.strip()]
+        if concerns else []
+    )
+    if not concerns_list and concern:
+        concerns_list = [(concern or "").strip().lower()]
 
     # 1. Matched lifestyle. Map story.category and story.sector into
     #    the user's lifestyle vocabulary.
@@ -578,8 +588,15 @@ def get_story_personalization(
         except Exception as e:
             logger.warning("rep lookup failed for state %s: %s", state_norm, e)
 
-    # 3. Concern anchor. One-line framing keyed off the user's concern.
-    concern_anchor = _concern_anchor_for_story(story, concern_norm, matched_lifestyle)
+    # 3. Concern anchor. One-line framing keyed off the user's
+    #    concerns. Walks each concern in priority order; the first
+    #    one that yields a non-empty anchor wins.
+    concern_anchor: Optional[str] = None
+    for c in concerns_list or [None]:
+        anchor = _concern_anchor_for_story(story, c, matched_lifestyle)
+        if anchor:
+            concern_anchor = anchor
+            break
 
     return {
         "slug": slug,
@@ -603,16 +620,24 @@ def _match_lifestyle(story: Story, user_lifestyle: List[str]) -> List[str]:
     sector = (story.sector or "").lower()
     category = (story.category or "").lower()
 
-    # Story-side signals -> user-lifestyle vocabulary.
+    # Story-side signals -> user-lifestyle vocabulary. The lookup
+    # carries both the v2 sector keys (which match the platform's
+    # canonical sectors 1-to-1) and the legacy v1 lifestyle keys so
+    # older localStorage records still resolve.
     sector_to_lifestyle = {
-        "finance":         {"banking"},
-        "health":          {"healthcare"},
+        # v2 (canonical) sector keys
+        "finance":         {"finance", "banking"},
+        "health":          {"health", "healthcare"},
+        "housing":         {"housing"},
         "energy":          {"energy", "transportation"},
         "transportation":  {"transportation"},
-        "tech":            {"tech"},
+        "technology":      {"technology", "tech"},
+        "tech":            {"technology", "tech"},
         "education":       {"education", "kids"},
-        "agriculture":     {"food"},
-        "telecom":         {"tech"},
+        "agriculture":     {"agriculture", "food"},
+        "telecom":         {"telecom", "technology", "tech"},
+        "chemicals":       {"chemicals"},
+        "defense":         {"defense"},
     }
     category_to_lifestyle = {
         "tax_lobbying":         {"work"},
