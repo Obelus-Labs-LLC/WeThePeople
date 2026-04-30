@@ -721,6 +721,7 @@ def get_closed_loops(
     limit: int = Query(25, ge=1, le=250),
     offset: int = Query(0, ge=0, description="Pagination offset (use with stats.has_more)"),
     max_per_company: int = Query(0, ge=0, le=50, description="Cap loops per company; 0 = no cap, 1 = one per company (max diversity)"),
+    request: Request = None,  # noqa: B008 — required by @limiter.limit
     db: Session = Depends(get_db),
 ):
     """Detect closed-loop influence: company lobbies -> bill -> committee -> donation to committee member."""

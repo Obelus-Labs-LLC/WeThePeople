@@ -334,7 +334,11 @@ def get_story(slug: str, db: Session = Depends(get_db)):
 
 @router.get("/{slug}/simplified")
 @limiter.limit("30/minute")
-def get_story_simplified(slug: str, request: Request, db: Session = Depends(get_db)):
+def get_story_simplified(
+    slug: str,
+    request: Request = None,  # noqa: B008 — required by @limiter.limit
+    db: Session = Depends(get_db),
+):
     """Return the 60-second simplified version of a published story.
 
     Generates lazily on first request via Haiku and caches on the row.
