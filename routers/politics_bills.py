@@ -193,17 +193,55 @@ def _normalize_role(raw: Optional[str]) -> str:
     return _GT_ROLE_TO_API.get(raw.strip().lower(), raw.strip().lower())
 
 
-def _bill_summary_with_fallback(bill: Bill) -> Optional[str]:
-    """Return the bill summary, falling back to the constitutional-
-    authority statement embedded in metadata_json when Congress.gov
-    hasn't published a CRS summary yet (~38% of our bills at apr-28).
+def _bill_summary_with_fallback(bill: Bill, db_session=None) -> Optional[str]:
+    """Return the best available bill summary.
 
-    The fallback is clearly labeled so readers know it isn't an
-    official CRS summary.
+    Resolution order:
+      1. CRS summary (`bill.summary_text`) when Congress.gov has
+         published one.
+      2. Cached AI-generated summary on metadata_json.ai_summary
+         (Haiku-generated 2-3 sentence factual summary).
+      3. On-demand AI summary, generated and cached in
+         metadata_json.ai_summary. Requires db_session.
+      4. Constitutional authority statement from metadata_json,
+         labeled as a stand-in.
+      5. None.
+
+    Each fallback is clearly labeled in the returned text so readers
+    know it isn't an official CRS summary.
     """
     if bill.summary_text and bill.summary_text.strip():
         return bill.summary_text
 
+    # 2. Cached AI summary (free, fast).
+    try:
+        from services.bill_ai_summary import cached_ai_summary
+        cached = cached_ai_summary(bill)
+        if cached:
+            return (
+                "AI-generated summary (no CRS summary published yet):\n\n"
+                + cached
+            )
+    except Exception as e:
+        logger = __import__("logging").getLogger(__name__)
+        logger.debug("bill_ai_summary cache read failed: %s", e)
+
+    # 3. On-demand generation. Skipped when the API has no DB
+    #    session handle (e.g. pure-cache reads from offline tools).
+    if db_session is not None:
+        try:
+            from services.bill_ai_summary import generate_and_cache_summary
+            generated = generate_and_cache_summary(bill, db_session)
+            if generated:
+                return (
+                    "AI-generated summary (no CRS summary published yet):\n\n"
+                    + generated
+                )
+        except Exception as e:
+            logger = __import__("logging").getLogger(__name__)
+            logger.debug("bill_ai_summary generation failed: %s", e)
+
+    # 4. Constitutional authority statement.
     raw_meta = bill.metadata_json
     if not raw_meta:
         return None
@@ -322,7 +360,7 @@ def get_bill(bill_id: str):
             "title": bill.title,
             "policy_area": bill.policy_area,
             "subjects_json": bill.subjects_json,
-            "summary_text": _bill_summary_with_fallback(bill),
+            "summary_text": _bill_summary_with_fallback(bill, db_session=db),
             "status_bucket": bill.status_bucket,
             "latest_action_text": bill.latest_action_text,
             "latest_action_date": bill.latest_action_date.isoformat() if bill.latest_action_date else None,

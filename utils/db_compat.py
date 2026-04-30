@@ -11,7 +11,7 @@ Usage:
 
 import os
 import re
-from sqlalchemy import func, text, literal_column, event, JSON
+from sqlalchemy import func, text, literal_column, event, JSON, case
 from sqlalchemy.sql import expression
 from sqlalchemy.types import TypeDecorator, Text as SAText
 
@@ -306,7 +306,11 @@ def lobby_spend(model):
     things like CSV exports of individual filings, where each row
     stands on its own.
     """
-    return func.case(
+    # NOTE: use the top-level `case` expression from sqlalchemy, NOT
+    # `func.case`. `func.X` constructs a generic SQL function literally
+    # named X, which doesn't accept `else_`. `case` is a special
+    # expression class — that's the right primitive.
+    return case(
         (func.coalesce(model.expenses, 0) > 0, func.coalesce(model.expenses, 0)),
         else_=func.coalesce(model.income, 0),
     )

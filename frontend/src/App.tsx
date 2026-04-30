@@ -16,7 +16,6 @@ import EducationLayout from "./layouts/EducationLayout";
 // VerifyLayout removed — verification moved to verify.wethepeopleforus.com
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
-import GlobalSearch from "./components/GlobalSearch";
 import ChatAgent from "./components/ChatAgent";
 import UserMenu from "./components/UserMenu";
 import EcosystemNav from "./components/EcosystemNav";
@@ -133,22 +132,23 @@ const MethodologyPage = React.lazy(() => import("./pages/MethodologyPage"));
 // Landing page has its own SiteHeader with search + Log in/Sign up.
 // All other pages rely on the global floating overlays.
 //
-// The EcosystemNav is a 52px sticky bar pinned at top:0 on every page, so
-// the floating overlays are offset to top-[68px] (= 52 + 16) to sit just
-// below it without hiding the ecosystem switcher.
+// The EcosystemNav is a 52px sticky bar pinned at top:0 on every page.
+// User pill rides INSIDE that bar (top-[10px]) so it doesn't overlap the
+// per-sector nav (which sits at top-[52px]). The Ctrl+K GlobalSearch pill
+// was a duplicate entry-point into ChatAgent; ChatAgent already exposes
+// a floating draggable widget, so we removed the pill.
 const GlobalOverlays: React.FC = () => {
   const { pathname } = useLocation();
   const isLanding = pathname === "/";
   if (isLanding) return null;
   return (
     <>
-      <GlobalSearch />
       <ChatAgent />
-      {/* User pill sits level with the GlobalSearch button (both at top-[68px])
-          and one z-layer below (9997 vs 9998) so the search modal can still
-          open above it. right-32 gives ~30px of breathing room between the
-          user pill and the search pill. */}
-      <div className="fixed top-[68px] right-32 z-[9997]">
+      {/* User pill rides inside the 52px EcosystemNav strip so it lives
+          on the same row as the WTP logo + ecosystem switcher rather
+          than floating into the per-sector nav below. z-[9997] keeps
+          it under any modal layers. */}
+      <div className="fixed top-[10px] right-4 z-[9997]">
         <UserMenu />
       </div>
     </>
