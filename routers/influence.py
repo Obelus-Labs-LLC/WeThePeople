@@ -711,7 +711,6 @@ def get_influence_network(
 @router.get("/closed-loops")
 @limiter.limit("60/minute")
 def get_closed_loops(
-    request: Request,
     entity_type: Optional[str] = Query(None, description="Filter by sector: finance, health, tech, energy, transportation, defense, chemicals, agriculture, telecom, education"),
     entity_id: Optional[str] = Query(None, description="Filter by company ID"),
     person_id: Optional[str] = Query(None, description="Filter by politician person_id"),
