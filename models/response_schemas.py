@@ -9,7 +9,7 @@ returned by each endpoint -- no behaviour changes.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -299,7 +299,11 @@ class BillEnrichmentStats(BaseModel):
 class VoteListItem(BaseModel):
     vote_id: Optional[str] = None
     chamber: Optional[str] = None
-    session: Optional[str] = None
+    # `session` historically was a string, but Vote.vote_session is an
+    # int in the DB (1 / 2 for the two sessions of a Congress). Both
+    # are accepted on the wire so old clients that expected a string
+    # still work, and the validator stops 500-ing on int responses.
+    session: Optional[Union[str, int]] = None
     congress: Optional[int] = None
     question: Optional[str] = None
     result: Optional[str] = None
