@@ -661,7 +661,7 @@ def get_token_usage(
 # approves or rejects before it becomes visible to the public. This is the
 # last line of defense after the April 2026 mass retraction.
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from models.stories_models import Story
 
 
