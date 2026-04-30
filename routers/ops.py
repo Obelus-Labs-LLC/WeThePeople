@@ -683,7 +683,10 @@ class StoryEditPatch(BaseModel):
 class RightToRespondEntry(BaseModel):
     """One entity's right-to-respond state. Editor records this per
     entity named in the story before approving."""
-    entity_id: str
+    # entity_id matches our entity_id slugs (kebab-case companies,
+    # snake_case people). 256 is well above any real slug we use; bigger
+    # payloads are abusive.
+    entity_id: str = Field(..., min_length=1, max_length=256)
     # 'sent'      = comment request sent to the entity, awaiting reply
     # 'received'  = entity replied (response_text captures the reply)
     # 'no_reply'  = sent, 24h elapsed, no response received (publishable)
@@ -691,14 +694,21 @@ class RightToRespondEntry(BaseModel):
     #               request (data brief, public official quote, etc.)
     #               and recorded a reason
     # 'pending'   = no action recorded yet; the default
-    status: str
-    response_text: Optional[str] = None
-    reason: Optional[str] = None
+    status: str = Field(..., min_length=1, max_length=32)
+    # response_text holds the entity's reply (or a summary). Cap at
+    # 16K so a malicious or buggy submission can't bloat the JSON
+    # evidence column to the point that the row stops fitting in
+    # SQLite's page cache.
+    response_text: Optional[str] = Field(default=None, max_length=16384)
+    reason: Optional[str] = Field(default=None, max_length=2048)
 
 
 class RightToRespondPatch(BaseModel):
     """Whole-checklist update. Sent from the review page form."""
-    entries: List[RightToRespondEntry]
+    # Cap at 200 entries — way more than any realistic story would
+    # name, but bounded so a malicious POST can't stuff the column
+    # with megabytes.
+    entries: List[RightToRespondEntry] = Field(..., max_length=200)
 
 
 @router.get("/story-queue")
@@ -842,6 +852,12 @@ def story_queue_respond(
             "recorded_at": datetime.now(timezone.utc).isoformat(),
         })
 
+    # Concurrency note: this is a read-modify-write on the JSON
+    # `evidence` column without a row lock. Two simultaneous editors
+    # could lose each other's writes (last write wins). Acceptable
+    # while WTP is single-editor; revisit when we add a second
+    # reviewer (use SQLite's `json_patch` or an UPDATE WHERE for
+    # optimistic locking on a version column).
     evidence = dict(story.evidence) if isinstance(story.evidence, dict) else {}
     rtr = dict(evidence.get("right_to_respond") or {})
     rtr["entries"] = cleaned
@@ -1063,6 +1079,18 @@ def story_queue_view(
     # POST /ops/story-queue/{id}/respond which persists into
     # evidence.right_to_respond.entries. The approve flow blocks
     # when any entry is still 'pending' unless explicitly overridden.
+    # Mint a respond-action signed token so the JS form submission
+    # works for editors who arrived via the view-token email link.
+    # The view-token doesn't authorize POST to /respond (different
+    # action). The respond-token is scoped to (story_id, "respond")
+    # and expires per the press_signed_token TTL.
+    rtr_respond_token = ""
+    try:
+        from services.press_signed_token import sign_story_action
+        rtr_respond_token = sign_story_action(story.id, "respond")
+    except Exception as e:
+        logger.warning("could not mint respond token for story %s: %s", story.id, e)
+
     rtr_block = ""
     rtr = evidence_obj.get("right_to_respond") if isinstance(evidence_obj, dict) else None
     if isinstance(rtr, dict) and (rtr.get("entities_to_contact") or rtr.get("entries")):
@@ -1145,7 +1173,12 @@ def story_queue_view(
             f"  }});"
             f"  var qp = new URLSearchParams(window.location.search);"
             f"  var url = '/ops/story-queue/{story.id}/respond';"
-            f"  if (qp.get('token')) url += '?token=' + encodeURIComponent(qp.get('token'));"
+            # Prefer the server-minted respond-token (scoped to this
+            # story_id + 'respond' action). The view-token in the URL
+            # won't authorize POST. If neither is available, fall
+            # back to ?key= for the operator path.
+            f"  var respondToken = '{html.escape(rtr_respond_token)}';"
+            f"  if (respondToken) url += '?token=' + encodeURIComponent(respondToken);"
             f"  else if (qp.get('key')) url += '?key=' + encodeURIComponent(qp.get('key'));"
             f"  statusEl.textContent = 'Saving...';"
             f"  fetch(url, {{method:'POST', headers:{{'Content-Type':'application/json'}}, body: JSON.stringify({{entries: entries}})}})"
