@@ -257,6 +257,8 @@ def find_closed_loops(
     year_from: int = 2020,
     year_to: int = 2026,
     limit: int = 25,
+    offset: int = 0,
+    max_per_company: int = 0,
 ) -> Dict[str, Any]:
     """
     Find closed-loop influence chains using a SQL-first approach.
@@ -264,7 +266,8 @@ def find_closed_loops(
     # Check cache first (in-memory + disk-restored on import)
     cache_key = hashlib.md5(json.dumps({
         "et": entity_type, "eid": entity_id, "pid": person_id,
-        "md": min_donation, "yf": year_from, "yt": year_to, "l": limit
+        "md": min_donation, "yf": year_from, "yt": year_to,
+        "l": limit, "off": offset, "mpc": max_per_company,
     }, sort_keys=True).encode()).hexdigest()
     now = time.monotonic()
     with _cache_lock:
@@ -301,6 +304,13 @@ def find_closed_loops(
     where_clause = " AND ".join(sql_filters)
     having_clause = f"HAVING total_amount >= {float(min_donation)}" if min_donation > 0 else ""
 
+    # Pool size for the candidate (entity, politician) pairs we'll
+    # examine for closed-loop overlap. Was 100, but in sectors where a
+    # single company donates to many politicians (finance: Fifth Third
+    # to 25+ pols), 100 pairs only represent 5-10 distinct companies.
+    # Bumped to 500 so per-company diversity filtering has real
+    # material to work with. Query is O(n log n) with the
+    # company_donations index; 500 is still well under 100ms.
     raw_sql = text(f"""
         SELECT entity_id, entity_type, person_id,
                SUM(amount) as total_amount,
@@ -311,7 +321,7 @@ def find_closed_loops(
         GROUP BY entity_id, entity_type, person_id
         {having_clause}
         ORDER BY total_amount DESC
-        {limit_sql(100)}
+        {limit_sql(500)}
     """)
     donation_pairs = db.execute(raw_sql, sql_params).fetchall()
     if not donation_pairs:
@@ -512,7 +522,12 @@ def find_closed_loops(
     # Step 6: Assemble closed loops with early termination
     loops = []
     seen = set()
-    max_loops_before_sort = limit * 3  # Early termination threshold
+    # Early-termination threshold. Was `limit * 3`. With diversity
+    # filtering on, we need to assemble more loops than the page size
+    # because diversity drops same-company duplicates. Cap at
+    # max(limit*5, 250) so even small-limit diverse requests have
+    # enough headroom to backfill after filtering.
+    max_loops_before_sort = max(limit * 5, 250)
 
     for (eid, etype, pid), donation_info in donation_map.items():
         if is_partial or len(loops) >= max_loops_before_sort:
@@ -587,29 +602,64 @@ def find_closed_loops(
                     "donation": donation_info,
                 })
 
-    # Sort by donation amount descending, limit
+    # Sort all candidate loops by donation amount descending. We do
+    # this once on the full set so pagination + diversity filtering
+    # operate on a stable global ordering.
     loops.sort(key=lambda x: x["donation"]["total_amount"], reverse=True)
-    loops = loops[:limit]
 
-    unique_companies = len(set(l["company"]["entity_id"] for l in loops))
-    unique_politicians = len(set(l["politician"]["person_id"] for l in loops))
-    unique_bills = len(set(l["bill"]["bill_id"] for l in loops))
-    total_lobby = sum(l["lobbying"]["total_income"] for l in loops)
-    total_donations = sum(l["donation"]["total_amount"] for l in loops)
+    # Optional per-company diversity cap. When max_per_company > 0 we
+    # take at most N loops per (entity_type, entity_id) pair before
+    # paginating. This is the fix for "all 25 results are Fifth Third
+    # Bank": with max_per_company=1 you see one loop per company, with
+    # max_per_company=3 you see up to three before moving on.
+    if max_per_company and max_per_company > 0:
+        per_company_count: Dict[Tuple[str, str], int] = {}
+        diverse: List[Dict[str, Any]] = []
+        for lp in loops:
+            key = (lp["company"]["entity_type"], lp["company"]["entity_id"])
+            if per_company_count.get(key, 0) >= max_per_company:
+                continue
+            per_company_count[key] = per_company_count.get(key, 0) + 1
+            diverse.append(lp)
+        loops = diverse
+
+    total_loops_after_diversity = len(loops)
+
+    # Pagination: slice the post-diversity list. offset=0 (default)
+    # preserves prior behavior. limit caps the page size.
+    if offset > 0:
+        loops_page = loops[offset:offset + limit]
+    else:
+        loops_page = loops[:limit]
+
+    unique_companies = len(set(l["company"]["entity_id"] for l in loops_page))
+    unique_politicians = len(set(l["politician"]["person_id"] for l in loops_page))
+    unique_bills = len(set(l["bill"]["bill_id"] for l in loops_page))
+    total_lobby = sum(l["lobbying"]["total_income"] for l in loops_page)
+    total_donations = sum(l["donation"]["total_amount"] for l in loops_page)
 
     stats = {
         "total_loops_found": len(seen),
+        "total_loops_after_diversity": total_loops_after_diversity,
+        "limit": limit,
+        "offset": offset,
+        "max_per_company": max_per_company,
+        "has_more": (offset + limit) < total_loops_after_diversity,
         "unique_companies": unique_companies,
         "unique_politicians": unique_politicians,
         "unique_bills": unique_bills,
         "total_lobbying_spend": total_lobby,
         "total_donations": total_donations,
+        # Coverage diagnostics: explain why a sector might be empty
+        # without making the user dig through logs. Filled below.
+        "donation_pairs_examined": len(donation_pairs),
+        "donation_companies_examined": len({r.entity_id for r in donation_pairs}),
     }
     if is_partial:
         stats["partial"] = True
 
     result = {
-        "closed_loops": loops,
+        "closed_loops": loops_page,
         "stats": stats,
     }
     # Cache the result. Mark dirty so the periodic timer flushes to disk.

@@ -707,13 +707,15 @@ def get_influence_network(
 
 @router.get("/closed-loops")
 def get_closed_loops(
-    entity_type: Optional[str] = Query(None, description="Filter by sector: finance, health, tech, energy"),
+    entity_type: Optional[str] = Query(None, description="Filter by sector: finance, health, tech, energy, transportation, defense, chemicals, agriculture, telecom, education"),
     entity_id: Optional[str] = Query(None, description="Filter by company ID"),
     person_id: Optional[str] = Query(None, description="Filter by politician person_id"),
     min_donation: float = Query(0, ge=0, description="Minimum donation amount"),
     year_from: int = Query(2020, ge=2010),
     year_to: int = Query(2026, le=2030),
-    limit: int = Query(25, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=250),
+    offset: int = Query(0, ge=0, description="Pagination offset (use with stats.has_more)"),
+    max_per_company: int = Query(0, ge=0, le=50, description="Cap loops per company; 0 = no cap, 1 = one per company (max diversity)"),
     db: Session = Depends(get_db),
 ):
     """Detect closed-loop influence: company lobbies -> bill -> committee -> donation to committee member."""
@@ -727,6 +729,8 @@ def get_closed_loops(
         year_from=year_from,
         year_to=year_to,
         limit=limit,
+        offset=offset,
+        max_per_company=max_per_company,
     )
 
 
