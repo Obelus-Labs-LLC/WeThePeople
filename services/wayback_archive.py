@@ -16,9 +16,17 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# Canonical Wayback snapshot URL pattern: a numeric timestamp slug.
+# Anything else (error pages, /_static/, redirects to web.archive.org
+# without a snapshot) is rejected so we never persist a broken URL.
+_VALID_SNAPSHOT_RE = re.compile(
+    r"^https?://web\.archive\.org/web/\d{4,14}/", re.IGNORECASE,
+)
 
 DEFAULT_TIMEOUT_S = 15
 SAVE_API = "https://web.archive.org/save/"
@@ -68,7 +76,11 @@ def archive_url(target_url: str, timeout_s: int = DEFAULT_TIMEOUT_S) -> Optional
         snapshot_url = "https://web.archive.org" + snapshot_url
     if not snapshot_url:
         snapshot_url = resp.url
-    if not snapshot_url or "web.archive.org" not in snapshot_url:
+    # Tight match against the canonical /web/<timestamp>/ form so we
+    # don't persist URLs like /_static/error.html that happen to live
+    # on web.archive.org. The retry sweep will get it next time.
+    if not snapshot_url or not _VALID_SNAPSHOT_RE.match(snapshot_url):
+        logger.warning("wayback_archive: rejecting non-snapshot URL %s", snapshot_url)
         return None
     return snapshot_url
 

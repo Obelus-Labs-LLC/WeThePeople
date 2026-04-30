@@ -138,7 +138,44 @@ def generate_simplified_summary(
 
     if not text or len(text) < 100:
         return None
+
+    # Refusal detection: Haiku occasionally emits a meta-response
+    # ("I cannot summarize this", "I'd rather not...", etc.) instead
+    # of a summary. Caching that as the simplified version would
+    # serve it forever. The check is opening-line based because
+    # refusal phrasings are stylistically distinctive.
+    if _looks_like_refusal(text):
+        logger.info("simplified_summary: model refusal detected; not caching")
+        return None
     return text
+
+
+_REFUSAL_OPENERS = (
+    "i cannot",
+    "i can't",
+    "i won't",
+    "i will not",
+    "i'm unable",
+    "i am unable",
+    "i'd rather",
+    "i would rather",
+    "as an ai",
+    "as a language model",
+    "i don't feel comfortable",
+    "i do not feel comfortable",
+    "sorry, but",
+    "i apologize",
+    "i must decline",
+)
+
+
+def _looks_like_refusal(text: str) -> bool:
+    """Detect whether the model emitted a refusal meta-response
+    instead of a summary. Best-effort opener match — false positives
+    here lose ONE summary generation; false negatives would cache a
+    refusal forever."""
+    head = text.strip()[:160].lower()
+    return any(head.startswith(opener) for opener in _REFUSAL_OPENERS)
 
 
 def generate_and_cache(story, db_session, model: str = DEFAULT_MODEL) -> Optional[str]:
