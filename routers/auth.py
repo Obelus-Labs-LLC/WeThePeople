@@ -104,22 +104,38 @@ class PreferencesResponse(BaseModel):
 # Everything else (the actual personalization) gets computed at story-
 # render time from these inputs + the story's entities.
 
-# Lifestyle categories the user can pick. Kept short on purpose; the
-# disengaged audience won't engage with a 30-option dropdown.
+# Lifestyle / sector categories the user can pick. Reuses the
+# platform's 11 reporting sectors directly so the resulting feed
+# filter maps 1-to-1 onto stories without translation. The legacy
+# v1 lifestyle keys (banking/work/food/kids/etc.) are still
+# accepted to avoid breaking existing localStorage-only readers,
+# even though the v2 frontend only emits the canonical sector
+# names.
 ONBOARDING_LIFESTYLE_CATEGORIES = (
-    "banking",       # checking, savings, fees, credit
-    "healthcare",    # insurance, prescriptions, hospitals
-    "housing",       # rent, mortgage, property tax
-    "energy",        # electric, gas, gasoline
-    "transportation", # car, transit, fuel
-    "tech",          # internet, phone, big-tech services
-    "education",     # student loans, schools
-    "food",          # grocery prices, food safety
-    "work",          # employment, wages, benefits
-    "kids",          # childcare, schools, family
+    # v2 sector keys (canonical)
+    "finance",
+    "health",
+    "housing",
+    "energy",
+    "transportation",
+    "technology",
+    "telecom",
+    "education",
+    "agriculture",
+    "chemicals",
+    "defense",
+    # v1 lifestyle keys (deprecated but accepted)
+    "banking",
+    "healthcare",
+    "tech",
+    "food",
+    "work",
+    "kids",
 )
 
-# Single salient concern — what's actually hurting them right now.
+# Pocketbook concerns. Multi-select; the column on the User row stays
+# a single string for back-compat (we store concerns[0]) and the
+# extra picks are surfaced via the personalization payload only.
 ONBOARDING_CONCERNS = (
     "rent_too_high",
     "healthcare_costs",
@@ -130,14 +146,23 @@ ONBOARDING_CONCERNS = (
     "childcare",
     "credit_card_debt",
     "retirement",
+    "taxes",
     "other",
 )
 
 
 class OnboardingRequest(BaseModel):
     zip_code: str = Field(..., min_length=5, max_length=10)
-    lifestyle_categories: List[str] = Field(..., min_length=1, max_length=3)
+    # Cap at 11 (the size of the sector universe). The frontend
+    # softer-caps at 5 for UX, but accept up to the full set so an
+    # admin or power user re-onboarding manually doesn't bounce.
+    lifestyle_categories: List[str] = Field(..., min_length=1, max_length=11)
+    # v1 single-string concern. Keep it for back-compat; new clients
+    # also send `concerns` and we treat current_concern as concerns[0].
     current_concern: str = Field(..., min_length=1, max_length=64)
+    # v2 multi-select concerns. Optional; if absent, [current_concern]
+    # is used.
+    concerns: Optional[List[str]] = Field(default=None, max_length=11)
 
 
 class OnboardingResponse(BaseModel):

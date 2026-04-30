@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { StoryCard } from '../components/StoryCard';
 import { NewsletterCTA } from '../components/NewsletterCTA';
 import { EmptyState } from '../components/EmptyState';
+import { usePersonalization } from '../components/Personalization';
 import { useStories } from '../hooks/useStories';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { CATEGORY_META, type StoryCategory } from '../types';
@@ -44,14 +45,88 @@ const categories: StoryCategory[] = [
   'trade_cluster',
 ];
 
+// Maps the user's selected sectors (frontend keys) to the values
+// that show up on Story.sector. The legacy keys (banking, tech,
+// healthcare) are still listed so localStorage records from the
+// v1 onboarding still match. Keep aligned with the
+// sector_to_lifestyle map in routers/stories.py.
+const SECTOR_KEY_TO_STORY_SECTORS: Record<string, string[]> = {
+  finance:        ['finance'],
+  banking:        ['finance'],
+  health:         ['health'],
+  healthcare:     ['health'],
+  housing:        ['housing'],
+  energy:         ['energy'],
+  transportation: ['transportation', 'energy'],
+  technology:     ['technology', 'tech'],
+  tech:           ['technology', 'tech'],
+  telecom:        ['telecom'],
+  education:      ['education'],
+  agriculture:    ['agriculture'],
+  food:           ['agriculture'],
+  chemicals:      ['chemicals'],
+  defense:        ['defense'],
+};
+
 export default function HomePage() {
   // Single fetch covers both the home rail (first 10) and the search
   // index (full set). Avoids two parallel /stories/latest calls on
   // every cold visit and removes the brief race where the second
   // request resolved out-of-order and replaced the displayed list.
   const { stories: allStories, loading, error } = useStories({ limit: 200 });
-  const displayStories = useMemo(() => allStories.slice(0, 10), [allStories]);
+  const { state: pState, openModal } = usePersonalization();
   const [search, setSearch] = useState('');
+  const [personalizationOff, setPersonalizationOff] = useState(false);
+
+  // First-visit prompt: if the reader has never onboarded, open the
+  // modal automatically once the homepage has settled. Gated on a
+  // session-scoped sentinel so we don't re-prompt on every refresh
+  // within a tab (the persistent 90-day TTL still lives in
+  // localStorage). PersonalizationProvider is the source of truth
+  // for whether the modal opens.
+  useEffect(() => {
+    if (pState) return;
+    if (typeof window === 'undefined') return;
+    try {
+      const seen = window.sessionStorage.getItem('wtp.onboarding.prompted');
+      if (seen) return;
+      window.sessionStorage.setItem('wtp.onboarding.prompted', '1');
+    } catch {
+      /* ignore */
+    }
+    const t = setTimeout(() => openModal(), 600);
+    return () => clearTimeout(t);
+  }, [pState, openModal]);
+
+  // Build the set of allowed Story.sector values from the user's
+  // selected sectors. Falls back to "all" when the user hasn't
+  // onboarded or has explicitly toggled personalization off.
+  const allowedSectors = useMemo<Set<string> | null>(() => {
+    if (!pState || personalizationOff) return null;
+    if (!pState.lifestyle?.length) return null;
+    const out = new Set<string>();
+    for (const k of pState.lifestyle) {
+      for (const s of SECTOR_KEY_TO_STORY_SECTORS[k] ?? []) out.add(s);
+    }
+    return out.size > 0 ? out : null;
+  }, [pState, personalizationOff]);
+
+  const personalizedStories = useMemo(() => {
+    if (!allowedSectors) return allStories;
+    const filtered = allStories.filter((s) =>
+      s.sector ? allowedSectors.has(s.sector.toLowerCase()) : false,
+    );
+    // Cold-start protection: if the personalized filter would show
+    // nothing, fall back to the full list rather than rendering an
+    // empty masthead. The active-filter banner still tells the
+    // reader the filter applied.
+    return filtered.length > 0 ? filtered : allStories;
+  }, [allStories, allowedSectors]);
+
+  const displayStories = useMemo(
+    () => personalizedStories.slice(0, 10),
+    [personalizedStories],
+  );
 
   usePageMeta({
     title: 'The Influence Journal — Data-Driven Civic Investigations',
@@ -73,6 +148,9 @@ export default function HomePage() {
   });
 
   const q = search.trim().toLowerCase();
+  // Search runs across the full library (no personalization filter)
+  // so a reader can always find any story by name. The personalized
+  // filter only affects the front-page browse view.
   const filteredStories = q
     ? allStories.filter(
         (s) => s.title.toLowerCase().includes(q) || s.summary.toLowerCase().includes(q),
@@ -231,6 +309,110 @@ export default function HomePage() {
             {filteredStories.length} {filteredStories.length === 1 ? 'result' : 'results'} for &ldquo;
             {search.trim()}&rdquo;
           </p>
+        )}
+
+        {/* ── Personalized-feed banner ─────────────────────────────────
+            Only shows for onboarded users, only when not searching.
+            "Showing X for [sectors] · Edit · Show all" makes the
+            filter visible (so the reader is never confused why the
+            list is shorter than expected) and undoable in one click. */}
+        {!q && allowedSectors && pState && pState.lifestyle.length > 0 && (
+          <div
+            className="flex items-center justify-between flex-wrap gap-3"
+            style={{
+              marginBottom: 24,
+              padding: '10px 14px',
+              border: '1px solid rgba(197,160,40,0.2)',
+              background: 'rgba(197,160,40,0.05)',
+              borderRadius: 10,
+              fontFamily: 'var(--font-body)',
+              fontSize: 13,
+            }}
+          >
+            <div style={{ color: 'var(--color-text-2)' }}>
+              <span style={{ color: 'var(--color-text-1)', fontWeight: 600 }}>
+                Showing your sectors:{' '}
+              </span>
+              {pState.lifestyle.join(', ')}
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => openModal()}
+                style={{
+                  background: 'transparent',
+                  border: 0,
+                  padding: 0,
+                  color: 'var(--color-accent-text)',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                }}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setPersonalizationOff(true)}
+                style={{
+                  background: 'transparent',
+                  border: 0,
+                  padding: 0,
+                  color: 'var(--color-text-2)',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                }}
+              >
+                Show all stories
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* "Personalize your feed" prompt for unauthenticated/un-onboarded
+            readers. Sits where the banner would otherwise be so the
+            same vertical real estate is used for either state. */}
+        {!q && !pState && !loading && !error && (
+          <div
+            className="flex items-center justify-between flex-wrap gap-3"
+            style={{
+              marginBottom: 24,
+              padding: '10px 14px',
+              border: '1px solid rgba(197,160,40,0.2)',
+              background: 'rgba(197,160,40,0.05)',
+              borderRadius: 10,
+              fontFamily: 'var(--font-body)',
+              fontSize: 13,
+            }}
+          >
+            <div style={{ color: 'var(--color-text-1)' }}>
+              <strong>Personalize your story feed.</strong>{' '}
+              <span style={{ color: 'var(--color-text-2)' }}>
+                Pick the sectors and concerns that matter to you and we&apos;ll
+                surface stories that affect your bills and your reps.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => openModal()}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid rgba(197,160,40,0.4)',
+                background: 'transparent',
+                color: 'var(--color-accent-text)',
+                fontFamily: 'inherit',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Personalize (30 sec)
+            </button>
+          </div>
         )}
 
         {/* ── Featured + Latest grid ───────────────────────────────── */}
