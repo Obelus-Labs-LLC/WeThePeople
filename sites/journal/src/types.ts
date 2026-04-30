@@ -73,6 +73,11 @@ export interface Story {
   verification_score?: number | null;
   verification_tier?: string | null;
   verification_data?: Record<string, unknown> | null;
+  // 60-second simplified version of the story body, generated lazily
+  // by the API and cached on the row. Frontend renders a toggle when
+  // present.
+  summary_simplified?: string | null;
+  summary_simplified_model?: string | null;
   featured?: boolean;
   hero_image_url?: string;
   tags?: string[];

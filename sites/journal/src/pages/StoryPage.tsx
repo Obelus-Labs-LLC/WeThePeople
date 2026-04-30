@@ -972,8 +972,18 @@ export default function StoryPage() {
           </p>
         </div>
 
-        {/* Body */}
-        <div className="mb-12">{renderContent(story.body || story.content || '')}</div>
+        {/* 60-second simplified version toggle.
+            The whole point of the platform is to make this readable
+            for people who don't already follow politics. The toggle
+            switches between full investigative body and a 200-300
+            word plain-English version anchored in personal cost.
+            Default is full body for desktop / engaged readers; a
+            visible toggle invites the disengaged audience in. */}
+        <SimplifiedToggle
+          slug={slug!}
+          initialSimplified={story.summary_simplified ?? null}
+          fullBody={story.body || story.content || ''}
+        />
 
         {/* Share buttons */}
         <div
@@ -1570,5 +1580,145 @@ export default function StoryPage() {
         )}
       </article>
     </main>
+  );
+}
+
+
+/**
+ * Simplified-summary toggle. Renders a tab pair above the body:
+ *   "Full story" — the original investigative body (default).
+ *   "60-second version" — the plain-English version, anchored in
+ *                          personal cost where possible.
+ *
+ * The simplified version is generated lazily by the API. First click
+ * triggers a fetch; subsequent toggles are instant. Failure modes
+ * (no API key, network error) hide the simplified tab so the reader
+ * never sees a broken state.
+ */
+function SimplifiedToggle({
+  slug,
+  initialSimplified,
+  fullBody,
+}: {
+  slug: string;
+  initialSimplified: string | null;
+  fullBody: string;
+}) {
+  const [simplified, setSimplified] = useState<string | null>(initialSimplified);
+  const [mode, setMode] = useState<'full' | 'simple'>('full');
+  const [loading, setLoading] = useState(false);
+  const [errored, setErrored] = useState(false);
+
+  const requestSimplified = useCallback(async () => {
+    if (simplified) {
+      setMode('simple');
+      return;
+    }
+    setLoading(true);
+    setErrored(false);
+    try {
+      const res = await fetch(`${API_BASE}/stories/${slug}/simplified`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data?.simplified && typeof data.simplified === 'string') {
+        setSimplified(data.simplified);
+        setMode('simple');
+      } else {
+        setErrored(true);
+      }
+    } catch {
+      setErrored(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [simplified, slug]);
+
+  // The toggle row hides itself entirely when the simplified version
+  // failed to generate — no point dangling a broken tab.
+  const showToggle = !errored;
+
+  const tabBaseStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '0.18em',
+    textTransform: 'uppercase',
+    padding: '10px 16px',
+    borderRadius: '10px',
+    border: '1px solid rgba(235,229,213,0.12)',
+    cursor: 'pointer',
+    background: 'transparent',
+    color: 'var(--color-text-2)',
+    transition: 'all 0.2s',
+  };
+  const tabActiveStyle: React.CSSProperties = {
+    ...tabBaseStyle,
+    background: 'var(--color-accent)',
+    color: '#07090C',
+    borderColor: 'var(--color-accent)',
+  };
+
+  return (
+    <>
+      {showToggle && (
+        <div
+          className="mb-6 flex items-center gap-2 flex-wrap"
+          style={{ alignItems: 'center' }}
+        >
+          <button
+            type="button"
+            onClick={() => setMode('full')}
+            style={mode === 'full' ? tabActiveStyle : tabBaseStyle}
+          >
+            Full story
+          </button>
+          <button
+            type="button"
+            onClick={requestSimplified}
+            disabled={loading}
+            style={{
+              ...(mode === 'simple' ? tabActiveStyle : tabBaseStyle),
+              opacity: loading ? 0.6 : 1,
+              cursor: loading ? 'wait' : 'pointer',
+            }}
+          >
+            {loading ? 'Loading...' : '60-second version'}
+          </button>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '10px',
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-3)',
+              marginLeft: 4,
+            }}
+          >
+            {mode === 'simple' ? 'Plain English. ~250 words.' : 'Full investigation.'}
+          </span>
+        </div>
+      )}
+
+      {mode === 'simple' && simplified ? (
+        <div
+          className="mb-12"
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '17px',
+            lineHeight: 1.7,
+            color: 'var(--color-text-1)',
+            background: 'rgba(197,160,40,0.04)',
+            border: '1px solid rgba(197,160,40,0.18)',
+            borderRadius: '14px',
+            padding: '24px 26px',
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {simplified}
+        </div>
+      ) : (
+        <div className="mb-12">{renderContent(fullBody)}</div>
+      )}
+    </>
   );
 }
