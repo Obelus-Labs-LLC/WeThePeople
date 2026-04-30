@@ -1072,6 +1072,9 @@ def _editor_pass(
       - runs the implication-review pass to flag sentences that
         imply causation without explicit evidence; flags get attached
         to evidence.implication_flags for the human reviewer
+      - stamps a right-to-respond requirement on evidence so the
+        editor sees a checklist of entities to contact before
+        approving the draft
 
     Eventually this is the seam where we'd plug a richer editor agent
     (style guide enforcement, length normalization, headline polish).
@@ -1106,6 +1109,35 @@ def _editor_pass(
         draft = attach_flags_to_draft(draft, flags)
     except Exception as e:
         logger.warning("implication_review pass failed (non-fatal): %s", e)
+
+    # Right-to-respond requirement. For investigative stories naming
+    # specific entities, our editorial standards require sending a
+    # request for comment 24h before publication. Stamp the
+    # requirement on evidence so the review page can render a
+    # checklist; the human editor decides which entities to contact.
+    try:
+        entity_ids = draft.get("entity_ids") or []
+        if entity_ids:
+            evidence = draft.get("evidence") or {}
+            if not isinstance(evidence, dict):
+                evidence = {}
+            evidence = {
+                **evidence,
+                "right_to_respond": {
+                    "status": "pending",
+                    "entities_to_contact": [str(e) for e in entity_ids if e],
+                    "policy_url": "/standards#right-of-response",
+                    "requirement": (
+                        "Investigative stories naming specific entities "
+                        "require a request-for-comment sent 24h before "
+                        "publication. Document the send via the entity "
+                        "page or skip explicitly with a reason."
+                    ),
+                },
+            }
+            draft = {**draft, "evidence": evidence}
+    except Exception as e:
+        logger.warning("right-to-respond stamp failed (non-fatal): %s", e)
 
     return draft
 
