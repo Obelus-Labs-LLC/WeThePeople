@@ -572,28 +572,61 @@ def get_entity_name(db, entity_id, entity_table, id_col):
 # contract agencies make sense for its sector.
 
 SECTOR_EXPECTED_AGENCIES = {
+    # Finance: Treasury, defense (cloud + payments), VA (loans), SEC,
+    # DHS (sanctions), State (foreign settlements), GSA (custody).
+    # Big banks also do Education (student-loan servicing) and Justice
+    # (forfeiture handling).
     "finance": {"Department of the Treasury", "Department of Defense", "Department of Veterans Affairs",
                 "Securities and Exchange Commission", "Department of Homeland Security",
-                "Department of State", "General Services Administration"},
+                "Department of State", "General Services Administration",
+                "Department of Education", "Department of Justice",
+                "Department of Health and Human Services"},
+    # Health: HHS family, VA, DoD (military health), FDA, DoJ
+    # (forfeiture / antitrust), DHS (border), State (foreign aid med).
     "health": {"Department of Health and Human Services", "Department of Veterans Affairs",
-               "Department of Defense", "Food and Drug Administration"},
+               "Department of Defense", "Food and Drug Administration",
+               "Department of Justice", "Department of Homeland Security",
+               "Department of State", "General Services Administration"},
+    # Tech: every cabinet department buys cloud / SaaS now. The 2020+
+    # JEDI / JWCC era means DoD, DHS, NASA, DoE are core, but the
+    # cloud-services contracting expands to every agency including
+    # Agriculture, USAGM, State, DOJ, Education, HHS, Treasury, Interior.
     "tech": {"Department of Defense", "General Services Administration", "Department of Homeland Security",
-             "National Aeronautics and Space Administration", "Department of Energy"},
+             "National Aeronautics and Space Administration", "Department of Energy",
+             "Department of Agriculture", "Department of State", "Department of Justice",
+             "Department of Education", "Department of Health and Human Services",
+             "Department of the Treasury", "Department of the Interior",
+             "Department of Veterans Affairs", "U.S. Agency for Global Media",
+             "Department of Commerce", "Social Security Administration",
+             "Environmental Protection Agency", "Department of Labor",
+             "Department of Transportation", "Department of Housing and Urban Development"},
+    # Energy: DoE, DoD (fuel), EPA, Interior (mineral rights), GSA
+    # (utilities), USDA (rural electrification), Transportation.
     "energy": {"Department of Energy", "Department of Defense", "Environmental Protection Agency",
-               "Department of the Interior", "General Services Administration"},
+               "Department of the Interior", "General Services Administration",
+               "Department of Agriculture", "Department of Transportation",
+               "Department of Homeland Security"},
     "transportation": {"General Services Administration", "Department of Transportation",
-                       "Department of Defense", "Department of Homeland Security"},
+                       "Department of Defense", "Department of Homeland Security",
+                       "Department of Veterans Affairs",
+                       "National Aeronautics and Space Administration"},
     "defense": {"Department of Defense", "Department of Homeland Security", "Department of State",
-                "Department of Energy", "National Aeronautics and Space Administration"},
+                "Department of Energy", "National Aeronautics and Space Administration",
+                "General Services Administration",
+                "Department of Veterans Affairs", "Department of Justice"},
     "chemicals": {"Department of Defense", "Environmental Protection Agency",
                   "Department of Energy", "General Services Administration",
-                  "National Aeronautics and Space Administration"},
+                  "National Aeronautics and Space Administration",
+                  "Department of Agriculture", "Department of Homeland Security"},
     "agriculture": {"Department of Agriculture", "Environmental Protection Agency",
-                    "Department of the Interior"},
+                    "Department of the Interior", "Department of Defense",
+                    "General Services Administration"},
     "telecom": {"Federal Communications Commission", "Department of Defense",
-                "General Services Administration", "Department of Homeland Security"},
+                "General Services Administration", "Department of Homeland Security",
+                "Department of State", "U.S. Agency for Global Media"},
     "education": {"Department of Education", "Department of Defense",
-                  "Department of Health and Human Services"},
+                  "Department of Health and Human Services",
+                  "Department of Agriculture", "Department of Labor"},
 }
 
 
