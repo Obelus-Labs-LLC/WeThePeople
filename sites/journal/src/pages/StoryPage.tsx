@@ -7,6 +7,7 @@ import {
 import { CategoryBadge } from '../components/CategoryBadge';
 import { SectorTag } from '../components/SectorTag';
 import { StoryCard } from '../components/StoryCard';
+import { WhyThisMattersBlock, StoryActionPanel } from '../components/Personalization';
 import { useStory } from '../hooks/useStories';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { getApiBase } from '../api/client';
@@ -972,6 +973,12 @@ export default function StoryPage() {
           </p>
         </div>
 
+        {/* "Why this matters to you" personalization block. Hidden for
+            users without onboarding, replaced with a soft prompt. For
+            onboarded users, fetches /stories/{slug}/personalization
+            and renders matched lifestyle + concern anchor + reps. */}
+        {slug && <WhyThisMattersBlock slug={slug} />}
+
         {/* 60-second simplified version toggle.
             The whole point of the platform is to make this readable
             for people who don't already follow politics. The toggle
@@ -1223,6 +1230,12 @@ export default function StoryPage() {
             </div>
           )}
         </div>
+
+        {/* Action Panel. Renders 1-3 concrete next-steps for the
+            reader, separated into passive (switch banks, check
+            redress) and active (call rep, attend hearing). Hidden if
+            no actions are configured for this story. */}
+        {slug && <StoryActionPanel slug={slug} />}
 
         {/* Sources */}
         {((story.data_sources && story.data_sources.length > 0) ||
