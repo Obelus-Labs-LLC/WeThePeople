@@ -829,6 +829,44 @@ def story_queue_view(
         else "—"
     )
 
+    # Implication-review flags (set by the orchestrator's editor pass).
+    # Stored on evidence.implication_flags so it round-trips through the
+    # JSON evidence column without a schema change.
+    implication_block = ""
+    evidence_obj = story.evidence if isinstance(story.evidence, dict) else {}
+    flags = evidence_obj.get("implication_flags") if isinstance(evidence_obj, dict) else None
+    if isinstance(flags, list) and flags:
+        items_html = ""
+        for f in flags:
+            if not isinstance(f, dict):
+                continue
+            flag_sentence = html.escape(str(f.get("sentence") or ""))
+            flag_reason = html.escape(str(f.get("reason") or ""))
+            flag_fix = html.escape(str(f.get("suggested_fix") or ""))
+            items_html += (
+                f"<li style='margin-bottom:14px'>"
+                f"<div style='font-size:14px;color:#7f1d1d'><strong>Flagged:</strong> &ldquo;{flag_sentence}&rdquo;</div>"
+                f"<div style='font-size:12px;color:#64748b;margin-top:4px'><strong>Reason:</strong> {flag_reason}</div>"
+            )
+            if flag_fix:
+                items_html += (
+                    f"<div style='font-size:12px;color:#0f172a;margin-top:4px'>"
+                    f"<strong>Suggested rewording:</strong> {flag_fix}</div>"
+                )
+            items_html += "</li>"
+        implication_block = (
+            f"<div style='margin-bottom:20px;padding:14px 16px;background:#fef2f2;"
+            f"border:1px solid #fca5a5;border-radius:8px'>"
+            f"<div style='font-size:13px;color:#7f1d1d;font-weight:700;margin-bottom:10px'>"
+            f"Implication review flagged {len(flags)} sentence{'s' if len(flags) != 1 else ''}"
+            f"</div>"
+            f"<ul style='margin:0;padding-left:18px'>{items_html}</ul>"
+            f"<div style='font-size:11px;color:#7f1d1d;margin-top:8px;font-style:italic'>"
+            f"These flags imply causation between donations / lobbying and votes / policy "
+            f"without explicit evidence in the body. Review and revise before approving."
+            f"</div></div>"
+        )
+
     if story.status == "published":
         published_url = f"{journal_base}/story/{safe_slug}" if safe_slug else journal_base
         action_block = (
@@ -871,6 +909,7 @@ def story_queue_view(
         f"</div>"
         f"<h1 style='font-size:26px;margin:8px 0 12px'>{safe_title}</h1>"
         f"<p style='font-size:15px;color:#475569;font-style:italic;margin:0 0 16px'>{safe_summary}</p>"
+        f"{implication_block}"
         f"<div style='font-size:13px;color:#64748b;background:#f1f5f9;padding:12px;border-radius:6px;margin-bottom:20px'>"
         f"<div><strong>Entities:</strong> {html.escape(entities) or '<em>none</em>'}</div>"
         f"<div><strong>Sources:</strong> {html.escape(sources) or '<em>none</em>'}</div>"
