@@ -6,17 +6,26 @@
  * jump to the sibling sites (Verify / Research / Journal) without hunting
  * for a link.
  *
- *   - Left: gold-bordered "WTP" mark + wordmark, links to /
- *   - Center: pill switcher (Verify / Research / Journal) — each link
- *     navigates to the sibling subdomain
- *   - Right: active-site identifier — gold mark + "WeThePeople" +
- *     pulsing dot in the core accent
+ *   - Left:   gold-bordered "WTP" mark + wordmark, links to /
+ *   - Center: pill switcher (Civic / Verify / Research / Journal) where
+ *             each link navigates to the sibling subdomain. Active state
+ *             is colored in that site's accent.
+ *   - Right:  Log in + Sign up buttons (signed-out) or UserMenu pill
+ *             (signed-in). Replaces the old "active site identifier"
+ *             which was a redundant duplicate of the switcher's active
+ *             state and routinely overlapped a separate floating
+ *             UserMenu pill.
  *
  * This file is the core-site inline copy. The sibling sites keep their own
  * inlined copies under `sites/{verify,research,journal}/src/components/`
  * because TypeScript's Bundler moduleResolution cannot walk up into a
  * sibling project's node_modules. Keep the four copies in sync visually.
+ * On sibling sites the auth controls link out to the core site's
+ * /login + /signup since auth lives there.
  */
+
+import UserMenu from './UserMenu';
+import { useAuth } from '../contexts/AuthContext';
 
 type EcosystemSite = 'core' | 'civic' | 'verify' | 'research' | 'journal';
 
@@ -102,7 +111,7 @@ const PLAYFAIR = "'Playfair Display', Georgia, serif";
 const INTER = "'Inter', sans-serif";
 
 export default function EcosystemNav({ active = 'core' }: EcosystemNavProps) {
-  const activeSite = SITES[active];
+  const { isAuthenticated } = useAuth();
 
   return (
     <>
@@ -201,7 +210,12 @@ export default function EcosystemNav({ active = 'core' }: EcosystemNavProps) {
           })}
         </div>
 
-        {/* Active site identifier (right side) */}
+        {/* Right-side auth controls. Standardized across every page so
+            the login affordance lives in one place and never overlaps
+            the per-page header below. The visual style matches the
+            landing page's SiteHeader (transparent background, thin
+            bordered buttons) so the bar reads as part of the chrome,
+            not a floating pill. */}
         <div
           style={{
             marginLeft: 'auto',
@@ -210,41 +224,46 @@ export default function EcosystemNav({ active = 'core' }: EcosystemNavProps) {
             gap: 8,
           }}
         >
-          <div
-            aria-hidden
-            style={{
-              width: 28,
-              height: 28,
-              border: `1.5px solid ${activeSite.accent}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: INTER,
-              fontSize: 9,
-              fontWeight: 700,
-              color: activeSite.accent,
-              letterSpacing: '0.05em',
-            }}
-          >
-            {activeSite.mark}
-          </div>
-          <span
-            className="hidden sm:inline"
-            style={{ fontFamily: INTER, fontSize: 12, fontWeight: 600, color: T1 }}
-          >
-            {activeSite.display}
-          </span>
-          <span
-            aria-hidden
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: activeSite.accent,
-              marginLeft: 4,
-              animation: 'wtp-eco-pulse 2s ease-in-out infinite',
-            }}
-          />
+          {isAuthenticated ? (
+            <UserMenu />
+          ) : (
+            <>
+              <a
+                href="/login"
+                className="no-underline"
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 6,
+                  fontFamily: INTER,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: T2,
+                  background: 'transparent',
+                  border: `1px solid ${BORDER}`,
+                  textDecoration: 'none',
+                }}
+              >
+                Log in
+              </a>
+              <a
+                href="/signup"
+                className="no-underline"
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 6,
+                  fontFamily: INTER,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: GOLD,
+                  background: 'transparent',
+                  border: `1px solid rgba(197,160,40,0.4)`,
+                  textDecoration: 'none',
+                }}
+              >
+                Sign up
+              </a>
+            </>
+          )}
         </div>
       </nav>
     </>

@@ -108,7 +108,6 @@ const SWITCHER_ORDER: Exclude<EcosystemSite, 'core'>[] = ['civic', 'verify', 're
 // Tokenless palette — these colors are baked into the design spec rather than
 // driven by per-site CSS vars, since the nav must look identical across all
 // three sites and the main app.
-const T1 = '#EBE5D5';
 const T2 = 'rgba(235,229,213,0.5)';
 const T3 = 'rgba(235,229,213,0.22)';
 const BORDER = 'rgba(255,255,255,0.06)';
@@ -119,6 +118,17 @@ const INTER = "'Inter', sans-serif";
 
 export function EcosystemNav({ active }: EcosystemNavProps) {
   const activeSite = SITES[active];
+  // Sibling sites do not host the auth context, so the buttons just
+  // hand off to the core site. After auth the user can come back via
+  // the switcher pill. The `next` param is preserved so the core
+  // site can bounce them back here on success once that flow is
+  // wired up.
+  const coreLogin = `${SITES.core.href}/login?next=${encodeURIComponent(
+    typeof window !== 'undefined' ? window.location.href : '/',
+  )}`;
+  const coreSignup = `${SITES.core.href}/signup?next=${encodeURIComponent(
+    typeof window !== 'undefined' ? window.location.href : '/',
+  )}`;
 
   return (
     <>
@@ -239,7 +249,12 @@ export function EcosystemNav({ active }: EcosystemNavProps) {
           })}
         </div>
 
-        {/* Active site identifier (right side) */}
+        {/* Right-side auth controls. Standardized across every page so
+            the login affordance lives in one place and never overlaps
+            the per-page header below. The visual style matches the
+            landing page's SiteHeader (transparent background, thin
+            bordered buttons). Sibling sites send the user to the core
+            domain for /login and /signup since auth lives there. */}
         <div
           style={{
             marginLeft: 'auto',
@@ -248,38 +263,38 @@ export function EcosystemNav({ active }: EcosystemNavProps) {
             gap: 8,
           }}
         >
-          <div
-            aria-hidden
+          <a
+            href={coreLogin}
             style={{
-              width: 28,
-              height: 28,
-              border: `1.5px solid ${activeSite.accent}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              padding: '5px 12px',
+              borderRadius: 6,
               fontFamily: INTER,
-              fontSize: 9,
-              fontWeight: 700,
-              color: activeSite.accent,
-              letterSpacing: '0.05em',
+              fontSize: 12,
+              fontWeight: 600,
+              color: T2,
+              background: 'transparent',
+              border: `1px solid ${BORDER}`,
+              textDecoration: 'none',
             }}
           >
-            {activeSite.mark}
-          </div>
-          <span style={{ fontFamily: INTER, fontSize: 12, fontWeight: 600, color: T1 }}>
-            {activeSite.display}
-          </span>
-          <span
-            aria-hidden
+            Log in
+          </a>
+          <a
+            href={coreSignup}
             style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: activeSite.accent,
-              marginLeft: 4,
-              animation: 'wtp-eco-pulse 2s ease-in-out infinite',
+              padding: '5px 12px',
+              borderRadius: 6,
+              fontFamily: INTER,
+              fontSize: 12,
+              fontWeight: 600,
+              color: GOLD,
+              background: 'transparent',
+              border: `1px solid rgba(197,160,40,0.4)`,
+              textDecoration: 'none',
             }}
-          />
+          >
+            Sign up
+          </a>
         </div>
       </nav>
     </>
