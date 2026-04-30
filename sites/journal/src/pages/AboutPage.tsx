@@ -326,6 +326,7 @@ export default function AboutPage() {
         {/* Links */}
         <div className="flex flex-col sm:flex-row flex-wrap gap-3">
           {[
+            { label: 'Editorial Standards', to: '/standards' },
             { label: 'Coverage Balance', to: '/coverage' },
             { label: 'Corrections & Retractions', to: '/corrections' },
             { label: 'Verify Our Data', to: '/verify-our-data' },

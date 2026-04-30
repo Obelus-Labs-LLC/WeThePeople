@@ -3,6 +3,8 @@ Politics sub-router — Bill-related endpoints (bill list, bill detail, bill
 timeline, enrichment stats).
 """
 
+import json
+import re
 from fastapi import APIRouter, Query, HTTPException
 from sqlalchemy import func, desc
 from typing import Optional, Dict, Any
@@ -171,6 +173,105 @@ def get_bill_enrichment_stats():
         db.close()
 
 
+# Role string the ground-truth ingest writes ("sponsored", "cosponsored")
+# vs the role string the frontend filters on ("sponsor", "cosponsor").
+# Normalize at the API boundary so the DB stays canonical and the
+# frontend contract stays stable.
+_GT_ROLE_TO_API = {
+    "sponsored": "sponsor",
+    "cosponsored": "cosponsor",
+    # Pass through anything already in API form so historic clients
+    # don't double-translate.
+    "sponsor": "sponsor",
+    "cosponsor": "cosponsor",
+}
+
+
+def _normalize_role(raw: Optional[str]) -> str:
+    if not raw:
+        return "cosponsor"  # safe default for unknown entries
+    return _GT_ROLE_TO_API.get(raw.strip().lower(), raw.strip().lower())
+
+
+def _bill_summary_with_fallback(bill: Bill) -> Optional[str]:
+    """Return the bill summary, falling back to the constitutional-
+    authority statement embedded in metadata_json when Congress.gov
+    hasn't published a CRS summary yet (~38% of our bills at apr-28).
+
+    The fallback is clearly labeled so readers know it isn't an
+    official CRS summary.
+    """
+    if bill.summary_text and bill.summary_text.strip():
+        return bill.summary_text
+
+    raw_meta = bill.metadata_json
+    if not raw_meta:
+        return None
+    if isinstance(raw_meta, str):
+        try:
+            meta = json.loads(raw_meta)
+        except (ValueError, TypeError):
+            return None
+    elif isinstance(raw_meta, dict):
+        meta = raw_meta
+    else:
+        return None
+
+    auth = meta.get("constitutionalAuthorityStatementText")
+    if not isinstance(auth, str) or not auth.strip():
+        return None
+    # The constitutional authority statement is HTML-wrapped; strip the
+    # <pre>/<a> tags so it renders as plain text in the frontend.
+    cleaned = re.sub(r"<[^>]+>", "", auth).strip()
+    if not cleaned:
+        return None
+    return (
+        "No CRS summary has been published for this bill yet. "
+        "The sponsor's stated constitutional authority is included below.\n\n"
+        + cleaned
+    )
+
+
+def _sponsors_from_metadata(bill: Bill) -> list[dict]:
+    """Pull sponsors out of metadata_json when ground-truth join is
+    empty. Used as a fallback so brand-new bills (where the ground-
+    truth ingest hasn't caught up) still show their sponsor.
+    """
+    raw_meta = bill.metadata_json
+    if not raw_meta:
+        return []
+    if isinstance(raw_meta, str):
+        try:
+            meta = json.loads(raw_meta)
+        except (ValueError, TypeError):
+            return []
+    elif isinstance(raw_meta, dict):
+        meta = raw_meta
+    else:
+        return []
+
+    sponsors = meta.get("sponsors") or []
+    if not isinstance(sponsors, list):
+        return []
+    out = []
+    for s in sponsors:
+        if not isinstance(s, dict):
+            continue
+        bioguide = s.get("bioguideId") or s.get("bioguide_id")
+        if not bioguide:
+            continue
+        out.append({
+            "bioguide_id": bioguide,
+            "role": "sponsor",
+            "person_id": None,
+            "display_name": s.get("fullName") or bioguide,
+            "party": s.get("party"),
+            "state": s.get("state"),
+            "photo_url": None,
+        })
+    return out
+
+
 @router.get("/bills/{bill_id}", response_model=BillDetailResponse)
 def get_bill(bill_id: str):
     """Full bill detail."""
@@ -187,12 +288,31 @@ def get_bill(bill_id: str):
             .all()
         )
 
-        sponsors = (
+        sponsors_rows = (
             db.query(MemberBillGroundTruth, TrackedMember)
             .outerjoin(TrackedMember, TrackedMember.bioguide_id == MemberBillGroundTruth.bioguide_id)
             .filter(MemberBillGroundTruth.bill_id == bill_id)
             .all()
         )
+
+        sponsors_payload: list[dict] = [{
+            "bioguide_id": gt.bioguide_id,
+            # DB stores 'sponsored' / 'cosponsored'. Frontend filters on
+            # 'sponsor' / 'cosponsor'. Normalize at the boundary.
+            "role": _normalize_role(gt.role),
+            "person_id": m.person_id if m else None,
+            "display_name": m.display_name if m else gt.bioguide_id,
+            "party": m.party if m else None,
+            "state": m.state if m else None,
+            "photo_url": m.photo_url if m else None,
+        } for gt, m in sponsors_rows]
+
+        # Fallback: if the ground-truth join produced nothing for this
+        # bill, surface whatever sponsor we can pull from
+        # metadata_json.sponsors. This covers the bring-up window
+        # where the ground-truth ingest hasn't reached a brand-new bill.
+        if not sponsors_payload:
+            sponsors_payload = _sponsors_from_metadata(bill)
 
         return {
             "bill_id": bill.bill_id,
@@ -202,7 +322,7 @@ def get_bill(bill_id: str):
             "title": bill.title,
             "policy_area": bill.policy_area,
             "subjects_json": bill.subjects_json,
-            "summary_text": bill.summary_text,
+            "summary_text": _bill_summary_with_fallback(bill),
             "status_bucket": bill.status_bucket,
             "latest_action_text": bill.latest_action_text,
             "latest_action_date": bill.latest_action_date.isoformat() if bill.latest_action_date else None,
@@ -213,15 +333,7 @@ def get_bill(bill_id: str):
                 "action_text": a.action_text,
                 "action_type": a.action_code,
             } for a in timeline],
-            "sponsors": [{
-                "bioguide_id": gt.bioguide_id,
-                "role": gt.role,
-                "person_id": m.person_id if m else None,
-                "display_name": m.display_name if m else gt.bioguide_id,
-                "party": m.party if m else None,
-                "state": m.state if m else None,
-                "photo_url": m.photo_url if m else None,
-            } for gt, m in sponsors],
+            "sponsors": sponsors_payload,
         }
     finally:
         db.close()
