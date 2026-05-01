@@ -20,7 +20,9 @@ The endpoint also stores the submitter IP for triage but never
 returns it in any public response.
 """
 
+import html as html_lib
 import logging
+import os
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -30,6 +32,7 @@ from sqlalchemy.orm import Session
 
 from models.database import get_db
 from models.tips_models import Tip
+from services.email import send_email
 from services.rbac import require_role
 from services.audit import log_from_request
 
@@ -86,6 +89,65 @@ class TipListResponse(BaseModel):
 class TipPatchRequest(BaseModel):
     status: Optional[str] = Field(None, max_length=16)
     admin_notes: Optional[str] = Field(None, max_length=5000)
+
+
+# Inbox address for new-tip notifications. Falls back to the
+# operator inbox so prod doesn't silently lose tips when
+# WTP_TIPS_INBOX is unset. Set to a comma-separated list to
+# notify multiple editors.
+_TIPS_INBOX_DEFAULT = "wethepeopleforus@gmail.com"
+
+
+def _build_tip_notification_html(tip: Tip, ops_url: str) -> str:
+    """Plain HTML alert to the editorial inbox. Mirrors the rest of
+    our outgoing email style — minimal, no tracking pixels, links
+    open the moderation queue."""
+    subj = html_lib.escape(tip.subject or "(no subject)")
+    body = html_lib.escape(tip.body or "")
+    contact = (
+        html_lib.escape(tip.contact_email or tip.contact_name or "anonymous")
+    )
+    sector = html_lib.escape(tip.hint_sector or "—")
+    entity = html_lib.escape(tip.hint_entity or "—")
+    related = html_lib.escape(tip.related_story_slug or "—")
+    return f"""
+    <!DOCTYPE html>
+    <html><body style="background:#f8fafc;margin:0;padding:24px;font-family:'Inter',sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+             style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;">
+        <tr><td>
+          <div style="font-family:'Inter',sans-serif;font-size:11px;letter-spacing:.24em;color:#b45309;text-transform:uppercase;font-weight:700;">New tip</div>
+          <h1 style="font-family:Georgia,serif;font-size:20px;line-height:1.3;color:#0f172a;margin:8px 0 12px;">{subj}</h1>
+          <div style="font-family:'Inter',sans-serif;font-size:14px;color:#0f172a;line-height:1.55;white-space:pre-wrap;border-left:3px solid #b45309;padding:6px 12px;background:#fef3c7;border-radius:6px;">{body}</div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;font-size:13px;color:#475569;">
+            <tr><td style="padding:4px 0;"><b>From:</b> {contact}</td></tr>
+            <tr><td style="padding:4px 0;"><b>Sector hint:</b> {sector}</td></tr>
+            <tr><td style="padding:4px 0;"><b>Entity hint:</b> {entity}</td></tr>
+            <tr><td style="padding:4px 0;"><b>Related story:</b> {related}</td></tr>
+          </table>
+          <a href="{ops_url}" style="display:inline-block;margin-top:18px;padding:10px 18px;background:#b45309;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Open in queue</a>
+        </td></tr>
+      </table>
+    </body></html>
+    """.strip()
+
+
+def _notify_editors_of_new_tip(tip: Tip) -> None:
+    """Fire-and-forget Resend email to the editorial inbox. Best-
+    effort: any failure is swallowed so tip submission never fails
+    just because email is down."""
+    inbox_csv = os.getenv("WTP_TIPS_INBOX", _TIPS_INBOX_DEFAULT)
+    recipients = [a.strip() for a in inbox_csv.split(",") if a.strip()]
+    if not recipients:
+        return
+    api_base = os.getenv("WTP_API_BASE", "https://api.wethepeopleforus.com")
+    ops_url = f"{api_base}/ops/tips/{tip.id}"
+    subject = f"[WTP tip] {(tip.subject or 'Untitled')[:80]}"
+    html_body = _build_tip_notification_html(tip, ops_url)
+    try:
+        send_email(to=recipients, subject=subject, html=html_body)
+    except Exception as exc:
+        logger.warning("tip notify email failed for tip %d: %s", tip.id, exc)
 
 
 def _serialize_admin(tip: Tip) -> TipAdminItem:
@@ -146,6 +208,13 @@ def submit_tip(
         details={"subject": tip.subject, "has_email": bool(tip.contact_email)},
     )
     logger.info("Tip submitted: id=%d subject=%r ip=%s", tip.id, tip.subject, ip)
+    # Fire-and-forget editor notification. Failure here never breaks
+    # submission — the tip is already persisted and visible in
+    # /ops/tips even if the email never arrives.
+    try:
+        _notify_editors_of_new_tip(tip)
+    except Exception as exc:
+        logger.warning("tip notify dispatch failed for %d: %s", tip.id, exc)
     return TipSubmitResponse(
         id=tip.id,
         status=tip.status,
