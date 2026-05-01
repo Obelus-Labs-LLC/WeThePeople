@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -86,6 +87,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.state.limiter = limiter
+# Gzip compression for any response >= 1024 bytes. Cuts /full
+# payload (~100KB politician profiles, ~10KB story payloads) by
+# ~70-80% on the wire. Phase 4-X. Must be added before CORS so
+# the compressed body is what CORS-preflight responds about.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
 app.add_middleware(SlowAPIMiddleware)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
