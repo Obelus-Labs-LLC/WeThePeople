@@ -18,7 +18,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -44,6 +44,31 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("WTP_REFRESH_EXPIRY_DAYS", "30"))
 
 # tokenUrl points at the login endpoint so Swagger UI works automatically
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+# Cross-subdomain session cookie name. The login endpoint sets this with
+# Domain=.wethepeopleforus.com so journal/research/verify subdomains
+# share auth state with the core site without each rebuilding their own
+# AuthContext.
+SESSION_COOKIE_NAME = os.getenv("WTP_SESSION_COOKIE", "wtp_session")
+# Cross-subdomain cookie domain. Empty in dev so the cookie scopes to
+# the actual host (localhost). Set WTP_COOKIE_DOMAIN=.wethepeopleforus.com
+# in prod.
+SESSION_COOKIE_DOMAIN = os.getenv("WTP_COOKIE_DOMAIN", "")
+
+
+def _resolve_token_from_request(
+    header_token: Optional[str],
+    request: Optional[Request],
+) -> Optional[str]:
+    """Pick a JWT from the Authorization header first, falling back to
+    the cross-subdomain session cookie. Sibling sites (journal /
+    research / verify) don't have their own JWT-in-localStorage
+    machinery; the cookie is the only handoff."""
+    if header_token:
+        return header_token
+    if request is None:
+        return None
+    return request.cookies.get(SESSION_COOKIE_NAME)
 
 
 # ---------------------------------------------------------------------------
@@ -145,13 +170,19 @@ def revoke_refresh_token(payload: dict, db: Session, reason: str = "logout") -> 
 # ---------------------------------------------------------------------------
 
 def get_current_user(
+    request: Request,
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     """Require a valid JWT and return the associated User row.
 
-    Raises 401 if the token is missing, expired, or the user is inactive.
+    Token can come from the Authorization header (the historical
+    behavior) or from the `wtp_session` cross-subdomain cookie (added
+    so sibling sites can authenticate without rebuilding the
+    JWT-in-localStorage flow). Raises 401 if the token is missing,
+    expired, or the user is inactive.
     """
+    token = _resolve_token_from_request(token, request)
     if token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -188,14 +219,17 @@ def get_current_user(
 
 
 def get_optional_user(
+    request: Request,
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
     """Return the authenticated User if a valid token is present, else None.
 
     Use this for endpoints that work for anonymous users but provide extra
-    features when authenticated.
+    features when authenticated. Falls back to the cross-subdomain
+    cookie if no Authorization header is present.
     """
+    token = _resolve_token_from_request(token, request)
     if token is None:
         return None
 
