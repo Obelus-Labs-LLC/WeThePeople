@@ -399,7 +399,7 @@ def _validate_output(text: str) -> list[str]:
         if line.lstrip().startswith("#"):
             if _TIME_WINDOW_RE.search(line):
                 continue
-            # else fall through and report it as bare
+            sentence = line  # report the heading as the offending context
         else:
             # Find sentence boundaries: walk back to last '.', '?', '!', or '\n\n'
             sent_start = max(
