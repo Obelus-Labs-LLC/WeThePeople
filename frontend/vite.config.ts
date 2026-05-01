@@ -35,6 +35,14 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id: string) {
             if (!id.includes('node_modules')) return undefined;
+            // plotly.js is the single biggest dep (~3-4 MB minified)
+            // and is only used on MoneyFlowPage. The page already
+            // dynamic-imports plotly, but the manualChunks rule was
+            // routing it back into vendor. Give it its own chunk so
+            // every page that doesn't use plotly stops paying for it.
+            if (id.includes('plotly')) {
+              return 'plotly';
+            }
             // Force-graph + d3-force: rendering on InfluenceNetworkPage
             if (id.includes('react-force-graph') || id.includes('d3-force') ||
                 id.includes('three-')  /* three.js sometimes pulls in */) {
@@ -50,6 +58,11 @@ export default defineConfig(({ mode }) => {
             }
             if (id.includes('framer-motion')) {
               return 'motion';
+            }
+            // @tanstack table+virtual are heavyish; bucket them so
+            // pages that don't render tables stay light.
+            if (id.includes('@tanstack')) {
+              return 'tanstack';
             }
             // Everything else stays in the default vendor chunk.
             return 'vendor';
