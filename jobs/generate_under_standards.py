@@ -185,9 +185,32 @@ be H2 (## ...) with the exact text shown.
 
 # ABSOLUTE RULES
 
-A1. Every dollar figure must carry its time window in the same sentence.
-    "$10M" alone is rejected. "$10M in fiscal year 2024" or "$10M between
-    2020 and 2024" is required.
+A1. Every dollar figure must carry its time window in the same sentence
+    that contains it. "$10M" alone is rejected. "$10M in fiscal year 2024"
+    or "$10M between 2020 and 2024" is required.
+
+    This rule applies to BREAKDOWN sentences too. If you write a total in
+    sentence 1 with the time window, then break it down in sentence 2,
+    sentence 2 must repeat the window. The validator checks each sentence
+    independently and does not infer windows from neighboring sentences.
+
+    WRONG (validator rejects): "Ally Financial donated $169,000 between
+    February 2023 and September 2024. The auto lender distributed $87,500
+    to 14 Democrats and $81,500 to 11 Republicans."
+
+    RIGHT (validator accepts): "Ally Financial donated $169,000 to 25
+    committee members between February 2023 and September 2024, including
+    $87,500 to 14 Democrats and $81,500 to 11 Republicans during that
+    period."
+
+    Or split with the window in each: "Ally Financial donated $169,000
+    between February 2023 and September 2024. Across that 19-month period,
+    $87,500 went to 14 Democrats and $81,500 to 11 Republicans."
+
+    H1 HEADLINE EXCEPTION: the H1 line is a fragment, not a full sentence.
+    A dollar figure in the H1 satisfies the rule if the time window
+    appears anywhere in the H1 line. Same goes for any other H2/H3
+    fragment heading.
 
 A2. Every named entity (politician, company, lobbying firm, client, agency)
     must appear in the FACTS dict. If you mention an entity not in FACTS,
@@ -359,31 +382,47 @@ def _validate_output(text: str) -> list[str]:
     # sentence as the dollar figure. We scope the window to the sentence
     # (terminated by . ? ! or paragraph break) rather than a fixed char count
     # — month-name dates can push the qualifier well past 80 chars.
+    #
+    # Heading exception: H1/H2/H3 fragment lines are not sentences. A dollar
+    # figure in a heading line satisfies the rule if the time window appears
+    # anywhere in that heading line.
     bare_dollars = []
     for m in _DOLLAR_RE.finditer(text):
         start, end = m.span()
-        # Find sentence boundaries: walk back to last '.', '?', '!', or '\n\n'
-        sent_start = max(
-            text.rfind(". ", 0, start) + 2,
-            text.rfind("? ", 0, start) + 2,
-            text.rfind("! ", 0, start) + 2,
-            text.rfind("\n\n", 0, start) + 2,
-            text.rfind("\n", 0, start) + 1,
-            0,
-        )
-        # Sentence end: next '.', '?', '!', or paragraph break
-        candidates = [
-            text.find(". ", end),
-            text.find("? ", end),
-            text.find("! ", end),
-            text.find("\n\n", end),
-            text.find("\n", end),
-        ]
-        candidates = [c for c in candidates if c >= 0]
-        sent_end = min(candidates) + 1 if candidates else len(text)
-        sentence = text[sent_start:sent_end]
-        if _TIME_WINDOW_RE.search(sentence):
-            continue
+        # Find the line containing this match
+        line_start = text.rfind("\n", 0, start) + 1
+        line_end = text.find("\n", end)
+        if line_end < 0:
+            line_end = len(text)
+        line = text[line_start:line_end]
+        # Heading exception: line begins with #
+        if line.lstrip().startswith("#"):
+            if _TIME_WINDOW_RE.search(line):
+                continue
+            # else fall through and report it as bare
+        else:
+            # Find sentence boundaries: walk back to last '.', '?', '!', or '\n\n'
+            sent_start = max(
+                text.rfind(". ", 0, start) + 2,
+                text.rfind("? ", 0, start) + 2,
+                text.rfind("! ", 0, start) + 2,
+                text.rfind("\n\n", 0, start) + 2,
+                text.rfind("\n", 0, start) + 1,
+                0,
+            )
+            # Sentence end: next '.', '?', '!', or paragraph break
+            candidates = [
+                text.find(". ", end),
+                text.find("? ", end),
+                text.find("! ", end),
+                text.find("\n\n", end),
+                text.find("\n", end),
+            ]
+            candidates = [c for c in candidates if c >= 0]
+            sent_end = min(candidates) + 1 if candidates else len(text)
+            sentence = text[sent_start:sent_end]
+            if _TIME_WINDOW_RE.search(sentence):
+                continue
         digits_only = re.sub(r"[^\d.]", "", m.group())
         if digits_only:
             try:
