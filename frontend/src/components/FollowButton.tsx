@@ -33,7 +33,7 @@ const API_BASE = getApiBaseUrl();
  * via API. This closes that loop.
  */
 export interface FollowButtonProps {
-  entityType: 'person' | 'politician' | 'company' | 'institution' | 'bill';
+  entityType: 'person' | 'politician' | 'company' | 'institution' | 'bill' | 'sector';
   entityId: string;
   entityName?: string;
   sector?: string;

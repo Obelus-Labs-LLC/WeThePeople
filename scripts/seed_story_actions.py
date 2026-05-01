@@ -62,29 +62,27 @@ log = logging.getLogger(__name__)
 # The seeder de-duplicates by (action_type, external_url) so layering
 # can't produce two of the same row.
 
+# register_to_vote is THE action we recommend to every reader, on every
+# story. It sits at display_order=1 so it always renders first inside
+# the active-actions group. The frontend StoryActionPanel groups passive
+# vs active separately; this lives in the active group and gets a
+# subtle "primary" treatment via the sub-1 display_order.
+#
+# The previous "Read the underlying data" generic verify_data row
+# pointed at the wethepeopleforus.com homepage and duplicated the
+# story's own "Verify This Yourself" sources section at the bottom of
+# the page. Removed.
 UNIVERSAL_DEFAULTS = [
     {
-        "action_type": "verify_data",
-        "title": "Read the underlying data",
-        "description": (
-            "Every claim in this story comes from public records. Browse "
-            "the matching dataset on WeThePeople and check the figures "
-            "yourself."
-        ),
-        "is_passive": 1,
-        "external_url": "https://wethepeopleforus.com/",
-        "display_order": 90,
-    },
-    {
         "action_type": "register_to_vote",
-        "title": "Make sure you're registered to vote",
+        "title": "Make sure you’re registered to vote",
         "description": (
             "Stories like this only matter at the ballot box. Vote.gov "
             "checks your registration in any state in under a minute."
         ),
         "is_passive": 0,
         "external_url": "https://vote.gov/",
-        "display_order": 95,
+        "display_order": 1,
     },
 ]
 
@@ -732,37 +730,56 @@ def _recipes_for_story(story: Story) -> List[dict]:
     """Pick the action recipes for a story.
 
     Layered: category-specific first, then sector defaults, then the
-    universal fallback. De-duped by (action_type, external_url) so the
-    layers can overlap without producing duplicates. Capped at 5.
+    universal fallback. De-duped by (action_type, external_url) so
+    the layers can overlap without producing duplicates. Capped at
+    one verify_data action per story so the panel doesn't duplicate
+    the story's own "Verify This Yourself" sources section. Capped
+    at 4 actions total.
     """
     cat = (story.category or "").lower()
     sec = (story.sector or "").lower()
 
     recipes: List[dict] = []
     seen: set = set()
+    verify_count = 0
+    MAX_VERIFY = 1
+    MAX_TOTAL = 4
 
     def push(r: dict) -> None:
+        nonlocal verify_count
         key = (r.get("action_type"), r.get("external_url"))
         if key in seen:
             return
+        # Cap verify_data at one per story. The "Verify This Yourself"
+        # sources section at the bottom of every story is the
+        # canonical spot for source links; the action panel should
+        # add a single targeted pointer, not a parallel list.
+        if r.get("action_type") == "verify_data":
+            if verify_count >= MAX_VERIFY:
+                return
+            verify_count += 1
         seen.add(key)
         recipes.append(r)
 
-    # 1. Category-specific (sector first, then any)
+    # 1. Category-specific (sector first, then any). The category
+    #    layer carries the most-targeted verify_data so it gets first
+    #    crack at the verify slot.
     for r in CATEGORY_RECIPES.get((cat, sec), []):
         push(r)
     for r in CATEGORY_RECIPES.get((cat, "*"), []):
         push(r)
 
-    # 2. Sector defaults
+    # 2. Sector defaults — these are the passive actions
+    #    (switch_provider, check_redress) that drive the disengaged-
+    #    audience pivot. Always relevant when sector matches.
     for r in SECTOR_DEFAULTS.get(sec, []):
         push(r)
 
-    # 3. Universal fallback
+    # 3. Universal fallback (register_to_vote at display_order=1).
     for r in UNIVERSAL_DEFAULTS:
         push(r)
 
-    return recipes[:5]
+    return recipes[:MAX_TOTAL]
 
 
 def seed_one(db, story: Story, replace: bool = False, dry_run: bool = False) -> int:

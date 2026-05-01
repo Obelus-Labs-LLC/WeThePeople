@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useReducer, useCallback, useMemo, useRef, Suspense } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient, getApiBaseUrl } from '../api/client';
@@ -8,7 +8,11 @@ import { PoliticsSectorHeader } from '../components/SectorHeader';
 import TradeTimeline from '../components/TradeTimeline';
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
-import TrendChart from '../components/TrendChart';
+// TrendChart pulls in recharts (~537 KB chunk). Lazy-load it so the
+// main page can paint immediately and the chart appears once recharts
+// downloads and parses. The chart sits below the fold so the late
+// arrival is invisible to most readers.
+const TrendChart = React.lazy(() => import('../components/TrendChart'));
 import WatchlistButton from '../components/WatchlistButton';
 import ShareButton from '../components/ShareButton';
 import type { TradeMarker } from '../api/influence';
@@ -886,11 +890,31 @@ export default function PersonProfilePage() {
             </div>
           )}
 
-          {/* Trend chart */}
+          {/* Trend chart — lazy-loaded so recharts isn't on the
+              initial-render critical path. Falls back to a small
+              loading sentence; the chart slides in once the chunk
+              arrives. */}
           {trends && (
             <div>
               <SectionLabel>Activity Over Time</SectionLabel>
-              <TrendChart data={trends} height={120} />
+              <Suspense
+                fallback={
+                  <div
+                    style={{
+                      height: 120,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--color-text-3)',
+                      fontSize: 12,
+                    }}
+                  >
+                    Loading chart…
+                  </div>
+                }
+              >
+                <TrendChart data={trends} height={120} />
+              </Suspense>
             </div>
           )}
 
