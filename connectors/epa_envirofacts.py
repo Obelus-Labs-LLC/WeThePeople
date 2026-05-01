@@ -37,12 +37,25 @@ def search_tri_releases(
     """
     Search EPA TRI (Toxic Release Inventory) facility data.
 
+    The EPA EnviroFacts V_TRI_FORM_R_EZ view returns rows whose keys
+    are LOWERCASE (`facility_name`, `city_name`, `state_abbr`,
+    `chem_name`, `total_on_off_site_release`, `reporting_year`,
+    `industry_description`). The previous version of this connector
+    read UPPERCASE keys (`FACILITY_NAME`, `ON_SITE_RELEASE_TOTAL`,
+    etc.) which don't exist in the response — so every row showed
+    blanks and 0 lbs in the UI.
+
+    Filter columns are also lowercase (`state_abbr`, `chem_name`).
+
+    EnviroFacts' `rows/A:B` is inclusive on both ends, so `0:limit`
+    returns `limit+1` rows. Use `0:(limit-1)` to land exactly limit.
+
     Args:
         state: 2-letter state code
         chemical: Chemical name search term
         year: Reporting year
         facility_name: Facility name search term
-        limit: Max results (1-100)
+        limit: Max results (1-250)
 
     Returns:
         Dict with 'total' and 'releases' list
@@ -50,20 +63,24 @@ def search_tri_releases(
     segments = ["V_TRI_FORM_R_EZ"]
 
     if state:
-        segments.append(f"FACILITY_STATE/{state.upper()}")
+        segments.append(f"state_abbr/{state.upper()}")
     if chemical:
-        segments.append(f"CHEMICAL_NAME/CONTAINING/{chemical.strip().upper()}")
+        segments.append(f"chem_name/CONTAINING/{chemical.strip().upper()}")
     if year:
-        segments.append(f"REPORTING_YEAR/{year}")
+        segments.append(f"reporting_year/{year}")
     if facility_name:
-        segments.append(f"FACILITY_NAME/CONTAINING/{facility_name.strip().upper()}")
+        segments.append(f"facility_name/CONTAINING/{facility_name.strip().upper()}")
 
-    segments.append(f"rows/0:{limit}")
+    # 0:0 returns 1 row, 0:99 returns 100 rows, etc.
+    end_idx = max(0, int(limit) - 1)
+    segments.append(f"rows/0:{end_idx}")
     segments.append("JSON")
 
     url = "/".join([ENVIROFACTS_BASE] + segments)
 
     try:
+        # allow_redirects defaults True; the API moved from
+        # enviro.epa.gov to data.epa.gov via 301.
         resp = requests.get(url, timeout=TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
@@ -81,23 +98,38 @@ def search_tri_releases(
 
     releases = []
     for row in data:
-        on_site = _safe_float(row.get("ON_SITE_RELEASE_TOTAL"))
-        off_site = _safe_float(row.get("OFF_SITE_RELEASE_TOTAL"))
-        total = (on_site or 0) + (off_site or 0)
+        # Real fields per EPA docs:
+        # total_on_off_site_release is the canonical total. Falls
+        # back to summing the on-site / off-site if the precomputed
+        # column is null on a given row.
+        total = _safe_float(row.get("total_on_off_site_release"))
+        if total is None:
+            on_site = _safe_float(row.get("total_on_site_release")) or 0
+            off_site = _safe_float(row.get("total_off_site_release")) or 0
+            total = on_site + off_site
 
         releases.append({
-            "facility_name": row.get("FACILITY_NAME", ""),
-            "city": row.get("FACILITY_CITY", ""),
-            "state": row.get("FACILITY_STATE", ""),
-            "chemical": row.get("CHEMICAL_NAME", ""),
-            "total_releases": total,
-            "industry": row.get("INDUSTRY_SECTOR", row.get("PRIMARY_SIC_CODE", "")),
-            "latitude": _safe_float(row.get("FACILITY_LATITUDE")),
-            "longitude": _safe_float(row.get("FACILITY_LONGITUDE")),
-            "year": row.get("REPORTING_YEAR"),
+            "facility_name": row.get("facility_name", "") or "",
+            "city": row.get("city_name", "") or "",
+            "state": row.get("state_abbr", "") or "",
+            "chemical": (
+                row.get("chem_name")
+                or row.get("cas_chem_name")
+                or row.get("generic_chem_name")
+                or ""
+            ),
+            "total_releases": total or 0,
+            "industry": (
+                row.get("industry_description")
+                or row.get("primary_sic_code")
+                or ""
+            ),
+            "latitude": _safe_float(row.get("latitude")),
+            "longitude": _safe_float(row.get("longitude")),
+            "year": row.get("reporting_year"),
         })
 
-    # Sort by total_releases descending
+    # Sort by total_releases descending so the worst offenders surface first.
     releases.sort(key=lambda r: r["total_releases"] or 0, reverse=True)
 
     return {"total": len(releases), "releases": releases}
