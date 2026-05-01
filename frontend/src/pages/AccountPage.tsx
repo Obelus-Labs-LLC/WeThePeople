@@ -310,10 +310,15 @@ export default function AccountPage() {
     }
   };
 
-  // Profile editor state (display_name is backend-persisted; zip is local-only)
+  // Profile editor state. ZIP is now backend-persisted via
+  // /auth/preferences; display_name still goes through the existing
+  // user mutation flow elsewhere; email is read-only.
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [zipCode, setZipCode] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSavedAt, setProfileSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -321,6 +326,25 @@ export default function AccountPage() {
       setEmail(user.email);
     }
   }, [user]);
+
+  // Hydrate ZIP from /auth/preferences on tab mount so a user who
+  // already saved their ZIP sees it pre-filled.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    authedFetch(`${API_BASE}/auth/preferences`)
+      .then(async (r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        if (typeof d.zip_code === 'string') setZipCode(d.zip_code);
+      })
+      .catch(() => {
+        /* hide-not-fail: zip stays blank on failure */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authedFetch]);
 
   // ── Personalization editor (sectors + concerns + ZIP) ──────────────
   // The journal site's onboarding modal is the original entry point;
@@ -802,15 +826,76 @@ export default function AccountPage() {
                   </div>
                   <button
                     type="button"
-                    style={{ ...primaryBtn, marginTop: 4 }}
-                    onClick={() =>
-                      alert(
-                        'Profile edit API is coming soon. Email wethepeopleforus@gmail.com to update for now.',
-                      )
-                    }
+                    style={{
+                      ...primaryBtn,
+                      marginTop: 4,
+                      opacity: profileSaving ? 0.6 : 1,
+                      cursor: profileSaving ? 'wait' : 'pointer',
+                    }}
+                    disabled={profileSaving}
+                    onClick={async () => {
+                      setProfileError(null);
+                      // Validate ZIP if provided.
+                      const trimmed = zipCode.trim();
+                      if (trimmed && !/^\d{5}$/.test(trimmed)) {
+                        setProfileError('ZIP code must be exactly 5 digits.');
+                        return;
+                      }
+                      setProfileSaving(true);
+                      try {
+                        const r = await authedFetch(
+                          `${API_BASE}/auth/preferences`,
+                          {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ zip_code: trimmed }),
+                          },
+                        );
+                        if (!r.ok) {
+                          const detail = await r.json().catch(() => null);
+                          throw new Error(
+                            (detail && (detail.detail || detail.message)) ||
+                              `HTTP ${r.status}`,
+                          );
+                        }
+                        setProfileSavedAt(Date.now());
+                      } catch (err) {
+                        setProfileError(
+                          err instanceof Error
+                            ? err.message
+                            : 'Could not save profile',
+                        );
+                      } finally {
+                        setProfileSaving(false);
+                      }
+                    }}
                   >
-                    Save changes
+                    {profileSaving ? 'Saving…' : 'Save changes'}
                   </button>
+                  {profileError && (
+                    <div
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-red, #ef4444)',
+                        marginTop: 10,
+                      }}
+                    >
+                      {profileError}
+                    </div>
+                  )}
+                  {profileSavedAt && !profileError && (
+                    <div
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-text-3)',
+                        marginTop: 10,
+                      }}
+                    >
+                      Saved.
+                    </div>
+                  )}
                 </div>
 
                 <div style={card}>
@@ -1494,6 +1579,47 @@ export default function AccountPage() {
 
           {tab === 'apikeys' && (
             <div style={{ maxWidth: 720 }}>
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  background: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    color: 'var(--color-text-2)',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  New to the API? See the curl examples + endpoint index.
+                </div>
+                <Link
+                  to="/docs"
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid var(--color-accent)',
+                    color: 'var(--color-accent-text)',
+                    textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  View API docs →
+                </Link>
+              </div>
               {newKeyRaw && (
                 <div
                   style={{
