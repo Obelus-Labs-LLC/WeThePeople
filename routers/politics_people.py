@@ -1159,8 +1159,13 @@ import time as _time
 from collections import OrderedDict as _OrderedDict
 
 _FULL_CACHE: "_OrderedDict[str, tuple[float, dict]]" = _OrderedDict()
-_FULL_CACHE_TTL_SEC = 300       # 5 minutes
-_FULL_CACHE_MAX_SIZE = 256      # bound memory; politicians touched recently
+# 60-minute TTL is safe — the underlying tables update on the daily
+# orchestrator cadence, so an hour-old composed payload is already
+# guaranteed accurate to the latest data point. The pre-warmer
+# (jobs/warm_politician_cache.py) refreshes hot politicians every
+# 30 minutes so the cache effectively stays warm during normal use.
+_FULL_CACHE_TTL_SEC = 3600
+_FULL_CACHE_MAX_SIZE = 1024     # bound memory; up to ~1K politicians cached
 _full_cache_lock = _threading.Lock()
 
 

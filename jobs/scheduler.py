@@ -371,6 +371,21 @@ JOB_REGISTRY: List[JobDef] = [
         description="Hourly Phase 2 alerts: emails users when matching new stories drop",
     ),
 
+    # ── Politician /full pre-warmer ────────────────────────────────
+    # Walks every active TrackedMember and pulls /people/{id}/full
+    # so the in-process LRU stays hot. Each cold composed call takes
+    # 5-50s; once cached, repeat hits land in microseconds. Running
+    # every 30 min keeps the LRU permanently warm during normal use
+    # (TTL is 60 min on the API side).
+    JobDef(
+        name="warm_politician_cache",
+        script="jobs/warm_politician_cache.py",
+        args=["--limit", "100"],  # top 100 active members
+        interval_hours=1,         # scheduler interval; LRU TTL 60min
+        timeout_sec=1800,         # 30 min budget for the warm cycle
+        description="Pre-warm /people/{id}/full LRU for top 100 politicians",
+    ),
+
     # ── Hourly search-index rebuild (Phase 3) ──────────────────────
     # FTS5 entity_search powers cross-table search in milliseconds
     # vs the previous 11-table ILIKE scan that was the dominant
