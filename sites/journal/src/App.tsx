@@ -21,6 +21,17 @@ const FundingPage = lazy(() => import('./pages/FundingPage'));
 const TipPage = lazy(() => import('./pages/TipPage'));
 const SearchPage = lazy(() => import('./pages/SearchPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const EditorialReviewPage = lazy(() => import('./pages/EditorialReviewPage'));
+
+// Review-mode flag. When set, every route renders EditorialReviewPage instead
+// of normal content, so inbound links from tweets, the main site, and search
+// results land on a clear placeholder rather than dead pages.
+//
+// Default ON. Set VITE_JOURNAL_REVIEW_MODE=0 in Vercel env to bring the
+// journal back online after the audit/rebuild sequence in
+// research/EDITORIAL_STANDARDS.md is complete.
+const REVIEW_MODE =
+  (import.meta.env.VITE_JOURNAL_REVIEW_MODE ?? '1') !== '0';
 
 // ── Loading fallback ──
 
@@ -58,6 +69,24 @@ function Layout({ children }: { children: React.ReactNode }) {
  *     analytics and gave bots a 200-OK on missing pages.
  */
 export default function App() {
+  // Review-mode short-circuit: every path renders the placeholder. Keeps
+  // EcosystemNav + Footer in place so the page still looks like the journal,
+  // but no story content, no personalization onboarding, no analytics events
+  // tied to story views.
+  if (REVIEW_MODE) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route
+            path="*"
+            element={<Layout><EditorialReviewPage /></Layout>}
+          />
+        </Routes>
+        <Analytics />
+      </BrowserRouter>
+    );
+  }
+
   return (
     <PersonalizationProvider>
       <BrowserRouter>

@@ -5,6 +5,24 @@ Scans all sector data for patterns and generates 5+ unique stories per day.
 Each run picks from a rotation of pattern types, ensures no duplicate slugs,
 and publishes directly.
 
+EDITORIAL STANDARDS
+-------------------
+The canonical editorial standard for every story this module produces is
+``research/EDITORIAL_STANDARDS.md``. The R1-R23 prompt rules below predate
+that standard and are kept in place because the audit-then-revise sequence
+in Part 4 of the standards has not yet reached "regenerate" stage. In the
+meantime:
+  - No story written here is auto-published. ``status`` is set to draft and
+    requires human review via /ops/story-queue.
+  - The Twitter bot must remain paused until a human reviewer signs off on
+    each "Fully Verified" story (kill switch: ``WTP_BOT_PAUSED=1`` env var
+    or ``.bot_paused`` sentinel file in the repo root).
+  - Any new prompt template added below must conform to Part 2 of
+    ``research/EDITORIAL_STANDARDS.md`` (no "Partially Verified" labels, no
+    category-first framing, mandatory "What the Data Doesn't Show" section,
+    explicit time window in every dollar-figure sentence, primary-source
+    attestation for every entity reference).
+
 Patterns:
 1. Top lobbying spender per sector (rotates sectors daily)
 2. Contract windfall (companies with >$100M in contracts)
