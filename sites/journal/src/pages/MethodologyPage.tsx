@@ -469,6 +469,144 @@ const PAGES: Record<string, PageContent> = {
     ),
   },
 
+  'editorial-standards': {
+    eyebrow: 'Methodology',
+    title: 'Editorial Standards',
+    metaDescription:
+      "The Influence Journal's editorial standard: what every story must do, what disqualifies a story, and the verification labels we use.",
+    body: (
+      <>
+        <p style={proseStyle}>
+          Every story in The Influence Journal is built to survive editorial
+          scrutiny from a working political reporter. Our editorial standard
+          is internal-facing. It governs what stories we generate, what
+          stories we reject, and what verification label we publish under.
+          The full text is documented internally; this page summarizes it
+          for readers.
+        </p>
+
+        <h2 style={h2Style}>The core principle</h2>
+        <p style={proseStyle}>
+          We build stories from facts, not from categories. The data tells
+          us what the story is. We do not pick a frame ("Revolving Door,"
+          "STOCK Act Violation," "Enforcement Gap") and then look for facts
+          to fit it. We examine the facts first, identify what is genuinely
+          anomalous or newsworthy, then assign the appropriate framing, or
+          decline to publish if no story is supported.
+        </p>
+
+        <h2 style={h2Style}>What makes something a story</h2>
+        <p style={proseStyle}>
+          A finding qualifies as a story only if at least one of these
+          applies:
+        </p>
+        <ul style={{ marginBottom: '1.25rem', paddingLeft: 0, listStyle: 'none' }}>
+          {[
+            'Anomaly against baseline: the pattern deviates significantly from sector norms.',
+            'Temporal correlation with policy events: activity clusters around specific votes, hearings, contract awards, or regulatory actions.',
+            'Closed-loop evidence: the data shows a complete cycle, e.g. lobbying then committee assignment then vote then donation.',
+            'Disclosed conflict: a documented financial interest intersects with a documented official action by the same person or entity.',
+            'Verified revolving-door movement: a specific named individual moved from agency X to lobbying firm Y, attested in public records.',
+          ].map((t, i) => (
+            <li key={i} style={bulletItemStyle}><span style={bulletDot}>•</span><span>{t}</span></li>
+          ))}
+        </ul>
+        <p style={proseStyle}>
+          Specialization, ownership, and donation are baseline behaviors,
+          not stories. "Lobbying firm specializes in agency it lobbies" is
+          not a story. "Politician owns stocks" is not a story. "Company
+          donates to politicians" is not a story.
+        </p>
+
+        <h2 style={h2Style}>Required structure</h2>
+        <p style={proseStyle}>
+          Every story carries six sections in this order: a headline that
+          states a specific verifiable fact (entity, action, magnitude,
+          time period, no vague intensifiers); a 50-75 word lede; a
+          200-300 word "Finding" with full numerical context and a
+          baseline comparison; a 150-200 word "Why This Matters" naming
+          a specific public-interest stake; a mandatory 75-125 word
+          "What the Data Doesn't Show" section that states the limits
+          of the dataset; and a "Verification & Methodology" block.
+        </p>
+
+        <h2 style={h2Style}>Time-window rule</h2>
+        <p style={proseStyle}>
+          Every dollar figure in a story carries its time window in the
+          same sentence. We do not write "Company X earned $16.3M" without
+          specifying the period. We write "$16.3M between 2020 and 2025"
+          or "$16.3M in fiscal year 2024." Multi-year totals may not be
+          presented as single-year figures. This rule applies to breakdown
+          sentences too: when a sentence breaks down a total into
+          components, the time window is repeated or back-referenced.
+        </p>
+
+        <h2 style={h2Style}>Entity-reference rule</h2>
+        <p style={proseStyle}>
+          Every named entity (politician, company, lobbying firm, client,
+          agency) in a story must be directly attested in the source
+          filings — not inferred from sector classification, not
+          pattern-matched from related entities. If we cannot point to a
+          specific filing ID, SEC submission, or government record that
+          names them, the entity is removed.
+        </p>
+
+        <h2 style={h2Style}>Verification labels</h2>
+        <p style={proseStyle}>
+          Every published story carries one of two verification labels.
+          We do not use a "Partially Verified" label.
+        </p>
+        <ul style={{ marginBottom: '1.25rem', paddingLeft: 0, listStyle: 'none' }}>
+          <li style={bulletItemStyle}>
+            <span style={bulletDot}>•</span>
+            <span>
+              <strong>Fully verified.</strong> Every claim in the story has
+              been confirmed against a primary source by a human reviewer.
+            </span>
+          </li>
+          <li style={bulletItemStyle}>
+            <span style={bulletDot}>•</span>
+            <span>
+              <strong>Algorithmically generated, not human-verified.</strong>
+              The story was built from primary-source data by our pipeline
+              and passes every automated check, but no human has reviewed
+              it end to end.
+            </span>
+          </li>
+        </ul>
+
+        <h2 style={h2Style}>Headline rules</h2>
+        <p style={proseStyle}>
+          Headlines state a specific verifiable fact and stay under 140
+          characters. They name the entity, the action, the magnitude,
+          and the time period. They do not editorialize, imply wrongdoing
+          where none is established, or use vague intensifiers ("massive,"
+          "stunning," "shocking," "staggering"). Headlines that contain
+          "after [X did Y]" framing imply causation and are rejected.
+        </p>
+
+        <h2 style={h2Style}>Anti-padding rules</h2>
+        <p style={proseStyle}>
+          We cut anything that doesn't add factual content. No restating
+          the same finding in different words across sections. No "this
+          matters because" followed by generic civic values. No speculative
+          paragraphs about what "could" or "might" be true without data
+          support. No conclusion paragraphs that summarize what was already
+          said.
+        </p>
+
+        <h2 style={h2Style}>What this is for</h2>
+        <p style={proseStyle}>
+          The journal was taken offline for editorial review on
+          2026-05-01 after a working political journalist engaged
+          seriously with WeThePeople. We chose to be slower and right
+          rather than fast and wrong. Every story published from that
+          point forward conforms to this standard or is not published.
+        </p>
+      </>
+    ),
+  },
+
   index: {
     eyebrow: 'Methodology',
     title: 'How We Work',
@@ -485,6 +623,11 @@ const PAGES: Record<string, PageContent> = {
 
         <div className="grid gap-3 mt-8" style={{ display: 'grid', gap: 12 }}>
           {[
+            {
+              to: '/methodology/editorial-standards',
+              title: 'Editorial Standards',
+              desc: "What every story must do, what disqualifies a story, the time-window rule, the entity-reference rule, and the two verification labels we use.",
+            },
             {
               to: '/methodology/detectors',
               title: 'Story Detectors',
