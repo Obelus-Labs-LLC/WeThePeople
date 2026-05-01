@@ -492,7 +492,7 @@ export default function HomePage() {
 
           {/* Search input — sticks out on its own row so the cursor target is
               obvious; pressing Enter doesn't navigate, just filters in place. */}
-          <div className="relative max-w-md mb-6">
+          <div className="relative max-w-md mb-2">
             <Search
               size={16}
               className="absolute left-3.5 top-1/2 -translate-y-1/2"
@@ -503,6 +503,16 @@ export default function HomePage() {
               placeholder="Search stories…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter on a non-empty query jumps to the FTS-backed
+                // /search page so the user gets the full archive
+                // matched, not just the 200 cached on this page.
+                if (e.key === 'Enter' && search.trim()) {
+                  window.location.assign(
+                    `/search?q=${encodeURIComponent(search.trim())}`,
+                  );
+                }
+              }}
               className="w-full focus:outline-none transition-all"
               style={{
                 background: 'var(--color-surface)',
@@ -522,6 +532,22 @@ export default function HomePage() {
                 e.currentTarget.style.boxShadow = 'none';
               }}
             />
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+              marginBottom: 18,
+            }}
+          >
+            Press Enter to search the full archive ·{' '}
+            <Link
+              to="/search"
+              style={{ color: 'var(--color-accent-text)', textDecoration: 'underline' }}
+            >
+              Open advanced search
+            </Link>
           </div>
 
           <nav className="flex flex-wrap items-center gap-2" aria-label="Browse by category">
