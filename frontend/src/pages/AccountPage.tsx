@@ -241,11 +241,72 @@ export default function AccountPage() {
   const [akError, setAkError] = useState<string | null>(null);
   const [newKeyRaw, setNewKeyRaw] = useState<string | null>(null);
 
-  // Local-only notification preferences until backend lands
+  // Notification preferences. The first two (Weekly Digest +
+  // Breaking anomaly alerts) are persisted server-side via
+  // /auth/preferences. The remaining two (New investigations,
+  // Feature updates) don't have a backend column yet and stay
+  // local-only — flagged in the description.
   const [notifDigest, setNotifDigest] = useState(true);
   const [notifAnomaly, setNotifAnomaly] = useState(true);
   const [notifInvest, setNotifInvest] = useState(false);
   const [notifUpdates, setNotifUpdates] = useState(false);
+  const [notifSaving, setNotifSaving] = useState<'digest' | 'alert' | null>(null);
+  const [notifError, setNotifError] = useState<string | null>(null);
+  const [notifSavedAt, setNotifSavedAt] = useState<number | null>(null);
+
+  // Hydrate the digest / alert toggles from the server on mount.
+  // Falls back to the optimistic defaults if the call fails.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    authedFetch(`${API_BASE}/auth/preferences`)
+      .then(async (r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        if (typeof d.digest_opt_in === 'boolean') setNotifDigest(d.digest_opt_in);
+        if (typeof d.alert_opt_in === 'boolean') setNotifAnomaly(d.alert_opt_in);
+      })
+      .catch(() => {
+        /* hide-not-fail: optimistic defaults stick. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authedFetch]);
+
+  /**
+   * Persist a single notification preference to the server. We pass
+   * only the changed field so /auth/preferences leaves the others
+   * alone (its update logic is "only the provided fields are
+   * updated"). Reverts on failure so the toggle reflects truth.
+   */
+  const persistNotificationPref = async (
+    field: 'digest' | 'alert',
+    next: boolean,
+  ) => {
+    setNotifError(null);
+    setNotifSaving(field);
+    const body =
+      field === 'digest' ? { digest_opt_in: next } : { alert_opt_in: next };
+    try {
+      const r = await authedFetch(`${API_BASE}/auth/preferences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setNotifSavedAt(Date.now());
+    } catch (err) {
+      // Revert on failure.
+      if (field === 'digest') setNotifDigest(!next);
+      if (field === 'alert') setNotifAnomaly(!next);
+      setNotifError(
+        err instanceof Error ? err.message : 'Could not save preference',
+      );
+    } finally {
+      setNotifSaving(null);
+    }
+  };
 
   // Profile editor state (display_name is backend-persisted; zip is local-only)
   const [displayName, setDisplayName] = useState('');
@@ -744,25 +805,39 @@ export default function AccountPage() {
                   name: 'Weekly Digest',
                   desc: 'Top 5 stories and anomalies from last 7 days',
                   on: notifDigest,
-                  set: setNotifDigest,
+                  set: (v: boolean) => {
+                    setNotifDigest(v);
+                    void persistNotificationPref('digest', v);
+                  },
+                  syncing: notifSaving === 'digest',
+                  persisted: true,
                 },
                 {
-                  name: 'Breaking anomaly alerts',
-                  desc: 'Only for politicians you follow — rare, <1/mo',
+                  name: 'Story alerts',
+                  desc: 'Hourly: new stories matching your sectors or watchlist',
                   on: notifAnomaly,
-                  set: setNotifAnomaly,
+                  set: (v: boolean) => {
+                    setNotifAnomaly(v);
+                    void persistNotificationPref('alert', v);
+                  },
+                  syncing: notifSaving === 'alert',
+                  persisted: true,
                 },
                 {
                   name: 'New investigations',
-                  desc: 'When the Journal publishes a deep-dive',
+                  desc: 'When the Journal publishes a deep-dive (local-only for now)',
                   on: notifInvest,
                   set: setNotifInvest,
+                  syncing: false,
+                  persisted: false,
                 },
                 {
                   name: 'Feature updates',
-                  desc: 'New tools, site changes',
+                  desc: 'New tools, site changes (local-only for now)',
                   on: notifUpdates,
                   set: setNotifUpdates,
+                  syncing: false,
+                  persisted: false,
                 },
               ].map((row) => (
                 <div
@@ -799,6 +874,7 @@ export default function AccountPage() {
                   <button
                     type="button"
                     onClick={() => row.set(!row.on)}
+                    disabled={row.syncing}
                     aria-pressed={row.on}
                     aria-label={`Toggle ${row.name}`}
                     style={{
@@ -808,8 +884,9 @@ export default function AccountPage() {
                       background: row.on ? 'var(--color-accent)' : 'var(--color-surface-2)',
                       border: `1px solid ${row.on ? 'var(--color-accent)' : 'var(--color-border)'}`,
                       position: 'relative',
-                      cursor: 'pointer',
+                      cursor: row.syncing ? 'wait' : 'pointer',
                       transition: 'all 0.15s',
+                      opacity: row.syncing ? 0.6 : 1,
                     }}
                   >
                     <span
@@ -828,6 +905,34 @@ export default function AccountPage() {
                   </button>
                 </div>
               ))}
+              {notifError && (
+                <div
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    color: 'var(--color-red, #ef4444)',
+                    marginTop: 14,
+                    padding: '8px 10px',
+                    background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.2)',
+                    borderRadius: 6,
+                  }}
+                >
+                  {notifError}. Toggle reverted; please try again.
+                </div>
+              )}
+              {notifSavedAt && !notifError && (
+                <div
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 11,
+                    color: 'var(--color-text-3)',
+                    marginTop: 12,
+                  }}
+                >
+                  Saved.
+                </div>
+              )}
               <div
                 style={{
                   fontFamily: "'Inter', sans-serif",
@@ -836,8 +941,9 @@ export default function AccountPage() {
                   marginTop: 14,
                 }}
               >
-                Preferences are stored locally until the notifications backend
-                ships.
+                Weekly Digest and Story Alerts are saved to your account. New
+                investigations and Feature updates are stored locally until those
+                channels ship.
               </div>
             </div>
           )}

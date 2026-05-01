@@ -830,26 +830,73 @@ interface StoryAction {
   external_url: string | null;
 }
 
+// Plain-text labels for the action-type ribbon. Apostrophes are
+// real Unicode so we don't need dangerouslySetInnerHTML.
 const ACTION_TYPE_LABELS: Record<string, string> = {
   call_rep: 'Call your rep',
   switch_provider: 'Switch providers',
-  check_redress: 'Check if you&apos;re owed money',
+  check_redress: 'Check if you’re owed money',
   attend_hearing: 'Attend a hearing',
   read_more: 'Read the source',
   verify_data: 'Verify the data',
   register_to_vote: 'Register to vote',
 };
 
+// Per-action CTA text. "Take action" was a generic dead-end; these
+// describe what actually happens when the user clicks. Falls back
+// to "Take action" for unknown types (forward-compat with future
+// action_type rollouts).
+const ACTION_CTA: Record<string, string> = {
+  call_rep: 'Find your rep',
+  switch_provider: 'Open the locator',
+  check_redress: 'Check refunds',
+  attend_hearing: 'See the calendar',
+  read_more: 'Read the source',
+  verify_data: 'Open the dataset',
+  register_to_vote: 'Check registration',
+};
+
+// Compact mono icon glyph rendered in the action-type ribbon. Kept
+// as Unicode (not lucide-react) so we don't pull in a new dep
+// surface area; bundled fonts already cover these characters.
+const ACTION_GLYPH: Record<string, string> = {
+  call_rep: '☎',
+  switch_provider: '⇆',
+  check_redress: '$',
+  attend_hearing: '📅',
+  read_more: '📰',
+  verify_data: '⌗',
+  register_to_vote: '✓',
+};
+
+/**
+ * Replace user-state placeholders in a call-script. We intentionally
+ * keep the substitution table tiny: `{state}` is the only token we
+ * confidently know at render time. Other placeholders (`{bill_id}`,
+ * etc.) flow through unchanged so the editor sees them and can
+ * decide whether to fill them in at story-author time.
+ */
+function applyScriptSubstitutions(
+  template: string,
+  ctx: { state: string | null },
+): string {
+  return template.replace(/\{state\}/g, ctx.state ?? 'my state');
+}
+
 export function StoryActionPanel({ slug }: { slug: string }) {
   const { state } = usePersonalization();
   const [actions, setActions] = useState<StoryAction[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!slug) return;
     const params = new URLSearchParams();
     if (state?.state) params.set('state', state.state);
-    fetch(`${API_BASE}/stories/${slug}/actions?${params}`)
+    const ctrl = new AbortController();
+    fetch(`${API_BASE}/stories/${slug}/actions?${params}`, {
+      signal: ctrl.signal,
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.actions && Array.isArray(d.actions)) {
@@ -857,10 +904,28 @@ export function StoryActionPanel({ slug }: { slug: string }) {
         }
       })
       .catch(() => {
-        /* silent */
+        /* silent: hide-not-fail */
       })
       .finally(() => setLoaded(true));
+    return () => ctrl.abort();
   }, [slug, state]);
+
+  const handleCopy = useCallback(
+    async (a: StoryAction) => {
+      if (!a.script_template) return;
+      const filled = applyScriptSubstitutions(a.script_template, {
+        state: state?.state ?? null,
+      });
+      try {
+        await navigator.clipboard.writeText(filled);
+        setCopiedId(a.id);
+        window.setTimeout(() => setCopiedId(null), 2000);
+      } catch {
+        /* clipboard blocked; the script is still visible to read off */
+      }
+    },
+    [state?.state],
+  );
 
   if (!loaded || actions.length === 0) return null;
 
@@ -871,6 +936,15 @@ export function StoryActionPanel({ slug }: { slug: string }) {
     const safeUrl = a.external_url && /^https?:\/\//.test(a.external_url)
       ? a.external_url
       : null;
+    const cta = ACTION_CTA[a.action_type] ?? 'Take action';
+    const ribbon = ACTION_TYPE_LABELS[a.action_type] ?? a.action_type;
+    const glyph = ACTION_GLYPH[a.action_type] ?? '·';
+    const filledScript = a.script_template
+      ? applyScriptSubstitutions(a.script_template, {
+          state: state?.state ?? null,
+        })
+      : null;
+
     return (
       <div
         key={a.id}
@@ -884,6 +958,9 @@ export function StoryActionPanel({ slug }: { slug: string }) {
       >
         <div
           style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
             fontWeight: 700,
@@ -892,10 +969,12 @@ export function StoryActionPanel({ slug }: { slug: string }) {
             color: 'var(--color-text-3)',
             marginBottom: 6,
           }}
-          dangerouslySetInnerHTML={{
-            __html: ACTION_TYPE_LABELS[a.action_type] ?? a.action_type,
-          }}
-        />
+        >
+          <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>
+            {glyph}
+          </span>
+          <span>{ribbon}</span>
+        </div>
         <div
           style={{
             fontFamily: 'var(--font-body)',
@@ -920,7 +999,7 @@ export function StoryActionPanel({ slug }: { slug: string }) {
             {a.description}
           </p>
         )}
-        {a.script_template && (
+        {filledScript && (
           <details style={{ marginBottom: 8 }}>
             <summary
               style={{
@@ -945,8 +1024,25 @@ export function StoryActionPanel({ slug }: { slug: string }) {
                 whiteSpace: 'pre-wrap',
               }}
             >
-              {a.script_template}
+              {filledScript}
             </pre>
+            <button
+              type="button"
+              onClick={() => handleCopy(a)}
+              style={{
+                marginTop: 6,
+                padding: '4px 10px',
+                background: 'transparent',
+                border: '1px solid rgba(235,229,213,0.18)',
+                borderRadius: 6,
+                color: 'var(--color-text-2)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                cursor: 'pointer',
+              }}
+            >
+              {copiedId === a.id ? 'Copied' : 'Copy script'}
+            </button>
           </details>
         )}
         {safeUrl && (
@@ -968,7 +1064,7 @@ export function StoryActionPanel({ slug }: { slug: string }) {
               textDecoration: 'none',
             }}
           >
-            Take action
+            {cta}
           </a>
         )}
       </div>
@@ -1018,11 +1114,11 @@ export function StoryActionPanel({ slug }: { slug: string }) {
               fontWeight: 700,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              color: 'var(--color-text-3)',
+              color: '#3DD5C7',
               marginBottom: 8,
             }}
           >
-            Just for you (no politics required)
+            Take care of yourself first
           </div>
           {passive.map(renderAction)}
         </div>
@@ -1037,7 +1133,7 @@ export function StoryActionPanel({ slug }: { slug: string }) {
               fontWeight: 700,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              color: 'var(--color-text-3)',
+              color: 'var(--color-accent-text)',
               marginBottom: 8,
             }}
           >
