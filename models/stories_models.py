@@ -271,3 +271,32 @@ class StoryOutcome(Base):
                 f"state must be one of {StoryOutcome.VALID_STATES}, got {state!r}"
             )
         return v
+
+
+class StoryOutcomeHistory(Base):
+    """One row per state transition on a story's outcome.
+
+    Phase 4-W: the StoryOutcome table only carries the latest state.
+    Storing the transition history lets the /story page render a
+    timeline ("open → improved on Mar 15") and the engagement
+    dashboard correlate action clicks against outcome shifts.
+
+    Append-only. The detector inserts only when the new state
+    actually differs from the previous, so re-running with no
+    underlying change produces zero new rows.
+    """
+    __tablename__ = "story_outcome_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    story_id = Column(
+        Integer, ForeignKey("stories.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    from_state = Column(String(16), nullable=True)
+    to_state = Column(String(16), nullable=False)
+    note = Column(Text, nullable=True)
+    signal_source = Column(String(255), nullable=True)
+    transitioned_at = Column(
+        DateTime(timezone=True), server_default=func.now(),
+        nullable=False, index=True,
+    )

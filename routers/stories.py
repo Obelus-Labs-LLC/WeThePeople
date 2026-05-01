@@ -311,17 +311,24 @@ def get_story(slug: str, db: Session = Depends(get_db)):
     result = _serialize_story_full(story)
 
     # Phase 3 thread B: surface the per-story outcome state. Hidden
-    # client-side when state == 'unknown', so we only need to send
-    # the row when it actually carries information. Best-effort:
-    # storage-layer failures don't break the story response.
+    # client-side when state == 'unknown'. Phase 4-W extends the
+    # payload with a `history` timeline of state transitions so the
+    # UI can render "open → improved on Mar 15".
     try:
-        from models.stories_models import StoryOutcome
+        from models.stories_models import StoryOutcome, StoryOutcomeHistory
         outcome = (
             db.query(StoryOutcome)
             .filter(StoryOutcome.story_id == story.id)
             .first()
         )
         if outcome is not None:
+            history_rows = (
+                db.query(StoryOutcomeHistory)
+                .filter(StoryOutcomeHistory.story_id == story.id)
+                .order_by(StoryOutcomeHistory.transitioned_at.asc())
+                .limit(20)
+                .all()
+            )
             result["outcome"] = {
                 "state": outcome.state,
                 "note": outcome.note,
@@ -329,6 +336,18 @@ def get_story(slug: str, db: Session = Depends(get_db)):
                     outcome.last_signal_at.isoformat()
                     if outcome.last_signal_at else None
                 ),
+                "history": [
+                    {
+                        "from_state": h.from_state,
+                        "to_state": h.to_state,
+                        "note": h.note,
+                        "transitioned_at": (
+                            h.transitioned_at.isoformat()
+                            if h.transitioned_at else None
+                        ),
+                    }
+                    for h in history_rows
+                ],
             }
     except Exception as exc:
         logger.warning("outcome lookup failed for %s: %s", slug, exc)

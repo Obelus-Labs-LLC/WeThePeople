@@ -399,6 +399,19 @@ JOB_REGISTRY: List[JobDef] = [
         description="Rebuild FTS5 entity_search from politicians/companies/bills/stories",
     ),
 
+    # ── Daily stale-draft sweep (Phase 4-Z) ────────────────────────
+    # Surfaces drafts that have been sitting in the queue without
+    # editor action for 5+ days. Quiet: only emails when there's at
+    # least one stale draft. Threshold tunable via the script.
+    JobDef(
+        name="stale_draft_sweep",
+        script="jobs/stale_draft_sweep.py",
+        args=["--threshold-days", "5"],
+        interval_hours=24,
+        timeout_sec=120,
+        description="Daily: email editors a list of drafts untouched 5+ days",
+    ),
+
     # ── Weekly engagement report email (Phase 3 thread A) ──────────
     # Aggregates action_clicks for the past 7 days and emails the
     # editorial inbox a digest with by-type / by-sector / top-stories

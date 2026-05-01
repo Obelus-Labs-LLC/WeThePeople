@@ -56,7 +56,7 @@ sys.path.insert(0, str(ROOT))
 from sqlalchemy import desc
 
 from models.database import SessionLocal, CongressionalTrade
-from models.stories_models import Story, StoryOutcome
+from models.stories_models import Story, StoryOutcome, StoryOutcomeHistory
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("detect_story_outcomes")
@@ -558,7 +558,9 @@ def _detect_outcome_for_story(db, story: Story) -> Tuple[str, str, Optional[str]
 
 def upsert_outcome_for_story(db, story: Story, dry_run: bool = False) -> str:
     """Compute and persist the outcome for one story. Returns the
-    new state."""
+    new state. Phase 4-W also records a row in
+    story_outcome_history whenever the state actually changes,
+    so the timeline is recoverable."""
     state, note, signal = _detect_outcome_for_story(db, story)
     state = StoryOutcome.validate_state(state)
 
@@ -566,7 +568,12 @@ def upsert_outcome_for_story(db, story: Story, dry_run: bool = False) -> str:
         db.query(StoryOutcome).filter(StoryOutcome.story_id == story.id).first()
     )
     now = datetime.now(timezone.utc)
+    prev_state: Optional[str] = None
+    state_changed = False
     if row is None:
+        # First time we've evaluated this story. Record the initial
+        # state as a history entry too — `from_state=None` means
+        # "first observed at this state".
         row = StoryOutcome(
             story_id=story.id,
             state=state,
@@ -574,19 +581,44 @@ def upsert_outcome_for_story(db, story: Story, dry_run: bool = False) -> str:
             last_signal_source=signal,
             last_signal_at=now,
         )
+        state_changed = True
         if not dry_run:
             db.add(row)
     else:
+        prev_state = row.state
+        if prev_state != state:
+            state_changed = True
         row.state = state
         row.note = note
         row.last_signal_source = signal
         row.last_signal_at = now
 
+    if state_changed and not dry_run:
+        try:
+            db.add(StoryOutcomeHistory(
+                story_id=story.id,
+                from_state=prev_state,
+                to_state=state,
+                note=note,
+                signal_source=signal,
+                transitioned_at=now,
+            ))
+        except Exception as exc:
+            log.warning("history insert failed for %s: %s", story.slug, exc)
+
     if dry_run:
         log.info("DRY %s [%s] %s", state.upper(), story.slug, note)
     else:
         db.commit()
-        log.info("OK  %s [%s] %s", state.upper(), story.slug, note)
+        log.info(
+            "OK  %s [%s]%s %s",
+            state.upper(),
+            story.slug,
+            f" (was {prev_state})" if state_changed and prev_state else (
+                " (NEW)" if state_changed else ""
+            ),
+            note,
+        )
     return state
 
 

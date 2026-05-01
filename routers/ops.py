@@ -2209,6 +2209,7 @@ def ops_dashboard(db: Session = Depends(get_db)):
         <a href='/ops/story-queue' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Story queue</a>
         <a href='/ops/tips' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Tips</a>
         <a href='/ops/engagement' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Engagement</a>
+        <a href='/ops/calendar' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Calendar</a>
         <a href='/ops/draft-queue' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Draft replies</a>
         <a href='/ops/pipeline/health' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Pipeline health</a>
         <a href='/ops/pipeline/dlq' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>DLQ</a>
@@ -2368,3 +2369,133 @@ def engagement_dashboard(
         "</body></html>"
     )
     return HTMLResponse(page)
+
+
+# ---------------------------------------------------------------------------
+# /ops/calendar — Phase 4-Z editorial calendar view
+# ---------------------------------------------------------------------------
+# Reads scheduler_state.json so editors can see what's queued without
+# SSH access. Press-key gated like the rest of /ops.
+
+@router.get("/calendar")
+def calendar_view():
+    """Server-rendered HTML of the scheduler's job calendar."""
+    from fastapi.responses import HTMLResponse
+    from datetime import datetime
+    import json as _json
+    from pathlib import Path
+
+    state_path = Path(__file__).resolve().parents[1] / "scheduler_state.json"
+    try:
+        state = _json.loads(state_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return HTMLResponse(
+            "<h2>No scheduler state</h2><p>The scheduler has not run yet.</p>",
+            status_code=404,
+        )
+    except Exception as exc:
+        return HTMLResponse(
+            f"<h2>Error</h2><p>Failed to read scheduler state: "
+            f"{html.escape(str(exc))}</p>",
+            status_code=500,
+        )
+
+    jobs = state.get("jobs", []) or []
+    jobs.sort(key=lambda j: j.get("next_run") or 0)
+
+    now_ts = datetime.now().timestamp()
+    rows: List[str] = []
+    for j in jobs:
+        if not isinstance(j, dict):
+            continue
+        name = j.get("func_name") or "(anonymous)"
+        next_run = j.get("next_run")
+        last_run = j.get("last_run")
+        run_count = j.get("run_count", 0)
+        status = j.get("status", "?")
+        paused = j.get("paused", False)
+        interval_sec = j.get("interval", 0)
+
+        next_str = (
+            datetime.fromtimestamp(next_run).strftime("%Y-%m-%d %H:%M")
+            if next_run else "—"
+        )
+        last_str = (
+            datetime.fromtimestamp(last_run).strftime("%Y-%m-%d %H:%M")
+            if last_run else "never"
+        )
+        eta = ""
+        if next_run:
+            delta = next_run - now_ts
+            if delta < 0:
+                eta = "<span style='color:#b91c1c;'>overdue</span>"
+            elif delta < 3600:
+                eta = f"in {int(delta / 60)} min"
+            elif delta < 86400:
+                eta = f"in {int(delta / 3600)}h"
+            else:
+                eta = f"in {int(delta / 86400)}d"
+
+        if interval_sec >= 86400:
+            interval_label = f"{interval_sec // 86400}d"
+        elif interval_sec >= 3600:
+            interval_label = f"{interval_sec // 3600}h"
+        elif interval_sec >= 60:
+            interval_label = f"{interval_sec // 60}m"
+        else:
+            interval_label = f"{interval_sec}s"
+
+        paused_pill = (
+            "<span style='background:#fee2e2;color:#991b1b;padding:1px 8px;"
+            "border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;"
+            "text-transform:uppercase;'>paused</span>"
+            if paused else ""
+        )
+
+        rows.append(
+            "<tr>"
+            "<td style='padding:8px 12px;font-family:monospace;font-size:13px;"
+            "font-weight:600;color:#0f172a;'>"
+            + html.escape(name) + " " + paused_pill + "</td>"
+            "<td style='padding:8px 12px;font-family:monospace;font-size:12px;"
+            "color:#475569;'>" + interval_label + "</td>"
+            "<td style='padding:8px 12px;font-family:monospace;font-size:12px;"
+            "color:#475569;white-space:nowrap;'>" + next_str
+            + "<br><span style='color:#94a3b8;'>" + eta + "</span></td>"
+            "<td style='padding:8px 12px;font-family:monospace;font-size:12px;"
+            "color:#475569;white-space:nowrap;'>" + last_str + "</td>"
+            "<td style='padding:8px 12px;font-family:monospace;font-size:12px;"
+            "color:#475569;text-align:right;'>" + str(run_count) + "</td>"
+            "<td style='padding:8px 12px;font-family:monospace;font-size:12px;"
+            "color:" + ('#15803d' if status == 'scheduled' else '#92400e') + ";'>"
+            + html.escape(str(status)) + "</td>"
+            "</tr>"
+        )
+
+    body = (
+        "<!DOCTYPE html><html><head><title>WTP Scheduler Calendar</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>"
+        "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+        "margin:0;padding:24px;max-width:1100px;margin:0 auto;background:#f8fafc;color:#0f172a;}"
+        "h1{font-size:24px;margin:0 0 6px;}"
+        ".sub{color:#64748b;font-size:13px;margin-bottom:20px;}"
+        "table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;"
+        "border-radius:10px;overflow:hidden;}"
+        "thead th{padding:10px 12px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;"
+        "color:#64748b;text-align:left;background:#f1f5f9;border-bottom:1px solid #e2e8f0;}"
+        "tbody tr+tr td{border-top:1px solid #e2e8f0;}"
+        "</style></head><body>"
+        "<a href='/ops' style='color:#b45309;font-size:13px;text-decoration:none;'>← Ops dashboard</a>"
+        "<h1 style='margin-top:8px;'>Scheduler calendar</h1>"
+        "<div class='sub'>"
+        + str(len(jobs)) + " jobs registered. Sorted by next run.</div>"
+        "<table>"
+        "<thead><tr>"
+        "<th>Job</th><th>Interval</th><th>Next run</th><th>Last run</th>"
+        "<th style='text-align:right;'>Runs</th><th>Status</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></body></html>"
+    )
+    return HTMLResponse(body)
