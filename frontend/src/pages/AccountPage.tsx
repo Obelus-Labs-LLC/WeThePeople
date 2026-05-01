@@ -69,6 +69,7 @@ interface APIKey {
 
 type TabId =
   | 'profile'
+  | 'personalization'
   | 'notifications'
   | 'follows'
   | 'apikeys'
@@ -77,6 +78,7 @@ type TabId =
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'profile', label: 'Profile' },
+  { id: 'personalization', label: 'Personalization' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'follows', label: 'Follows' },
   { id: 'apikeys', label: 'API Keys' },
@@ -215,7 +217,7 @@ export default function AccountPage() {
   // land on the right pane (e.g. /account?tab=follows for the watchlist).
   // Falls back to 'profile' for unknown / missing values.
   const [searchParams, setSearchParams] = useSearchParams();
-  const validTabs: TabId[] = ['profile', 'notifications', 'follows', 'apikeys', 'billing', 'dangerzone'];
+  const validTabs: TabId[] = ['profile', 'personalization', 'notifications', 'follows', 'apikeys', 'billing', 'dangerzone'];
   const initialTab = (() => {
     const q = searchParams.get('tab');
     return (q && (validTabs as string[]).includes(q)) ? (q as TabId) : 'profile';
@@ -241,16 +243,82 @@ export default function AccountPage() {
   const [akError, setAkError] = useState<string | null>(null);
   const [newKeyRaw, setNewKeyRaw] = useState<string | null>(null);
 
-  // Local-only notification preferences until backend lands
+  // Notification preferences. The first two (Weekly Digest +
+  // Breaking anomaly alerts) are persisted server-side via
+  // /auth/preferences. The remaining two (New investigations,
+  // Feature updates) don't have a backend column yet and stay
+  // local-only — flagged in the description.
   const [notifDigest, setNotifDigest] = useState(true);
   const [notifAnomaly, setNotifAnomaly] = useState(true);
   const [notifInvest, setNotifInvest] = useState(false);
   const [notifUpdates, setNotifUpdates] = useState(false);
+  const [notifSaving, setNotifSaving] = useState<'digest' | 'alert' | null>(null);
+  const [notifError, setNotifError] = useState<string | null>(null);
+  const [notifSavedAt, setNotifSavedAt] = useState<number | null>(null);
 
-  // Profile editor state (display_name is backend-persisted; zip is local-only)
+  // Hydrate the digest / alert toggles from the server on mount.
+  // Falls back to the optimistic defaults if the call fails.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    authedFetch(`${API_BASE}/auth/preferences`)
+      .then(async (r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        if (typeof d.digest_opt_in === 'boolean') setNotifDigest(d.digest_opt_in);
+        if (typeof d.alert_opt_in === 'boolean') setNotifAnomaly(d.alert_opt_in);
+      })
+      .catch(() => {
+        /* hide-not-fail: optimistic defaults stick. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authedFetch]);
+
+  /**
+   * Persist a single notification preference to the server. We pass
+   * only the changed field so /auth/preferences leaves the others
+   * alone (its update logic is "only the provided fields are
+   * updated"). Reverts on failure so the toggle reflects truth.
+   */
+  const persistNotificationPref = async (
+    field: 'digest' | 'alert',
+    next: boolean,
+  ) => {
+    setNotifError(null);
+    setNotifSaving(field);
+    const body =
+      field === 'digest' ? { digest_opt_in: next } : { alert_opt_in: next };
+    try {
+      const r = await authedFetch(`${API_BASE}/auth/preferences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setNotifSavedAt(Date.now());
+    } catch (err) {
+      // Revert on failure.
+      if (field === 'digest') setNotifDigest(!next);
+      if (field === 'alert') setNotifAnomaly(!next);
+      setNotifError(
+        err instanceof Error ? err.message : 'Could not save preference',
+      );
+    } finally {
+      setNotifSaving(null);
+    }
+  };
+
+  // Profile editor state. ZIP is now backend-persisted via
+  // /auth/preferences; display_name still goes through the existing
+  // user mutation flow elsewhere; email is read-only.
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [zipCode, setZipCode] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSavedAt, setProfileSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -258,6 +326,153 @@ export default function AccountPage() {
       setEmail(user.email);
     }
   }, [user]);
+
+  // Hydrate ZIP from /auth/preferences on tab mount so a user who
+  // already saved their ZIP sees it pre-filled.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    authedFetch(`${API_BASE}/auth/preferences`)
+      .then(async (r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        if (typeof d.zip_code === 'string') setZipCode(d.zip_code);
+      })
+      .catch(() => {
+        /* hide-not-fail: zip stays blank on failure */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authedFetch]);
+
+  // ── Personalization editor (sectors + concerns + ZIP) ──────────────
+  // The journal site's onboarding modal is the original entry point;
+  // this tab lets a logged-in user edit those answers without going
+  // back through that modal. Mirrors the same backend allowlists
+  // (ONBOARDING_LIFESTYLE_CATEGORIES, ONBOARDING_CONCERNS) so the
+  // POST validates clean.
+  const PERS_SECTORS: Array<{ value: string; label: string }> = [
+    { value: 'finance',        label: 'Finance' },
+    { value: 'health',         label: 'Healthcare' },
+    { value: 'housing',        label: 'Housing' },
+    { value: 'energy',         label: 'Energy' },
+    { value: 'transportation', label: 'Transportation' },
+    { value: 'technology',     label: 'Technology' },
+    { value: 'telecom',        label: 'Telecommunications' },
+    { value: 'education',      label: 'Education' },
+    { value: 'agriculture',    label: 'Agriculture & Food' },
+    { value: 'chemicals',      label: 'Chemicals' },
+    { value: 'defense',        label: 'Defense' },
+  ];
+  const PERS_CONCERNS: Array<{ value: string; label: string }> = [
+    { value: 'rent_too_high',     label: 'Rent or mortgage costs' },
+    { value: 'healthcare_costs',  label: 'Healthcare costs' },
+    { value: 'student_loans',     label: 'Student loans' },
+    { value: 'fuel_prices',       label: 'Fuel prices' },
+    { value: 'groceries',         label: 'Grocery prices' },
+    { value: 'wages',             label: 'Wages and pay' },
+    { value: 'childcare',         label: 'Childcare costs' },
+    { value: 'credit_card_debt',  label: 'Credit card debt' },
+    { value: 'retirement',        label: 'Retirement savings' },
+    { value: 'taxes',             label: 'Taxes' },
+    { value: 'other',             label: 'Other' },
+  ];
+  const PERS_MAX_SECTORS = 5;
+  const PERS_MAX_CONCERNS = 5;
+
+  const [persZip, setPersZip] = useState('');
+  const [persState, setPersState] = useState<string | null>(null);
+  const [persSectors, setPersSectors] = useState<string[]>([]);
+  const [persConcerns, setPersConcerns] = useState<string[]>([]);
+  const [persLoaded, setPersLoaded] = useState(false);
+  const [persSaving, setPersSaving] = useState(false);
+  const [persError, setPersError] = useState<string | null>(null);
+  const [persSavedAt, setPersSavedAt] = useState<number | null>(null);
+
+  // Hydrate from /auth/personalization. Falls back to empty if the
+  // user hasn't completed onboarding yet.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    authedFetch(`${API_BASE}/auth/personalization`)
+      .then(async (r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) {
+          if (!cancelled) setPersLoaded(true);
+          return;
+        }
+        setPersZip(d.zip_code ?? '');
+        setPersState(d.home_state ?? null);
+        setPersSectors(Array.isArray(d.lifestyle_categories) ? d.lifestyle_categories : []);
+        // The backend stores a single current_concern. The server will
+        // accept a `concerns` array on POST; we seed the editor from
+        // current_concern and let the user add up to 5.
+        setPersConcerns(d.current_concern ? [d.current_concern] : []);
+        setPersLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setPersLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authedFetch]);
+
+  const togglePersSector = (val: string) => {
+    setPersSectors((prev) => {
+      if (prev.includes(val)) return prev.filter((x) => x !== val);
+      if (prev.length >= PERS_MAX_SECTORS) return prev;
+      return [...prev, val];
+    });
+  };
+  const togglePersConcern = (val: string) => {
+    setPersConcerns((prev) => {
+      if (prev.includes(val)) return prev.filter((x) => x !== val);
+      if (prev.length >= PERS_MAX_CONCERNS) return prev;
+      return [...prev, val];
+    });
+  };
+
+  const savePersonalization = async () => {
+    setPersError(null);
+    if (!/^\d{5}$/.test(persZip.trim())) {
+      setPersError('ZIP code must be exactly 5 digits.');
+      return;
+    }
+    if (persSectors.length === 0) {
+      setPersError('Pick at least one sector.');
+      return;
+    }
+    if (persConcerns.length === 0) {
+      setPersError('Pick at least one concern.');
+      return;
+    }
+    setPersSaving(true);
+    try {
+      const r = await authedFetch(`${API_BASE}/auth/onboarding`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          zip_code: persZip.trim(),
+          lifestyle_categories: persSectors,
+          current_concern: persConcerns[0] ?? 'other',
+          concerns: persConcerns,
+        }),
+      });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => null);
+        throw new Error((detail && (detail.detail || detail.message)) || `HTTP ${r.status}`);
+      }
+      const d = await r.json();
+      if (typeof d?.home_state === 'string') setPersState(d.home_state);
+      setPersSavedAt(Date.now());
+    } catch (err) {
+      setPersError(err instanceof Error ? err.message : 'Could not save personalization');
+    } finally {
+      setPersSaving(false);
+    }
+  };
 
   // Watchlist fetch — uses authedFetch so a 401 mid-session triggers
   // refresh + replay instead of silently rendering "no items".
@@ -611,15 +826,76 @@ export default function AccountPage() {
                   </div>
                   <button
                     type="button"
-                    style={{ ...primaryBtn, marginTop: 4 }}
-                    onClick={() =>
-                      alert(
-                        'Profile edit API is coming soon. Email wethepeopleforus@gmail.com to update for now.',
-                      )
-                    }
+                    style={{
+                      ...primaryBtn,
+                      marginTop: 4,
+                      opacity: profileSaving ? 0.6 : 1,
+                      cursor: profileSaving ? 'wait' : 'pointer',
+                    }}
+                    disabled={profileSaving}
+                    onClick={async () => {
+                      setProfileError(null);
+                      // Validate ZIP if provided.
+                      const trimmed = zipCode.trim();
+                      if (trimmed && !/^\d{5}$/.test(trimmed)) {
+                        setProfileError('ZIP code must be exactly 5 digits.');
+                        return;
+                      }
+                      setProfileSaving(true);
+                      try {
+                        const r = await authedFetch(
+                          `${API_BASE}/auth/preferences`,
+                          {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ zip_code: trimmed }),
+                          },
+                        );
+                        if (!r.ok) {
+                          const detail = await r.json().catch(() => null);
+                          throw new Error(
+                            (detail && (detail.detail || detail.message)) ||
+                              `HTTP ${r.status}`,
+                          );
+                        }
+                        setProfileSavedAt(Date.now());
+                      } catch (err) {
+                        setProfileError(
+                          err instanceof Error
+                            ? err.message
+                            : 'Could not save profile',
+                        );
+                      } finally {
+                        setProfileSaving(false);
+                      }
+                    }}
                   >
-                    Save changes
+                    {profileSaving ? 'Saving…' : 'Save changes'}
                   </button>
+                  {profileError && (
+                    <div
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-red, #ef4444)',
+                        marginTop: 10,
+                      }}
+                    >
+                      {profileError}
+                    </div>
+                  )}
+                  {profileSavedAt && !profileError && (
+                    <div
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-text-3)',
+                        marginTop: 10,
+                      }}
+                    >
+                      Saved.
+                    </div>
+                  )}
                 </div>
 
                 <div style={card}>
@@ -736,6 +1012,207 @@ export default function AccountPage() {
             </div>
           )}
 
+          {tab === 'personalization' && (
+            <div style={{ ...card, maxWidth: 720 }}>
+              <h3 style={sectionTitle}>Personalization</h3>
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  color: 'var(--color-text-2)',
+                  marginBottom: 18,
+                  lineHeight: 1.5,
+                }}
+              >
+                These choices drive your story feed, the &ldquo;Why this matters
+                to you&rdquo; block on every story, and the hourly alert system.
+                You can change them anytime.
+              </p>
+
+              {!persLoaded ? (
+                <div style={{ color: 'var(--color-text-3)', fontSize: 13 }}>Loading…</div>
+              ) : (
+                <>
+                  {/* ZIP */}
+                  <div style={{ marginBottom: 20 }}>
+                    <label
+                      htmlFor="pers-zip"
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-text-2)',
+                        display: 'block',
+                        marginBottom: 6,
+                      }}
+                    >
+                      ZIP code{persState ? ` · resolves to ${persState}` : ''}
+                    </label>
+                    <input
+                      id="pers-zip"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={5}
+                      placeholder="48043"
+                      value={persZip}
+                      onChange={(e) =>
+                        setPersZip(e.target.value.replace(/\D/g, '').slice(0, 5))
+                      }
+                      style={{
+                        width: 160,
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-surface)',
+                        color: 'var(--color-text-1)',
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 14,
+                      }}
+                    />
+                  </div>
+
+                  {/* Sectors */}
+                  <div style={{ marginBottom: 20 }}>
+                    <label
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-text-2)',
+                        display: 'block',
+                        marginBottom: 8,
+                      }}
+                    >
+                      Sectors to follow ({persSectors.length}/{PERS_MAX_SECTORS})
+                    </label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {PERS_SECTORS.map((opt) => {
+                        const active = persSectors.includes(opt.value);
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => togglePersSector(opt.value)}
+                            disabled={!active && persSectors.length >= PERS_MAX_SECTORS}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 999,
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 13,
+                              border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                              background: active ? 'var(--color-accent)' : 'transparent',
+                              color: active ? '#07090C' : 'var(--color-text-1)',
+                              cursor: active || persSectors.length < PERS_MAX_SECTORS
+                                ? 'pointer'
+                                : 'not-allowed',
+                              opacity: active || persSectors.length < PERS_MAX_SECTORS ? 1 : 0.5,
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Concerns */}
+                  <div style={{ marginBottom: 20 }}>
+                    <label
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-text-2)',
+                        display: 'block',
+                        marginBottom: 8,
+                      }}
+                    >
+                      What matters to your wallet right now? ({persConcerns.length}/{PERS_MAX_CONCERNS})
+                    </label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {PERS_CONCERNS.map((opt) => {
+                        const active = persConcerns.includes(opt.value);
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => togglePersConcern(opt.value)}
+                            disabled={!active && persConcerns.length >= PERS_MAX_CONCERNS}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 999,
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 13,
+                              border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                              background: active ? 'var(--color-accent)' : 'transparent',
+                              color: active ? '#07090C' : 'var(--color-text-1)',
+                              cursor: active || persConcerns.length < PERS_MAX_CONCERNS
+                                ? 'pointer'
+                                : 'not-allowed',
+                              opacity: active || persConcerns.length < PERS_MAX_CONCERNS ? 1 : 0.5,
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {persError && (
+                    <div
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-red, #ef4444)',
+                        background: 'rgba(239,68,68,0.08)',
+                        border: '1px solid rgba(239,68,68,0.2)',
+                        borderRadius: 6,
+                        padding: '8px 10px',
+                        marginBottom: 12,
+                      }}
+                    >
+                      {persError}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button
+                      type="button"
+                      onClick={savePersonalization}
+                      disabled={persSaving}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: 8,
+                        border: '1px solid var(--color-accent)',
+                        background: 'var(--color-accent)',
+                        color: '#07090C',
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: persSaving ? 'wait' : 'pointer',
+                        opacity: persSaving ? 0.6 : 1,
+                      }}
+                    >
+                      {persSaving ? 'Saving…' : 'Save personalization'}
+                    </button>
+                    {persSavedAt && !persError && (
+                      <span style={{ color: 'var(--color-text-3)', fontSize: 12 }}>
+                        Saved.
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {tab === 'notifications' && (
             <div style={{ ...card, maxWidth: 720 }}>
               <h3 style={sectionTitle}>Notifications</h3>
@@ -744,25 +1221,39 @@ export default function AccountPage() {
                   name: 'Weekly Digest',
                   desc: 'Top 5 stories and anomalies from last 7 days',
                   on: notifDigest,
-                  set: setNotifDigest,
+                  set: (v: boolean) => {
+                    setNotifDigest(v);
+                    void persistNotificationPref('digest', v);
+                  },
+                  syncing: notifSaving === 'digest',
+                  persisted: true,
                 },
                 {
-                  name: 'Breaking anomaly alerts',
-                  desc: 'Only for politicians you follow — rare, <1/mo',
+                  name: 'Story alerts',
+                  desc: 'Hourly: new stories matching your sectors or watchlist',
                   on: notifAnomaly,
-                  set: setNotifAnomaly,
+                  set: (v: boolean) => {
+                    setNotifAnomaly(v);
+                    void persistNotificationPref('alert', v);
+                  },
+                  syncing: notifSaving === 'alert',
+                  persisted: true,
                 },
                 {
                   name: 'New investigations',
-                  desc: 'When the Journal publishes a deep-dive',
+                  desc: 'When the Journal publishes a deep-dive (local-only for now)',
                   on: notifInvest,
                   set: setNotifInvest,
+                  syncing: false,
+                  persisted: false,
                 },
                 {
                   name: 'Feature updates',
-                  desc: 'New tools, site changes',
+                  desc: 'New tools, site changes (local-only for now)',
                   on: notifUpdates,
                   set: setNotifUpdates,
+                  syncing: false,
+                  persisted: false,
                 },
               ].map((row) => (
                 <div
@@ -799,6 +1290,7 @@ export default function AccountPage() {
                   <button
                     type="button"
                     onClick={() => row.set(!row.on)}
+                    disabled={row.syncing}
                     aria-pressed={row.on}
                     aria-label={`Toggle ${row.name}`}
                     style={{
@@ -808,8 +1300,9 @@ export default function AccountPage() {
                       background: row.on ? 'var(--color-accent)' : 'var(--color-surface-2)',
                       border: `1px solid ${row.on ? 'var(--color-accent)' : 'var(--color-border)'}`,
                       position: 'relative',
-                      cursor: 'pointer',
+                      cursor: row.syncing ? 'wait' : 'pointer',
                       transition: 'all 0.15s',
+                      opacity: row.syncing ? 0.6 : 1,
                     }}
                   >
                     <span
@@ -828,6 +1321,34 @@ export default function AccountPage() {
                   </button>
                 </div>
               ))}
+              {notifError && (
+                <div
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    color: 'var(--color-red, #ef4444)',
+                    marginTop: 14,
+                    padding: '8px 10px',
+                    background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.2)',
+                    borderRadius: 6,
+                  }}
+                >
+                  {notifError}. Toggle reverted; please try again.
+                </div>
+              )}
+              {notifSavedAt && !notifError && (
+                <div
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 11,
+                    color: 'var(--color-text-3)',
+                    marginTop: 12,
+                  }}
+                >
+                  Saved.
+                </div>
+              )}
               <div
                 style={{
                   fontFamily: "'Inter', sans-serif",
@@ -836,8 +1357,9 @@ export default function AccountPage() {
                   marginTop: 14,
                 }}
               >
-                Preferences are stored locally until the notifications backend
-                ships.
+                Weekly Digest and Story Alerts are saved to your account. New
+                investigations and Feature updates are stored locally until those
+                channels ship.
               </div>
             </div>
           )}
@@ -881,15 +1403,102 @@ export default function AccountPage() {
                 {!wlError && watchlist.length === 0 && !wlLoading && (
                   <div
                     style={{
-                      padding: '24px 20px',
+                      padding: '28px 22px',
                       fontFamily: "'Inter', sans-serif",
-                      fontSize: 13,
-                      color: 'var(--color-text-3)',
+                      fontSize: 14,
+                      color: 'var(--color-text-2)',
                       lineHeight: 1.6,
                     }}
                   >
-                    Nothing here yet. Browse politicians and companies, then
-                    click the star on a profile to follow them.
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-accent-text)',
+                        marginBottom: 8,
+                      }}
+                    >
+                      Nothing here yet
+                    </div>
+                    <p style={{ margin: '0 0 16px', color: 'var(--color-text-1)' }}>
+                      Following politicians, companies, sectors, or bills lights
+                      up the alert system. Hourly, you'll get one rollup email
+                      whenever a story or vote touches anything you're tracking.
+                    </p>
+                    <p
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-text-3)',
+                        marginBottom: 14,
+                      }}
+                    >
+                      Three quick places to start:
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      <Link
+                        to="/politics/people"
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 8,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface-2)',
+                          color: 'var(--color-text-1)',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Browse Congress →
+                      </Link>
+                      <Link
+                        to="/politics/bills"
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 8,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface-2)',
+                          color: 'var(--color-text-1)',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Find a bill →
+                      </Link>
+                      <Link
+                        to="/finance"
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 8,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface-2)',
+                          color: 'var(--color-text-1)',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Pick a sector →
+                      </Link>
+                    </div>
+                    <p
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-text-3)',
+                        marginTop: 16,
+                      }}
+                    >
+                      Click "Follow" on any profile to add it. Or use the
+                      Personalization tab to follow a whole sector at once.
+                    </p>
                   </div>
                 )}
                 {watchlist.map((item) => (
@@ -970,6 +1579,47 @@ export default function AccountPage() {
 
           {tab === 'apikeys' && (
             <div style={{ maxWidth: 720 }}>
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  background: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    color: 'var(--color-text-2)',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  New to the API? See the curl examples + endpoint index.
+                </div>
+                <Link
+                  to="/docs"
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid var(--color-accent)',
+                    color: 'var(--color-accent-text)',
+                    textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  View API docs →
+                </Link>
+              </div>
               {newKeyRaw && (
                 <div
                   style={{

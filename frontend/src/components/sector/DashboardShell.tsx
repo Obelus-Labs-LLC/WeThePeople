@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import SpotlightCard from '../SpotlightCard';
+import FollowButton from '../FollowButton';
 import { sectorCssVars } from '../../lib/sectorAccents';
 
 /**
@@ -125,10 +126,21 @@ interface SectorHeroProps {
   sub: string;
   ctas: SectorHeroCTA[];
   rightSlot: React.ReactNode;
+  /**
+   * Optional sector slug. When passed, renders a "Follow this sector"
+   * button next to the eyebrow that adds an entity_type='sector'
+   * row to the user's watchlist. The hourly alert system fires on
+   * any new story matching that slug. If omitted, no follow control
+   * appears (so legacy SectorHero callers don't sprout a button).
+   */
+  sectorKey?: string;
+  /** Optional nice display name for the sector follow button. */
+  sectorLabel?: string;
 }
 
 export function SectorHero({
   eyebrow, titleLine1, titleLine2, titleAccent, titleTrail, sub, ctas, rightSlot,
+  sectorKey, sectorLabel,
 }: SectorHeroProps) {
   return (
     <>
@@ -140,19 +152,38 @@ export function SectorHero({
           marginBottom: 32,
         }}
       >
-        <p
+        <div
           style={{
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            color: 'var(--color-accent-text)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
             margin: '0 0 12px 0',
+            flexWrap: 'wrap',
           }}
         >
-          {eyebrow}
-        </p>
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: 'var(--color-accent-text)',
+              margin: 0,
+            }}
+          >
+            {eyebrow}
+          </p>
+          {sectorKey && (
+            <FollowButton
+              entityType="sector"
+              entityId={sectorKey}
+              entityName={sectorLabel ?? sectorKey}
+              sector={sectorKey}
+              compact
+            />
+          )}
+        </div>
         <h1
           style={{
             fontFamily: "'Playfair Display', serif",

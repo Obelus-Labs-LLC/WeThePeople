@@ -186,6 +186,8 @@ export default function TelecomDashboardPage() {
   return (
     <DashboardShellLayout sector="telecom" header={<TelecomSectorHeader />}>
       <SectorHero
+        sectorKey="telecom"
+        sectorLabel="Telecom"
         eyebrow="Telecom transparency"
         titleLine1="Wiring influence to"
         titleAccent="power"

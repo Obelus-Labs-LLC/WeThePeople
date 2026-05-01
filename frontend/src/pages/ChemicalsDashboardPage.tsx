@@ -182,6 +182,8 @@ export default function ChemicalsDashboardPage() {
   return (
     <DashboardShellLayout sector="chemicals" header={<ChemicalsSectorHeader />}>
       <SectorHero
+        sectorKey="chemicals"
+        sectorLabel="Chemicals"
         eyebrow="Chemicals transparency"
         titleLine1="Chemical money in"
         titleAccent="politics"

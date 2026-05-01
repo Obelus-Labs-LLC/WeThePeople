@@ -18,7 +18,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -941,6 +941,22 @@ def story_queue_approve(
     # depend on a permanent archived URL. Stores the snapshot URL
     # back to the story when successful.
     _fire_wayback_snapshot(story.slug, story_id=story.id, db=db)
+    # Fire-and-forget Action Panel seeding. The seeder is idempotent
+    # (skips stories that already have actions), so re-approval after
+    # an editorial revision doesn't duplicate rows. Failure to seed
+    # never blocks publication; the panel just renders empty until
+    # someone runs scripts/seed_story_actions.py manually.
+    try:
+        from scripts.seed_story_actions import seed_one as _seed_actions
+        inserted = _seed_actions(db, story, replace=False, dry_run=False)
+        if inserted:
+            db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning(
+            "action-seed on approve failed for story %d (%s): %s",
+            story.id, story.slug, exc,
+        )
     return {
         "id": story.id,
         "slug": story.slug,
@@ -1792,3 +1808,563 @@ def draft_queue_edit(
         return {"id": draft.id, "status": draft.status, "updated": True}
 
     raise HTTPException(status_code=400, detail="Only 'suggested_text' can be edited")
+
+
+# ---------------------------------------------------------------------------
+# Tip moderation (Phase 2 contributor onboarding)
+# ---------------------------------------------------------------------------
+# Server-rendered HTML at /ops/tips and /ops/tips/{id} so editors can
+# triage incoming tips without standing up a React admin app first.
+# Same auth as the story queue (require_press_key, inherited via the
+# router-level dependency at the top of this module).
+
+_TIP_STATUSES = ("new", "in_review", "published", "dismissed")
+
+
+def _tip_status_badge(status: str) -> str:
+    palette = {
+        "new":        ("#fef9c3", "#854d0e"),
+        "in_review":  ("#dbeafe", "#1e40af"),
+        "published":  ("#dcfce7", "#166534"),
+        "dismissed":  ("#e5e7eb", "#475569"),
+    }
+    bg, fg = palette.get(status, ("#e5e7eb", "#1f2937"))
+    return (
+        "<span style='background:" + bg + ";color:" + fg + ";"
+        "padding:2px 8px;border-radius:999px;font-size:11px;"
+        "font-weight:600;text-transform:uppercase;letter-spacing:.08em;'>"
+        + html.escape(status) + "</span>"
+    )
+
+
+@router.get("/tips")
+def tips_queue_view(
+    status: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    """List incoming tips for triage. Press-key gated (router-level)."""
+    from fastapi.responses import HTMLResponse
+    from models.tips_models import Tip
+
+    q = db.query(Tip)
+    if status and status in _TIP_STATUSES:
+        q = q.filter(Tip.status == status)
+    rows = q.order_by(Tip.created_at.desc()).limit(max(1, min(limit, 500))).all()
+
+    chips: List[str] = []
+    for s in ("all",) + _TIP_STATUSES:
+        href = "/ops/tips" if s == "all" else f"/ops/tips?status={s}"
+        active = (s == "all" and not status) or (s == status)
+        chip_style = (
+            "padding:4px 10px;border-radius:999px;text-decoration:none;"
+            "font-size:12px;font-weight:600;border:1px solid #b45309;"
+            "color:#fff;background:#b45309;"
+            if active else
+            "padding:4px 10px;border-radius:999px;text-decoration:none;"
+            "font-size:12px;font-weight:600;border:1px solid #cbd5e1;"
+            "color:#1e293b;background:#fff;"
+        )
+        chips.append(
+            "<a href='" + href + "' style='" + chip_style + "'>" + s + "</a>"
+        )
+    chip_row = (
+        "<div style='display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;'>"
+        + "".join(chips) + "</div>"
+    )
+
+    counts: Dict[str, int] = {
+        s: db.query(Tip).filter(Tip.status == s).count() for s in _TIP_STATUSES
+    }
+    count_row = (
+        "<div style='font-size:12px;color:#475569;margin-bottom:12px;font-family:monospace;'>"
+        + " · ".join(f"{s}: <b>{counts[s]}</b>" for s in _TIP_STATUSES)
+        + "</div>"
+    )
+
+    if not rows:
+        body = "<p style='color:#64748b;'>No tips match this filter.</p>"
+    else:
+        items = []
+        for t in rows:
+            subj = html.escape(t.subject or "(no subject)")
+            preview = html.escape((t.body or "")[:200])
+            if t.body and len(t.body) > 200:
+                preview += "…"
+            contact = html.escape(t.contact_email or t.contact_name or "anonymous")
+            sector = html.escape(t.hint_sector or "")
+            related = html.escape(t.related_story_slug or "")
+            created = (
+                t.created_at.strftime("%Y-%m-%d %H:%M") if t.created_at else "?"
+            )
+            sector_html = (" · sector: " + sector) if sector else ""
+            related_html = ""
+            if related:
+                related_html = (
+                    " · related: <a href='https://journal.wethepeopleforus.com/story/"
+                    + related + "' target='_blank' style='color:#b45309;'>"
+                    + related + "</a>"
+                )
+            items.append(
+                "<div style='padding:14px 16px;background:#fff;border:1px solid "
+                "#e2e8f0;border-radius:10px;margin-bottom:10px;'>"
+                "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;'>"
+                "<a href='/ops/tips/" + str(t.id) + "' style='font-size:16px;"
+                "font-weight:600;color:#0f172a;text-decoration:none;'>" + subj + "</a>"
+                + _tip_status_badge(t.status) + "</div>"
+                "<div style='font-size:13px;color:#475569;line-height:1.5;margin-bottom:6px;'>"
+                + preview + "</div>"
+                "<div style='font-size:11px;color:#64748b;font-family:monospace;'>#"
+                + str(t.id) + " · " + created + " · from " + contact
+                + sector_html + related_html + "</div>"
+                "</div>"
+            )
+        body = "\n".join(items)
+
+    page = (
+        "<!DOCTYPE html><html><head><title>WTP Tips Queue</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>"
+        "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+        "margin:0;padding:24px;max-width:920px;margin:0 auto;background:#f8fafc;color:#0f172a;}"
+        "h1{font-size:24px;margin:0 0 6px;}"
+        ".header-meta{color:#64748b;font-size:13px;margin-bottom:20px;}"
+        "a:hover{opacity:.85;}"
+        "</style></head><body>"
+        "<h1>Contributor Tips</h1>"
+        "<div class='header-meta'>Triage queue. Click a tip to read the "
+        "full body and update status.</div>"
+        + chip_row + count_row + body
+        + "</body></html>"
+    )
+    return HTMLResponse(page)
+
+
+@router.get("/tips/{tip_id}")
+def tip_detail_view(
+    tip_id: int,
+    flash: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Detail page with status-change buttons + admin notes textarea."""
+    from fastapi.responses import HTMLResponse
+    from models.tips_models import Tip
+
+    t = db.query(Tip).filter(Tip.id == tip_id).first()
+    if not t:
+        return HTMLResponse(
+            "<h2>Not found</h2><p>Tip " + str(tip_id) + " not found. "
+            "<a href='/ops/tips'>Back</a></p>",
+            status_code=404,
+        )
+
+    subj = html.escape(t.subject or "(no subject)")
+    body_text = (
+        html.escape(t.body or "").replace("\n\n", "</p><p>").replace("\n", "<br>")
+    )
+    contact = html.escape(t.contact_email or "")
+    name = html.escape(t.contact_name or "")
+    sector = html.escape(t.hint_sector or "")
+    entity = html.escape(t.hint_entity or "")
+    related = html.escape(t.related_story_slug or "")
+    notes = html.escape(t.admin_notes or "")
+    ip_str = html.escape(t.submitter_ip or "—")
+    triaged_by = html.escape(t.triaged_by or "—")
+    triaged_at = (
+        t.triaged_at.strftime("%Y-%m-%d %H:%M %Z") if t.triaged_at else "—"
+    )
+    created = t.created_at.strftime("%Y-%m-%d %H:%M %Z") if t.created_at else "?"
+
+    status_buttons: List[str] = []
+    for s in _TIP_STATUSES:
+        if s == t.status:
+            status_buttons.append(
+                "<span style='padding:6px 12px;border-radius:6px;background:#e2e8f0;"
+                "color:#475569;font-size:13px;font-weight:600;'>" + s
+                + " (current)</span>"
+            )
+            continue
+        status_buttons.append(
+            "<form method='post' action='/ops/tips/" + str(tip_id)
+            + "/status' style='display:inline;'>"
+            "<input type='hidden' name='status' value='" + s + "'>"
+            "<button type='submit' style='padding:6px 12px;border-radius:6px;"
+            "background:#fff;border:1px solid #cbd5e1;color:#0f172a;"
+            "font-size:13px;font-weight:600;cursor:pointer;'>Mark "
+            + s.replace("_", " ") + "</button></form>"
+        )
+    status_row = (
+        "<div style='display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;'>"
+        + "".join(status_buttons) + "</div>"
+    )
+
+    flash_html = ""
+    if flash:
+        flash_html = (
+            "<div style='padding:8px 12px;background:#dcfce7;border:1px solid #86efac;"
+            "color:#166534;border-radius:8px;margin-bottom:14px;font-size:13px;'>"
+            + html.escape(flash) + "</div>"
+        )
+
+    related_link = ""
+    if related:
+        related_link = (
+            "<a href='https://journal.wethepeopleforus.com/story/" + related
+            + "' target='_blank' style='color:#b45309;'>" + related + "</a>"
+        )
+
+    page = (
+        "<!DOCTYPE html><html><head><title>Tip #" + str(tip_id) + " — "
+        + subj + "</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>"
+        "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+        "margin:0;padding:24px;max-width:760px;margin:0 auto;background:#f8fafc;color:#0f172a;}"
+        "h1{font-size:22px;margin:0 0 8px;}"
+        ".meta{font-family:monospace;font-size:12px;color:#64748b;margin-bottom:18px;}"
+        ".card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;"
+        "padding:16px 18px;margin-bottom:16px;}"
+        ".card-label{font-size:11px;font-weight:700;letter-spacing:.12em;"
+        "text-transform:uppercase;color:#64748b;margin-bottom:8px;}"
+        ".body-text{font-size:15px;line-height:1.55;color:#0f172a;}"
+        "textarea{width:100%;min-height:110px;font-family:-apple-system,BlinkMacSystemFont,"
+        "'Segoe UI',sans-serif;font-size:14px;padding:10px;border:1px solid #cbd5e1;"
+        "border-radius:8px;box-sizing:border-box;resize:vertical;}"
+        "a{color:#b45309;}"
+        "a.back{display:inline-block;margin-bottom:12px;font-size:13px;}"
+        "</style></head><body>"
+        "<a class='back' href='/ops/tips'>← Back to queue</a>"
+        + flash_html
+        + "<h1>" + subj + " " + _tip_status_badge(t.status) + "</h1>"
+        "<div class='meta'>#" + str(tip_id) + " · created " + created
+        + " · ip " + ip_str + "</div>"
+        "<div class='card'><div class='card-label'>Body</div>"
+        "<div class='body-text'><p>" + body_text + "</p></div></div>"
+        "<div class='card'><div class='card-label'>Contributor</div>"
+        "<div style='font-size:14px;line-height:1.6;'>"
+        "<div>Name: <b>" + (name or "—") + "</b></div>"
+        "<div>Email: <b>" + (contact or "—") + "</b></div>"
+        "<div>Sector hint: <b>" + (sector or "—") + "</b></div>"
+        "<div>Entity hint: <b>" + (entity or "—") + "</b></div>"
+        "<div>Related story: " + (related_link or "—") + "</div>"
+        "</div></div>"
+        "<div class='card'><div class='card-label'>Status</div>"
+        + status_row
+        + "<div style='font-size:11px;color:#64748b;font-family:monospace;'>"
+        "last triaged " + triaged_at + " by " + triaged_by + "</div></div>"
+        "<div class='card'><div class='card-label'>Admin notes</div>"
+        "<form method='post' action='/ops/tips/" + str(tip_id) + "/notes'>"
+        "<textarea name='admin_notes' placeholder='Triage notes — visible only to editors.'>"
+        + notes + "</textarea>"
+        "<div style='margin-top:8px;display:flex;justify-content:flex-end;'>"
+        "<button type='submit' style='padding:8px 16px;border-radius:6px;"
+        "background:#b45309;color:#fff;border:0;font-size:13px;font-weight:600;"
+        "cursor:pointer;'>Save notes</button>"
+        "</div></form></div>"
+        "</body></html>"
+    )
+    return HTMLResponse(page)
+
+
+@router.post("/tips/{tip_id}/status")
+async def tip_status_update(
+    tip_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Form-encoded status update from the detail page."""
+    from fastapi.responses import RedirectResponse
+    from models.tips_models import Tip
+
+    form = await request.form()
+    new_status = (form.get("status") or "").strip().lower()
+    if new_status not in _TIP_STATUSES:
+        raise HTTPException(status_code=422, detail=f"invalid status {new_status!r}")
+
+    t = db.query(Tip).filter(Tip.id == tip_id).first()
+    if not t:
+        raise HTTPException(status_code=404, detail=f"Tip {tip_id} not found")
+
+    t.status = new_status
+    t.triaged_at = datetime.now(timezone.utc)
+    t.triaged_by = "ops"
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("tip status update failed for id=%d: %s", tip_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to update tip")
+
+    logger.info("tip status: id=%d -> %s", tip_id, new_status)
+    return RedirectResponse(
+        f"/ops/tips/{tip_id}?flash=Status+set+to+{new_status}",
+        status_code=303,
+    )
+
+
+@router.post("/tips/{tip_id}/notes")
+async def tip_notes_update(
+    tip_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Form-encoded admin-notes update."""
+    from fastapi.responses import RedirectResponse
+    from models.tips_models import Tip
+
+    form = await request.form()
+    new_notes = (form.get("admin_notes") or "").strip()
+
+    t = db.query(Tip).filter(Tip.id == tip_id).first()
+    if not t:
+        raise HTTPException(status_code=404, detail=f"Tip {tip_id} not found")
+
+    t.admin_notes = new_notes or None
+    t.triaged_at = datetime.now(timezone.utc)
+    t.triaged_by = "ops"
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("tip notes update failed for id=%d: %s", tip_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to update notes")
+
+    logger.info("tip notes updated: id=%d", tip_id)
+    return RedirectResponse(
+        f"/ops/tips/{tip_id}?flash=Notes+saved",
+        status_code=303,
+    )
+
+
+# ---------------------------------------------------------------------------
+# /ops landing dashboard
+# ---------------------------------------------------------------------------
+# Lightweight HTML index so editors can hit a single URL after the
+# email link expires and see what's waiting. Replaces the "type the
+# right /ops/foo path from memory" friction. Press-key gated via the
+# router-level dependency; same auth as every other /ops surface.
+
+@router.get("")
+@router.get("/")
+def ops_dashboard(db: Session = Depends(get_db)):
+    """Server-rendered HTML index for the ops surface."""
+    from fastapi.responses import HTMLResponse
+    from models.tips_models import Tip
+
+    # Pull all the queue counts in parallel-ish (single session).
+    # Failures collapse to "?" so the page still renders even if
+    # one query is broken.
+    def _safe_count(q) -> str:
+        try:
+            return str(q())
+        except Exception as exc:
+            logger.warning("ops dashboard count failed: %s", exc)
+            return "?"
+
+    drafts_pending = _safe_count(
+        lambda: db.query(Story).filter(Story.status == "draft").count()
+    )
+    stories_published = _safe_count(
+        lambda: db.query(Story).filter(Story.status == "published").count()
+    )
+    tips_new = _safe_count(
+        lambda: db.query(Tip).filter(Tip.status == "new").count()
+    )
+    tips_in_review = _safe_count(
+        lambda: db.query(Tip).filter(Tip.status == "in_review").count()
+    )
+
+    # Card colors signal urgency: gold when there's work waiting,
+    # neutral gray when the queue is empty.
+    def _card(label: str, count: str, href: str, urgent: bool) -> str:
+        bg = "#fef3c7" if urgent else "#f1f5f9"
+        border = "#fbbf24" if urgent else "#cbd5e1"
+        fg = "#92400e" if urgent else "#475569"
+        return (
+            "<a href='" + href + "' style='text-decoration:none;'>"
+            "<div style='background:" + bg + ";border:1px solid " + border + ";"
+            "border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;"
+            "gap:6px;min-width:180px;'>"
+            "<div style='font-family:monospace;font-size:11px;font-weight:700;"
+            "letter-spacing:.14em;text-transform:uppercase;color:" + fg + ";'>"
+            + html.escape(label) + "</div>"
+            "<div style='font-family:Georgia,serif;font-size:32px;font-weight:700;"
+            "color:#0f172a;line-height:1;'>" + html.escape(count) + "</div>"
+            "</div></a>"
+        )
+
+    drafts_urgent = drafts_pending not in ("0", "?")
+    tips_urgent = tips_new not in ("0", "?")
+    review_urgent = tips_in_review not in ("0", "?")
+
+    cards = (
+        _card("Drafts pending", drafts_pending, "/ops/story-queue", drafts_urgent)
+        + _card("Tips new",     tips_new,       "/ops/tips?status=new", tips_urgent)
+        + _card("Tips in review", tips_in_review, "/ops/tips?status=in_review", review_urgent)
+        + _card("Stories published", stories_published, "/ops/story-queue?status=published", False)
+    )
+
+    quick_links = """
+      <div style='display:flex;flex-wrap:wrap;gap:10px;margin-top:24px;'>
+        <a href='/ops/story-queue' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Story queue</a>
+        <a href='/ops/tips' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Tips</a>
+        <a href='/ops/engagement' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Engagement</a>
+        <a href='/ops/draft-queue' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Draft replies</a>
+        <a href='/ops/pipeline/health' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Pipeline health</a>
+        <a href='/ops/pipeline/dlq' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>DLQ</a>
+        <a href='/ops/db/stats' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>DB stats</a>
+      </div>
+    """
+
+    page = (
+        "<!DOCTYPE html><html><head><title>WTP Ops</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>"
+        "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+        "margin:0;padding:32px;max-width:920px;margin:0 auto;background:#f8fafc;color:#0f172a;}"
+        "h1{font-size:26px;margin:0 0 6px;}"
+        ".sub{color:#64748b;font-size:13px;margin-bottom:24px;}"
+        "a:hover{filter:brightness(.97);}"
+        "</style></head><body>"
+        "<h1>Ops dashboard</h1>"
+        "<div class='sub'>Queue snapshot. Cards highlight when there's work waiting.</div>"
+        "<div style='display:flex;flex-wrap:wrap;gap:14px;'>"
+        + cards + "</div>"
+        + quick_links
+        + "</body></html>"
+    )
+    return HTMLResponse(page)
+
+
+# ---------------------------------------------------------------------------
+# /ops/engagement — Phase 3 thread A
+# ---------------------------------------------------------------------------
+# Aggregates the action_clicks table over a rolling window. Three
+# rollups: by action_type, by sector, top stories. Same press-key
+# gate as the rest of /ops.
+
+@router.get("/engagement")
+def engagement_dashboard(
+    window_days: int = 30,
+    db: Session = Depends(get_db),
+):
+    """Server-rendered HTML view over action_clicks aggregates."""
+    from fastapi.responses import HTMLResponse
+    from datetime import datetime, timedelta, timezone
+    from models.stories_models import ActionClick
+    from sqlalchemy import func
+
+    if window_days < 1 or window_days > 365:
+        window_days = 30
+    since = datetime.now(timezone.utc) - timedelta(days=window_days)
+
+    total = (
+        db.query(func.count(ActionClick.id))
+        .filter(ActionClick.clicked_at >= since)
+        .scalar() or 0
+    )
+    by_type = (
+        db.query(ActionClick.action_type, func.count(ActionClick.id))
+        .filter(ActionClick.clicked_at >= since)
+        .group_by(ActionClick.action_type)
+        .order_by(func.count(ActionClick.id).desc())
+        .all()
+    )
+    by_sector = (
+        db.query(Story.sector, func.count(ActionClick.id))
+        .join(ActionClick, ActionClick.story_id == Story.id)
+        .filter(ActionClick.clicked_at >= since)
+        .group_by(Story.sector)
+        .order_by(func.count(ActionClick.id).desc())
+        .limit(20)
+        .all()
+    )
+    top_stories = (
+        db.query(Story.slug, Story.title, func.count(ActionClick.id))
+        .join(ActionClick, ActionClick.story_id == Story.id)
+        .filter(ActionClick.clicked_at >= since)
+        .group_by(Story.slug, Story.title)
+        .order_by(func.count(ActionClick.id).desc())
+        .limit(10)
+        .all()
+    )
+
+    def _row(label: str, count: int, max_count: int) -> str:
+        pct = int((count / max_count) * 100) if max_count > 0 else 0
+        return (
+            "<tr>"
+            "<td style='padding:6px 10px;font-family:monospace;font-size:13px;color:#0f172a;width:42%;'>"
+            + html.escape(label) + "</td>"
+            "<td style='padding:6px 10px;width:48%;'>"
+            "<div style='background:#fef3c7;height:18px;border-radius:4px;width:"
+            + str(pct) + "%;min-width:1px;'></div>"
+            "</td>"
+            "<td style='padding:6px 10px;font-family:monospace;font-size:13px;color:#475569;text-align:right;'>"
+            + str(count) + "</td>"
+            "</tr>"
+        )
+
+    type_max = max((c for _, c in by_type), default=0)
+    sector_max = max((c for _, c in by_sector), default=0)
+    type_html = "".join(_row(t or "(none)", c, type_max) for t, c in by_type)
+    sector_html = "".join(_row(s or "(none)", c, sector_max) for s, c in by_sector)
+
+    if top_stories:
+        story_rows = "".join(
+            "<tr>"
+            "<td style='padding:8px 10px;font-size:13px;'>"
+            "<a href='https://journal.wethepeopleforus.com/story/"
+            + html.escape(slug or "")
+            + "' target='_blank' style='color:#b45309;text-decoration:none;'>"
+            + html.escape((title or slug or "")[:90])
+            + "</a></td>"
+            "<td style='padding:8px 10px;font-family:monospace;font-size:13px;color:#475569;text-align:right;'>"
+            + str(c) + "</td>"
+            "</tr>"
+            for slug, title, c in top_stories
+        )
+    else:
+        story_rows = (
+            "<tr><td colspan='2' style='padding:12px;color:#94a3b8;font-size:13px;'>"
+            "No clicks recorded in this window.</td></tr>"
+        )
+
+    page = (
+        "<!DOCTYPE html><html><head><title>WTP Engagement</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>"
+        "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+        "margin:0;padding:24px;max-width:920px;margin:0 auto;background:#f8fafc;color:#0f172a;}"
+        "h1{font-size:24px;margin:0 0 6px;}"
+        ".sub{color:#64748b;font-size:13px;margin-bottom:20px;}"
+        ".card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:18px;}"
+        ".card-label{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#64748b;margin-bottom:10px;}"
+        "table{width:100%;border-collapse:collapse;}"
+        "a:hover{filter:brightness(.97);}"
+        "</style></head><body>"
+        "<a href='/ops' style='color:#b45309;font-size:13px;text-decoration:none;'>← Ops dashboard</a>"
+        "<h1 style='margin-top:8px;'>Engagement</h1>"
+        "<div class='sub'>"
+        "Action Panel CTA clicks, last " + str(window_days) + " days. "
+        "Total: <b>" + str(total) + "</b>. "
+        "<a href='?window_days=7' style='color:#b45309;'>7d</a> · "
+        "<a href='?window_days=30' style='color:#b45309;'>30d</a> · "
+        "<a href='?window_days=90' style='color:#b45309;'>90d</a>"
+        "</div>"
+        "<div class='card'>"
+        "<div class='card-label'>By action type</div>"
+        "<table>"
+        + (type_html or "<tr><td style='padding:12px;color:#94a3b8;'>No clicks yet.</td></tr>")
+        + "</table></div>"
+        "<div class='card'>"
+        "<div class='card-label'>By sector</div>"
+        "<table>"
+        + (sector_html or "<tr><td style='padding:12px;color:#94a3b8;'>No clicks yet.</td></tr>")
+        + "</table></div>"
+        "<div class='card'>"
+        "<div class='card-label'>Top stories</div>"
+        "<table>" + story_rows + "</table>"
+        "</div>"
+        "</body></html>"
+    )
+    return HTMLResponse(page)

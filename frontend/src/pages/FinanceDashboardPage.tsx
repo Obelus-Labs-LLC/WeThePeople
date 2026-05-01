@@ -162,6 +162,8 @@ export default function FinanceDashboardPage() {
         </div>
       )}
       <SectorHero
+        sectorKey="finance"
+        sectorLabel="Finance"
         eyebrow="Financial transparency"
         titleLine1="Wall Street's"
         titleLine2="influence in"

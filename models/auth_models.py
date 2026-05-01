@@ -62,6 +62,12 @@ class User(Base):
     current_concern = Column(String(64), nullable=True)      # "housing", "healthcare", ...
     personalization_completed_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Alert watermark (alembic alert_watermark_001). The send_alerts
+    # job uses this to avoid re-alerting on stories already covered.
+    # Null on first run = treat every recent story as candidate, capped
+    # to a 7-day window inside the job.
+    last_alert_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     api_keys = relationship("APIKeyRecord", back_populates="user", cascade="all, delete-orphan")
 

@@ -1,7 +1,10 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Search, Share2, ArrowLeft, Play, Pause, RotateCcw } from 'lucide-react';
-import InfluenceGraph from '../components/InfluenceGraph';
+// react-force-graph-2d ships d3-force + a 2D canvas renderer (~600KB
+// minified); lazy so the page chunk doesn't pay until the graph
+// actually mounts.
+const InfluenceGraph = React.lazy(() => import('../components/InfluenceGraph'));
 import CanvasErrorBoundary from '../components/CanvasErrorBoundary';
 import {
   fetchInfluenceNetwork,
@@ -721,12 +724,20 @@ export default function InfluenceNetworkPage() {
           </div>
         ) : (
           <CanvasErrorBoundary fallbackHeight="500px">
-            <InfluenceGraph
-              nodes={nodes}
-              edges={edges}
-              visibleEdgeTypes={visibleTypes}
-              timelineYear={timelineYear}
-            />
+            <Suspense
+              fallback={
+                <div style={{ height: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-3)' }}>
+                  Loading network graph…
+                </div>
+              }
+            >
+              <InfluenceGraph
+                nodes={nodes}
+                edges={edges}
+                visibleEdgeTypes={visibleTypes}
+                timelineYear={timelineYear}
+              />
+            </Suspense>
           </CanvasErrorBoundary>
         )}
       </div>

@@ -1,14 +1,21 @@
-import React, { useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useReducer, useCallback, useMemo, useRef, Suspense } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient, getApiBaseUrl } from '../api/client';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { ExternalLink, Heart, Share2 } from 'lucide-react';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
-import TradeTimeline from '../components/TradeTimeline';
+// TradeTimeline ships its own SVG renderer + date utilities; pulling
+// it into the main bundle adds bytes that most readers never see
+// (scroll-below-fold). Lazy + Suspense keeps the page interactive.
+const TradeTimeline = React.lazy(() => import('../components/TradeTimeline'));
 import SanctionsBadge from '../components/SanctionsBadge';
 import AnomalyBadge from '../components/AnomalyBadge';
-import TrendChart from '../components/TrendChart';
+// TrendChart pulls in recharts (~537 KB chunk). Lazy-load it so the
+// main page can paint immediately and the chart appears once recharts
+// downloads and parses. The chart sits below the fold so the late
+// arrival is invisible to most readers.
+const TrendChart = React.lazy(() => import('../components/TrendChart'));
 import WatchlistButton from '../components/WatchlistButton';
 import ShareButton from '../components/ShareButton';
 import type { TradeMarker } from '../api/influence';
@@ -886,11 +893,31 @@ export default function PersonProfilePage() {
             </div>
           )}
 
-          {/* Trend chart */}
+          {/* Trend chart — lazy-loaded so recharts isn't on the
+              initial-render critical path. Falls back to a small
+              loading sentence; the chart slides in once the chunk
+              arrives. */}
           {trends && (
             <div>
               <SectionLabel>Activity Over Time</SectionLabel>
-              <TrendChart data={trends} height={120} />
+              <Suspense
+                fallback={
+                  <div
+                    style={{
+                      height: 120,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--color-text-3)',
+                      fontSize: 12,
+                    }}
+                  >
+                    Loading chart…
+                  </div>
+                }
+              >
+                <TrendChart data={trends} height={120} />
+              </Suspense>
             </div>
           )}
 
@@ -2103,9 +2130,27 @@ function StockTradesTab({
         </a>
       </div>
 
-      {/* Timeline */}
+      {/* Timeline — lazy so the SVG renderer doesn't sit on the
+          critical path for politicians who don't trade. */}
       {timelineMarkers.length > 0 && topTicker && (
-        <TradeTimeline trades={timelineMarkers} ticker={topTicker} />
+        <Suspense
+          fallback={
+            <div
+              style={{
+                height: 80,
+                color: 'var(--color-text-3)',
+                fontSize: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              Loading trade timeline…
+            </div>
+          }
+        >
+          <TradeTimeline trades={timelineMarkers} ticker={topTicker} />
+        </Suspense>
       )}
 
       {trades.length === 0 ? (

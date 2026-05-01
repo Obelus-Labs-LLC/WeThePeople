@@ -163,6 +163,8 @@ export default function HealthDashboardPage() {
         </div>
       )}
       <SectorHero
+        sectorKey="health"
+        sectorLabel="Healthcare"
         eyebrow="Healthcare transparency"
         titleLine1="Pharma's"
         titleLine2="political"

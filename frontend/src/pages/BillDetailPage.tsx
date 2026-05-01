@@ -4,6 +4,7 @@ import { ArrowLeft, ExternalLink, Check } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { BillResponse, ActionSearchResult } from '../api/types';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
+import FollowButton from '../components/FollowButton';
 
 // ── Status token map (design system aligned) ──
 
@@ -368,8 +369,17 @@ export default function BillDetailPage() {
           </span>
         </div>
 
-        {/* Title */}
-        <h1 style={titleStyle}>{bill.title}</h1>
+        {/* Title + Follow */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
+          <h1 style={{ ...titleStyle, flex: '1 1 auto', minWidth: 0 }}>{bill.title}</h1>
+          <div style={{ marginTop: 6 }}>
+            <FollowButton
+              entityType="bill"
+              entityId={bill.bill_id}
+              entityName={`${formatBillType(bill.bill_type)} ${bill.bill_number}`}
+            />
+          </div>
+        </div>
 
         {/* Status + Meta row */}
         <div

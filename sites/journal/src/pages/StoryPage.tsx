@@ -956,6 +956,15 @@ export default function StoryPage() {
           </figure>
         )}
 
+        {/* Phase 3 outcome status bar. Hidden for state='unknown'
+            and stories that don't carry an outcome row yet. Reads
+            the outcome.state and renders a colored chip + last
+            signal date so readers can see whether the situation
+            has changed since the story dropped. */}
+        {story.outcome && story.outcome.state && story.outcome.state !== 'unknown' && (
+          <OutcomeStatusBar outcome={story.outcome} />
+        )}
+
         {/* Summary / lede */}
         <div className="mb-10">
           <p
@@ -1858,5 +1867,92 @@ function SimplifiedToggle({
         <div className="mb-12">{renderContent(fullBody)}</div>
       )}
     </>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────
+// Outcome status bar — Phase 3 thread B
+// ─────────────────────────────────────────────────────────────────────
+
+interface OutcomePayload {
+  state: string;
+  note: string | null;
+  last_signal_at: string | null;
+}
+
+const OUTCOME_PALETTE: Record<string, { bg: string; border: string; fg: string; label: string }> = {
+  open:     { bg: 'rgba(235,229,213,0.04)', border: 'rgba(235,229,213,0.18)', fg: 'var(--color-text-2)', label: 'Open · still developing' },
+  improved: { bg: 'rgba(61,213,199,0.06)',  border: 'rgba(61,213,199,0.30)',  fg: '#3DD5C7',             label: 'Improved' },
+  worsened: { bg: 'rgba(230,57,70,0.06)',   border: 'rgba(230,57,70,0.30)',   fg: '#F19BA1',             label: 'Worsened' },
+  resolved: { bg: 'rgba(197,160,40,0.06)',  border: 'rgba(197,160,40,0.30)',  fg: 'var(--color-accent-text)', label: 'Resolved' },
+};
+
+function OutcomeStatusBar({ outcome }: { outcome: OutcomePayload }) {
+  const palette = OUTCOME_PALETTE[outcome.state] ?? OUTCOME_PALETTE.open;
+  const lastDate = (() => {
+    if (!outcome.last_signal_at) return null;
+    try {
+      return new Date(outcome.last_signal_at).toLocaleDateString(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric',
+      });
+    } catch {
+      return null;
+    }
+  })();
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '10px 14px',
+        marginBottom: 18,
+        background: palette.bg,
+        border: `1px solid ${palette.border}`,
+        borderRadius: 10,
+        flexWrap: 'wrap',
+      }}
+    >
+      <span
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.16em',
+          textTransform: 'uppercase',
+          color: palette.fg,
+          padding: '3px 10px',
+          borderRadius: 999,
+          border: `1px solid ${palette.border}`,
+          background: 'rgba(0,0,0,0.2)',
+        }}
+      >
+        {palette.label}
+      </span>
+      <span
+        style={{
+          fontFamily: 'var(--font-body)',
+          fontSize: 13,
+          color: 'var(--color-text-2)',
+          flex: '1 1 auto',
+          minWidth: 0,
+        }}
+      >
+        {outcome.note || 'Status updated based on the latest public records.'}
+      </span>
+      {lastDate && (
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--color-text-3)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          As of {lastDate}
+        </span>
+      )}
+    </div>
   );
 }
