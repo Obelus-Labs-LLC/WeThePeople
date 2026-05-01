@@ -199,10 +199,13 @@ def fetch_state_bills(
         List of bill dicts with keys: bill_id, state, session, identifier,
         title, subjects, latest_action, latest_action_date, sponsor_name, source_url
     """
+    # OpenStates v3 caps per_page at 20 for /bills (not 50 as earlier
+    # docs implied). Going over yields HTTP 400 with detail
+    # "invalid per_page, must be in [1, 20]".
     params: Dict[str, Any] = {
         "jurisdiction": _ocd_jurisdiction(state),
         "page": page,
-        "per_page": min(per_page, 50),
+        "per_page": min(per_page, 20),
         "sort": "updated_desc",
     }
     if query:
