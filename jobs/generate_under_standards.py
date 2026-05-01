@@ -302,7 +302,14 @@ _MONTH_NAME = (
 )
 # Allow Month-Year ("February 2023") and Month-Day-Year ("February 15, 2023")
 _MONTH_YEAR = rf"({_MONTH_NAME}\s+(\d{{1,2}},\s+)?(19|20)\d{{2}})"
-_QUARTER_YEAR = r"(Q[1-4]\s+(19|20)\d{2}|FY\s*(19|20)\d{2})"
+_QUARTER_YEAR = (
+    r"("
+    r"Q[1-4]\s+(19|20)\d{2}|"
+    r"FY\s*(19|20)\d{2}(\s*[-–—/]\s*(19|20)?\d{2})?|"
+    r"fiscal\s+year\s+(19|20)\d{2}(\s*[-–—/]\s*(19|20)?\d{2})?|"
+    r"fiscal\s+years?\s+(19|20)\d{2}\s+(through|to|and)\s+(19|20)\d{2}"
+    r")"
+)
 
 _TIME_WINDOW_RE = re.compile(
     r"\b("
