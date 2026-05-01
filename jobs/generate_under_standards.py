@@ -338,6 +338,10 @@ _TIME_WINDOW_RE = re.compile(
     r"over\s+the\s+\d+[-\s]?(month|year|day)\s+period|"
     # Statutory / regulatory thresholds with day windows ("within 45 days of the transaction")
     r"within\s+\d+\s+days?\s+of\b|"
+    # Recurring time-scale qualifiers — "$X billion in annual spending"
+    # specifies the cadence (per year) which is sufficient time disambiguation.
+    r"\b(annual(ly)?|yearly|monthly|quarterly|per\s+(year|month|quarter|fiscal\s+year))\s+(spending|budget|revenue|appropriations?|contracts?|donations?|contributions?|cost|expense|expenditure)|"
+    r"\b(in|of)\s+annual\s+(spending|budget|revenue|appropriations?|contracts?|donations?|contributions?|cost|expense|expenditure)|"
     # Per-fiscal-year framing
     r"per\s+fiscal\s+year\s+(19|20)\d{2}\b|"
     # Back-references to a time window stated earlier in the same paragraph.
