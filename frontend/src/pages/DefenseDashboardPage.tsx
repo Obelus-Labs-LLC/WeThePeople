@@ -188,6 +188,8 @@ export default function DefenseDashboardPage() {
   return (
     <DashboardShellLayout sector="defense" header={<DefenseSectorHeader />}>
       <SectorHero
+        sectorKey="defense"
+        sectorLabel="Defense"
         eyebrow="Defense transparency"
         titleLine1="Pentagon money and"
         titleAccent="power"

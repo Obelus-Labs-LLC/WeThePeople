@@ -932,7 +932,32 @@ export function StoryActionPanel({ slug }: { slug: string }) {
   const passive = actions.filter((a) => a.is_passive);
   const active = actions.filter((a) => !a.is_passive);
 
-  const renderAction = (a: StoryAction) => {
+  // The single highest-priority active action (smallest display_order)
+  // gets a hero treatment: bigger title, accent border, top of the
+  // active group. This is how register_to_vote (display_order=1)
+  // outranks call_rep (10) and verify_data (20) and sits at the top
+  // with extra weight, per the editorial direction that voter
+  // registration is the universal recommendation.
+  const heroId =
+    active.length > 0
+      ? [...active].sort((a, b) => a.id - b.id)[0]?.id // tiebreaker on id
+      : null;
+  const heroByOrder =
+    active.length > 0
+      ? active.reduce<StoryAction | null>(
+          (best, cur) => (best === null ? cur : best),
+          null,
+        )
+      : null;
+  void heroId;
+  void heroByOrder;
+  // The actions are already sorted by display_order on the API side
+  // (routers/stories.py orders by display_order ASC, id ASC), so the
+  // first item in `active` is the hero.
+  const heroAction = active.length > 0 ? active[0] : null;
+  const otherActive = active.slice(1);
+
+  const renderAction = (a: StoryAction, opts: { hero?: boolean } = {}) => {
     const safeUrl = a.external_url && /^https?:\/\//.test(a.external_url)
       ? a.external_url
       : null;
@@ -944,16 +969,24 @@ export function StoryActionPanel({ slug }: { slug: string }) {
           state: state?.state ?? null,
         })
       : null;
+    const isHero = !!opts.hero;
 
     return (
       <div
         key={a.id}
         style={{
-          padding: '14px 16px',
-          background: 'rgba(235,229,213,0.04)',
-          border: '1px solid rgba(235,229,213,0.1)',
+          padding: isHero ? '18px 20px' : '14px 16px',
+          background: isHero
+            ? 'rgba(197,160,40,0.08)'
+            : 'rgba(235,229,213,0.04)',
+          border: isHero
+            ? '1px solid rgba(197,160,40,0.45)'
+            : '1px solid rgba(235,229,213,0.1)',
           borderRadius: 10,
           marginBottom: 10,
+          boxShadow: isHero
+            ? '0 0 0 1px rgba(197,160,40,0.15)'
+            : 'none',
         }}
       >
         <div
@@ -966,7 +999,7 @@ export function StoryActionPanel({ slug }: { slug: string }) {
             fontWeight: 700,
             letterSpacing: '0.18em',
             textTransform: 'uppercase',
-            color: 'var(--color-text-3)',
+            color: isHero ? 'var(--color-accent-text)' : 'var(--color-text-3)',
             marginBottom: 6,
           }}
         >
@@ -978,10 +1011,11 @@ export function StoryActionPanel({ slug }: { slug: string }) {
         <div
           style={{
             fontFamily: 'var(--font-body)',
-            fontSize: 15,
-            fontWeight: 600,
+            fontSize: isHero ? 19 : 15,
+            fontWeight: isHero ? 700 : 600,
             color: 'var(--color-text-1)',
             marginBottom: a.description ? 4 : 8,
+            lineHeight: 1.3,
           }}
         >
           {a.title}
@@ -1120,7 +1154,7 @@ export function StoryActionPanel({ slug }: { slug: string }) {
           >
             Take care of yourself first
           </div>
-          {passive.map(renderAction)}
+          {passive.map((a) => renderAction(a))}
         </div>
       )}
 
@@ -1139,7 +1173,8 @@ export function StoryActionPanel({ slug }: { slug: string }) {
           >
             Make your voice heard
           </div>
-          {active.map(renderAction)}
+          {heroAction && renderAction(heroAction, { hero: true })}
+          {otherActive.map((a) => renderAction(a))}
         </div>
       )}
     </div>

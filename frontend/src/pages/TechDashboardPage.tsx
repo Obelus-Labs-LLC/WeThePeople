@@ -183,6 +183,8 @@ export default function TechDashboardPage() {
   return (
     <DashboardShellLayout sector="technology" header={<TechSectorHeader />}>
       <SectorHero
+        sectorKey="technology"
+        sectorLabel="Technology"
         eyebrow="Technology transparency"
         titleLine1="Big Tech's"
         titleLine2="political"

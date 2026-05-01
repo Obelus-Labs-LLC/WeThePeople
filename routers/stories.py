@@ -687,10 +687,13 @@ def _concern_anchor_for_story(
     msg = table.get((concern, sector))
     if msg:
         return msg
-    # Fallback: if the user has a matched lifestyle, mention the sector
-    # without the concern.
-    if matched_lifestyle:
-        return f"This story touches {matched_lifestyle[0]} — one of the categories you flagged in onboarding."
+    # No fallback: the frontend WhyThisMattersBlock already renders
+    # matched_lifestyle in its own line ("This story touches tech,
+    # one of the categories you said matter to you."), so emitting
+    # a parallel concern_anchor here just duplicated that text. The
+    # only concern_anchor we return is the specific (concern,
+    # sector) message above; otherwise the matched-lifestyle line
+    # carries the framing on its own.
     return None
 
 

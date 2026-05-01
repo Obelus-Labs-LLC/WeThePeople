@@ -92,12 +92,30 @@ def _user_lifestyle(user: User) -> List[str]:
 
 
 def _watchlist_entity_ids(db, user_id: int) -> List[str]:
+    """Return the user's watchlist as a flat list of entity_ids
+    (excluding sector watches; those are pulled separately because
+    they match against story.sector rather than story.entity_ids)."""
     rows = (
         db.query(UserWatchlistItem.entity_id)
         .filter(UserWatchlistItem.user_id == user_id)
+        .filter(UserWatchlistItem.entity_type != "sector")
         .all()
     )
     return [r[0] for r in rows if r[0]]
+
+
+def _watchlist_sector_ids(db, user_id: int) -> List[str]:
+    """Return sector slugs the user has explicitly watchlisted via
+    the per-sector follow button (entity_type='sector'). These match
+    against story.sector at alert time, complementing the onboarding
+    lifestyle picker."""
+    rows = (
+        db.query(UserWatchlistItem.entity_id)
+        .filter(UserWatchlistItem.user_id == user_id)
+        .filter(UserWatchlistItem.entity_type == "sector")
+        .all()
+    )
+    return [(r[0] or "").lower() for r in rows if r[0]]
 
 
 def _allowed_sectors_for(lifestyle: List[str]) -> set:
@@ -158,14 +176,20 @@ def find_matches_for_user(
     lifestyle = _user_lifestyle(user)
     allowed = _allowed_sectors_for(lifestyle)
     watchlist = _watchlist_entity_ids(db, user.id)
+    # Per-sector follow ("Follow this sector" button on every sector
+    # dashboard) adds entity_type='sector' rows that fire when
+    # story.sector equals the watched slug. Complementary to the
+    # onboarding lifestyle picker — a user can follow a sector
+    # without making it part of their personal feed filter.
+    watched_sectors = set(_watchlist_sector_ids(db, user.id))
 
     matches: List[Story] = []
     for s in candidates:
-        sector_match = (
-            allowed and (s.sector or "").lower() in allowed
-        )
+        story_sector = (s.sector or "").lower()
+        sector_match = bool(allowed) and story_sector in allowed
+        sector_watch_match = bool(watched_sectors) and story_sector in watched_sectors
         ent_match = _entity_match(s, watchlist)
-        if sector_match or ent_match:
+        if sector_match or sector_watch_match or ent_match:
             matches.append(s)
     return matches
 

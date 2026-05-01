@@ -186,6 +186,8 @@ export default function TransportationDashboardPage() {
   return (
     <DashboardShellLayout sector="transportation" header={<TransportationSectorHeader />}>
       <SectorHero
+        sectorKey="transportation"
+        sectorLabel="Transportation"
         eyebrow="Transportation transparency"
         titleLine1="Moving money in"
         titleAccent="politics"

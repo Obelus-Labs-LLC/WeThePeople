@@ -1318,15 +1318,102 @@ export default function AccountPage() {
                 {!wlError && watchlist.length === 0 && !wlLoading && (
                   <div
                     style={{
-                      padding: '24px 20px',
+                      padding: '28px 22px',
                       fontFamily: "'Inter', sans-serif",
-                      fontSize: 13,
-                      color: 'var(--color-text-3)',
+                      fontSize: 14,
+                      color: 'var(--color-text-2)',
                       lineHeight: 1.6,
                     }}
                   >
-                    Nothing here yet. Browse politicians and companies, then
-                    click the star on a profile to follow them.
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-accent-text)',
+                        marginBottom: 8,
+                      }}
+                    >
+                      Nothing here yet
+                    </div>
+                    <p style={{ margin: '0 0 16px', color: 'var(--color-text-1)' }}>
+                      Following politicians, companies, sectors, or bills lights
+                      up the alert system. Hourly, you'll get one rollup email
+                      whenever a story or vote touches anything you're tracking.
+                    </p>
+                    <p
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-text-3)',
+                        marginBottom: 14,
+                      }}
+                    >
+                      Three quick places to start:
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      <Link
+                        to="/politics/people"
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 8,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface-2)',
+                          color: 'var(--color-text-1)',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Browse Congress →
+                      </Link>
+                      <Link
+                        to="/politics/bills"
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 8,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface-2)',
+                          color: 'var(--color-text-1)',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Find a bill →
+                      </Link>
+                      <Link
+                        to="/finance"
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 8,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface-2)',
+                          color: 'var(--color-text-1)',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Pick a sector →
+                      </Link>
+                    </div>
+                    <p
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-text-3)',
+                        marginTop: 16,
+                      }}
+                    >
+                      Click "Follow" on any profile to add it. Or use the
+                      Personalization tab to follow a whole sector at once.
+                    </p>
                   </div>
                 )}
                 {watchlist.map((item) => (
