@@ -69,6 +69,7 @@ interface APIKey {
 
 type TabId =
   | 'profile'
+  | 'personalization'
   | 'notifications'
   | 'follows'
   | 'apikeys'
@@ -77,6 +78,7 @@ type TabId =
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'profile', label: 'Profile' },
+  { id: 'personalization', label: 'Personalization' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'follows', label: 'Follows' },
   { id: 'apikeys', label: 'API Keys' },
@@ -215,7 +217,7 @@ export default function AccountPage() {
   // land on the right pane (e.g. /account?tab=follows for the watchlist).
   // Falls back to 'profile' for unknown / missing values.
   const [searchParams, setSearchParams] = useSearchParams();
-  const validTabs: TabId[] = ['profile', 'notifications', 'follows', 'apikeys', 'billing', 'dangerzone'];
+  const validTabs: TabId[] = ['profile', 'personalization', 'notifications', 'follows', 'apikeys', 'billing', 'dangerzone'];
   const initialTab = (() => {
     const q = searchParams.get('tab');
     return (q && (validTabs as string[]).includes(q)) ? (q as TabId) : 'profile';
@@ -319,6 +321,134 @@ export default function AccountPage() {
       setEmail(user.email);
     }
   }, [user]);
+
+  // ── Personalization editor (sectors + concerns + ZIP) ──────────────
+  // The journal site's onboarding modal is the original entry point;
+  // this tab lets a logged-in user edit those answers without going
+  // back through that modal. Mirrors the same backend allowlists
+  // (ONBOARDING_LIFESTYLE_CATEGORIES, ONBOARDING_CONCERNS) so the
+  // POST validates clean.
+  const PERS_SECTORS: Array<{ value: string; label: string }> = [
+    { value: 'finance',        label: 'Finance' },
+    { value: 'health',         label: 'Healthcare' },
+    { value: 'housing',        label: 'Housing' },
+    { value: 'energy',         label: 'Energy' },
+    { value: 'transportation', label: 'Transportation' },
+    { value: 'technology',     label: 'Technology' },
+    { value: 'telecom',        label: 'Telecommunications' },
+    { value: 'education',      label: 'Education' },
+    { value: 'agriculture',    label: 'Agriculture & Food' },
+    { value: 'chemicals',      label: 'Chemicals' },
+    { value: 'defense',        label: 'Defense' },
+  ];
+  const PERS_CONCERNS: Array<{ value: string; label: string }> = [
+    { value: 'rent_too_high',     label: 'Rent or mortgage costs' },
+    { value: 'healthcare_costs',  label: 'Healthcare costs' },
+    { value: 'student_loans',     label: 'Student loans' },
+    { value: 'fuel_prices',       label: 'Fuel prices' },
+    { value: 'groceries',         label: 'Grocery prices' },
+    { value: 'wages',             label: 'Wages and pay' },
+    { value: 'childcare',         label: 'Childcare costs' },
+    { value: 'credit_card_debt',  label: 'Credit card debt' },
+    { value: 'retirement',        label: 'Retirement savings' },
+    { value: 'taxes',             label: 'Taxes' },
+    { value: 'other',             label: 'Other' },
+  ];
+  const PERS_MAX_SECTORS = 5;
+  const PERS_MAX_CONCERNS = 5;
+
+  const [persZip, setPersZip] = useState('');
+  const [persState, setPersState] = useState<string | null>(null);
+  const [persSectors, setPersSectors] = useState<string[]>([]);
+  const [persConcerns, setPersConcerns] = useState<string[]>([]);
+  const [persLoaded, setPersLoaded] = useState(false);
+  const [persSaving, setPersSaving] = useState(false);
+  const [persError, setPersError] = useState<string | null>(null);
+  const [persSavedAt, setPersSavedAt] = useState<number | null>(null);
+
+  // Hydrate from /auth/personalization. Falls back to empty if the
+  // user hasn't completed onboarding yet.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    authedFetch(`${API_BASE}/auth/personalization`)
+      .then(async (r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) {
+          if (!cancelled) setPersLoaded(true);
+          return;
+        }
+        setPersZip(d.zip_code ?? '');
+        setPersState(d.home_state ?? null);
+        setPersSectors(Array.isArray(d.lifestyle_categories) ? d.lifestyle_categories : []);
+        // The backend stores a single current_concern. The server will
+        // accept a `concerns` array on POST; we seed the editor from
+        // current_concern and let the user add up to 5.
+        setPersConcerns(d.current_concern ? [d.current_concern] : []);
+        setPersLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setPersLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authedFetch]);
+
+  const togglePersSector = (val: string) => {
+    setPersSectors((prev) => {
+      if (prev.includes(val)) return prev.filter((x) => x !== val);
+      if (prev.length >= PERS_MAX_SECTORS) return prev;
+      return [...prev, val];
+    });
+  };
+  const togglePersConcern = (val: string) => {
+    setPersConcerns((prev) => {
+      if (prev.includes(val)) return prev.filter((x) => x !== val);
+      if (prev.length >= PERS_MAX_CONCERNS) return prev;
+      return [...prev, val];
+    });
+  };
+
+  const savePersonalization = async () => {
+    setPersError(null);
+    if (!/^\d{5}$/.test(persZip.trim())) {
+      setPersError('ZIP code must be exactly 5 digits.');
+      return;
+    }
+    if (persSectors.length === 0) {
+      setPersError('Pick at least one sector.');
+      return;
+    }
+    if (persConcerns.length === 0) {
+      setPersError('Pick at least one concern.');
+      return;
+    }
+    setPersSaving(true);
+    try {
+      const r = await authedFetch(`${API_BASE}/auth/onboarding`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          zip_code: persZip.trim(),
+          lifestyle_categories: persSectors,
+          current_concern: persConcerns[0] ?? 'other',
+          concerns: persConcerns,
+        }),
+      });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => null);
+        throw new Error((detail && (detail.detail || detail.message)) || `HTTP ${r.status}`);
+      }
+      const d = await r.json();
+      if (typeof d?.home_state === 'string') setPersState(d.home_state);
+      setPersSavedAt(Date.now());
+    } catch (err) {
+      setPersError(err instanceof Error ? err.message : 'Could not save personalization');
+    } finally {
+      setPersSaving(false);
+    }
+  };
 
   // Watchlist fetch — uses authedFetch so a 401 mid-session triggers
   // refresh + replay instead of silently rendering "no items".
@@ -794,6 +924,207 @@ export default function AccountPage() {
                   Log out
                 </button>
               </div>
+            </div>
+          )}
+
+          {tab === 'personalization' && (
+            <div style={{ ...card, maxWidth: 720 }}>
+              <h3 style={sectionTitle}>Personalization</h3>
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  color: 'var(--color-text-2)',
+                  marginBottom: 18,
+                  lineHeight: 1.5,
+                }}
+              >
+                These choices drive your story feed, the &ldquo;Why this matters
+                to you&rdquo; block on every story, and the hourly alert system.
+                You can change them anytime.
+              </p>
+
+              {!persLoaded ? (
+                <div style={{ color: 'var(--color-text-3)', fontSize: 13 }}>Loading…</div>
+              ) : (
+                <>
+                  {/* ZIP */}
+                  <div style={{ marginBottom: 20 }}>
+                    <label
+                      htmlFor="pers-zip"
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-text-2)',
+                        display: 'block',
+                        marginBottom: 6,
+                      }}
+                    >
+                      ZIP code{persState ? ` · resolves to ${persState}` : ''}
+                    </label>
+                    <input
+                      id="pers-zip"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={5}
+                      placeholder="48043"
+                      value={persZip}
+                      onChange={(e) =>
+                        setPersZip(e.target.value.replace(/\D/g, '').slice(0, 5))
+                      }
+                      style={{
+                        width: 160,
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-surface)',
+                        color: 'var(--color-text-1)',
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 14,
+                      }}
+                    />
+                  </div>
+
+                  {/* Sectors */}
+                  <div style={{ marginBottom: 20 }}>
+                    <label
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-text-2)',
+                        display: 'block',
+                        marginBottom: 8,
+                      }}
+                    >
+                      Sectors to follow ({persSectors.length}/{PERS_MAX_SECTORS})
+                    </label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {PERS_SECTORS.map((opt) => {
+                        const active = persSectors.includes(opt.value);
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => togglePersSector(opt.value)}
+                            disabled={!active && persSectors.length >= PERS_MAX_SECTORS}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 999,
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 13,
+                              border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                              background: active ? 'var(--color-accent)' : 'transparent',
+                              color: active ? '#07090C' : 'var(--color-text-1)',
+                              cursor: active || persSectors.length < PERS_MAX_SECTORS
+                                ? 'pointer'
+                                : 'not-allowed',
+                              opacity: active || persSectors.length < PERS_MAX_SECTORS ? 1 : 0.5,
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Concerns */}
+                  <div style={{ marginBottom: 20 }}>
+                    <label
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-text-2)',
+                        display: 'block',
+                        marginBottom: 8,
+                      }}
+                    >
+                      What matters to your wallet right now? ({persConcerns.length}/{PERS_MAX_CONCERNS})
+                    </label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {PERS_CONCERNS.map((opt) => {
+                        const active = persConcerns.includes(opt.value);
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => togglePersConcern(opt.value)}
+                            disabled={!active && persConcerns.length >= PERS_MAX_CONCERNS}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 999,
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 13,
+                              border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                              background: active ? 'var(--color-accent)' : 'transparent',
+                              color: active ? '#07090C' : 'var(--color-text-1)',
+                              cursor: active || persConcerns.length < PERS_MAX_CONCERNS
+                                ? 'pointer'
+                                : 'not-allowed',
+                              opacity: active || persConcerns.length < PERS_MAX_CONCERNS ? 1 : 0.5,
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {persError && (
+                    <div
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: 'var(--color-red, #ef4444)',
+                        background: 'rgba(239,68,68,0.08)',
+                        border: '1px solid rgba(239,68,68,0.2)',
+                        borderRadius: 6,
+                        padding: '8px 10px',
+                        marginBottom: 12,
+                      }}
+                    >
+                      {persError}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button
+                      type="button"
+                      onClick={savePersonalization}
+                      disabled={persSaving}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: 8,
+                        border: '1px solid var(--color-accent)',
+                        background: 'var(--color-accent)',
+                        color: '#07090C',
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: persSaving ? 'wait' : 'pointer',
+                        opacity: persSaving ? 0.6 : 1,
+                      }}
+                    >
+                      {persSaving ? 'Saving…' : 'Save personalization'}
+                    </button>
+                    {persSavedAt && !persError && (
+                      <span style={{ color: 'var(--color-text-3)', fontSize: 12 }}>
+                        Saved.
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

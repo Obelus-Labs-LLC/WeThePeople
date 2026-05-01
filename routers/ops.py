@@ -2134,3 +2134,102 @@ async def tip_notes_update(
         f"/ops/tips/{tip_id}?flash=Notes+saved",
         status_code=303,
     )
+
+
+# ---------------------------------------------------------------------------
+# /ops landing dashboard
+# ---------------------------------------------------------------------------
+# Lightweight HTML index so editors can hit a single URL after the
+# email link expires and see what's waiting. Replaces the "type the
+# right /ops/foo path from memory" friction. Press-key gated via the
+# router-level dependency; same auth as every other /ops surface.
+
+@router.get("")
+@router.get("/")
+def ops_dashboard(db: Session = Depends(get_db)):
+    """Server-rendered HTML index for the ops surface."""
+    from fastapi.responses import HTMLResponse
+    from models.tips_models import Tip
+
+    # Pull all the queue counts in parallel-ish (single session).
+    # Failures collapse to "?" so the page still renders even if
+    # one query is broken.
+    def _safe_count(q) -> str:
+        try:
+            return str(q())
+        except Exception as exc:
+            logger.warning("ops dashboard count failed: %s", exc)
+            return "?"
+
+    drafts_pending = _safe_count(
+        lambda: db.query(Story).filter(Story.status == "draft").count()
+    )
+    stories_published = _safe_count(
+        lambda: db.query(Story).filter(Story.status == "published").count()
+    )
+    tips_new = _safe_count(
+        lambda: db.query(Tip).filter(Tip.status == "new").count()
+    )
+    tips_in_review = _safe_count(
+        lambda: db.query(Tip).filter(Tip.status == "in_review").count()
+    )
+
+    # Card colors signal urgency: gold when there's work waiting,
+    # neutral gray when the queue is empty.
+    def _card(label: str, count: str, href: str, urgent: bool) -> str:
+        bg = "#fef3c7" if urgent else "#f1f5f9"
+        border = "#fbbf24" if urgent else "#cbd5e1"
+        fg = "#92400e" if urgent else "#475569"
+        return (
+            "<a href='" + href + "' style='text-decoration:none;'>"
+            "<div style='background:" + bg + ";border:1px solid " + border + ";"
+            "border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;"
+            "gap:6px;min-width:180px;'>"
+            "<div style='font-family:monospace;font-size:11px;font-weight:700;"
+            "letter-spacing:.14em;text-transform:uppercase;color:" + fg + ";'>"
+            + html.escape(label) + "</div>"
+            "<div style='font-family:Georgia,serif;font-size:32px;font-weight:700;"
+            "color:#0f172a;line-height:1;'>" + html.escape(count) + "</div>"
+            "</div></a>"
+        )
+
+    drafts_urgent = drafts_pending not in ("0", "?")
+    tips_urgent = tips_new not in ("0", "?")
+    review_urgent = tips_in_review not in ("0", "?")
+
+    cards = (
+        _card("Drafts pending", drafts_pending, "/ops/story-queue", drafts_urgent)
+        + _card("Tips new",     tips_new,       "/ops/tips?status=new", tips_urgent)
+        + _card("Tips in review", tips_in_review, "/ops/tips?status=in_review", review_urgent)
+        + _card("Stories published", stories_published, "/ops/story-queue?status=published", False)
+    )
+
+    quick_links = """
+      <div style='display:flex;flex-wrap:wrap;gap:10px;margin-top:24px;'>
+        <a href='/ops/story-queue' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Story queue</a>
+        <a href='/ops/tips' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Tips</a>
+        <a href='/ops/draft-queue' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Draft replies</a>
+        <a href='/ops/pipeline/health' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Pipeline health</a>
+        <a href='/ops/pipeline/dlq' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>DLQ</a>
+        <a href='/ops/db/stats' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>DB stats</a>
+      </div>
+    """
+
+    page = (
+        "<!DOCTYPE html><html><head><title>WTP Ops</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>"
+        "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+        "margin:0;padding:32px;max-width:920px;margin:0 auto;background:#f8fafc;color:#0f172a;}"
+        "h1{font-size:26px;margin:0 0 6px;}"
+        ".sub{color:#64748b;font-size:13px;margin-bottom:24px;}"
+        "a:hover{filter:brightness(.97);}"
+        "</style></head><body>"
+        "<h1>Ops dashboard</h1>"
+        "<div class='sub'>Queue snapshot. Cards highlight when there's work waiting.</div>"
+        "<div style='display:flex;flex-wrap:wrap;gap:14px;'>"
+        + cards + "</div>"
+        + quick_links
+        + "</body></html>"
+    )
+    return HTMLResponse(page)

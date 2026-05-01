@@ -28,7 +28,7 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -39,7 +39,7 @@ load_dotenv(ROOT / ".env")
 import requests
 from sqlalchemy import desc
 
-from models.database import SessionLocal
+from models.database import SessionLocal, Bill, BillAction
 from models.auth_models import User, UserWatchlistItem
 from models.stories_models import Story
 
@@ -170,15 +170,70 @@ def find_matches_for_user(
     return matches
 
 
-def _render_email(user: User, stories: List[Story]) -> str:
+def _watchlisted_bill_ids(db, user_id: int) -> List[str]:
+    """Return the user's watchlist entries with entity_type='bill'."""
+    rows = (
+        db.query(UserWatchlistItem.entity_id)
+        .filter(UserWatchlistItem.user_id == user_id)
+        .filter(UserWatchlistItem.entity_type == "bill")
+        .all()
+    )
+    return [r[0] for r in rows if r[0]]
+
+
+def find_bill_actions_for_user(
+    db,
+    user: User,
+    *,
+    cold_start_days: int = COLD_START_DAYS,
+) -> List[Tuple[Bill, BillAction]]:
+    """Return new bill_actions on the user's watchlisted bills since
+    the watermark. Capped at 20 to bound a single email payload.
+
+    Each match is (Bill, BillAction); the email renderer uses both
+    so the reader sees the bill title + the new action together.
+    """
+    bill_ids = _watchlisted_bill_ids(db, user.id)
+    if not bill_ids:
+        return []
+
+    window_start = user.last_alert_at
+    if window_start is None:
+        window_start = datetime.now(timezone.utc) - timedelta(days=cold_start_days)
+
+    rows = (
+        db.query(BillAction, Bill)
+        .join(Bill, Bill.bill_id == BillAction.bill_id)
+        .filter(BillAction.bill_id.in_(bill_ids))
+        .filter(BillAction.action_date > window_start)
+        .order_by(desc(BillAction.action_date))
+        .limit(20)
+        .all()
+    )
+    return [(b, a) for (a, b) in rows]
+
+
+def _render_email(
+    user: User,
+    stories: List[Story],
+    bill_updates: Optional[List[Tuple[Bill, BillAction]]] = None,
+) -> str:
     """Plain HTML, deliberately minimal. No tracking pixels, no
     fancy layout — the disengaged-audience thesis says clarity beats
-    polish."""
-    rows: List[str] = []
+    polish.
+
+    The email has up to two sections:
+      - Stories: matches by sector or watchlisted entity
+      - Bill updates: new actions on watchlisted bills
+    """
+    bill_updates = bill_updates or []
+
+    # Story rows.
+    story_rows: List[str] = []
     for s in stories:
         url = f"{JOURNAL_URL}/story/{s.slug}"
         sector = (s.sector or "").upper()
-        rows.append(
+        story_rows.append(
             f"""
             <tr>
               <td style="padding:14px 0;border-bottom:1px solid #e5e7eb;">
@@ -190,9 +245,58 @@ def _render_email(user: User, stories: List[Story]) -> str:
             </tr>
             """
         )
-    body = "\n".join(rows)
-    n = len(stories)
-    title = "1 new story matches your interests" if n == 1 else f"{n} new stories match your interests"
+
+    # Bill-update rows.
+    bill_rows: List[str] = []
+    for bill, action in bill_updates:
+        bill_url = f"{SITE_URL}/politics/bill/{bill.bill_id}"
+        bill_label = (
+            f"{(bill.bill_type or '').upper()} {bill.bill_number or ''}"
+        ).strip() or bill.bill_id
+        title = bill.title or bill_label
+        action_date = (
+            action.action_date.strftime("%b %d, %Y")
+            if action.action_date else ""
+        )
+        chamber = (action.chamber or "").upper()
+        bill_rows.append(
+            f"""
+            <tr>
+              <td style="padding:14px 0;border-bottom:1px solid #e5e7eb;">
+                <div style="font-family:'Inter',sans-serif;font-size:11px;letter-spacing:.18em;color:#6b7280;text-transform:uppercase;">{bill_label}{' · ' + chamber if chamber else ''}{' · ' + action_date if action_date else ''}</div>
+                <a href="{bill_url}" style="font-family:Georgia,serif;font-size:17px;color:#0f172a;text-decoration:none;font-weight:600;line-height:1.35;">{title}</a>
+                <div style="font-family:'Inter',sans-serif;font-size:13px;color:#475569;line-height:1.5;margin-top:6px;">{action.action_text or ''}</div>
+                <a href="{bill_url}" style="font-family:'Inter',sans-serif;font-size:13px;color:#b45309;text-decoration:underline;display:inline-block;margin-top:6px;">See full bill &rarr;</a>
+              </td>
+            </tr>
+            """
+        )
+
+    n_total = len(stories) + len(bill_updates)
+    title = (
+        f"{n_total} update for you on WeThePeople"
+        if n_total == 1
+        else f"{n_total} updates for you on WeThePeople"
+    )
+
+    sections: List[str] = []
+    if story_rows:
+        sections.append(
+            "<h2 style=\"font-family:'Inter',sans-serif;font-size:13px;letter-spacing:.18em;"
+            "color:#b45309;text-transform:uppercase;font-weight:700;margin:12px 0 4px;\">"
+            "New stories</h2>"
+            "<table role='presentation' width='100%' cellpadding='0' cellspacing='0'>"
+            + "".join(story_rows) + "</table>"
+        )
+    if bill_rows:
+        sections.append(
+            "<h2 style=\"font-family:'Inter',sans-serif;font-size:13px;letter-spacing:.18em;"
+            "color:#b45309;text-transform:uppercase;font-weight:700;margin:18px 0 4px;\">"
+            "Bills you follow</h2>"
+            "<table role='presentation' width='100%' cellpadding='0' cellspacing='0'>"
+            + "".join(bill_rows) + "</table>"
+        )
+
     return f"""
     <!DOCTYPE html>
     <html><body style="background:#f8fafc;margin:0;padding:24px;">
@@ -202,11 +306,11 @@ def _render_email(user: User, stories: List[Story]) -> str:
           <div style="font-family:'Inter',sans-serif;font-size:11px;letter-spacing:.24em;color:#b45309;text-transform:uppercase;font-weight:700;">WeThePeople Alerts</div>
           <h1 style="font-family:Georgia,serif;font-size:22px;line-height:1.3;color:#0f172a;margin:8px 0 4px;">{title}</h1>
           <p style="font-family:'Inter',sans-serif;font-size:13px;color:#64748b;margin:0 0 16px;">
-            Picked from the sectors and entities you follow.
+            From the sectors, entities, and bills you follow.
           </p>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{body}</table>
+          {''.join(sections)}
           <p style="font-family:'Inter',sans-serif;font-size:11px;color:#94a3b8;margin-top:24px;">
-            <a href="{SITE_URL}/account?tab=alerts" style="color:#94a3b8;text-decoration:underline;">Manage your alert settings</a>
+            <a href="{SITE_URL}/account?tab=notifications" style="color:#94a3b8;text-decoration:underline;">Manage your alert settings</a>
           </p>
         </td></tr>
       </table>
@@ -270,23 +374,29 @@ def run(
         now = datetime.now(timezone.utc)
         for u in users:
             try:
-                matches = find_matches_for_user(db, u)
-                if not matches:
+                story_matches = find_matches_for_user(db, u)
+                bill_updates = find_bill_actions_for_user(db, u)
+                if not story_matches and not bill_updates:
                     log.info("  %s: no matches; bumping watermark", u.email)
                     if not dry_run:
                         u.last_alert_at = now
                         db.commit()
                     continue
-                picks = matches[:max_stories]
+                story_picks = story_matches[:max_stories]
+                # Cap bill updates separately so a single noisy bill doesn't
+                # crowd out story-driven alerts. 5 / 5 keeps the email
+                # short.
+                bill_picks = bill_updates[:max_stories]
+                total = len(story_picks) + len(bill_picks)
                 subject = (
-                    f"{len(picks)} new {'story' if len(picks) == 1 else 'stories'} "
-                    f"on WeThePeople"
+                    f"{total} new "
+                    f"{'update' if total == 1 else 'updates'} on WeThePeople"
                 )
-                html = _render_email(u, picks)
+                html = _render_email(u, story_picks, bill_picks)
                 if dry_run:
                     log.info(
-                        "  DRY-RUN %s: %d match(es): %s",
-                        u.email, len(picks), [s.slug for s in picks],
+                        "  DRY-RUN %s: %d story match(es), %d bill update(s)",
+                        u.email, len(story_picks), len(bill_picks),
                     )
                     continue
                 ok = _send_email(u.email, subject, html)
