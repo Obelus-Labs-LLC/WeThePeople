@@ -275,7 +275,7 @@ export default function EcosystemNav({ active = 'core' }: EcosystemNavProps) {
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <a
-                href="/login"
+                href="https://wethepeopleforus.com/login"
                 className="no-underline"
                 style={{
                   padding: '6px 14px',
@@ -292,7 +292,7 @@ export default function EcosystemNav({ active = 'core' }: EcosystemNavProps) {
                 Log in
               </a>
               <a
-                href="/signup"
+                href="https://wethepeopleforus.com/signup"
                 className="no-underline"
                 style={{
                   padding: '6px 14px',
