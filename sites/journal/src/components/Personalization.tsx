@@ -172,6 +172,46 @@ function clearStorage() {
   }
 }
 
+// Session-storage key for the once-per-tab "we already pushed
+// localStorage state to the backend" sentinel. Refreshing the tab
+// re-fires the sync, but multiple navigation events within the same
+// tab won't.
+const SYNC_DONE_KEY = 'wtp.personalization.synced';
+
+/**
+ * Push the current localStorage personalization state up to the
+ * authenticated user's row via POST /auth/onboarding. Best-effort:
+ * any error (network, 401, 422) is swallowed and the sentinel is
+ * NOT set, so the next page load tries again.
+ *
+ * Authentication piggybacks on the cross-subdomain `wtp_session`
+ * cookie set by the core site's /auth/login handler. We send
+ * `credentials: 'include'` so the cookie travels with the request.
+ */
+async function syncPersonalizationToBackend(
+  state: PersonalizationState,
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/onboarding`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        zip_code: state.zip,
+        // The backend allowlist accepts both v2 sector keys and the
+        // legacy lifestyle keys — see ONBOARDING_LIFESTYLE_CATEGORIES
+        // in routers/auth.py. We pass whatever is in storage as-is.
+        lifestyle_categories: state.lifestyle ?? [],
+        current_concern: state.concerns?.[0] ?? state.concern ?? 'other',
+        concerns: state.concerns ?? (state.concern ? [state.concern] : []),
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function PersonalizationProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PersonalizationState | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -180,6 +220,42 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setState(loadFromStorage());
   }, []);
+
+  // Auto-sync localStorage -> backend when an authenticated session
+  // is detected. The sibling sites do not host the auth context;
+  // they rely on the cross-subdomain `wtp_session` cookie set by the
+  // core site's /auth/login. We probe it indirectly: send the
+  // sync-eligible payload to /auth/onboarding with credentials. If
+  // the server accepts it (200) we mark the sentinel and stop; if
+  // not (401 because no cookie, 422 because invalid, etc.) we leave
+  // the sentinel unset so the next visit retries.
+  useEffect(() => {
+    if (!state) return;
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    try {
+      if (window.sessionStorage.getItem(SYNC_DONE_KEY)) return;
+      // Mark "attempted this session" up-front so anonymous users
+      // (whose POST will 401) don't retry on every nav within the
+      // tab. The marker is cleared on save() / clear() so a fresh
+      // onboarding still fires the sync.
+      window.sessionStorage.setItem(SYNC_DONE_KEY, 'pending');
+    } catch {
+      /* private mode / storage disabled — skip the sync. */
+      return;
+    }
+    syncPersonalizationToBackend(state).then((ok) => {
+      if (cancelled) return;
+      try {
+        window.sessionStorage.setItem(SYNC_DONE_KEY, ok ? 'ok' : 'failed');
+      } catch {
+        /* ignore */
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [state]);
 
   const save = useCallback(
     async (next: Omit<PersonalizationState, 'savedAt' | 'state'>) => {
@@ -204,6 +280,15 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
         savedAt: Date.now(),
       };
       saveToStorage(full);
+      // Reset the sync sentinel so the auto-sync effect picks up the
+      // new state and pushes it to the backend on the next render.
+      if (typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.removeItem(SYNC_DONE_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
       setState(full);
       setIsModalOpen(false);
     },
@@ -212,6 +297,13 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
 
   const clear = useCallback(() => {
     clearStorage();
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.removeItem(SYNC_DONE_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
     setState(null);
   }, []);
 

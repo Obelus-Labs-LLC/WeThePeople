@@ -941,6 +941,22 @@ def story_queue_approve(
     # depend on a permanent archived URL. Stores the snapshot URL
     # back to the story when successful.
     _fire_wayback_snapshot(story.slug, story_id=story.id, db=db)
+    # Fire-and-forget Action Panel seeding. The seeder is idempotent
+    # (skips stories that already have actions), so re-approval after
+    # an editorial revision doesn't duplicate rows. Failure to seed
+    # never blocks publication; the panel just renders empty until
+    # someone runs scripts/seed_story_actions.py manually.
+    try:
+        from scripts.seed_story_actions import seed_one as _seed_actions
+        inserted = _seed_actions(db, story, replace=False, dry_run=False)
+        if inserted:
+            db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning(
+            "action-seed on approve failed for story %d (%s): %s",
+            story.id, story.slug, exc,
+        )
     return {
         "id": story.id,
         "slug": story.slug,
