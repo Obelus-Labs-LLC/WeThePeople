@@ -140,23 +140,27 @@ _CONTRACT_CATEGORIES = {
 
 def _contract_table_for_sector(sector: Optional[str]) -> Optional[str]:
     """Map a story's sector to the per-sector contracts table.
-    Returns the table name or None if we don't have a contracts
-    table wired up for that sector."""
+    Real production names are *_government_contracts (note 'chemical'
+    is singular). Returns None when no per-sector table exists for
+    the given sector — those stories stay at 'unknown'."""
     if not sector:
         return None
     s = sector.lower()
     return {
-        "finance":        "finance_contracts",
-        "health":         "health_contracts",
-        "tech":           "tech_contracts",
-        "technology":     "tech_contracts",
-        "energy":         "energy_contracts",
-        "transportation": "transportation_contracts",
-        "defense":        "defense_contracts",
-        "chemicals":      "chemicals_contracts",
-        "agriculture":    "agriculture_contracts",
-        "telecom":        "telecom_contracts",
-        "education":      "education_contracts",
+        "finance":        "finance_government_contracts",
+        "health":         "health_government_contracts",
+        "energy":         "energy_government_contracts",
+        "transportation": "transportation_government_contracts",
+        "defense":        "defense_government_contracts",
+        "chemicals":      "chemical_government_contracts",   # singular in DB
+        "chemical":       "chemical_government_contracts",
+        "agriculture":    "agriculture_government_contracts",
+        "telecom":        "telecom_government_contracts",
+        "education":      "education_government_contracts",
+        # tech / technology have no dedicated *_government_contracts
+        # table; the canonical 'government_contracts' table is the
+        # cross-sector roll-up but uses different ID semantics, so
+        # we let tech stories stay at 'unknown' for now.
     }.get(s)
 
 
@@ -175,54 +179,56 @@ def _detect_contract_outcome(db, story: Story) -> Tuple[str, str, Optional[str]]
     if pub is None:
         return "unknown", "Story has no published_at.", None
 
-    # Light raw-SQL probe; the per-sector table column names vary
-    # but they all carry company_id and an action_date / awarded_at.
-    # We try a few common column names and bail if none match.
+    # Light raw-SQL probe. Different sector contract tables use
+    # different column names for the entity FK and the award date,
+    # so we walk a small candidate matrix and bail if none match.
     from sqlalchemy import text
     quiet = (datetime.now(timezone.utc) - timedelta(days=QUIET_PERIOD_DAYS)).date()
-    candidate_date_cols = ("award_date", "action_date", "awarded_at", "obligated_at")
-    for col in candidate_date_cols:
-        try:
-            recent = db.execute(
-                text(
-                    f"SELECT COUNT(*) FROM {table} "
-                    f"WHERE company_id = :cid AND {col} >= :since"
-                ),
-                {"cid": company_id, "since": quiet},
-            ).scalar() or 0
-            since_pub = db.execute(
-                text(
-                    f"SELECT COUNT(*) FROM {table} "
-                    f"WHERE company_id = :cid AND {col} >= :pub"
-                ),
-                {"cid": company_id, "pub": pub.date()},
-            ).scalar() or 0
-        except Exception:
-            continue
-        if since_pub == 0:
+    candidate_id_cols = ("institution_id", "company_id", "entity_id")
+    candidate_date_cols = ("start_date", "action_date", "award_date", "awarded_at", "obligated_at")
+    for id_col in candidate_id_cols:
+        for date_col in candidate_date_cols:
+            try:
+                recent = db.execute(
+                    text(
+                        f"SELECT COUNT(*) FROM {table} "
+                        f"WHERE {id_col} = :cid AND {date_col} >= :since"
+                    ),
+                    {"cid": company_id, "since": quiet},
+                ).scalar() or 0
+                since_pub = db.execute(
+                    text(
+                        f"SELECT COUNT(*) FROM {table} "
+                        f"WHERE {id_col} = :cid AND {date_col} >= :pub"
+                    ),
+                    {"cid": company_id, "pub": pub.date()},
+                ).scalar() or 0
+            except Exception:
+                continue
+            if since_pub == 0:
+                return (
+                    "improved",
+                    "No new federal contracts to this company since publication.",
+                    f"contract_count:{table}:{company_id}",
+                )
+            if recent == 0:
+                return (
+                    "improved",
+                    f"No new federal contracts in the last {QUIET_PERIOD_DAYS} days.",
+                    f"contract_count:{table}:{company_id}",
+                )
+            if since_pub >= 3:
+                return (
+                    "worsened",
+                    f"{since_pub} new federal contracts to this company since publication.",
+                    f"contract_count:{table}:{company_id}",
+                )
             return (
-                "improved",
-                "No new federal contracts to this company since publication.",
+                "open",
+                f"{since_pub} additional contracts since publication.",
                 f"contract_count:{table}:{company_id}",
             )
-        if recent == 0:
-            return (
-                "improved",
-                f"No new federal contracts in the last {QUIET_PERIOD_DAYS} days.",
-                f"contract_count:{table}:{company_id}",
-            )
-        if since_pub >= 3:
-            return (
-                "worsened",
-                f"{since_pub} new federal contracts to this company since publication.",
-                f"contract_count:{table}:{company_id}",
-            )
-        return (
-            "open",
-            f"{since_pub} additional contracts since publication.",
-            f"contract_count:{table}:{company_id}",
-        )
-    return "unknown", f"No matching date column on {table}.", None
+    return "unknown", f"No matching id/date columns on {table}.", None
 
 
 # ── Lobbying-shape detectors ─────────────────────────────────────────
@@ -235,21 +241,24 @@ _LOBBY_CATEGORIES = {
 
 
 def _lobby_table_for_sector(sector: Optional[str]) -> Optional[str]:
+    """Real production names are *_lobbying_records (note 'chemical'
+    is singular). Returns None when no per-sector table exists."""
     if not sector:
         return None
     s = sector.lower()
     return {
-        "finance":        "finance_lobbying",
-        "health":         "health_lobbying",
-        "tech":           "tech_lobbying",
-        "technology":     "tech_lobbying",
-        "energy":         "energy_lobbying",
-        "transportation": "transportation_lobbying",
-        "defense":        "defense_lobbying",
-        "chemicals":      "chemicals_lobbying",
-        "agriculture":    "agriculture_lobbying",
-        "telecom":        "telecom_lobbying",
-        "education":      "education_lobbying",
+        "finance":        "finance_lobbying_records",
+        "health":         "health_lobbying_records",
+        "energy":         "energy_lobbying_records",
+        "transportation": "transportation_lobbying_records",
+        "defense":        "defense_lobbying_records",
+        "chemicals":      "chemical_lobbying_records",
+        "chemical":       "chemical_lobbying_records",
+        "agriculture":    "agriculture_lobbying_records",
+        "telecom":        "telecom_lobbying_records",
+        "education":      "education_lobbying_records",
+        # tech / technology lobbying isn't sector-isolated in this
+        # schema; falls back to 'unknown'.
     }.get(s)
 
 
@@ -270,44 +279,47 @@ def _detect_lobby_outcome(db, story: Story) -> Tuple[str, str, Optional[str]]:
 
     from sqlalchemy import text
     quiet = (datetime.now(timezone.utc) - timedelta(days=QUIET_PERIOD_DAYS)).date()
-    # Most per-sector lobbying tables use filing_year + filing_quarter
-    # as the timestamp surrogate. Keep this simple: count rows whose
-    # filing_year is at or after the publish year.
-    try:
-        since_pub = db.execute(
-            text(
-                f"SELECT COUNT(*) FROM {table} "
-                f"WHERE company_id = :eid AND filing_year >= :year"
-            ),
-            {"eid": entity_id, "year": pub.year},
-        ).scalar() or 0
-        recent = db.execute(
-            text(
-                f"SELECT COUNT(*) FROM {table} "
-                f"WHERE company_id = :eid AND filing_year >= :year"
-            ),
-            {"eid": entity_id, "year": quiet.year},
-        ).scalar() or 0
-    except Exception as exc:
-        return "unknown", f"Lobbying probe failed: {exc}", None
-
-    if since_pub == 0:
+    # Per-sector lobbying tables use different ID column names:
+    # institution_id (finance), company_id (most others). Try both.
+    candidate_id_cols = ("institution_id", "company_id", "entity_id")
+    last_exc: Optional[Exception] = None
+    for id_col in candidate_id_cols:
+        try:
+            since_pub = db.execute(
+                text(
+                    f"SELECT COUNT(*) FROM {table} "
+                    f"WHERE {id_col} = :eid AND filing_year >= :year"
+                ),
+                {"eid": entity_id, "year": pub.year},
+            ).scalar() or 0
+            recent = db.execute(
+                text(
+                    f"SELECT COUNT(*) FROM {table} "
+                    f"WHERE {id_col} = :eid AND filing_year >= :year"
+                ),
+                {"eid": entity_id, "year": quiet.year},
+            ).scalar() or 0
+        except Exception as exc:
+            last_exc = exc
+            continue
+        if since_pub == 0:
+            return (
+                "improved",
+                "No new lobbying disclosures from this entity since publication.",
+                f"lobby_count:{table}:{entity_id}",
+            )
+        if recent == 0:
+            return (
+                "improved",
+                f"No new lobbying disclosures in the last {QUIET_PERIOD_DAYS} days.",
+                f"lobby_count:{table}:{entity_id}",
+            )
         return (
-            "improved",
-            "No new lobbying disclosures from this entity since publication.",
+            "open",
+            f"{since_pub} additional lobbying disclosures since publication.",
             f"lobby_count:{table}:{entity_id}",
         )
-    if recent == 0:
-        return (
-            "improved",
-            f"No new lobbying disclosures in the last {QUIET_PERIOD_DAYS} days.",
-            f"lobby_count:{table}:{entity_id}",
-        )
-    return (
-        "open",
-        f"{since_pub} additional lobbying disclosures since publication.",
-        f"lobby_count:{table}:{entity_id}",
-    )
+    return "unknown", f"Lobbying probe failed: {last_exc}", None
 
 
 # ── Driver ───────────────────────────────────────────────────────────
