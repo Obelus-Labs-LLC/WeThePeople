@@ -2210,6 +2210,7 @@ def ops_dashboard(db: Session = Depends(get_db)):
         <a href='/ops/tips' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Tips</a>
         <a href='/ops/engagement' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Engagement</a>
         <a href='/ops/calendar' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Calendar</a>
+        <a href='/ops/data-freshness' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Data freshness</a>
         <a href='/ops/draft-queue' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Draft replies</a>
         <a href='/ops/pipeline/health' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Pipeline health</a>
         <a href='/ops/pipeline/dlq' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>DLQ</a>
@@ -2367,6 +2368,128 @@ def engagement_dashboard(
         "<table>" + story_rows + "</table>"
         "</div>"
         "</body></html>"
+    )
+    return HTMLResponse(page)
+
+
+# ---------------------------------------------------------------------------
+# /ops/data-freshness — Phase 4-W trust dashboard
+# ---------------------------------------------------------------------------
+# Probes every primary data source for "rows in last 7 days" and the
+# max(created_at) so editors (and funders during a demo) see at a
+# glance whether the platform is current. Press-key gated.
+
+@router.get("/data-freshness")
+def data_freshness_view(db: Session = Depends(get_db)):
+    """HTML view of when each big table was last touched."""
+    from fastapi.responses import HTMLResponse
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import text
+
+    # Tables to probe. Each entry is (label, table_name, date_col).
+    # date_col = None means we just count rows. The probe runs each
+    # query in its own try so a missing/renamed table doesn't break
+    # the dashboard.
+    targets = [
+        ("Stories",                  "stories",                       "published_at"),
+        ("Story actions",            "story_actions",                 "created_at"),
+        ("Action clicks",            "action_clicks",                 "clicked_at"),
+        ("Tips",                     "tips",                          "created_at"),
+        ("Bills",                    "bills",                         "latest_action_date"),
+        ("Bill actions",             "bill_actions",                  "action_date"),
+        ("Congressional trades",     "congressional_trades",          "transaction_date"),
+        ("Anomalies",                "anomalies",                     "detected_at"),
+        ("Company donations",        "company_donations",             "donation_date"),
+        ("State legislators",        "state_legislators",             "created_at"),
+        ("State bills",              "state_bills",                   "latest_action_date"),
+        ("Lobbying (cross-sector)",  "lobbying_records",              "created_at"),
+        ("Finance lobbying",         "finance_lobbying_records",      "created_at"),
+        ("Health lobbying",          "health_lobbying_records",       "created_at"),
+        ("Tracked members",          "tracked_members",               "updated_at"),
+        ("Stories outcome history",  "story_outcome_history",         "transitioned_at"),
+    ]
+
+    now = datetime.now(timezone.utc)
+    week_ago = (now - timedelta(days=7)).date()
+
+    rows: List[str] = []
+    for label, table, date_col in targets:
+        try:
+            total = db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar() or 0
+        except Exception:
+            rows.append(
+                f"<tr><td style='padding:8px 12px;font-size:13px;'>{html.escape(label)}</td>"
+                f"<td colspan='3' style='padding:8px 12px;font-size:12px;color:#94a3b8;'>"
+                f"table missing</td></tr>"
+            )
+            continue
+        recent = "—"
+        last = "—"
+        recent_class = "color:#94a3b8;"
+        if date_col:
+            try:
+                recent_cnt = db.execute(
+                    text(f"SELECT COUNT(*) FROM {table} WHERE {date_col} >= :since"),
+                    {"since": week_ago},
+                ).scalar() or 0
+                recent = str(recent_cnt)
+                if recent_cnt > 0:
+                    recent_class = "color:#15803d;font-weight:600;"
+                else:
+                    recent_class = "color:#b91c1c;"
+            except Exception:
+                pass
+            try:
+                last_val = db.execute(
+                    text(f"SELECT MAX({date_col}) FROM {table}"),
+                ).scalar()
+                if last_val:
+                    last = str(last_val)[:10]
+            except Exception:
+                pass
+        rows.append(
+            f"<tr>"
+            f"<td style='padding:8px 12px;font-size:13px;font-weight:600;color:#0f172a;'>"
+            f"{html.escape(label)}<div style='font-family:monospace;font-size:11px;"
+            f"color:#94a3b8;font-weight:400;margin-top:2px;'>{html.escape(table)}</div></td>"
+            f"<td style='padding:8px 12px;font-family:monospace;font-size:13px;color:#475569;text-align:right;'>"
+            f"{total:,}</td>"
+            f"<td style='padding:8px 12px;font-family:monospace;font-size:13px;{recent_class}text-align:right;'>"
+            f"{recent}</td>"
+            f"<td style='padding:8px 12px;font-family:monospace;font-size:12px;color:#475569;white-space:nowrap;'>"
+            f"{last}</td>"
+            f"</tr>"
+        )
+
+    page = (
+        "<!DOCTYPE html><html><head><title>WTP Data Freshness</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>"
+        "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+        "margin:0;padding:24px;max-width:1000px;margin:0 auto;background:#f8fafc;color:#0f172a;}"
+        "h1{font-size:24px;margin:0 0 6px;}"
+        ".sub{color:#64748b;font-size:13px;margin-bottom:20px;}"
+        "table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;"
+        "border-radius:10px;overflow:hidden;}"
+        "thead th{padding:10px 12px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;"
+        "color:#64748b;text-align:left;background:#f1f5f9;border-bottom:1px solid #e2e8f0;}"
+        "thead th.r{text-align:right;}"
+        "tbody tr+tr td{border-top:1px solid #e2e8f0;}"
+        "</style></head><body>"
+        "<a href='/ops' style='color:#b45309;font-size:13px;text-decoration:none;'>← Ops dashboard</a>"
+        "<h1 style='margin-top:8px;'>Data freshness</h1>"
+        "<div class='sub'>"
+        "Row counts and most recent timestamps across every primary "
+        "table. Green numbers = activity in the last 7 days; red = stale.</div>"
+        "<table>"
+        "<thead><tr>"
+        "<th>Table</th>"
+        "<th class='r'>Total rows</th>"
+        "<th class='r'>Last 7 days</th>"
+        "<th>Newest</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></body></html>"
     )
     return HTMLResponse(page)
 
