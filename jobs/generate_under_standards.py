@@ -273,18 +273,44 @@ _REQUIRED_SECTIONS = [
 _PARTIAL_VERIFIED_RE = re.compile(r"\bpartially?[-\s]?verified\b", re.IGNORECASE)
 _DASH_RE = re.compile(r"(—|–|--)")  # em-dash, en-dash, double-hyphen
 _DOLLAR_RE = re.compile(r"\$[\d,]+(?:\.\d+)?\s*(?:million|billion|thousand|M|B|K)?\b", re.IGNORECASE)
+_MONTH_NAME = (
+    r"(January|February|March|April|May|June|July|August|September|October|November|December|"
+    r"Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)"
+)
+# Allow Month-Year ("February 2023") and Month-Day-Year ("February 15, 2023")
+_MONTH_YEAR = rf"({_MONTH_NAME}\s+(\d{{1,2}},\s+)?(19|20)\d{{2}})"
+_QUARTER_YEAR = r"(Q[1-4]\s+(19|20)\d{2}|FY\s*(19|20)\d{2})"
+
 _TIME_WINDOW_RE = re.compile(
     r"\b("
-    r"in\s+(19|20)\d{2}|"
-    r"between\s+(19|20)\d{2}\s+and\s+(19|20)\d{2}|"
-    r"from\s+(19|20)\d{2}\s+(to|through)\s+(19|20)\d{2}|"
-    r"in\s+fiscal\s+year\s+(19|20)\d{2}|"
-    r"during\s+(19|20)\d{2}|"
-    r"(19|20)\d{2}[-–—](19|20)?\d{2}|"
-    r"as\s+of\s+(19|20)\d{2}|"
-    r"over\s+the\s+past\s+\d+\s+(year|month|quarter|fiscal\s+year)|"
-    r"the\s+(19|20)\d{2}[-–—](19|20)?\d{2}"
-    r")\b",
+    # Plain year refs
+    r"in\s+(19|20)\d{2}\b|"
+    r"in\s+fiscal\s+year\s+(19|20)\d{2}\b|"
+    r"during\s+(19|20)\d{2}\b|"
+    r"as\s+of\s+(19|20)\d{2}\b|"
+    # Year-only ranges: "between 2020 and 2024", "from 2020 to 2024", "2020 through 2024"
+    r"between\s+(19|20)\d{2}\s+and\s+(19|20)\d{2}\b|"
+    r"from\s+(19|20)\d{2}\s+(to|through)\s+(19|20)\d{2}\b|"
+    r"(19|20)\d{2}\s+(to|through)\s+(19|20)\d{2}\b|"
+    r"(19|20)\d{2}[-–—/](19|20)?\d{2}\b|"
+    r"the\s+(19|20)\d{2}[-–—/](19|20)?\d{2}\b|"
+    # Month-name dates and ranges: "February 2023", "between February 2023 and September 2024"
+    rf"between\s+{_MONTH_YEAR}\s+and\s+{_MONTH_YEAR}|"
+    rf"from\s+{_MONTH_YEAR}\s+(to|through)\s+{_MONTH_YEAR}|"
+    rf"{_MONTH_YEAR}\s+(to|through)\s+{_MONTH_YEAR}|"
+    rf"in\s+{_MONTH_YEAR}|"
+    rf"during\s+{_MONTH_YEAR}|"
+    rf"{_MONTH_YEAR}\b|"
+    # Quarter / fiscal year references near the dollar figure
+    rf"{_QUARTER_YEAR}|"
+    # Rolling windows
+    r"over\s+the\s+past\s+\d+[-\s]?(year|month|quarter|fiscal\s+year)s?|"
+    r"over\s+the\s+\d+[-\s]?(month|year|day)\s+period|"
+    # Statutory / regulatory thresholds with day windows ("within 45 days of the transaction")
+    r"within\s+\d+\s+days?\s+of\b|"
+    # Per-fiscal-year framing
+    r"per\s+fiscal\s+year\s+(19|20)\d{2}\b"
+    r")",
     re.IGNORECASE,
 )
 _VERIFICATION_LABEL_RE = re.compile(
@@ -327,12 +353,36 @@ def _validate_output(text: str) -> list[str]:
     if _DASH_RE.search(text):
         reasons.append("contains_em_or_en_dash")
 
-    # Dollar-figure time-window check (same proximity rule as audit script)
+    # Dollar-figure time-window check.
+    #
+    # The editorial standard requires the time window to appear in the SAME
+    # sentence as the dollar figure. We scope the window to the sentence
+    # (terminated by . ? ! or paragraph break) rather than a fixed char count
+    # — month-name dates can push the qualifier well past 80 chars.
     bare_dollars = []
     for m in _DOLLAR_RE.finditer(text):
         start, end = m.span()
-        window = text[max(0, start - 80):min(len(text), end + 80)]
-        if _TIME_WINDOW_RE.search(window):
+        # Find sentence boundaries: walk back to last '.', '?', '!', or '\n\n'
+        sent_start = max(
+            text.rfind(". ", 0, start) + 2,
+            text.rfind("? ", 0, start) + 2,
+            text.rfind("! ", 0, start) + 2,
+            text.rfind("\n\n", 0, start) + 2,
+            text.rfind("\n", 0, start) + 1,
+            0,
+        )
+        # Sentence end: next '.', '?', '!', or paragraph break
+        candidates = [
+            text.find(". ", end),
+            text.find("? ", end),
+            text.find("! ", end),
+            text.find("\n\n", end),
+            text.find("\n", end),
+        ]
+        candidates = [c for c in candidates if c >= 0]
+        sent_end = min(candidates) + 1 if candidates else len(text)
+        sentence = text[sent_start:sent_end]
+        if _TIME_WINDOW_RE.search(sentence):
             continue
         digits_only = re.sub(r"[^\d.]", "", m.group())
         if digits_only:
@@ -342,11 +392,13 @@ def _validate_output(text: str) -> list[str]:
                     continue
             except ValueError:
                 pass
-        bare_dollars.append(m.group().strip())
+        bare_dollars.append((m.group().strip(), sentence[:120]))
         if len(bare_dollars) >= 3:
             break
     if bare_dollars:
-        reasons.append(f"dollar_no_time_window: {bare_dollars}")
+        reasons.append("dollar_no_time_window: " + "; ".join(
+            f"{d!r} in {s!r}" for d, s in bare_dollars
+        ))
 
     if not _VERIFICATION_LABEL_RE.search(text):
         reasons.append("missing_verification_label")
