@@ -322,6 +322,13 @@ def get_people(
     has_ledger: bool = Query(False, description="If true, returns only people with gold_ledger entries."),
     party: Optional[str] = Query(None, description="Filter by party: D, R, or I"),
     chamber: Optional[str] = Query(None, description="Filter by chamber: house or senate"),
+    state: Optional[str] = Query(
+        None,
+        description=(
+            "Filter by 2-letter state code (e.g. MI, CA, NY). Case-insensitive. "
+            "Returns the full federal delegation seated for that state."
+        ),
+    ),
     limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     q: Optional[str] = Query(None, description="Case-insensitive search"),
@@ -342,6 +349,10 @@ def get_people(
             query = query.filter(TrackedMember.party.like(f"{escape_like(party)}%", escape="\\"))
         if chamber:
             query = query.filter(func.lower(TrackedMember.chamber) == chamber.lower())
+        if state:
+            # Two-letter state codes are stored uppercase in TrackedMember.state.
+            # Accept any case from the caller and normalize.
+            query = query.filter(func.upper(TrackedMember.state) == state.strip().upper())
         if q:
             like = f"%{escape_like(q.strip().lower())}%"
             query = query.filter(
