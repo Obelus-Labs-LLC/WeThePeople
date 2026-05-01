@@ -46,30 +46,12 @@ export default function QuotaBadge({ refreshKey = 0 }: QuotaBadgeProps) {
   }, [authed, refreshKey]);
 
   if (!authed) {
-    return (
-      <a
-        href={loginRedirectUrl()}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '6px 12px',
-          borderRadius: 999,
-          border: '1px solid rgba(16,185,129,0.45)',
-          background: 'rgba(16,185,129,0.08)',
-          fontFamily: FONT_MONO,
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: '0.16em',
-          textTransform: 'uppercase',
-          color: 'var(--color-accent-text)',
-          textDecoration: 'none',
-        }}
-      >
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-accent)' }} />
-        Sign in to verify
-      </a>
-    );
+    // Don't render anything for signed-out users — the EcosystemNav
+    // already shows Log in / Sign up in the top right, and the
+    // verify form itself surfaces the auth-wall when the user
+    // actually tries to verify. The previous "Sign in to verify"
+    // pill here was redundant chrome that competed with the nav.
+    return null;
   }
 
   if (error || !quota) {

@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { SECTORS } from "../data/sectors";
+import { useAuth } from "../contexts/AuthContext";
+import { getApiBaseUrl } from "../api/client";
 import {
   fetchInfluenceStats,
   fetchTopLobbying,
@@ -149,6 +151,289 @@ function StatsTicker({ stats }: { stats: InfluenceStats | null }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Personalized rail — logged-in users see their picked sectors first
+// with quick-jumps to each, plus a "your watchlist" pill row when
+// they've followed entities. Renders nothing for signed-out users
+// or for signed-in users who haven't completed onboarding (so the
+// landing page doesn't sprout an empty card).
+// ─────────────────────────────────────────────────────────────────────
+
+interface PersonalizationPayload {
+  completed: boolean;
+  zip_code: string | null;
+  home_state: string | null;
+  lifestyle_categories: string[];
+  current_concern: string | null;
+}
+
+interface WatchlistRow {
+  id: number;
+  entity_type: string;
+  entity_id: string;
+  entity_name: string | null;
+  sector: string | null;
+}
+
+// Map onboarding sector keys to the SECTORS row in src/data/sectors.ts
+// so we can render the user's picks as tiles with the right route.
+function _sectorByOnboardingKey(key: string): typeof SECTORS[number] | null {
+  const k = (key || "").toLowerCase();
+  // Onboarding canonical → SECTORS slug
+  const aliases: Record<string, string> = {
+    finance: "finance",
+    banking: "finance",
+    health: "health",
+    healthcare: "health",
+    housing: "housing", // not in SECTORS yet; falls through
+    energy: "energy",
+    transportation: "transportation",
+    technology: "technology",
+    tech: "technology",
+    telecom: "telecom",
+    education: "education",
+    agriculture: "agriculture",
+    food: "agriculture",
+    chemicals: "chemicals",
+    defense: "defense",
+  };
+  const slug = aliases[k] || k;
+  return SECTORS.find((s) => s.slug === slug) ?? null;
+}
+
+function PersonalizedRail() {
+  const { isAuthenticated, authedFetch } = useAuth();
+  const [pers, setPers] = useState<PersonalizationPayload | null>(null);
+  const [watchlist, setWatchlist] = useState<WatchlistRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setLoaded(true);
+      return;
+    }
+    let cancelled = false;
+    const apiBase = getApiBaseUrl();
+    Promise.all([
+      authedFetch(`${apiBase}/auth/personalization`)
+        .then(async (r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+      authedFetch(`${apiBase}/auth/watchlist`)
+        .then(async (r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]).then(([p, w]) => {
+      if (cancelled) return;
+      if (p && p.completed) setPers(p);
+      if (w && Array.isArray(w.items)) setWatchlist(w.items);
+      setLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authedFetch]);
+
+  // Hide entirely for signed-out users and for users who haven't
+  // onboarded yet AND have no watchlist (nothing to render).
+  if (!loaded) return null;
+  if (!isAuthenticated) return null;
+  if (!pers && watchlist.length === 0) return null;
+
+  const userSectors = (pers?.lifestyle_categories ?? [])
+    .map(_sectorByOnboardingKey)
+    .filter((s): s is NonNullable<typeof s> => s !== null && s.available);
+
+  // Cap watchlist preview at 6 so the rail stays compact.
+  const watchlistPreview = watchlist.slice(0, 6);
+
+  return (
+    <section
+      style={{
+        maxWidth: 1200,
+        margin: "0 auto",
+        padding: "32px 32px 8px",
+      }}
+    >
+      <div style={{ marginBottom: 14 }}>
+        <div
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "var(--color-accent-text)",
+            marginBottom: 8,
+          }}
+        >
+          For you
+        </div>
+        <h2
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 700,
+            fontSize: 18,
+            color: "var(--color-text-1)",
+            margin: 0,
+          }}
+        >
+          {userSectors.length > 0
+            ? "Pick up where you left off"
+            : "Your watchlist"}
+        </h2>
+      </div>
+
+      {userSectors.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: watchlistPreview.length > 0 ? 14 : 0 }}>
+          {userSectors.map((s) => (
+            <Link
+              key={s.slug}
+              to={s.route}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 14px",
+                borderRadius: 999,
+                border: "1px solid rgba(197,160,40,0.35)",
+                background: "rgba(197,160,40,0.06)",
+                color: "var(--color-text-1)",
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              <span aria-hidden style={{ fontSize: 14 }}>{s.icon}</span>
+              {s.name}
+            </Link>
+          ))}
+          <Link
+            to="/account?tab=personalization"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "8px 14px",
+              borderRadius: 999,
+              border: "1px solid var(--color-border)",
+              color: "var(--color-text-3)",
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            Edit
+          </Link>
+        </div>
+      )}
+
+      {pers?.home_state && (
+        <div style={{ marginBottom: watchlistPreview.length > 0 ? 14 : 0 }}>
+          <Link
+            to={`/civic/state/${pers.home_state}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(74,127,222,0.35)",
+              background: "rgba(74,127,222,0.08)",
+              color: "var(--color-text-1)",
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 14 }}>📍</span>
+            Your reps and bills in {pers.home_state} →
+          </Link>
+        </div>
+      )}
+
+      {watchlistPreview.length > 0 && (
+        <div>
+          <div
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--color-text-3)",
+              marginBottom: 8,
+            }}
+          >
+            Watchlist · {watchlist.length}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {watchlistPreview.map((w) => {
+              const href = (() => {
+                if (w.entity_type === "person" || w.entity_type === "politician") {
+                  return `/politics/people/${w.entity_id}`;
+                }
+                if (w.entity_type === "bill") return `/politics/bill/${w.entity_id}`;
+                if (w.entity_type === "institution" || w.sector === "finance") {
+                  return `/finance/${w.entity_id}`;
+                }
+                if (w.entity_type === "sector") {
+                  const found = SECTORS.find((s) => s.slug === w.entity_id);
+                  return found?.route ?? "/";
+                }
+                if (w.entity_type === "company" && w.sector) {
+                  const slug = w.sector === "tech" ? "technology" : w.sector;
+                  return `/${slug}/${w.entity_id}`;
+                }
+                return "/";
+              })();
+              return (
+                <Link
+                  key={w.id}
+                  to={href}
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: 999,
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-text-2)",
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                    maxWidth: 220,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    display: "inline-block",
+                  }}
+                >
+                  {w.entity_name || w.entity_id}
+                </Link>
+              );
+            })}
+            {watchlist.length > 6 && (
+              <Link
+                to="/account?tab=follows"
+                style={{
+                  padding: "5px 10px",
+                  borderRadius: 999,
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text-3)",
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  textDecoration: "none",
+                }}
+              >
+                +{watchlist.length - 6} more
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -669,6 +954,9 @@ const HomePage: React.FC = () => {
           </a>
         </div>
       </section>
+
+      {/* ── PERSONALIZED RAIL (logged-in only) ── */}
+      <PersonalizedRail />
 
       {/* ── STATS TICKER ── */}
       <StatsTicker stats={stats} />

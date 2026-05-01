@@ -18,7 +18,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field, EmailStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -36,6 +36,8 @@ from services.jwt_auth import (
     verify_token,
     get_current_user,
     ACCESS_TOKEN_EXPIRE_HOURS,
+    SESSION_COOKIE_NAME,
+    SESSION_COOKIE_DOMAIN,
 )
 from services.rbac import require_role, VALID_SCOPES
 from services.audit import log_from_request
@@ -48,6 +50,44 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 limiter = Limiter(key_func=get_remote_address)
+
+
+def _set_session_cookie(response: Response, access_token: str) -> None:
+    """Mint the cross-subdomain session cookie that lets sibling
+    sites (journal/research/verify) authenticate with the same JWT
+    without rebuilding their own JWT-in-localStorage flow.
+
+    Domain=.wethepeopleforus.com is set in production via
+    WTP_COOKIE_DOMAIN. In dev (localhost) the env var is empty so
+    the cookie scopes to the current host, which is what we want.
+    HttpOnly so XSS can't read the token; SameSite=Lax so it still
+    travels on top-level cross-site GETs from the journal back to
+    the API. Secure in prod (we always run over TLS).
+    """
+    cookie_kwargs = {
+        "key": SESSION_COOKIE_NAME,
+        "value": access_token,
+        "httponly": True,
+        "secure": True,
+        "samesite": "lax",
+        "max_age": ACCESS_TOKEN_EXPIRE_HOURS * 3600,
+        "path": "/",
+    }
+    if SESSION_COOKIE_DOMAIN:
+        cookie_kwargs["domain"] = SESSION_COOKIE_DOMAIN
+    response.set_cookie(**cookie_kwargs)
+
+
+def _clear_session_cookie(response: Response) -> None:
+    """Counterpart to _set_session_cookie. Used on logout."""
+    if SESSION_COOKIE_DOMAIN:
+        response.delete_cookie(
+            key=SESSION_COOKIE_NAME,
+            path="/",
+            domain=SESSION_COOKIE_DOMAIN,
+        )
+    else:
+        response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +336,12 @@ def register(body: RegisterRequest, request: Request, db: Session = Depends(get_
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
-def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
+def login(
+    body: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """Authenticate with email + password, receive JWT tokens."""
     user = db.query(User).filter(User.email == body.email.lower().strip()).first()
     # Always run a bcrypt verify, even on missing-user, so the response time
@@ -323,6 +368,8 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
 
     log_from_request(db, request, action="login", user_id=user.id, resource="users", resource_id=str(user.id))
 
+    _set_session_cookie(response, access_token)
+
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -333,7 +380,12 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
 
 @router.post("/refresh", response_model=TokenResponse)
 @limiter.limit("10/minute")
-def refresh(body: RefreshRequest, request: Request, db: Session = Depends(get_db)):
+def refresh(
+    body: RefreshRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """Exchange a valid refresh token for a new access + refresh token pair.
 
     The presented refresh token's ``jti`` is checked against the revocation
@@ -366,6 +418,8 @@ def refresh(body: RefreshRequest, request: Request, db: Session = Depends(get_db
     new_refresh = create_refresh_token(token_data)
 
     log_from_request(db, request, action="token_refresh", user_id=user.id, resource="users", resource_id=str(user.id))
+
+    _set_session_cookie(response, access_token)
 
     return TokenResponse(
         access_token=access_token,

@@ -357,6 +357,62 @@ JOB_REGISTRY: List[JobDef] = [
         description="Weekly subscriber digest: personalized rep activity, trades, votes, anomalies",
     ),
 
+    # ── Hourly story alerts (Phase 2) ──────────────────────────────
+    # Walks alert_opt_in users and emails when stories matching their
+    # personalization (sector match) or watchlist (entity_id match)
+    # publish since each user's last_alert_at watermark. Bumps the
+    # watermark even when nothing matched so we don't re-scan stale
+    # windows. Single-email rollup, capped at 5 stories per send.
+    JobDef(
+        name="send_alerts",
+        script="jobs/send_alerts.py",
+        interval_hours=1,
+        timeout_sec=300,
+        description="Hourly Phase 2 alerts: emails users when matching new stories drop",
+    ),
+
+    # ── Politician /full pre-warmer ────────────────────────────────
+    # Walks every active TrackedMember and pulls /people/{id}/full
+    # so the in-process LRU stays hot. Each cold composed call takes
+    # 5-50s; once cached, repeat hits land in microseconds. Running
+    # every 30 min keeps the LRU permanently warm during normal use
+    # (TTL is 60 min on the API side).
+    JobDef(
+        name="warm_politician_cache",
+        script="jobs/warm_politician_cache.py",
+        args=["--limit", "100"],  # top 100 active members
+        interval_hours=1,         # scheduler interval; LRU TTL 60min
+        timeout_sec=1800,         # 30 min budget for the warm cycle
+        description="Pre-warm /people/{id}/full LRU for top 100 politicians",
+    ),
+
+    # ── Hourly search-index rebuild (Phase 3) ──────────────────────
+    # FTS5 entity_search powers cross-table search in milliseconds
+    # vs the previous 11-table ILIKE scan that was the dominant
+    # cause of slow search responses. Hourly rebuild is plenty;
+    # tracked-* tables don't change minute-to-minute.
+    JobDef(
+        name="rebuild_search_index",
+        script="jobs/rebuild_search_index.py",
+        interval_hours=1,
+        timeout_sec=120,
+        description="Rebuild FTS5 entity_search from politicians/companies/bills/stories",
+    ),
+
+    # ── Daily story-outcome refresh (Phase 3) ──────────────────────
+    # Per-story state (open/improved/worsened/resolved) drives the
+    # status bar at the top of every story page and the future
+    # /outcomes index. Idempotent — re-running the job updates rows
+    # in place without producing duplicates. Daily cadence is
+    # plenty; trade and lobbying disclosures don't update faster.
+    JobDef(
+        name="detect_story_outcomes",
+        script="jobs/detect_story_outcomes.py",
+        interval_hours=24,
+        timeout_sec=600,
+        description="Phase 3: refresh per-story outcome state from latest data",
+    ),
+
     # ── New data source syncs ──────────────────────────────────────
     JobDef(
         name="sync_samgov",

@@ -198,3 +198,76 @@ class StoryAction(Base):
                 f"action_type must be one of {StoryAction.VALID_TYPES}, got {action_type!r}"
             )
         return v
+
+
+class ActionClick(Base):
+    """One row per CTA click on the Action Panel.
+
+    Phase 3 thread A: outcome tracking. The /ops/engagement dashboard
+    aggregates across this table to show editorial which scripts +
+    sectors actually move readers. PII-free: no IP, no user-agent
+    on the row. user_id is nullable so anonymous reader clicks land
+    here too (rate-limited at the middleware layer).
+    """
+    __tablename__ = "action_clicks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    story_id = Column(
+        Integer, ForeignKey("stories.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    action_id = Column(
+        Integer, ForeignKey("story_actions.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    action_type = Column(String(32), nullable=False, index=True)
+    user_id = Column(Integer, nullable=True, index=True)  # FK on app side
+    clicked_at = Column(
+        DateTime(timezone=True), server_default=func.now(),
+        nullable=False, index=True,
+    )
+
+
+class StoryOutcome(Base):
+    """Per-story outcome state.
+
+    Phase 3 thread B. Set to "open" at story-publish time and
+    refreshed by jobs/detect_story_outcomes.py on a daily schedule.
+    The /story page renders a status bar at the top with the
+    state + the last_signal pointer.
+    """
+    __tablename__ = "story_outcomes"
+
+    VALID_STATES = ("open", "improved", "worsened", "resolved", "unknown")
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('open','improved','worsened','resolved','unknown')",
+            name="ck_story_outcome_state",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    story_id = Column(
+        Integer, ForeignKey("stories.id", ondelete="CASCADE"),
+        nullable=False, unique=True,
+    )
+    state = Column(String(16), nullable=False, server_default="open", index=True)
+    note = Column(Text, nullable=True)
+    last_signal_source = Column(String(255), nullable=True)
+    last_signal_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(),
+        nullable=False,
+    )
+
+    @staticmethod
+    def validate_state(state: str) -> str:
+        v = (state or "").strip().lower()
+        if v not in StoryOutcome.VALID_STATES:
+            raise ValueError(
+                f"state must be one of {StoryOutcome.VALID_STATES}, got {state!r}"
+            )
+        return v

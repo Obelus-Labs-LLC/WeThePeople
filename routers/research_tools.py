@@ -97,7 +97,11 @@ def toxic_releases(
     chemical: Optional[str] = Query(None, description="Chemical name search"),
     year: Optional[int] = Query(None, description="Reporting year"),
     facility_name: Optional[str] = Query(None, description="Facility name search"),
-    limit: int = Query(25, ge=1, le=100),
+    # Bumped from 100 → 250 so users searching a broad state (CA, TX,
+    # NY) actually see the magnitude of the data. EPA's API caps each
+    # request around 10K rows and the wire-time scales linearly so
+    # 250 is still <2s round-trip.
+    limit: int = Query(50, ge=1, le=250),
 ):
     """Proxy to EPA EnviroFacts TRI facility data."""
     result = search_tri_releases(

@@ -29,6 +29,7 @@ from sqlalchemy import desc
 from models.database import SessionLocal, TrackedMember, CongressionalTrade, Vote, MemberVote, Anomaly
 from models.digest_models import DigestSubscriber
 from models.stories_models import Story
+from models.auth_models import User
 
 import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -134,6 +135,135 @@ def _build_rep_digest(db, member: Any, since_date: date) -> Dict[str, Any]:
             }
             for a in anomalies
         ],
+    }
+
+
+# Map onboarding lifestyle/sector keys to the Story.sector values they
+# should match. Mirrors the SECTOR_KEY_TO_STORY_SECTORS table in the
+# journal site's HomePage so the digest filter and the homepage filter
+# stay aligned.
+_SECTOR_KEY_TO_STORY_SECTORS: Dict[str, List[str]] = {
+    "finance":        ["finance"],
+    "banking":        ["finance"],
+    "health":         ["health"],
+    "healthcare":     ["health"],
+    "housing":        ["housing"],
+    "energy":         ["energy"],
+    "transportation": ["transportation", "energy"],
+    "technology":     ["technology", "tech"],
+    "tech":           ["technology", "tech"],
+    "telecom":        ["telecom"],
+    "education":      ["education"],
+    "agriculture":    ["agriculture"],
+    "food":           ["agriculture"],
+    "chemicals":      ["chemicals"],
+    "defense":        ["defense"],
+}
+
+
+def _personalized_top_stories(
+    db,
+    lifestyle: List[str],
+    seven_days_ago: date,
+    limit: int = 5,
+) -> List[Dict[str, Any]]:
+    """Pick the top published stories from the last 7 days, ranked by
+    sector match against the user's onboarding lifestyle. Falls back
+    to recency-only when no lifestyle is set or no matches exist.
+    """
+    base = (
+        db.query(Story)
+        .filter(Story.status == "published")
+        .filter(
+            Story.published_at >= datetime.combine(
+                seven_days_ago, datetime.min.time()
+            ).replace(tzinfo=timezone.utc)
+        )
+        .order_by(desc(Story.published_at))
+        .limit(50)
+        .all()
+    )
+    if not lifestyle:
+        return [
+            {
+                "title": s.title,
+                "slug": s.slug,
+                "summary": s.summary,
+                "sector": s.sector,
+                "category": s.category,
+            }
+            for s in base[:limit]
+        ]
+    allowed: set = set()
+    for k in lifestyle:
+        for v in _SECTOR_KEY_TO_STORY_SECTORS.get(k.lower(), []):
+            allowed.add(v)
+    matched = [s for s in base if (s.sector or "").lower() in allowed]
+    rest = [s for s in base if s not in matched]
+    chosen = (matched + rest)[:limit]
+    return [
+        {
+            "title": s.title,
+            "slug": s.slug,
+            "summary": s.summary,
+            "sector": s.sector,
+            "category": s.category,
+        }
+        for s in chosen
+    ]
+
+
+def _user_lifestyle(user: User) -> List[str]:
+    """Parse the User.lifestyle_categories JSON column into a list.
+    Tolerates JSON-encoded arrays, comma-separated strings, and None."""
+    raw = (user.lifestyle_categories or "").strip()
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return [str(x).strip().lower() for x in parsed if str(x).strip()]
+    except (ValueError, TypeError):
+        pass
+    return [c.strip().lower() for c in raw.split(",") if c.strip()]
+
+
+def generate_digest_for_user(db, user: User, *, _cached_reps=None) -> Dict[str, Any]:
+    """Build a personalized weekly digest for an authenticated User.
+
+    Same shape as `generate_digest_for_subscriber` so the email
+    renderer can consume either. Uses the user's onboarding state
+    (home_state, lifestyle_categories, current_concern) to pick reps
+    and rank stories. Falls back gracefully when fields are null.
+    """
+    state = user.home_state
+    if not state and user.zip_code:
+        state = _zip_to_state(user.zip_code)
+
+    seven_days_ago = date.today() - timedelta(days=7)
+    if state:
+        if _cached_reps is not None:
+            reps = _cached_reps(state)
+        else:
+            members = _get_representatives(db, state)
+            reps = [_build_rep_digest(db, m, seven_days_ago) for m in members]
+    else:
+        reps = []
+
+    lifestyle = _user_lifestyle(user)
+    top_stories = _personalized_top_stories(db, lifestyle, seven_days_ago, limit=5)
+
+    return {
+        "subscriber": {
+            "email": user.email,
+            "zip_code": user.zip_code,
+            "state": state,
+            "lifestyle": lifestyle,
+            "concern": user.current_concern,
+        },
+        "representatives": reps,
+        "top_stories": top_stories,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -372,6 +502,8 @@ def main():
                 _state_reps_cache[state] = [_build_rep_digest(db, m, seven_days_ago) for m in members]
             return _state_reps_cache[state]
 
+        seen_emails: set = set()
+
         for sub in subscribers:
             logger.info("  Generating digest for %s (zip: %s)", sub.email, sub.zip_code)
             try:
@@ -396,12 +528,53 @@ def main():
                     sub.last_sent_at = datetime.now(timezone.utc)
                 db.commit()
 
+                seen_emails.add(sub.email.lower().strip())
                 logger.info("    Saved to %s", filepath)
             except Exception as e:
                 logger.error("    FAILED for %s: %s", sub.email, e)
                 db.rollback()
 
-        logger.info("Done! Generated %d digests.", len(subscribers))
+        # Also send to authenticated Users with digest_opt_in=true who
+        # aren't already on the legacy DigestSubscriber list. Phase 2
+        # onboarding writes lifestyle + state to the User row, so these
+        # digests are sector-personalized rather than rep-only.
+        users = (
+            db.query(User)
+            .filter(User.digest_opt_in == True)  # noqa: E712 — SQLAlchemy
+            .filter(User.is_active == True)  # noqa: E712
+            .filter(User.personalization_completed_at.isnot(None))
+            .all()
+        )
+        eligible_users = [u for u in users if u.email.lower().strip() not in seen_emails]
+        logger.info(
+            "Generating digests for %d authenticated users (skipped %d already on subscriber list)",
+            len(eligible_users), len(users) - len(eligible_users),
+        )
+        for u in eligible_users:
+            logger.info("  Generating digest for user %s (state: %s)", u.email, u.home_state)
+            try:
+                digest = generate_digest_for_user(db, u, _cached_reps=_cached_reps)
+                safe_email = u.email.replace("@", "_at_").replace(".", "_")
+                filename = f"user_{safe_email}_{date.today().isoformat()}.json"
+                filepath = digest_dir / filename
+                with open(filepath, "w") as f:
+                    json.dump(digest, f, indent=2, default=str)
+                if args.send:
+                    subject = (
+                        f"WeThePeople Weekly — "
+                        f"{digest.get('subscriber', {}).get('state') or 'US'} "
+                        f"({date.today().strftime('%b %d')})"
+                    )
+                    html = _render_digest_html(digest)
+                    _send_email(u.email, subject, html)
+                logger.info("    Saved to %s", filepath)
+            except Exception as e:
+                logger.error("    FAILED for user %s: %s", u.email, e)
+
+        logger.info(
+            "Done! Generated %d subscriber + %d user digests.",
+            len(subscribers), len(eligible_users),
+        )
     finally:
         db.close()
 

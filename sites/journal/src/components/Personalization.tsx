@@ -172,6 +172,46 @@ function clearStorage() {
   }
 }
 
+// Session-storage key for the once-per-tab "we already pushed
+// localStorage state to the backend" sentinel. Refreshing the tab
+// re-fires the sync, but multiple navigation events within the same
+// tab won't.
+const SYNC_DONE_KEY = 'wtp.personalization.synced';
+
+/**
+ * Push the current localStorage personalization state up to the
+ * authenticated user's row via POST /auth/onboarding. Best-effort:
+ * any error (network, 401, 422) is swallowed and the sentinel is
+ * NOT set, so the next page load tries again.
+ *
+ * Authentication piggybacks on the cross-subdomain `wtp_session`
+ * cookie set by the core site's /auth/login handler. We send
+ * `credentials: 'include'` so the cookie travels with the request.
+ */
+async function syncPersonalizationToBackend(
+  state: PersonalizationState,
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/onboarding`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        zip_code: state.zip,
+        // The backend allowlist accepts both v2 sector keys and the
+        // legacy lifestyle keys — see ONBOARDING_LIFESTYLE_CATEGORIES
+        // in routers/auth.py. We pass whatever is in storage as-is.
+        lifestyle_categories: state.lifestyle ?? [],
+        current_concern: state.concerns?.[0] ?? state.concern ?? 'other',
+        concerns: state.concerns ?? (state.concern ? [state.concern] : []),
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function PersonalizationProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PersonalizationState | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -180,6 +220,42 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setState(loadFromStorage());
   }, []);
+
+  // Auto-sync localStorage -> backend when an authenticated session
+  // is detected. The sibling sites do not host the auth context;
+  // they rely on the cross-subdomain `wtp_session` cookie set by the
+  // core site's /auth/login. We probe it indirectly: send the
+  // sync-eligible payload to /auth/onboarding with credentials. If
+  // the server accepts it (200) we mark the sentinel and stop; if
+  // not (401 because no cookie, 422 because invalid, etc.) we leave
+  // the sentinel unset so the next visit retries.
+  useEffect(() => {
+    if (!state) return;
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    try {
+      if (window.sessionStorage.getItem(SYNC_DONE_KEY)) return;
+      // Mark "attempted this session" up-front so anonymous users
+      // (whose POST will 401) don't retry on every nav within the
+      // tab. The marker is cleared on save() / clear() so a fresh
+      // onboarding still fires the sync.
+      window.sessionStorage.setItem(SYNC_DONE_KEY, 'pending');
+    } catch {
+      /* private mode / storage disabled — skip the sync. */
+      return;
+    }
+    syncPersonalizationToBackend(state).then((ok) => {
+      if (cancelled) return;
+      try {
+        window.sessionStorage.setItem(SYNC_DONE_KEY, ok ? 'ok' : 'failed');
+      } catch {
+        /* ignore */
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [state]);
 
   const save = useCallback(
     async (next: Omit<PersonalizationState, 'savedAt' | 'state'>) => {
@@ -204,6 +280,15 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
         savedAt: Date.now(),
       };
       saveToStorage(full);
+      // Reset the sync sentinel so the auto-sync effect picks up the
+      // new state and pushes it to the backend on the next render.
+      if (typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.removeItem(SYNC_DONE_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
       setState(full);
       setIsModalOpen(false);
     },
@@ -212,6 +297,13 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
 
   const clear = useCallback(() => {
     clearStorage();
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.removeItem(SYNC_DONE_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
     setState(null);
   }, []);
 
@@ -738,26 +830,96 @@ interface StoryAction {
   external_url: string | null;
 }
 
+// Plain-text labels for the action-type ribbon. Apostrophes are
+// real Unicode so we don't need dangerouslySetInnerHTML.
 const ACTION_TYPE_LABELS: Record<string, string> = {
   call_rep: 'Call your rep',
   switch_provider: 'Switch providers',
-  check_redress: 'Check if you&apos;re owed money',
+  check_redress: 'Check if you’re owed money',
   attend_hearing: 'Attend a hearing',
   read_more: 'Read the source',
   verify_data: 'Verify the data',
   register_to_vote: 'Register to vote',
 };
 
+// Per-action CTA text. "Take action" was a generic dead-end; these
+// describe what actually happens when the user clicks. Falls back
+// to "Take action" for unknown types (forward-compat with future
+// action_type rollouts).
+const ACTION_CTA: Record<string, string> = {
+  call_rep: 'Find your rep',
+  switch_provider: 'Open the locator',
+  check_redress: 'Check refunds',
+  attend_hearing: 'See the calendar',
+  read_more: 'Read the source',
+  verify_data: 'Open the dataset',
+  register_to_vote: 'Check registration',
+};
+
+// Compact mono icon glyph rendered in the action-type ribbon. Kept
+// as Unicode (not lucide-react) so we don't pull in a new dep
+// surface area; bundled fonts already cover these characters.
+const ACTION_GLYPH: Record<string, string> = {
+  call_rep: '☎',
+  switch_provider: '⇆',
+  check_redress: '$',
+  attend_hearing: '📅',
+  read_more: '📰',
+  verify_data: '⌗',
+  register_to_vote: '✓',
+};
+
+/**
+ * Replace user-state placeholders in a call-script. We intentionally
+ * keep the substitution table tiny: `{state}` is the only token we
+ * confidently know at render time. Other placeholders (`{bill_id}`,
+ * etc.) flow through unchanged so the editor sees them and can
+ * decide whether to fill them in at story-author time.
+ */
+function applyScriptSubstitutions(
+  template: string,
+  ctx: { state: string | null },
+): string {
+  return template.replace(/\{state\}/g, ctx.state ?? 'my state');
+}
+
+/**
+ * Fire a fire-and-forget click record. Best-effort: any failure is
+ * silently dropped so a counter outage never breaks the user's
+ * navigation. Uses keepalive so the request survives the page
+ * unload that follows the target-blank link.
+ */
+function recordActionClick(slug: string, actionId: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    fetch(`${API_BASE}/events/action-click`, {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ story_slug: slug, action_id: actionId }),
+    }).catch(() => {
+      /* ignore */
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 export function StoryActionPanel({ slug }: { slug: string }) {
   const { state } = usePersonalization();
   const [actions, setActions] = useState<StoryAction[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!slug) return;
     const params = new URLSearchParams();
     if (state?.state) params.set('state', state.state);
-    fetch(`${API_BASE}/stories/${slug}/actions?${params}`)
+    const ctrl = new AbortController();
+    fetch(`${API_BASE}/stories/${slug}/actions?${params}`, {
+      signal: ctrl.signal,
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.actions && Array.isArray(d.actions)) {
@@ -765,52 +927,118 @@ export function StoryActionPanel({ slug }: { slug: string }) {
         }
       })
       .catch(() => {
-        /* silent */
+        /* silent: hide-not-fail */
       })
       .finally(() => setLoaded(true));
+    return () => ctrl.abort();
   }, [slug, state]);
+
+  const handleCopy = useCallback(
+    async (a: StoryAction) => {
+      if (!a.script_template) return;
+      const filled = applyScriptSubstitutions(a.script_template, {
+        state: state?.state ?? null,
+      });
+      try {
+        await navigator.clipboard.writeText(filled);
+        setCopiedId(a.id);
+        window.setTimeout(() => setCopiedId(null), 2000);
+      } catch {
+        /* clipboard blocked; the script is still visible to read off */
+      }
+    },
+    [state?.state],
+  );
 
   if (!loaded || actions.length === 0) return null;
 
   const passive = actions.filter((a) => a.is_passive);
   const active = actions.filter((a) => !a.is_passive);
 
-  const renderAction = (a: StoryAction) => {
+  // The single highest-priority active action (smallest display_order)
+  // gets a hero treatment: bigger title, accent border, top of the
+  // active group. This is how register_to_vote (display_order=1)
+  // outranks call_rep (10) and verify_data (20) and sits at the top
+  // with extra weight, per the editorial direction that voter
+  // registration is the universal recommendation.
+  const heroId =
+    active.length > 0
+      ? [...active].sort((a, b) => a.id - b.id)[0]?.id // tiebreaker on id
+      : null;
+  const heroByOrder =
+    active.length > 0
+      ? active.reduce<StoryAction | null>(
+          (best, cur) => (best === null ? cur : best),
+          null,
+        )
+      : null;
+  void heroId;
+  void heroByOrder;
+  // The actions are already sorted by display_order on the API side
+  // (routers/stories.py orders by display_order ASC, id ASC), so the
+  // first item in `active` is the hero.
+  const heroAction = active.length > 0 ? active[0] : null;
+  const otherActive = active.slice(1);
+
+  const renderAction = (a: StoryAction, opts: { hero?: boolean } = {}) => {
     const safeUrl = a.external_url && /^https?:\/\//.test(a.external_url)
       ? a.external_url
       : null;
+    const cta = ACTION_CTA[a.action_type] ?? 'Take action';
+    const ribbon = ACTION_TYPE_LABELS[a.action_type] ?? a.action_type;
+    const glyph = ACTION_GLYPH[a.action_type] ?? '·';
+    const filledScript = a.script_template
+      ? applyScriptSubstitutions(a.script_template, {
+          state: state?.state ?? null,
+        })
+      : null;
+    const isHero = !!opts.hero;
+
     return (
       <div
         key={a.id}
         style={{
-          padding: '14px 16px',
-          background: 'rgba(235,229,213,0.04)',
-          border: '1px solid rgba(235,229,213,0.1)',
+          padding: isHero ? '18px 20px' : '14px 16px',
+          background: isHero
+            ? 'rgba(197,160,40,0.08)'
+            : 'rgba(235,229,213,0.04)',
+          border: isHero
+            ? '1px solid rgba(197,160,40,0.45)'
+            : '1px solid rgba(235,229,213,0.1)',
           borderRadius: 10,
           marginBottom: 10,
+          boxShadow: isHero
+            ? '0 0 0 1px rgba(197,160,40,0.15)'
+            : 'none',
         }}
       >
         <div
           style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
             fontWeight: 700,
             letterSpacing: '0.18em',
             textTransform: 'uppercase',
-            color: 'var(--color-text-3)',
+            color: isHero ? 'var(--color-accent-text)' : 'var(--color-text-3)',
             marginBottom: 6,
           }}
-          dangerouslySetInnerHTML={{
-            __html: ACTION_TYPE_LABELS[a.action_type] ?? a.action_type,
-          }}
-        />
+        >
+          <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>
+            {glyph}
+          </span>
+          <span>{ribbon}</span>
+        </div>
         <div
           style={{
             fontFamily: 'var(--font-body)',
-            fontSize: 15,
-            fontWeight: 600,
+            fontSize: isHero ? 19 : 15,
+            fontWeight: isHero ? 700 : 600,
             color: 'var(--color-text-1)',
             marginBottom: a.description ? 4 : 8,
+            lineHeight: 1.3,
           }}
         >
           {a.title}
@@ -828,7 +1056,7 @@ export function StoryActionPanel({ slug }: { slug: string }) {
             {a.description}
           </p>
         )}
-        {a.script_template && (
+        {filledScript && (
           <details style={{ marginBottom: 8 }}>
             <summary
               style={{
@@ -853,8 +1081,25 @@ export function StoryActionPanel({ slug }: { slug: string }) {
                 whiteSpace: 'pre-wrap',
               }}
             >
-              {a.script_template}
+              {filledScript}
             </pre>
+            <button
+              type="button"
+              onClick={() => handleCopy(a)}
+              style={{
+                marginTop: 6,
+                padding: '4px 10px',
+                background: 'transparent',
+                border: '1px solid rgba(235,229,213,0.18)',
+                borderRadius: 6,
+                color: 'var(--color-text-2)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                cursor: 'pointer',
+              }}
+            >
+              {copiedId === a.id ? 'Copied' : 'Copy script'}
+            </button>
           </details>
         )}
         {safeUrl && (
@@ -862,6 +1107,11 @@ export function StoryActionPanel({ slug }: { slug: string }) {
             href={safeUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => recordActionClick(slug, a.id)}
+            // Track auxiliary click (cmd-click, middle-click) too —
+            // those still navigate but onClick fires before the
+            // browser opens the new tab.
+            onAuxClick={() => recordActionClick(slug, a.id)}
             style={{
               display: 'inline-block',
               padding: '8px 14px',
@@ -876,7 +1126,7 @@ export function StoryActionPanel({ slug }: { slug: string }) {
               textDecoration: 'none',
             }}
           >
-            Take action
+            {cta}
           </a>
         )}
       </div>
@@ -926,13 +1176,13 @@ export function StoryActionPanel({ slug }: { slug: string }) {
               fontWeight: 700,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              color: 'var(--color-text-3)',
+              color: '#3DD5C7',
               marginBottom: 8,
             }}
           >
-            Just for you (no politics required)
+            Take care of yourself first
           </div>
-          {passive.map(renderAction)}
+          {passive.map((a) => renderAction(a))}
         </div>
       )}
 
@@ -945,13 +1195,14 @@ export function StoryActionPanel({ slug }: { slug: string }) {
               fontWeight: 700,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              color: 'var(--color-text-3)',
+              color: 'var(--color-accent-text)',
               marginBottom: 8,
             }}
           >
             Make your voice heard
           </div>
-          {active.map(renderAction)}
+          {heroAction && renderAction(heroAction, { hero: true })}
+          {otherActive.map((a) => renderAction(a))}
         </div>
       )}
     </div>

@@ -182,6 +182,8 @@ export default function EnergyDashboardPage() {
   return (
     <DashboardShellLayout sector="energy" header={<EnergySectorHeader />}>
       <SectorHero
+        sectorKey="energy"
+        sectorLabel="Energy"
         eyebrow="Energy transparency"
         titleLine1="Oil money in"
         titleAccent="politics"

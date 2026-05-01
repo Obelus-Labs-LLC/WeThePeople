@@ -25,10 +25,53 @@
  * Keep the three copies (verify / research / journal) in sync.
  */
 
-// No React import needed — all three sites set `jsx: "react-jsx"` so the
-// automatic runtime handles JSX → React calls without an explicit import.
+// useState/useEffect needed for the cross-subdomain auth probe.
+import { useEffect, useState } from 'react';
+import { getApiBase } from '../api/client';
 
 export type EcosystemSite = 'core' | 'civic' | 'verify' | 'research' | 'journal';
+
+interface SessionUser {
+  email: string;
+  display_name: string | null;
+  role: string;
+}
+
+/**
+ * Probe the cross-subdomain wtp_session cookie via /auth/me with
+ * credentials:'include'. The core site sets that cookie at login
+ * time with Domain=.wethepeopleforus.com so journal/research/
+ * verify all see the same session. The previous EcosystemNav
+ * always rendered Log in / Sign up which made the user feel
+ * logged out on every sibling site.
+ *
+ * Falls back to null on any error — sibling sites silently degrade
+ * to the signed-out display.
+ */
+function useSiblingSession(): SessionUser | null {
+  const [user, setUser] = useState<SessionUser | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    fetch(`${getApiBase()}/auth/me`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        setUser({
+          email: d.email,
+          display_name: d.display_name ?? null,
+          role: d.role ?? 'free',
+        });
+      })
+      .catch(() => {
+        /* not signed in — keep null */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return user;
+}
 
 interface EcosystemNavProps {
   active: EcosystemSite;
@@ -118,11 +161,12 @@ const INTER = "'Inter', sans-serif";
 
 export function EcosystemNav({ active }: EcosystemNavProps) {
   const activeSite = SITES[active];
-  // Sibling sites do not host the auth context, so the buttons just
-  // hand off to the core site. After auth the user can come back via
-  // the switcher pill. The `next` param is preserved so the core
-  // site can bounce them back here on success once that flow is
-  // wired up.
+  // The cross-subdomain wtp_session cookie carries the JWT; when the
+  // user is logged in on the core site, sibling sites read it via
+  // /auth/me with credentials:include and render the user pill
+  // here. When null, we fall back to the Log in / Sign up buttons.
+  const sessionUser = useSiblingSession();
+  const accountUrl = `${SITES.core.href}/account`;
   const coreLogin = `${SITES.core.href}/login?next=${encodeURIComponent(
     typeof window !== 'undefined' ? window.location.href : '/',
   )}`;
@@ -308,40 +352,83 @@ export function EcosystemNav({ active }: EcosystemNavProps) {
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {sessionUser ? (
             <a
-              href={coreLogin}
+              href={accountUrl}
               style={{
-                padding: '6px 14px',
-                borderRadius: 6,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 12px',
+                borderRadius: 999,
                 fontFamily: INTER,
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 600,
-                color: T2,
-                background: 'transparent',
+                color: '#EBE5D5',
+                background: 'rgba(235,229,213,0.05)',
                 border: `1px solid ${BORDER}`,
                 textDecoration: 'none',
               }}
+              title={sessionUser.email}
             >
-              Log in
+              {sessionUser.display_name || sessionUser.email.split('@')[0]}
+              {sessionUser.role && sessionUser.role !== 'free' && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    padding: '1px 6px',
+                    borderRadius: 999,
+                    background:
+                      sessionUser.role === 'admin'
+                        ? 'rgba(239,68,68,0.18)'
+                        : 'rgba(74,127,222,0.18)',
+                    color:
+                      sessionUser.role === 'admin' ? '#fca5a5' : '#A5B4FC',
+                  }}
+                >
+                  {sessionUser.role}
+                </span>
+              )}
             </a>
-            <a
-              href={coreSignup}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 6,
-                fontFamily: INTER,
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#07090C',
-                background: GOLD,
-                border: `1px solid ${GOLD}`,
-                textDecoration: 'none',
-              }}
-            >
-              Sign up
-            </a>
-          </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <a
+                href={coreLogin}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  fontFamily: INTER,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: T2,
+                  background: 'transparent',
+                  border: `1px solid ${BORDER}`,
+                  textDecoration: 'none',
+                }}
+              >
+                Log in
+              </a>
+              <a
+                href={coreSignup}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  fontFamily: INTER,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#07090C',
+                  background: GOLD,
+                  border: `1px solid ${GOLD}`,
+                  textDecoration: 'none',
+                }}
+              >
+                Sign up
+              </a>
+            </div>
+          )}
         </div>
       </nav>
     </>

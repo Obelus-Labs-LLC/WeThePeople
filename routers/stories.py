@@ -310,6 +310,29 @@ def get_story(slug: str, db: Session = Depends(get_db)):
 
     result = _serialize_story_full(story)
 
+    # Phase 3 thread B: surface the per-story outcome state. Hidden
+    # client-side when state == 'unknown', so we only need to send
+    # the row when it actually carries information. Best-effort:
+    # storage-layer failures don't break the story response.
+    try:
+        from models.stories_models import StoryOutcome
+        outcome = (
+            db.query(StoryOutcome)
+            .filter(StoryOutcome.story_id == story.id)
+            .first()
+        )
+        if outcome is not None:
+            result["outcome"] = {
+                "state": outcome.state,
+                "note": outcome.note,
+                "last_signal_at": (
+                    outcome.last_signal_at.isoformat()
+                    if outcome.last_signal_at else None
+                ),
+            }
+    except Exception as exc:
+        logger.warning("outcome lookup failed for %s: %s", slug, exc)
+
     # Load correction history from StoryCorrection table
     try:
         corrections = (
@@ -687,10 +710,13 @@ def _concern_anchor_for_story(
     msg = table.get((concern, sector))
     if msg:
         return msg
-    # Fallback: if the user has a matched lifestyle, mention the sector
-    # without the concern.
-    if matched_lifestyle:
-        return f"This story touches {matched_lifestyle[0]} — one of the categories you flagged in onboarding."
+    # No fallback: the frontend WhyThisMattersBlock already renders
+    # matched_lifestyle in its own line ("This story touches tech,
+    # one of the categories you said matter to you."), so emitting
+    # a parallel concern_anchor here just duplicated that text. The
+    # only concern_anchor we return is the specific (concern,
+    # sector) message above; otherwise the matched-lifestyle line
+    # carries the framing on its own.
     return None
 
 

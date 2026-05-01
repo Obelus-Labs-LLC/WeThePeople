@@ -186,6 +186,8 @@ export default function EducationDashboardPage() {
   return (
     <DashboardShellLayout sector="education" header={<EducationSectorHeader />}>
       <SectorHero
+        sectorKey="education"
+        sectorLabel="Education"
         eyebrow="Education transparency"
         titleLine1="Textbooks and tax"
         titleAccent="dollars"
