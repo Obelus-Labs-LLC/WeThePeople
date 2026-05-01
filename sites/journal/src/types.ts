@@ -83,6 +83,15 @@ export interface Story {
   // use this for stable references that survive site moves.
   wayback_url?: string | null;
   wayback_archived_at?: string | null;
+  // Phase 3 thread B: per-story outcome state. Populated by the
+  // daily detect_story_outcomes job. The status bar at the top of
+  // StoryPage hides for state='unknown' or when this field is
+  // missing entirely (older stories before the migration).
+  outcome?: {
+    state: 'open' | 'improved' | 'worsened' | 'resolved' | 'unknown';
+    note: string | null;
+    last_signal_at: string | null;
+  } | null;
   featured?: boolean;
   hero_image_url?: string;
   tags?: string[];

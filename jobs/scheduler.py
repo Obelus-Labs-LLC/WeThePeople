@@ -371,6 +371,20 @@ JOB_REGISTRY: List[JobDef] = [
         description="Hourly Phase 2 alerts: emails users when matching new stories drop",
     ),
 
+    # ── Daily story-outcome refresh (Phase 3) ──────────────────────
+    # Per-story state (open/improved/worsened/resolved) drives the
+    # status bar at the top of every story page and the future
+    # /outcomes index. Idempotent — re-running the job updates rows
+    # in place without producing duplicates. Daily cadence is
+    # plenty; trade and lobbying disclosures don't update faster.
+    JobDef(
+        name="detect_story_outcomes",
+        script="jobs/detect_story_outcomes.py",
+        interval_hours=24,
+        timeout_sec=600,
+        description="Phase 3: refresh per-story outcome state from latest data",
+    ),
+
     # ── New data source syncs ──────────────────────────────────────
     JobDef(
         name="sync_samgov",

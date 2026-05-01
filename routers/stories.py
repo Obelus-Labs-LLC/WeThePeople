@@ -310,6 +310,29 @@ def get_story(slug: str, db: Session = Depends(get_db)):
 
     result = _serialize_story_full(story)
 
+    # Phase 3 thread B: surface the per-story outcome state. Hidden
+    # client-side when state == 'unknown', so we only need to send
+    # the row when it actually carries information. Best-effort:
+    # storage-layer failures don't break the story response.
+    try:
+        from models.stories_models import StoryOutcome
+        outcome = (
+            db.query(StoryOutcome)
+            .filter(StoryOutcome.story_id == story.id)
+            .first()
+        )
+        if outcome is not None:
+            result["outcome"] = {
+                "state": outcome.state,
+                "note": outcome.note,
+                "last_signal_at": (
+                    outcome.last_signal_at.isoformat()
+                    if outcome.last_signal_at else None
+                ),
+            }
+    except Exception as exc:
+        logger.warning("outcome lookup failed for %s: %s", slug, exc)
+
     # Load correction history from StoryCorrection table
     try:
         corrections = (
