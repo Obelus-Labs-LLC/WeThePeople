@@ -883,6 +883,29 @@ function applyScriptSubstitutions(
   return template.replace(/\{state\}/g, ctx.state ?? 'my state');
 }
 
+/**
+ * Fire a fire-and-forget click record. Best-effort: any failure is
+ * silently dropped so a counter outage never breaks the user's
+ * navigation. Uses keepalive so the request survives the page
+ * unload that follows the target-blank link.
+ */
+function recordActionClick(slug: string, actionId: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    fetch(`${API_BASE}/events/action-click`, {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ story_slug: slug, action_id: actionId }),
+    }).catch(() => {
+      /* ignore */
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 export function StoryActionPanel({ slug }: { slug: string }) {
   const { state } = usePersonalization();
   const [actions, setActions] = useState<StoryAction[]>([]);
@@ -1084,6 +1107,11 @@ export function StoryActionPanel({ slug }: { slug: string }) {
             href={safeUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => recordActionClick(slug, a.id)}
+            // Track auxiliary click (cmd-click, middle-click) too —
+            // those still navigate but onClick fires before the
+            // browser opens the new tab.
+            onAuxClick={() => recordActionClick(slug, a.id)}
             style={{
               display: 'inline-block',
               padding: '8px 14px',

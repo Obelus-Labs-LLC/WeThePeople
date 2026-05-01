@@ -2208,6 +2208,7 @@ def ops_dashboard(db: Session = Depends(get_db)):
       <div style='display:flex;flex-wrap:wrap;gap:10px;margin-top:24px;'>
         <a href='/ops/story-queue' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Story queue</a>
         <a href='/ops/tips' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Tips</a>
+        <a href='/ops/engagement' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Engagement</a>
         <a href='/ops/draft-queue' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Draft replies</a>
         <a href='/ops/pipeline/health' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>Pipeline health</a>
         <a href='/ops/pipeline/dlq' style='padding:8px 14px;border-radius:8px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:13px;font-weight:600;'>DLQ</a>
@@ -2231,5 +2232,139 @@ def ops_dashboard(db: Session = Depends(get_db)):
         + cards + "</div>"
         + quick_links
         + "</body></html>"
+    )
+    return HTMLResponse(page)
+
+
+# ---------------------------------------------------------------------------
+# /ops/engagement — Phase 3 thread A
+# ---------------------------------------------------------------------------
+# Aggregates the action_clicks table over a rolling window. Three
+# rollups: by action_type, by sector, top stories. Same press-key
+# gate as the rest of /ops.
+
+@router.get("/engagement")
+def engagement_dashboard(
+    window_days: int = 30,
+    db: Session = Depends(get_db),
+):
+    """Server-rendered HTML view over action_clicks aggregates."""
+    from fastapi.responses import HTMLResponse
+    from datetime import datetime, timedelta, timezone
+    from models.stories_models import ActionClick
+    from sqlalchemy import func
+
+    if window_days < 1 or window_days > 365:
+        window_days = 30
+    since = datetime.now(timezone.utc) - timedelta(days=window_days)
+
+    total = (
+        db.query(func.count(ActionClick.id))
+        .filter(ActionClick.clicked_at >= since)
+        .scalar() or 0
+    )
+    by_type = (
+        db.query(ActionClick.action_type, func.count(ActionClick.id))
+        .filter(ActionClick.clicked_at >= since)
+        .group_by(ActionClick.action_type)
+        .order_by(func.count(ActionClick.id).desc())
+        .all()
+    )
+    by_sector = (
+        db.query(Story.sector, func.count(ActionClick.id))
+        .join(ActionClick, ActionClick.story_id == Story.id)
+        .filter(ActionClick.clicked_at >= since)
+        .group_by(Story.sector)
+        .order_by(func.count(ActionClick.id).desc())
+        .limit(20)
+        .all()
+    )
+    top_stories = (
+        db.query(Story.slug, Story.title, func.count(ActionClick.id))
+        .join(ActionClick, ActionClick.story_id == Story.id)
+        .filter(ActionClick.clicked_at >= since)
+        .group_by(Story.slug, Story.title)
+        .order_by(func.count(ActionClick.id).desc())
+        .limit(10)
+        .all()
+    )
+
+    def _row(label: str, count: int, max_count: int) -> str:
+        pct = int((count / max_count) * 100) if max_count > 0 else 0
+        return (
+            "<tr>"
+            "<td style='padding:6px 10px;font-family:monospace;font-size:13px;color:#0f172a;width:42%;'>"
+            + html.escape(label) + "</td>"
+            "<td style='padding:6px 10px;width:48%;'>"
+            "<div style='background:#fef3c7;height:18px;border-radius:4px;width:"
+            + str(pct) + "%;min-width:1px;'></div>"
+            "</td>"
+            "<td style='padding:6px 10px;font-family:monospace;font-size:13px;color:#475569;text-align:right;'>"
+            + str(count) + "</td>"
+            "</tr>"
+        )
+
+    type_max = max((c for _, c in by_type), default=0)
+    sector_max = max((c for _, c in by_sector), default=0)
+    type_html = "".join(_row(t or "(none)", c, type_max) for t, c in by_type)
+    sector_html = "".join(_row(s or "(none)", c, sector_max) for s, c in by_sector)
+
+    if top_stories:
+        story_rows = "".join(
+            "<tr>"
+            "<td style='padding:8px 10px;font-size:13px;'>"
+            "<a href='https://journal.wethepeopleforus.com/story/"
+            + html.escape(slug or "")
+            + "' target='_blank' style='color:#b45309;text-decoration:none;'>"
+            + html.escape((title or slug or "")[:90])
+            + "</a></td>"
+            "<td style='padding:8px 10px;font-family:monospace;font-size:13px;color:#475569;text-align:right;'>"
+            + str(c) + "</td>"
+            "</tr>"
+            for slug, title, c in top_stories
+        )
+    else:
+        story_rows = (
+            "<tr><td colspan='2' style='padding:12px;color:#94a3b8;font-size:13px;'>"
+            "No clicks recorded in this window.</td></tr>"
+        )
+
+    page = (
+        "<!DOCTYPE html><html><head><title>WTP Engagement</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>"
+        "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+        "margin:0;padding:24px;max-width:920px;margin:0 auto;background:#f8fafc;color:#0f172a;}"
+        "h1{font-size:24px;margin:0 0 6px;}"
+        ".sub{color:#64748b;font-size:13px;margin-bottom:20px;}"
+        ".card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:18px;}"
+        ".card-label{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#64748b;margin-bottom:10px;}"
+        "table{width:100%;border-collapse:collapse;}"
+        "a:hover{filter:brightness(.97);}"
+        "</style></head><body>"
+        "<a href='/ops' style='color:#b45309;font-size:13px;text-decoration:none;'>← Ops dashboard</a>"
+        "<h1 style='margin-top:8px;'>Engagement</h1>"
+        "<div class='sub'>"
+        "Action Panel CTA clicks, last " + str(window_days) + " days. "
+        "Total: <b>" + str(total) + "</b>. "
+        "<a href='?window_days=7' style='color:#b45309;'>7d</a> · "
+        "<a href='?window_days=30' style='color:#b45309;'>30d</a> · "
+        "<a href='?window_days=90' style='color:#b45309;'>90d</a>"
+        "</div>"
+        "<div class='card'>"
+        "<div class='card-label'>By action type</div>"
+        "<table>"
+        + (type_html or "<tr><td style='padding:12px;color:#94a3b8;'>No clicks yet.</td></tr>")
+        + "</table></div>"
+        "<div class='card'>"
+        "<div class='card-label'>By sector</div>"
+        "<table>"
+        + (sector_html or "<tr><td style='padding:12px;color:#94a3b8;'>No clicks yet.</td></tr>")
+        + "</table></div>"
+        "<div class='card'>"
+        "<div class='card-label'>Top stories</div>"
+        "<table>" + story_rows + "</table>"
+        "</div>"
+        "</body></html>"
     )
     return HTMLResponse(page)

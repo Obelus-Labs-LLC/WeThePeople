@@ -157,6 +157,7 @@ from routers.lookup import router as lookup_router
 from routers.civic import router as civic_router
 from routers.bulk import router as bulk_export_router, bulk_router
 from routers.tips import router as tips_router
+from routers.events import router as events_router
 
 # --- Backward-compatible mounts (unprefixed, existing clients) ---
 app.include_router(auth_router)
@@ -194,6 +195,7 @@ app.include_router(research_tools_router)
 app.include_router(fara_router)
 app.include_router(lookup_router)
 app.include_router(tips_router)
+app.include_router(events_router)
 app.include_router(civic_router)
 app.include_router(bulk_export_router)  # /export/{table}.csv
 app.include_router(bulk_router)         # /bulk/snapshot, /bulk/manifest
