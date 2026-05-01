@@ -19,6 +19,7 @@ const StandardsPage = lazy(() => import('./pages/StandardsPage'));
 const MethodologyPage = lazy(() => import('./pages/MethodologyPage'));
 const FundingPage = lazy(() => import('./pages/FundingPage'));
 const TipPage = lazy(() => import('./pages/TipPage'));
+const SearchPage = lazy(() => import('./pages/SearchPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 // ── Loading fallback ──
@@ -75,6 +76,7 @@ export default function App() {
           <Route path="/methodology/:topic" element={<Layout><MethodologyPage /></Layout>} />
           <Route path="/about/funding" element={<Layout><FundingPage /></Layout>} />
           <Route path="/tip" element={<Layout><TipPage /></Layout>} />
+          <Route path="/search" element={<Layout><SearchPage /></Layout>} />
           <Route path="*" element={<Layout><NotFoundPage /></Layout>} />
         </Routes>
         {/* OnboardingModal lives at the root so it can render over any

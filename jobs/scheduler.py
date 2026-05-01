@@ -371,6 +371,19 @@ JOB_REGISTRY: List[JobDef] = [
         description="Hourly Phase 2 alerts: emails users when matching new stories drop",
     ),
 
+    # ── Hourly search-index rebuild (Phase 3) ──────────────────────
+    # FTS5 entity_search powers cross-table search in milliseconds
+    # vs the previous 11-table ILIKE scan that was the dominant
+    # cause of slow search responses. Hourly rebuild is plenty;
+    # tracked-* tables don't change minute-to-minute.
+    JobDef(
+        name="rebuild_search_index",
+        script="jobs/rebuild_search_index.py",
+        interval_hours=1,
+        timeout_sec=120,
+        description="Rebuild FTS5 entity_search from politicians/companies/bills/stories",
+    ),
+
     # ── Daily story-outcome refresh (Phase 3) ──────────────────────
     # Per-story state (open/improved/worsened/resolved) drives the
     # status bar at the top of every story page and the future
