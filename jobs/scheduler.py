@@ -399,6 +399,18 @@ JOB_REGISTRY: List[JobDef] = [
         description="Rebuild FTS5 entity_search from politicians/companies/bills/stories",
     ),
 
+    # ── Weekly engagement report email (Phase 3 thread A) ──────────
+    # Aggregates action_clicks for the past 7 days and emails the
+    # editorial inbox a digest with by-type / by-sector / top-stories
+    # rollups + week-over-week delta. Cheap; runs every Monday-ish.
+    JobDef(
+        name="send_engagement_report",
+        script="jobs/send_engagement_report.py",
+        interval_hours=168,  # weekly
+        timeout_sec=120,
+        description="Weekly action-panel engagement digest to editors",
+    ),
+
     # ── Daily story-outcome refresh (Phase 3) ──────────────────────
     # Per-story state (open/improved/worsened/resolved) drives the
     # status bar at the top of every story page and the future
@@ -487,6 +499,23 @@ JOB_REGISTRY: List[JobDef] = [
         interval_hours=720,
         timeout_sec=14400,  # 4 hours — 50 states
         description="State legislators and bills for all 50 states (OpenStates)",
+    ),
+
+    # ── Daily rotating state-bill sync (Phase 3 thread C) ──────────
+    # OpenStates' free-tier 250 req/day quota means a "sync all 50
+    # states" job blows past the budget and falls over. This rotation
+    # walks 3 states per run from a persisted cursor, so the entire
+    # union refreshes every ~17 days and we stay well under the API
+    # cap. --priority makes the first cycle hit the 20 highest-pop
+    # states so the per-state landing pages have content where users
+    # actually live before the alphabetical rotation kicks in.
+    JobDef(
+        name="sync_state_bills_rotation",
+        script="jobs/sync_state_bills_rotation.py",
+        args=["--states", "3", "--priority", "--max-pages", "5"],
+        interval_hours=24,
+        timeout_sec=1800,
+        description="Rotating state-bill sync (3 states/day, priority-first)",
     ),
 ]
 

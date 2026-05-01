@@ -205,6 +205,50 @@ def _watchlisted_bill_ids(db, user_id: int) -> List[str]:
     return [r[0] for r in rows if r[0]]
 
 
+def _user_home_state(user: User) -> Optional[str]:
+    """The user's home state for state-bill scoping. Falls back to
+    the resolved state from their ZIP if home_state is null."""
+    return (user.home_state or "").upper().strip()[:2] or None
+
+
+def find_state_bills_for_user(
+    db,
+    user: User,
+    *,
+    cold_start_days: int = COLD_START_DAYS,
+    limit: int = 5,
+):
+    """Return new state bills in the user's home_state since the
+    watermark. Phase 3 thread C: per-state bills land in the alert
+    digest so a reader who lives in MI sees Lansing activity, not
+    just D.C. Capped at `limit` per user per email so a busy state
+    legislative session doesn't dominate the rollup.
+    """
+    home = _user_home_state(user)
+    if not home:
+        return []
+
+    window_start = user.last_alert_at
+    if window_start is None:
+        window_start = datetime.now(timezone.utc) - timedelta(days=cold_start_days)
+
+    try:
+        from models.state_models import StateBill
+        rows = (
+            db.query(StateBill)
+            .filter(StateBill.state == home)
+            .filter(StateBill.latest_action_date != None)  # noqa: E711
+            .filter(StateBill.latest_action_date > window_start.date())
+            .order_by(desc(StateBill.latest_action_date))
+            .limit(limit)
+            .all()
+        )
+        return rows
+    except Exception as exc:
+        log.warning("state-bill alert lookup failed for %s: %s", user.email, exc)
+        return []
+
+
 def find_bill_actions_for_user(
     db,
     user: User,
@@ -241,16 +285,19 @@ def _render_email(
     user: User,
     stories: List[Story],
     bill_updates: Optional[List[Tuple[Bill, BillAction]]] = None,
+    state_bills: Optional[list] = None,
 ) -> str:
     """Plain HTML, deliberately minimal. No tracking pixels, no
     fancy layout — the disengaged-audience thesis says clarity beats
     polish.
 
-    The email has up to two sections:
+    The email has up to three sections:
       - Stories: matches by sector or watchlisted entity
-      - Bill updates: new actions on watchlisted bills
+      - Bill updates: new actions on watchlisted federal bills
+      - State bills: recent activity in the user's home_state
     """
     bill_updates = bill_updates or []
+    state_bills = state_bills or []
 
     # Story rows.
     story_rows: List[str] = []
@@ -296,7 +343,29 @@ def _render_email(
             """
         )
 
-    n_total = len(stories) + len(bill_updates)
+    # State bill rows
+    state_bill_rows: List[str] = []
+    home_state = _user_home_state(user) or ""
+    for sb in state_bills:
+        ident = (getattr(sb, "identifier", None) or getattr(sb, "bill_id", None) or "").strip()
+        title = getattr(sb, "title", None) or ident
+        latest_action = getattr(sb, "latest_action", None) or ""
+        latest_action_date = getattr(sb, "latest_action_date", None)
+        date_str = latest_action_date.strftime("%b %d, %Y") if latest_action_date else ""
+        source_url = getattr(sb, "source_url", None) or "#"
+        state_bill_rows.append(
+            f"""
+            <tr>
+              <td style="padding:14px 0;border-bottom:1px solid #e5e7eb;">
+                <div style="font-family:'Inter',sans-serif;font-size:11px;letter-spacing:.18em;color:#6b7280;text-transform:uppercase;">{home_state} · {ident}{' · ' + date_str if date_str else ''}</div>
+                <a href="{source_url}" target="_blank" rel="noopener noreferrer" style="font-family:Georgia,serif;font-size:17px;color:#0f172a;text-decoration:none;font-weight:600;line-height:1.35;">{title}</a>
+                <div style="font-family:'Inter',sans-serif;font-size:13px;color:#475569;line-height:1.5;margin-top:6px;">{latest_action}</div>
+              </td>
+            </tr>
+            """
+        )
+
+    n_total = len(stories) + len(bill_updates) + len(state_bills)
     title = (
         f"{n_total} update for you on WeThePeople"
         if n_total == 1
@@ -319,6 +388,14 @@ def _render_email(
             "Bills you follow</h2>"
             "<table role='presentation' width='100%' cellpadding='0' cellspacing='0'>"
             + "".join(bill_rows) + "</table>"
+        )
+    if state_bill_rows:
+        sections.append(
+            "<h2 style=\"font-family:'Inter',sans-serif;font-size:13px;letter-spacing:.18em;"
+            "color:#b45309;text-transform:uppercase;font-weight:700;margin:18px 0 4px;\">"
+            f"In your state ({home_state})</h2>"
+            "<table role='presentation' width='100%' cellpadding='0' cellspacing='0'>"
+            + "".join(state_bill_rows) + "</table>"
         )
 
     return f"""
@@ -400,27 +477,28 @@ def run(
             try:
                 story_matches = find_matches_for_user(db, u)
                 bill_updates = find_bill_actions_for_user(db, u)
-                if not story_matches and not bill_updates:
+                state_bills = find_state_bills_for_user(db, u, limit=max_stories)
+                if not story_matches and not bill_updates and not state_bills:
                     log.info("  %s: no matches; bumping watermark", u.email)
                     if not dry_run:
                         u.last_alert_at = now
                         db.commit()
                     continue
                 story_picks = story_matches[:max_stories]
-                # Cap bill updates separately so a single noisy bill doesn't
-                # crowd out story-driven alerts. 5 / 5 keeps the email
-                # short.
+                # Cap each kind separately so one noisy source doesn't
+                # drown the others out.
                 bill_picks = bill_updates[:max_stories]
-                total = len(story_picks) + len(bill_picks)
+                state_bill_picks = state_bills[:max_stories]
+                total = len(story_picks) + len(bill_picks) + len(state_bill_picks)
                 subject = (
                     f"{total} new "
                     f"{'update' if total == 1 else 'updates'} on WeThePeople"
                 )
-                html = _render_email(u, story_picks, bill_picks)
+                html = _render_email(u, story_picks, bill_picks, state_bill_picks)
                 if dry_run:
                     log.info(
-                        "  DRY-RUN %s: %d story match(es), %d bill update(s)",
-                        u.email, len(story_picks), len(bill_picks),
+                        "  DRY-RUN %s: %d story match(es), %d federal bill update(s), %d state bill(s)",
+                        u.email, len(story_picks), len(bill_picks), len(state_bill_picks),
                     )
                     continue
                 ok = _send_email(u.email, subject, html)

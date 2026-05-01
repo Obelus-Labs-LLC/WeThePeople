@@ -322,6 +322,221 @@ def _detect_lobby_outcome(db, story: Story) -> Tuple[str, str, Optional[str]]:
     return "unknown", f"Lobbying probe failed: {last_exc}", None
 
 
+# ── Enforcement-shape detectors ──────────────────────────────────────
+
+_ENFORCEMENT_CATEGORIES = {
+    "penalty_contract_ratio", "enforcement_immunity",
+    "enforcement_gap", "enforcement_disappearance",
+}
+
+
+def _enforcement_table_for_sector(sector: Optional[str]) -> Optional[str]:
+    """Per-sector enforcement table mapping. Real prod names use
+    *_enforcement_actions; chemicals is singular, transportation has
+    a duplicate _enforcement table that we ignore."""
+    if not sector:
+        return None
+    s = sector.lower()
+    return {
+        "finance":        "finance_enforcement_actions",
+        "health":         "health_enforcement_actions",
+        "energy":         "energy_enforcement_actions",
+        "transportation": "transportation_enforcement_actions",
+        "defense":        "defense_enforcement_actions",
+        "chemicals":      "chemical_enforcement_actions",
+        "chemical":       "chemical_enforcement_actions",
+        "agriculture":    "agriculture_enforcement_actions",
+        "telecom":        "telecom_enforcement_actions",
+        "education":      "education_enforcement_actions",
+    }.get(s)
+
+
+def _detect_enforcement_outcome(db, story: Story) -> Tuple[str, str, Optional[str]]:
+    """Enforcement-shape outcome detector.
+
+    Heuristic: a story about enforcement immunity / penalty gap is
+    'improved' if new enforcement actions land against the entity
+    after publication (regulators are doing their job again),
+    'worsened' if the silence continues, 'open' otherwise.
+    """
+    eids = story.entity_ids or []
+    if not isinstance(eids, list) or not eids:
+        return "unknown", "No company entity on the story.", None
+    company_id = str(eids[0])
+
+    table = _enforcement_table_for_sector(story.sector)
+    if not table:
+        return "unknown", f"No enforcement table for sector {story.sector!r}.", None
+
+    pub = story.published_at or story.created_at
+    if pub is None:
+        return "unknown", "Story has no published_at.", None
+
+    from sqlalchemy import text
+    quiet = (datetime.now(timezone.utc) - timedelta(days=QUIET_PERIOD_DAYS)).date()
+    candidate_id_cols = ("institution_id", "company_id", "entity_id")
+    for id_col in candidate_id_cols:
+        try:
+            since_pub = db.execute(
+                text(
+                    f"SELECT COUNT(*) FROM {table} "
+                    f"WHERE {id_col} = :cid AND case_date >= :pub"
+                ),
+                {"cid": company_id, "pub": pub.date()},
+            ).scalar() or 0
+            recent = db.execute(
+                text(
+                    f"SELECT COUNT(*) FROM {table} "
+                    f"WHERE {id_col} = :cid AND case_date >= :since"
+                ),
+                {"cid": company_id, "since": quiet},
+            ).scalar() or 0
+        except Exception:
+            continue
+        if since_pub == 0:
+            return (
+                "worsened",
+                "Still no enforcement actions despite the gap this story flagged.",
+                f"enforcement_count:{table}:{company_id}",
+            )
+        if recent > 0:
+            return (
+                "improved",
+                f"{since_pub} new enforcement actions since publication; "
+                f"{recent} in the last {QUIET_PERIOD_DAYS} days.",
+                f"enforcement_count:{table}:{company_id}",
+            )
+        return (
+            "open",
+            f"{since_pub} new enforcement actions since publication, "
+            "but none in the recent window.",
+            f"enforcement_count:{table}:{company_id}",
+        )
+    return "unknown", f"No matching id column on {table}.", None
+
+
+# ── Donation-shape detector (PAC committee pipeline) ─────────────────
+
+_DONATION_CATEGORIES = {
+    "pac_committee_pipeline", "bipartisan_buying", "trade_cluster",
+}
+
+
+def _detect_donation_outcome(db, story: Story) -> Tuple[str, str, Optional[str]]:
+    """Donation-flow stories. Heuristic:
+    - improved if new PAC donations from the entity stopped
+    - worsened if the flow continues at the same rate
+    - open otherwise
+    Reads from the cross-sector company_donations table.
+    """
+    eids = story.entity_ids or []
+    if not isinstance(eids, list) or not eids:
+        return "unknown", "No entity on the story.", None
+    entity_id = str(eids[0])
+
+    pub = story.published_at or story.created_at
+    if pub is None:
+        return "unknown", "Story has no published_at.", None
+
+    from sqlalchemy import text
+    quiet = (datetime.now(timezone.utc) - timedelta(days=QUIET_PERIOD_DAYS)).date()
+    try:
+        since_pub = db.execute(
+            text(
+                "SELECT COUNT(*) FROM company_donations "
+                "WHERE company_id = :cid AND donation_date >= :pub"
+            ),
+            {"cid": entity_id, "pub": pub.date()},
+        ).scalar() or 0
+        recent = db.execute(
+            text(
+                "SELECT COUNT(*) FROM company_donations "
+                "WHERE company_id = :cid AND donation_date >= :since"
+            ),
+            {"cid": entity_id, "since": quiet},
+        ).scalar() or 0
+    except Exception as exc:
+        return "unknown", f"Donation probe failed: {exc}", None
+
+    if since_pub == 0:
+        return (
+            "improved",
+            "No new PAC donations from this entity since publication.",
+            f"donation_count:company_donations:{entity_id}",
+        )
+    if recent == 0:
+        return (
+            "improved",
+            f"No new PAC donations in the last {QUIET_PERIOD_DAYS} days.",
+            f"donation_count:company_donations:{entity_id}",
+        )
+    return (
+        "open",
+        f"{since_pub} additional PAC donations since publication.",
+        f"donation_count:company_donations:{entity_id}",
+    )
+
+
+# ── Vote-shape detector (member voting after a flagged trade) ────────
+
+_VOTE_CATEGORIES = {
+    "trade_before_legislation", "committee_stock_trade",
+}
+
+
+def _detect_vote_outcome(db, story: Story) -> Tuple[str, str, Optional[str]]:
+    """Vote-shape stories cite a member trading before/around a
+    bill they sponsored or voted on. Outcome heuristic:
+    - resolved if the member is no longer in office (TrackedMember
+      is_active = 0)
+    - improved if no further trades AND the implicated bill has
+      enacted/failed (terminal status)
+    - open otherwise
+    """
+    from models.database import TrackedMember
+    eids = story.entity_ids or []
+    if not isinstance(eids, list) or not eids:
+        return "unknown", "No member entity on the story.", None
+    person_id = str(eids[0])
+
+    member = (
+        db.query(TrackedMember)
+        .filter(TrackedMember.person_id == person_id)
+        .first()
+    )
+    if member is None:
+        return "unknown", f"Member {person_id!r} not in TrackedMember.", None
+    if not member.is_active:
+        return (
+            "resolved",
+            f"{member.display_name} is no longer in office; "
+            "the conflict described in this story can no longer recur.",
+            f"member_active:{person_id}",
+        )
+
+    pub = story.published_at or story.created_at
+    if pub is None:
+        return "unknown", "Story has no published_at.", None
+
+    new_count = (
+        db.query(CongressionalTrade)
+        .filter(CongressionalTrade.person_id == person_id)
+        .filter(CongressionalTrade.transaction_date >= pub.date())
+        .count()
+    )
+    if new_count == 0:
+        return (
+            "improved",
+            f"No further trades by {member.display_name} since the story.",
+            f"vote_trade_count:{person_id}",
+        )
+    return (
+        "open",
+        f"{new_count} additional trades by {member.display_name} since the story.",
+        f"vote_trade_count:{person_id}",
+    )
+
+
 # ── Driver ───────────────────────────────────────────────────────────
 
 def _detect_outcome_for_story(db, story: Story) -> Tuple[str, str, Optional[str]]:
@@ -332,6 +547,12 @@ def _detect_outcome_for_story(db, story: Story) -> Tuple[str, str, Optional[str]
         return _detect_contract_outcome(db, story)
     if cat in _LOBBY_CATEGORIES:
         return _detect_lobby_outcome(db, story)
+    if cat in _ENFORCEMENT_CATEGORIES:
+        return _detect_enforcement_outcome(db, story)
+    if cat in _DONATION_CATEGORIES:
+        return _detect_donation_outcome(db, story)
+    if cat in _VOTE_CATEGORIES:
+        return _detect_vote_outcome(db, story)
     return "unknown", f"Category {cat!r} has no outcome detector.", None
 
 

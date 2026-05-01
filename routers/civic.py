@@ -885,3 +885,133 @@ def civic_state_landing(
             ],
         },
     }
+
+
+# ── /civic/state/{state}/bill/{bill_id} ──────────────────────────────
+# Single state bill detail. Returns title, sponsor, latest action,
+# subjects, sector tag (derived from subjects). Powers a future
+# /civic/state/MI/bill/<id> page or alert deep-link.
+
+# Map OpenStates `subject` strings (free-text but loosely standardized)
+# to the platform's canonical sector slugs. Rough tagging — a single
+# bill can match multiple sectors; we return the first hit.
+_SUBJECT_TO_SECTOR = {
+    "agriculture":      "agriculture",
+    "agricultural":     "agriculture",
+    "food":             "agriculture",
+    "banking":          "finance",
+    "banks":            "finance",
+    "financial":        "finance",
+    "insurance":        "finance",
+    "credit":           "finance",
+    "investment":       "finance",
+    "health":           "health",
+    "medical":          "health",
+    "medicare":         "health",
+    "medicaid":         "health",
+    "hospital":         "health",
+    "drug":             "health",
+    "housing":          "housing",
+    "rent":             "housing",
+    "mortgage":         "housing",
+    "real estate":      "housing",
+    "property":         "housing",
+    "energy":           "energy",
+    "utility":          "energy",
+    "electric":         "energy",
+    "oil":              "energy",
+    "gas":              "energy",
+    "renewable":        "energy",
+    "transportation":   "transportation",
+    "highway":          "transportation",
+    "road":             "transportation",
+    "transit":          "transportation",
+    "vehicle":          "transportation",
+    "technology":       "technology",
+    "internet":         "technology",
+    "broadband":        "technology",
+    "data":             "technology",
+    "privacy":          "technology",
+    "telecom":          "telecom",
+    "telecommunications":"telecom",
+    "education":        "education",
+    "school":           "education",
+    "teacher":          "education",
+    "student":          "education",
+    "chemical":         "chemicals",
+    "environmental":    "chemicals",
+    "pollution":        "chemicals",
+    "defense":          "defense",
+    "military":         "defense",
+    "veteran":          "defense",
+    "weapon":           "defense",
+}
+
+
+def _sector_for_state_bill(subjects_json: Optional[str]) -> Optional[str]:
+    """Return a canonical sector slug derived from the bill's
+    subjects. None if no rule matches."""
+    if not subjects_json:
+        return None
+    try:
+        subjects = json.loads(subjects_json)
+        if not isinstance(subjects, list):
+            return None
+    except (ValueError, TypeError):
+        return None
+    for s in subjects:
+        s_lower = (s or "").lower()
+        for keyword, sector in _SUBJECT_TO_SECTOR.items():
+            if keyword in s_lower:
+                return sector
+    return None
+
+
+@router.get("/state/{state}/bill/{bill_id}")
+def civic_state_bill_detail(
+    state: str,
+    bill_id: str,
+    db: Session = Depends(get_db),
+):
+    """Single state-bill detail with sector tag inferred from
+    OpenStates subjects."""
+    from models.state_models import StateBill
+
+    code = (state or "").strip().upper()
+    if len(code) != 2 or not code.isalpha():
+        raise HTTPException(status_code=422, detail="state must be 2-letter")
+
+    bill = (
+        db.query(StateBill)
+        .filter(StateBill.state == code)
+        .filter(StateBill.bill_id == bill_id)
+        .first()
+    )
+    if not bill:
+        raise HTTPException(status_code=404, detail="State bill not found")
+
+    sector = _sector_for_state_bill(bill.subjects)
+    subjects: list = []
+    if bill.subjects:
+        try:
+            parsed = json.loads(bill.subjects)
+            if isinstance(parsed, list):
+                subjects = parsed
+        except (ValueError, TypeError):
+            subjects = []
+
+    return {
+        "bill_id": bill.bill_id,
+        "state": bill.state,
+        "session": bill.legislative_session,
+        "identifier": bill.identifier,
+        "title": bill.title,
+        "subjects": subjects,
+        "inferred_sector": sector,
+        "sponsor_name": bill.sponsor_name,
+        "latest_action": bill.latest_action,
+        "latest_action_date": (
+            str(bill.latest_action_date) if bill.latest_action_date else None
+        ),
+        "source_url": bill.source_url,
+    }

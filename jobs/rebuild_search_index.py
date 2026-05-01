@@ -86,6 +86,27 @@ def _bill_rows(db):
         )
 
 
+def _state_bill_rows(db):
+    """Phase 3 thread C: state bills in the FTS index. Each row's
+    URL points at the per-state landing page; the bill identifier
+    + state appear in the body so a search for 'NY S1234' resolves."""
+    from models.state_models import StateBill
+    for sb in db.query(StateBill).all():
+        ident = (sb.identifier or "").strip()
+        body = " ".join(filter(None, [
+            ident, sb.state, sb.legislative_session,
+            sb.sponsor_name, sb.latest_action,
+        ]))
+        yield (
+            "state_bill",
+            sb.bill_id or "",
+            sb.title or ident or sb.bill_id or "",
+            body[:600],
+            "politics",
+            f"/civic/state/{sb.state}",
+        )
+
+
 def _story_rows(db):
     for s in db.query(Story).filter(Story.status == "published").all():
         body = " ".join(filter(None, [
@@ -182,6 +203,7 @@ def rebuild(counts_only: bool = False) -> int:
         _ingest("politicians",        _politician_rows(db))
         _ingest("state_legislators",  _state_legislator_rows(db))
         _ingest("bills",              _bill_rows(db))
+        _ingest("state_bills",        _state_bill_rows(db))
         _ingest("stories",            _story_rows(db))
         _ingest("companies",          _company_rows(db))
 
