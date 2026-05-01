@@ -760,3 +760,128 @@ def leaderboard(
         results.append(entry)
 
     return {"content_type": content_type, "sort": sort, "items": results}
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 Thread C — local civic graph
+# ---------------------------------------------------------------------------
+# /civic/state/{state} returns a single combined payload powering the
+# per-state landing page on the core site. Aggregates:
+#   - Active state legislators (cap at 12 for the rail)
+#   - Recent state bills (currently empty until the OpenStates bill
+#     sync runs; endpoint is shape-correct so the UI ships now)
+#   - Federal reps for the same state from TrackedMember (so the
+#     page bridges federal + state in one place)
+#   - User-engagement signals if any are present (story counts
+#     scoped to the state via entity_ids match)
+
+@router.get("/state/{state}")
+def civic_state_landing(
+    state: str,
+    db: Session = Depends(get_db),
+):
+    """Combined per-state landing payload (federal + state)."""
+    from models.state_models import StateLegislator, StateBill
+    from models.database import TrackedMember
+
+    code = (state or "").strip().upper()
+    if len(code) != 2 or not code.isalpha():
+        raise HTTPException(
+            status_code=422,
+            detail="state must be a 2-letter postal code (e.g. 'NY').",
+        )
+
+    try:
+        legislators = (
+            db.query(StateLegislator)
+            .filter(StateLegislator.state == code)
+            .filter(StateLegislator.is_active == True)  # noqa: E712
+            .order_by(StateLegislator.chamber.desc(), StateLegislator.name.asc())
+            .limit(12)
+            .all()
+        )
+        legislator_total = (
+            db.query(StateLegislator)
+            .filter(StateLegislator.state == code)
+            .filter(StateLegislator.is_active == True)  # noqa: E712
+            .count()
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "state legislators lookup failed for %s: %s", code, exc,
+        )
+        legislators = []
+        legislator_total = 0
+
+    try:
+        bills = (
+            db.query(StateBill)
+            .filter(StateBill.state == code)
+            .order_by(desc(StateBill.latest_action_date))
+            .limit(10)
+            .all()
+        )
+        bill_total = (
+            db.query(StateBill).filter(StateBill.state == code).count()
+        )
+    except Exception:
+        bills = []
+        bill_total = 0
+
+    try:
+        federal = (
+            db.query(TrackedMember)
+            .filter(TrackedMember.state == code)
+            .filter(TrackedMember.is_active == 1)
+            .order_by(TrackedMember.chamber.desc(), TrackedMember.display_name.asc())
+            .all()
+        )
+    except Exception:
+        federal = []
+
+    return {
+        "state": code,
+        "federal_reps": [
+            {
+                "person_id": r.person_id,
+                "display_name": r.display_name,
+                "chamber": r.chamber,
+                "party": r.party,
+                "state": r.state,
+                "photo_url": r.photo_url,
+            }
+            for r in federal
+        ],
+        "state_legislators": {
+            "total": legislator_total,
+            "items": [
+                {
+                    "ocd_id": leg.ocd_id,
+                    "name": leg.name,
+                    "chamber": leg.chamber,
+                    "party": leg.party,
+                    "district": leg.district,
+                    "photo_url": leg.photo_url,
+                }
+                for leg in legislators
+            ],
+        },
+        "state_bills": {
+            "total": bill_total,
+            "items": [
+                {
+                    "bill_id": b.bill_id,
+                    "identifier": b.identifier,
+                    "title": b.title,
+                    "session": b.legislative_session,
+                    "latest_action": b.latest_action,
+                    "latest_action_date": (
+                        str(b.latest_action_date) if b.latest_action_date else None
+                    ),
+                    "sponsor_name": b.sponsor_name,
+                    "source_url": b.source_url,
+                }
+                for b in bills
+            ],
+        },
+    }

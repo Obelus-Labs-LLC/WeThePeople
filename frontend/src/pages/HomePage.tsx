@@ -330,6 +330,31 @@ function PersonalizedRail() {
         </div>
       )}
 
+      {pers?.home_state && (
+        <div style={{ marginBottom: watchlistPreview.length > 0 ? 14 : 0 }}>
+          <Link
+            to={`/civic/state/${pers.home_state}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(74,127,222,0.35)",
+              background: "rgba(74,127,222,0.08)",
+              color: "var(--color-text-1)",
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 14 }}>📍</span>
+            Your reps and bills in {pers.home_state} →
+          </Link>
+        </div>
+      )}
+
       {watchlistPreview.length > 0 && (
         <div>
           <div

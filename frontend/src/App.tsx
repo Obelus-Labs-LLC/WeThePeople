@@ -111,6 +111,7 @@ const CivicHubPage = React.lazy(() => import("./pages/CivicHubPage"));
 const PromiseDetailPage = React.lazy(() => import("./pages/PromiseDetailPage"));
 const BadgesPage = React.lazy(() => import("./pages/BadgesPage"));
 const CivicVerifyPage = React.lazy(() => import("./pages/CivicVerifyPage"));
+const CivicStatePage = React.lazy(() => import("./pages/CivicStatePage"));
 const DigestSignupPage = React.lazy(() => import("./pages/DigestSignupPage"));
 const LoginPage = React.lazy(() => import("./pages/LoginPage"));
 const SignupPage = React.lazy(() => import("./pages/SignupPage"));
@@ -298,6 +299,7 @@ const App: React.FC = () => (
 
           {/* Civic Hub — accountability, proposals, badges, verification */}
           <Route path="/civic" element={<CivicHubPage />} />
+          <Route path="/civic/state/:state" element={<CivicStatePage />} />
           <Route path="/civic/promises" element={<CivicHubPage />} />
           <Route path="/civic/promises/:promiseId" element={<PromiseDetailPage />} />
           <Route path="/civic/proposals" element={<CivicHubPage />} />
