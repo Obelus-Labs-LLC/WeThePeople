@@ -138,6 +138,17 @@ def fetch_state_legislators(
     return all_results
 
 
+def _ocd_jurisdiction(state: str) -> str:
+    """Convert a 2-letter state code to OpenStates' canonical OCD
+    jurisdiction ID. The /bills endpoint rejects bare state codes
+    with HTTP 400 — it requires the full ocd-jurisdiction URN."""
+    s = state.strip().lower()
+    # Already in OCD form; pass through.
+    if s.startswith("ocd-jurisdiction"):
+        return state
+    return f"ocd-jurisdiction/country:us/state:{s[:2]}/government"
+
+
 def fetch_state_bills(
     state: str,
     query: Optional[str] = None,
@@ -158,7 +169,7 @@ def fetch_state_bills(
         title, subjects, latest_action, latest_action_date, sponsor_name, source_url
     """
     params: Dict[str, Any] = {
-        "jurisdiction": state.lower(),
+        "jurisdiction": _ocd_jurisdiction(state),
         "page": page,
         "per_page": min(per_page, 50),
         "sort": "updated_desc",
