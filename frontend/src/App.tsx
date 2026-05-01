@@ -126,6 +126,7 @@ const TermsOfUsePage = React.lazy(() => import("./pages/TermsOfUsePage"));
 const DisclaimerPage = React.lazy(() => import("./pages/DisclaimerPage"));
 const AboutPage = React.lazy(() => import("./pages/AboutPage"));
 const ApiAccessPage = React.lazy(() => import("./pages/ApiAccessPage"));
+const ApiDocsPage = React.lazy(() => import("./pages/ApiDocsPage"));
 const PricingPage = React.lazy(() => import("./pages/PricingPage"));
 const MethodologyPage = React.lazy(() => import("./pages/MethodologyPage"));
 
@@ -326,6 +327,8 @@ const App: React.FC = () => (
           <Route path="/disclaimer" element={<DisclaimerPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/api" element={<ApiAccessPage />} />
+          <Route path="/api/docs" element={<ApiDocsPage />} />
+          <Route path="/docs" element={<ApiDocsPage />} />
           <Route path="/developers" element={<ApiAccessPage />} />
           <Route path="/data" element={<ApiAccessPage />} />
           <Route path="/pricing" element={<PricingPage />} />

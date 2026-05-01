@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, DollarSign, Users, Briefcase } from 'lucide-react';
-import ChoroplethMap from '../components/ChoroplethMap';
+// Leaflet bundle is ~150KB; lazy so the page paints without it
+// and the map slides in once the chunk arrives.
+const ChoroplethMap = React.lazy(() => import('../components/ChoroplethMap'));
 import {
   fetchSpendingByState,
   type SpendingMetric,
@@ -394,7 +396,15 @@ export default function InfluenceMapPage() {
               </p>
             </div>
           ) : (
-            <ChoroplethMap data={stateData} metric={metric} onStateClick={handleStateClick} />
+            <Suspense
+              fallback={
+                <div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-3)' }}>
+                  Loading map…
+                </div>
+              }
+            >
+              <ChoroplethMap data={stateData} metric={metric} onStateClick={handleStateClick} />
+            </Suspense>
           )}
         </div>
 
