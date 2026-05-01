@@ -357,6 +357,20 @@ JOB_REGISTRY: List[JobDef] = [
         description="Weekly subscriber digest: personalized rep activity, trades, votes, anomalies",
     ),
 
+    # ── Hourly story alerts (Phase 2) ──────────────────────────────
+    # Walks alert_opt_in users and emails when stories matching their
+    # personalization (sector match) or watchlist (entity_id match)
+    # publish since each user's last_alert_at watermark. Bumps the
+    # watermark even when nothing matched so we don't re-scan stale
+    # windows. Single-email rollup, capped at 5 stories per send.
+    JobDef(
+        name="send_alerts",
+        script="jobs/send_alerts.py",
+        interval_hours=1,
+        timeout_sec=300,
+        description="Hourly Phase 2 alerts: emails users when matching new stories drop",
+    ),
+
     # ── New data source syncs ──────────────────────────────────────
     JobDef(
         name="sync_samgov",
