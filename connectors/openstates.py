@@ -138,15 +138,46 @@ def fetch_state_legislators(
     return all_results
 
 
+# 2-letter postal → OpenStates jurisdiction display name. The /bills
+# endpoint accepts either the OCD URN or the state name as the
+# `jurisdiction` query value, but `requests` percent-encodes the slashes
+# in the URN form which OpenStates rejects with 400. The state-name
+# form passes through unchanged. DC is included because OpenStates
+# tracks it.
+_STATE_NAMES = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
+    "CA": "California", "CO": "Colorado", "CT": "Connecticut",
+    "DE": "Delaware", "DC": "District of Columbia",
+    "FL": "Florida", "GA": "Georgia",
+    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana",
+    "IA": "Iowa", "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana",
+    "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts",
+    "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+    "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada",
+    "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico",
+    "NY": "New York", "NC": "North Carolina", "ND": "North Dakota",
+    "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon",
+    "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+    "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah",
+    "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
+    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming",
+}
+
+
 def _ocd_jurisdiction(state: str) -> str:
-    """Convert a 2-letter state code to OpenStates' canonical OCD
-    jurisdiction ID. The /bills endpoint rejects bare state codes
-    with HTTP 400 — it requires the full ocd-jurisdiction URN."""
-    s = state.strip().lower()
-    # Already in OCD form; pass through.
-    if s.startswith("ocd-jurisdiction"):
+    """Translate a 2-letter state code into a value the OpenStates
+    /bills endpoint accepts.
+
+    The endpoint accepts either an `ocd-jurisdiction/...` URN or the
+    full state name. requests percent-encodes the URN's slashes so
+    OpenStates rejects it with HTTP 400. Returning the state name
+    sidesteps the encoding issue entirely.
+    """
+    s = (state or "").strip()
+    if s.lower().startswith("ocd-jurisdiction"):
         return state
-    return f"ocd-jurisdiction/country:us/state:{s[:2]}/government"
+    name = _STATE_NAMES.get(s.upper()[:2])
+    return name or s.lower()
 
 
 def fetch_state_bills(
