@@ -122,6 +122,20 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=1800,
         description="Senate roll-call votes from senate.gov XML",
     ),
+    JobDef(
+        # Was previously unscheduled — left the Actions table stuck at
+        # 2026-02-25 for ~9 weeks until the gap was caught in the May 2
+        # walkthrough audit. Wires the existing connector
+        # (`connectors.congress.ingest_member_legislation`) into a daily
+        # cron so each member's sponsored + cosponsored bills get
+        # refreshed and the "Last Active" badge / dashboard recent-
+        # activity feed reflect actual recent activity.
+        name="sync_member_actions",
+        script="jobs/sync_member_actions.py",
+        interval_hours=24,
+        timeout_sec=3600,
+        description="Sponsored + cosponsored bills per member (Congress.gov)",
+    ),
     # Quiver trade sync disabled - using House Clerk PDFs directly instead (more reliable, no API key needed)
     # JobDef(
     #     name="sync_congressional_trades",
