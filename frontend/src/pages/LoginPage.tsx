@@ -155,26 +155,18 @@ export default function LoginPage() {
             marginBottom: 20,
           }}
         >
-          <button
-            type="button"
-            onClick={() =>
-              alert(
-                'Password reset: email wethepeopleforus@gmail.com and we\u2019ll send you a reset link.',
-              )
-            }
+          <Link
+            to="/forgot-password"
             style={{
               fontFamily: "'Inter', sans-serif",
               fontSize: 12,
               fontWeight: 500,
               color: 'var(--color-accent-text)',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 0,
+              textDecoration: 'none',
             }}
           >
             Forgot password?
-          </button>
+          </Link>
         </div>
 
         <button
