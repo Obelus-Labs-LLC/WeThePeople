@@ -45,17 +45,22 @@ TIMEOUT = 30
 
 
 SECTOR_COMPANY_TABLES = {
-    # sector → (table name, slug column, name column, id column)
-    "finance": ("finance_institutions", "slug", "name", "id"),
-    "tech": ("tech_companies", "slug", "name", "id"),
-    "health": ("health_companies", "slug", "name", "id"),
-    "energy": ("energy_companies", "slug", "name", "id"),
-    "transportation": ("transportation_companies", "slug", "name", "id"),
-    "defense": ("defense_companies", "slug", "name", "id"),
-    "chemicals": ("chemical_companies", "slug", "name", "id"),
-    "agriculture": ("agriculture_companies", "slug", "name", "id"),
-    "education": ("education_companies", "slug", "name", "id"),
-    "telecom": ("telecom_companies", "slug", "name", "id"),
+    # sector → (table name, slug column). Names confirmed against the
+    # production schema; finance uses `tracked_institutions` with no
+    # sector prefix, while every other sector follows the
+    # `tracked_<sector>_companies` pattern. Health is intentionally
+    # missing — there is no tracked_health_companies table; health
+    # company profiles are sourced from the lobbying / contracts
+    # tables directly.
+    "finance":        ("tracked_institutions", "company_id"),
+    "tech":           ("tracked_tech_companies", "company_id"),
+    "energy":         ("tracked_energy_companies", "company_id"),
+    "transportation": ("tracked_transportation_companies", "company_id"),
+    "defense":        ("tracked_defense_companies", "company_id"),
+    "chemicals":      ("tracked_chemical_companies", "company_id"),
+    "agriculture":    ("tracked_agriculture_companies", "company_id"),
+    "education":      ("tracked_education_companies", "company_id"),
+    "telecom":        ("tracked_telecom_companies", "company_id"),
 }
 
 
@@ -161,7 +166,7 @@ def _list_companies(db, limit: int) -> list[tuple[str, str]]:
     hard-fail when a model module isn't loaded yet."""
     from sqlalchemy import text
     pairs: list[tuple[str, str]] = []
-    for sector, (tbl, slug_col, _, _) in SECTOR_COMPANY_TABLES.items():
+    for sector, (tbl, slug_col) in SECTOR_COMPANY_TABLES.items():
         try:
             stmt = text(f"SELECT {slug_col} FROM {tbl} WHERE {slug_col} IS NOT NULL AND {slug_col} != ''")
             for row in db.execute(stmt).fetchall():
