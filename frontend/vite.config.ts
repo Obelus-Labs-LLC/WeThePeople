@@ -11,21 +11,24 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [tailwindcss(), react()],
     resolve: {
-      alias: {
-        '@': path.resolve(__dirname, './src'),
+      alias: [
+        { find: '@', replacement: path.resolve(__dirname, './src') },
         // plotly.js (or one of its transitive deps) emits a side-effect
-        // `import "buffer/"` into the bundle. The browser has no
-        // resolver for that specifier and refuses the entire module
-        // graph with "Failed to resolve module specifier 'buffer/'.
-        // Relative references must start with either '/', './', or
-        // '../'." — black-screen. Shim it to an empty module so the
-        // import succeeds. We don't need a real Buffer at runtime; the
-        // code paths that would have used it aren't on the browser side.
-        // Both `buffer/` (with trailing slash) and `buffer` are aliased
-        // for safety against future esbuild output changes.
-        'buffer/': path.resolve(__dirname, './src/shims/empty-buffer.ts'),
-        'buffer': path.resolve(__dirname, './src/shims/empty-buffer.ts'),
-      },
+        // `import "buffer/"` (with trailing slash) into the bundle.
+        // The browser refuses the bare specifier and the React app
+        // never mounts.
+        //
+        // Use a regex alias so we ONLY intercept the bare `buffer/`
+        // specifier, NOT legitimate package imports of `buffer` (which
+        // recharts-internal helpers do use, and which need their real
+        // module — aliasing the no-slash form to an empty file
+        // produced "Cannot read properties of undefined (reading
+        // 'forwardRef')" because some recharts internal couldn't load).
+        //
+        // ^buffer/$ matches exactly the bare `buffer/` specifier, no
+        // more no less. Nothing else is intercepted.
+        { find: /^buffer\/$/, replacement: path.resolve(__dirname, './src/shims/empty-buffer.ts') },
+      ],
     },
     build: {
       minify: 'esbuild',
