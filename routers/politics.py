@@ -476,8 +476,22 @@ def match_claim_multi_category(
     category_results = {}
 
     for category, confidence in categories:
-        profile = get_profile(category)
-        stopwords = STOPWORDS_BASE.union(profile["stopwords_extra"])
+        profile = get_profile(category) or {}
+        # Defensive: the open-source `wtp_core` stub returns an empty
+        # profile dict for every category, so `profile["stopwords_extra"]`,
+        # `profile["gate_terms"]`, `profile["min_score"]` etc. all
+        # KeyError. When that happens there is no real matcher to run —
+        # surface that in the response and skip the heavy join instead
+        # of 500-ing.
+        if not profile:
+            category_results[category] = {
+                "confidence": confidence,
+                "matches": 0,
+                "note": "Matching profile not configured (wtp_core stub).",
+            }
+            continue
+
+        stopwords = STOPWORDS_BASE.union(profile.get("stopwords_extra") or set())
 
         claim_gate_terms = profile.get("claim_gate_terms")
         if claim_gate_terms is not None:
@@ -492,12 +506,13 @@ def match_claim_multi_category(
             latest = (enriched.get("latest_action") or {}) if isinstance(enriched.get("latest_action"), dict) else {}
             combined_text = f"{a.title or ''} {a.summary or ''} {enriched.get('title') or ''} {enriched.get('policy_area') or ''} {latest.get('text') or ''}"
 
-            if profile["gate_terms"] is not None:
-                if not contains_gate_signal(combined_text, profile["gate_terms"], stopwords):
+            gate_terms = profile.get("gate_terms")
+            if gate_terms is not None:
+                if not contains_gate_signal(combined_text, gate_terms, stopwords):
                     continue
 
             s = score_action_against_claim(claim.text, a.title, a.summary, meta, profile)
-            if s["score"] < profile["min_score"]:
+            if s["score"] < profile.get("min_score", 0.0):
                 continue
 
             match_data = {
