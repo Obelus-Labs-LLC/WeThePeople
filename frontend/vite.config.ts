@@ -50,36 +50,46 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id: string) {
             if (!id.includes('node_modules')) return undefined;
-            // plotly.js is the single biggest dep (~3-4 MB minified)
-            // and is only used on MoneyFlowPage. The page already
-            // dynamic-imports plotly, but the manualChunks rule was
-            // routing it back into vendor. Give it its own chunk so
-            // every page that doesn't use plotly stops paying for it.
+            // SPLIT POLICY (post-2026-05-02 black-screen incident):
+            //
+            // The previous, more aggressive split (recharts / d3 /
+            // framer-motion / @tanstack each in their own chunk)
+            // produced a circular ESM edge between vendor and
+            // charts: vendor.js imported symbols from charts.js
+            // while charts.js imported React from vendor.js. The
+            // module that initialised second saw the first's
+            // exports as `undefined`, surfacing as
+            //   "Cannot read properties of undefined (reading
+            //    'forwardRef')"
+            // when recharts evaluated `g.forwardRef` at top level
+            // before vendor had finished setting up React. That was
+            // the actual root cause of the black-screen outage —
+            // the bare `buffer/` specifier was the FIRST visible
+            // crash, but fixing it just unmasked the cycle.
+            //
+            // Rule: only split a chunk if it is (a) genuinely huge
+            // and (b) a leaf — nothing in vendor calls back into it.
+            // plotly, react-force-graph + three, and leaflet pass
+            // both. Recharts, d3, framer-motion, @tanstack all fail
+            // (b) and stay in vendor. The price is a fatter vendor
+            // chunk on first paint; the benefit is the site mounts.
             if (id.includes('plotly')) {
               return 'plotly';
             }
-            // Force-graph + d3-force: rendering on InfluenceNetworkPage
-            if (id.includes('react-force-graph') || id.includes('d3-force') ||
-                id.includes('three-')  /* three.js sometimes pulls in */) {
+            // Force-graph + three.js: dynamic-imported by InfluenceNetworkPage.
+            // d3-force is REMOVED from this rule — d3 modules are
+            // also pulled in by recharts (which now lives in vendor),
+            // so isolating any d3 module re-creates the cycle.
+            if (id.includes('react-force-graph') || id.includes('three-')) {
               return 'graph';
             }
-            // Leaflet + react-leaflet: ChoroplethMap on InfluenceMapPage
+            // Leaflet + react-leaflet: ChoroplethMap on InfluenceMapPage.
             if (id.includes('leaflet')) {
               return 'map';
             }
-            // Recharts + d3 internals: TrendChart and friends
-            if (id.includes('recharts') || /node_modules\/d3-/.test(id)) {
-              return 'charts';
-            }
-            if (id.includes('framer-motion')) {
-              return 'motion';
-            }
-            // @tanstack table+virtual are heavyish; bucket them so
-            // pages that don't render tables stay light.
-            if (id.includes('@tanstack')) {
-              return 'tanstack';
-            }
-            // Everything else stays in the default vendor chunk.
+            // Everything else (React, recharts, d3-*, framer-motion,
+            // @tanstack, and all transitive deps) stays in vendor so
+            // no cross-chunk cycles can form.
             return 'vendor';
           },
         },

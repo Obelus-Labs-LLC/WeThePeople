@@ -320,7 +320,20 @@ def create_claim(
         except ValueError:
             return {"error": "claim_date must be YYYY-MM-DD"}
 
-    suggestions = auto_classify_claim(text)
+    # Normalize `auto_classify_claim`'s shape. wtp_core currently returns a
+    # bare category string ("general"), but the legacy contract was
+    # [(category, confidence), ...]. Coerce both to the latter so the
+    # suggestions[0] / unpack below works either way.
+    raw_suggestions = auto_classify_claim(text)
+    if isinstance(raw_suggestions, str):
+        suggestions = [(raw_suggestions, 1.0)] if raw_suggestions else []
+    else:
+        suggestions = []
+        for item in raw_suggestions or []:
+            if isinstance(item, tuple) and len(item) == 2:
+                suggestions.append(item)
+            elif isinstance(item, str):
+                suggestions.append((item, 1.0))
     intent = detect_intent(text)
 
     final_category = category
@@ -428,8 +441,27 @@ def match_claim_multi_category(
     if not claim:
         return {"error": "Claim not found"}
 
+    # `auto_classify_claim` historically returned a list of (category,
+    # confidence) tuples; the current wtp_core (and the open-source stub)
+    # both return a bare category string, e.g. "general". The previous
+    # comprehension then iterated character-by-character and raised
+    # `ValueError: not enough values to unpack (expected 2, got 1)`,
+    # turning every /claims/{id}/matches_multi call into a 500.
     all_categories = auto_classify_claim(claim.text)
-    categories = [(cat, conf) for cat, conf in all_categories if conf >= min_confidence]
+    if isinstance(all_categories, str):
+        # Single category, full confidence.
+        categories = [(all_categories, 1.0)]
+    else:
+        # Defensive: support legacy [(cat, conf), ...] and also bare
+        # category lists like ["lobbying", "general"].
+        categories = []
+        for item in all_categories or []:
+            if isinstance(item, tuple) and len(item) == 2:
+                cat, conf = item
+                if conf >= min_confidence:
+                    categories.append((cat, conf))
+            elif isinstance(item, str):
+                categories.append((item, 1.0))
     if not categories:
         categories = [("general", 1.0)]
 
