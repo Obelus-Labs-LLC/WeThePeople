@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { apiFetch, isAuthenticated, loginRedirectUrl } from '../api/client';
+import { apiFetch, isAuthenticated, probeSession } from '../api/client';
 
 /**
  * "X of N today" tier-aware quota badge for the Veritas home page.
@@ -32,9 +32,23 @@ interface QuotaResponse {
 const FONT_MONO = "'JetBrains Mono', 'Fira Code', monospace";
 
 export default function QuotaBadge({ refreshKey = 0 }: QuotaBadgeProps) {
-  const authed = isAuthenticated();
+  // Combine local-token detection with cross-subdomain session probe so
+  // a user who logged in on the main site (cookie-only here) also gets
+  // their quota badge. null = probe in flight.
+  const [authed, setAuthed] = useState<boolean | null>(
+    isAuthenticated() ? true : null,
+  );
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
   const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (authed) return;
+    const controller = new AbortController();
+    probeSession(controller.signal).then((user) => {
+      if (!controller.signal.aborted) setAuthed(Boolean(user));
+    });
+    return () => controller.abort();
+  }, [authed]);
 
   useEffect(() => {
     if (!authed) return;
