@@ -659,7 +659,16 @@ def person_performance(person_id: str, top: int = Query(10, ge=1, le=50)):
                     "bill_number": act.bill_number,
                     "policy_area": act.policy_area,
                     "latest_action_text": act.latest_action_text,
-                    "latest_action_date": act.latest_action_date.isoformat() if act.latest_action_date else None,
+                    # `Action.latest_action_date` is a String column (already
+                    # ISO-formatted from the upstream metadata), so don't
+                    # call .isoformat() on it. Calling .isoformat() on a str
+                    # raises AttributeError and was killing every
+                    # /people/{id}/full call's `performance` sub-handler.
+                    "latest_action_date": (
+                        act.latest_action_date.isoformat()
+                        if hasattr(act.latest_action_date, "isoformat")
+                        else (act.latest_action_date or None)
+                    ),
                 },
             })
 
