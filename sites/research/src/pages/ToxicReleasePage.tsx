@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Search, Flame, Filter } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { ToolHeader } from '../components/ToolHeader';
@@ -52,9 +52,13 @@ function fmtLbs(n: number | null | undefined): string {
 // ── Page ──
 
 export default function ToxicReleasePage() {
+  // Pre-fill the most recent reporting year so the page loads with
+  // data on first paint (audit item #26 / #10). Empty default
+  // produced a blank empty-state until the user typed in filters.
+  const DEFAULT_YEAR = String(YEARS[0]);
   const [stateFilter, setStateFilter] = useState('');
   const [chemical, setChemical] = useState('');
-  const [year, setYear] = useState<string>('');
+  const [year, setYear] = useState<string>(DEFAULT_YEAR);
   const [facilityName, setFacilityName] = useState('');
   const [releases, setReleases] = useState<ToxicRelease[]>([]);
   const [total, setTotal] = useState(0);
@@ -88,6 +92,15 @@ export default function ToxicReleasePage() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSearch();
   };
+
+  // Auto-load with default filters on first mount so the user sees data
+  // immediately. Without this the tool was permanently empty until you
+  // touched a filter — and the audit flagged the empty state as a UX
+  // regression for journalist drop-ins.
+  useEffect(() => {
+    handleSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const hasFilters = stateFilter || chemical.trim() || year || facilityName.trim();
 
