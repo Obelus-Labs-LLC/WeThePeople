@@ -35,3 +35,31 @@ export function fmtMoney(n: number): string {
   if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
   return `$${n.toLocaleString()}`;
 }
+
+/**
+ * Some USAspending/FPDS rows arrive with the raw pipe/bang-delimited
+ * record dumped into `description` instead of a human title — e.g.
+ *   "200204!008532!1700!AF600 !NAVAL AIR SYSTEMS COMMAND !N0001902C3002 !A!N!…"
+ * Render that verbatim and you get an unreadable wall of !!!. This
+ * detector returns the fallback when the description looks like raw
+ * FPDS structure rather than prose.
+ *
+ * Heuristic: 8+ exclamation OR pipe separators in the first 300 chars
+ * AND the string is long enough to plausibly be a record dump. Errs on
+ * the side of false positives — if the title is bad we'd rather show
+ * "Contract Award" than the wall.
+ */
+export function sanitizeContractTitle(
+  raw: string | null | undefined,
+  fallback: string = 'Contract Award',
+): string {
+  if (!raw || typeof raw !== 'string') return fallback;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return fallback;
+  const head = trimmed.slice(0, 300);
+  const bangs = (head.match(/!/g) || []).length;
+  const pipes = (head.match(/\|/g) || []).length;
+  const separators = bangs + pipes;
+  if (separators >= 8 && trimmed.length >= 80) return fallback;
+  return trimmed;
+}
