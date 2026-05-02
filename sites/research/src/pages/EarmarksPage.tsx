@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Search, Landmark, DollarSign } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { ToolHeader } from '../components/ToolHeader';
@@ -68,6 +68,30 @@ export default function EarmarksPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+
+  // Audit item #26: load a default page of results so the tool isn't
+  // empty on first paint. Earmarks supports an empty-keyword fetch
+  // (returns the most recent awards), so we just kick off `apiFetch`
+  // directly on mount instead of going through handleSearch's
+  // "no filters → bail" guard.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setSearched(true);
+    apiFetch<{ total: number; awards: Earmark[] }>('/research/earmarks', { params: { limit: '50' } })
+      .then((data) => {
+        if (cancelled) return;
+        setResults(data.awards);
+        setTotal(data.total);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setResults([]);
+        setTotal(0);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSearch = useCallback(async () => {
     if (!keyword.trim() && !state && !member.trim()) return;
