@@ -380,10 +380,15 @@ JOB_REGISTRY: List[JobDef] = [
     JobDef(
         name="warm_politician_cache",
         script="jobs/warm_politician_cache.py",
-        args=["--limit", "100"],  # top 100 active members
-        interval_hours=1,         # scheduler interval; LRU TTL 60min
+        # No --limit: warm ALL active members (~537). The previous top-100
+        # cap left ~437 politicians cold-cache forever — first visitor on
+        # those pages paid the full composed-handler latency. With the
+        # parallel sub-handler fanout on /people/{id}/full and concurrency=4
+        # warmers, a full cycle takes 2-3 minutes.
+        args=["--concurrency", "4"],
+        interval_hours=0.5,       # every 30 min (LRU TTL is 60 min)
         timeout_sec=1800,         # 30 min budget for the warm cycle
-        description="Pre-warm /people/{id}/full LRU for top 100 politicians",
+        description="Pre-warm /people/{id}/full LRU for all active politicians",
     ),
 
     # ── Hourly search-index rebuild (Phase 3) ──────────────────────

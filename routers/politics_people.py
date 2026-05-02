@@ -1192,6 +1192,30 @@ def _full_cache_put(person_id: str, payload: dict) -> None:
             _FULL_CACHE.popitem(last=False)
 
 
+_FULL_HANDLER_POOL = None
+_FULL_HANDLER_POOL_LOCK = threading.Lock()
+
+
+def _get_full_handler_pool():
+    """Lazy-init thread pool for /people/{id}/full sub-handler fanout.
+
+    Sized at 12 workers (one per sub-handler) so a single composed call
+    runs every sub-handler in parallel without queueing. Module-level
+    so it's shared across requests; under concurrent load FastAPI's
+    own worker pool serializes requests anyway.
+    """
+    global _FULL_HANDLER_POOL
+    if _FULL_HANDLER_POOL is None:
+        with _FULL_HANDLER_POOL_LOCK:
+            if _FULL_HANDLER_POOL is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _FULL_HANDLER_POOL = ThreadPoolExecutor(
+                    max_workers=12,
+                    thread_name_prefix="people-full",
+                )
+    return _FULL_HANDLER_POOL
+
+
 @router.get("/people/{person_id}/full")
 def get_person_full(person_id: str, response: Response):
     """Combined endpoint: returns person, profile, stats, committees, activity,
@@ -1205,9 +1229,17 @@ def get_person_full(person_id: str, response: Response):
     no JSON round-trip — and share a single SQLAlchemy session per sub-call
     (each handler opens/closes its own session internally).
 
+    Sub-handlers run in PARALLEL on a 12-worker thread pool. Each is
+    I/O-bound (one or more DB queries), so the GIL releases during
+    SQLite reads and the calls effectively overlap. Cold cost drops
+    from ~8s (12 × ~700ms serial) to ~1-2s (max-of-12 parallel).
+
     Adds two-tier caching:
-      * 5-minute in-process LRU keyed on person_id. Cuts repeat-hit
-        cost from ~1s composed-handler latency to a dict lookup.
+      * 60-minute in-process LRU keyed on person_id. Cuts repeat-hit
+        cost from ~1s composed-handler latency to a dict lookup. The
+        background warmer (jobs/warm_politician_cache.py) refreshes
+        all active members every 30 min so the cache stays universally
+        warm rather than just the most-requested top 100.
       * HTTP Cache-Control: public, max-age=300. Browsers and CDNs
         will reuse a fresh response without revalidation.
     """
@@ -1223,51 +1255,76 @@ def get_person_full(person_id: str, response: Response):
     from routers.politics_trades import get_person_trades
 
     _log = logging.getLogger("politics_people.full")
-    results: Dict[str, Any] = {"person_id": person_id}
 
-    def _safe(key: str, thunk):
+    def _wrap(key: str, thunk):
+        """Run a sub-handler thunk and return (key, value-or-None).
+
+        Errors are swallowed and logged so one slow / broken sub-handler
+        can't poison the whole composed response. 404 from the directory
+        sub-handler still cascades — see the post-fanout check below.
+        """
         try:
-            results[key] = thunk()
+            return key, thunk()
         except HTTPException as exc:
             if exc.status_code == 404:
-                results[key] = None
-            else:
-                _log.warning("full/%s returned %d: %s", key, exc.status_code, exc.detail)
-                results[key] = None
+                return key, None
+            _log.warning("full/%s returned %d: %s", key, exc.status_code, exc.detail)
+            return key, None
         except Exception as exc:
             _log.warning("full/%s failed: %s", key, exc, exc_info=True)
-            results[key] = None
+            return key, None
 
-    # Every parameter with a fastapi.Query(...) default must be passed
-    # explicitly here — Query() defaults are only evaluated by FastAPI's
-    # dependency resolver during a real HTTP request. When we call these
-    # handlers directly the Query sentinel leaks into SQLAlchemy as a
-    # query parameter. Passing real values side-steps that entirely.
-    _safe("person",      lambda: get_person_directory_entry(person_id=person_id))
-    _safe("profile",     lambda: get_person_profile(person_id=person_id))
-    _safe("stats",       lambda: get_person_stats(person_id=person_id))
-    _safe("performance", lambda: person_performance(person_id=person_id, top=10))
-    _safe("committees",  lambda: get_person_committees(person_id=person_id))
-    _safe("activity",    lambda: get_person_activity(
-        person_id=person_id, role=None, congress=None, policy_area=None,
-        limit=50, offset=0,
-    ))
-    _safe("votes",       lambda: get_person_votes(
-        person_id=person_id, position=None, limit=50, offset=0,
-    ))
-    _safe("finance",     lambda: get_person_finance(person_id=person_id))
-    _safe("trends",      lambda: get_person_trends(person_id=person_id))
-    _safe("donors",      lambda: get_person_industry_donors(
-        person_id=person_id, limit=100, offset=0,
-    ))
-    _safe("trades",      lambda: get_person_trades(
-        person_id=person_id, limit=50, offset=0, transaction_type=None,
-    ))
-    _safe("graph",       lambda: get_person_graph(person_id=person_id, limit=20))
+    # Sub-handler thunks. Every parameter with a fastapi.Query(...) default
+    # must be passed explicitly — Query() defaults are only evaluated by
+    # FastAPI's dependency resolver during a real HTTP request. When we
+    # call these handlers directly the Query sentinel leaks into SQLAlchemy
+    # as a query parameter. Passing real values side-steps that entirely.
+    thunks = [
+        ("person",      lambda: get_person_directory_entry(person_id=person_id)),
+        ("profile",     lambda: get_person_profile(person_id=person_id)),
+        ("stats",       lambda: get_person_stats(person_id=person_id)),
+        ("performance", lambda: person_performance(person_id=person_id, top=10)),
+        ("committees",  lambda: get_person_committees(person_id=person_id)),
+        ("activity",    lambda: get_person_activity(
+            person_id=person_id, role=None, congress=None, policy_area=None,
+            limit=50, offset=0,
+        )),
+        ("votes",       lambda: get_person_votes(
+            person_id=person_id, position=None, limit=50, offset=0,
+        )),
+        ("finance",     lambda: get_person_finance(person_id=person_id)),
+        ("trends",      lambda: get_person_trends(person_id=person_id)),
+        ("donors",      lambda: get_person_industry_donors(
+            person_id=person_id, limit=100, offset=0,
+        )),
+        ("trades",      lambda: get_person_trades(
+            person_id=person_id, limit=50, offset=0, transaction_type=None,
+        )),
+        ("graph",       lambda: get_person_graph(person_id=person_id, limit=20)),
+    ]
 
-    # Cache the composed response for 5 minutes. Cold caller pays the
-    # one-time composition cost; everyone else inside that window
-    # reads from memory.
+    pool = _get_full_handler_pool()
+    futures = [pool.submit(_wrap, key, thunk) for key, thunk in thunks]
+    results: Dict[str, Any] = {"person_id": person_id}
+    # Wait on all futures (they all start immediately on submit). We
+    # iterate `futures` rather than `as_completed` to preserve a
+    # deterministic key order in the output, which is friendlier to
+    # tests and HTTP cache fingerprinting.
+    for f in futures:
+        key, value = f.result()
+        results[key] = value
+
+    # If the directory entry came back None, the politician doesn't
+    # exist. Return 404 like the underlying /people/{id} would.
+    if results.get("person") is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "person not found", "person_id": person_id},
+        )
+
+    # Cache the composed response for the LRU TTL. Cold caller pays the
+    # one-time composition cost; everyone else inside that window reads
+    # from memory.
     _full_cache_put(person_id, results)
     response.headers["Cache-Control"] = "public, max-age=300"
     response.headers["X-WTP-Cache"] = "MISS"
