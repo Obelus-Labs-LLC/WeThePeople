@@ -14,7 +14,7 @@ import {
 } from '../components/sector/SectorProfileLayout';
 import { SECTOR_MAP } from '../components/sector/sectorConfig';
 import { getApiBaseUrl } from '../api/client';
-import { fmtDollar, fmtNum, fmtDate } from '../utils/format';
+import { fmtDollar, fmtNum, fmtDate , sanitizeContractTitle } from '../utils/format';
 import {
   getTransportationCompanyDetail,
   getTransportationCompanyContracts,
@@ -216,7 +216,7 @@ export default function TransportationCompanyProfilePage() {
               <ProfileRecordCard
                 key={c.id}
                 accent={accent}
-                title={c.description || 'Government Contract'}
+                title={sanitizeContractTitle(c.description, 'Government Contract')}
                 amount={c.award_amount != null ? fmtDollar(c.award_amount) : undefined}
                 amountAccent="var(--color-green)"
                 url={c.award_id ? `https://www.usaspending.gov/award/${c.award_id}` : null}
