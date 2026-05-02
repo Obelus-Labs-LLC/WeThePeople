@@ -116,6 +116,8 @@ const CivicStatePage = React.lazy(() => import("./pages/CivicStatePage"));
 const DigestSignupPage = React.lazy(() => import("./pages/DigestSignupPage"));
 const LoginPage = React.lazy(() => import("./pages/LoginPage"));
 const SignupPage = React.lazy(() => import("./pages/SignupPage"));
+const ForgotPasswordPage = React.lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = React.lazy(() => import("./pages/ResetPasswordPage"));
 const AccountPage = React.lazy(() => import("./pages/AccountPage"));
 const ZipLookupPage = React.lazy(() => import("./pages/ZipLookupPage"));
 // Stories moved to the Journal site — routes redirect via MovedToJournalPage
@@ -326,6 +328,8 @@ const App: React.FC = () => (
           <Route path="/digest" element={<DigestSignupPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/account" element={<AccountPage />} />
 
           {/* Legal / Info pages */}
