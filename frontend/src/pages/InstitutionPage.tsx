@@ -436,7 +436,12 @@ export default function InstitutionPage() {
               </span>
             </div>
             <div className="space-y-2 text-sm" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              <div className="flex justify-between"><span className="text-white/50">SEC Filings</span><span className="text-white font-bold">{filings.length}</span></div>
+              {/* Sidebar count uses the server-side total (`filing_count`)
+                  so the directory card and the profile show the same number.
+                  Previously this rendered `filings.length`, which was capped
+                  by the page-load limit of 50 — Affirm's 515-filing
+                  directory card mismatched the sidebar's "50". */}
+              <div className="flex justify-between"><span className="text-white/50">SEC Filings</span><span className="text-white font-bold">{(detail.filing_count ?? filings.length).toLocaleString()}</span></div>
               {detail.complaint_count > 0 && (
                 <div className="flex justify-between"><span className="text-white/50">CFPB Complaints</span><span className="text-white font-bold">{detail.complaint_count.toLocaleString()}</span></div>
               )}
