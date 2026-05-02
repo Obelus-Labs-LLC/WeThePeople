@@ -136,19 +136,13 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=3600,
         description="Sponsored + cosponsored bills per member (Congress.gov)",
     ),
-    JobDef(
-        # Same pattern as sync_member_actions: connector existed
-        # (`jobs/sync_emissions.py` → EPA GHGRP API) but no scheduler
-        # entry. The energy_emissions table was empty for all 89
-        # tracked energy companies; the Energy dashboard's "Emissions
-        # records: 0" tile was accurate but useless. Weekly cadence
-        # because EPA filings are annual.
-        name="sync_emissions",
-        script="jobs/sync_emissions.py",
-        interval_hours=168,  # weekly
-        timeout_sec=1800,
-        description="EPA GHGRP facility-level emissions for tracked energy companies",
-    ),
+    # sync_emissions intentionally NOT scheduled (2026-05-02 audit):
+    # EPA Envirofacts removed the `parent_co` column from
+    # PUB_DIM_FACILITY, so the existing connector returns empty
+    # results for every tracked company and would just hammer the
+    # API without producing data. The connector needs to be
+    # rewritten against the current EPA schema before re-enabling
+    # this — tracked in the May 2 fix-batch summary.
     # Quiver trade sync disabled - using House Clerk PDFs directly instead (more reliable, no API key needed)
     # JobDef(
     #     name="sync_congressional_trades",
