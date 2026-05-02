@@ -106,27 +106,96 @@ def _ensure_sdn_csv(refresh: bool) -> bytes:
     return r.content
 
 
+# OFAC programs targeting specific foreign jurisdictions. A US-listed
+# tracked company hitting one of these is almost certainly a false
+# positive — the SDN row is the foreign target, not our entity.
+# Programs intentionally NOT in this set: SDGT, SDNT, SDNTK, IFCA,
+# CYBER2, MAGNIT (Global Magnitsky), CAATSA — those can legitimately
+# target US persons/entities.
+_FOREIGN_TARGETED_PROGRAMS = {
+    "RUSSIA-EO14024",
+    "UKRAINE-EO13660",
+    "UKRAINE-EO13661",
+    "UKRAINE-EO13662",
+    "UKRAINE-EO13685",
+    "BELARUS-EO14038",
+    "BELARUS",
+    "IRAN",
+    "IRAN-EO13871",
+    "IFSR",
+    "SYRIA",
+    "CUBA",
+    "DPRK",
+    "DPRK2",
+    "DPRK3",
+    "NORTH KOREA",
+    "VENEZUELA",
+    "VENEZUELA-EO13692",
+    "BURMA",
+    "MYANMAR",
+    "ZIMBABWE",
+    "LIBYA",
+    "LIBYA2",
+    "SUDAN",
+    "SOUTH SUDAN",
+    "SOMALIA",
+    "YEMEN",
+    "LEBANON",
+    "CENTRAL AFRICAN REPUBLIC",
+    "CAR",
+    "DRCONGO",
+    "BALKANS",
+    "BALKANS-EO14033",
+    "ETHIOPIA-EO14046",
+    "HONG KONG-EO13936",
+    "NICARAGUA",
+    "NICARAGUA-EO13851",
+    "MALI",
+    "PEESA",
+    "CHINA-EO13959",
+}
+
+
+def _is_foreign_targeted(program: str) -> bool:
+    """A program string from the SDN CSV may be `]`-separated when an
+    entity falls under multiple regimes. We split and check whether
+    the entity is targeted EXCLUSIVELY by foreign-jurisdiction
+    programs — if so, a name match against a US-incorporated tracked
+    company is overwhelmingly a name-collision false positive."""
+    if not program:
+        return False
+    # OFAC packs multiple programs as "PROG1] [PROG2] [PROG3"
+    parts = [p.strip("[] ").upper() for p in program.split("]") if p.strip("[] ")]
+    if not parts:
+        return False
+    return all(p in _FOREIGN_TARGETED_PROGRAMS for p in parts)
+
+
 def _parse_sdn_index(csv_bytes: bytes) -> dict[str, dict]:
     """Return {normalized_name: row_dict, …}. The OFAC CSV doesn't
     carry a header line — columns are positional:
       0=ent_num, 1=SDN_Name, 2=SDN_Type, 3=Program, 4=Title,
       5=Call_Sign, 6=Vess_type, 7=Tonnage, 8=GRT, 9=Vess_flag,
       10=Vess_owner, 11=Remarks
-    Each row is one entity (or aka). We index by SDN_Name and
-    by Title (often holds aliases for legal entities)."""
+    Each row is one entity (or aka). We index by SDN_Name.
+
+    We DROP rows whose program list is exclusively foreign-jurisdiction
+    targeting (Russia/Iran/Cuba/etc.). Our tracked companies are
+    all US-incorporated — a name collision against a Russian SDN target
+    is a false positive (caught: "Triumph Group Inc." vs Russian
+    aerospace shell on UKRAINE-EO13662]RUSSIA-EO14024)."""
     index: dict[str, dict] = {}
     text = csv_bytes.decode("latin-1", errors="replace")
     reader = csv.reader(io.StringIO(text))
+    skipped_foreign = 0
     for row in reader:
         if not row or len(row) < 3:
             continue
         ent_num, sdn_name, sdn_type = row[0], row[1], row[2]
         program = row[3] if len(row) > 3 else ""
-        # Filter to legal entities (companies / vessels) — skip
-        # individuals to keep the index focused on company matches.
-        if (sdn_type or "").strip().lower() not in {"-0-", "individual", ""}:
-            # SDN_Type values: 'individual', 'entity', 'aircraft', 'vessel'
-            pass
+        if _is_foreign_targeted(program):
+            skipped_foreign += 1
+            continue
         norm = _normalize(sdn_name)
         if not norm:
             continue
@@ -136,6 +205,7 @@ def _parse_sdn_index(csv_bytes: bytes) -> dict[str, dict]:
             "sdn_type": sdn_type.strip(),
             "program": program.strip(),
         }
+    log.info("filtered %d foreign-targeted SDN rows from index", skipped_foreign)
     return index
 
 
