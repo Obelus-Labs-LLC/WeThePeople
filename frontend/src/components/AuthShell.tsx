@@ -121,6 +121,12 @@ export function AuthField({
   maxLength,
 }: AuthFieldProps) {
   const [focus, setFocus] = React.useState(false);
+  // Show-password toggle for password fields. Switches the input
+  // type between "password" and "text" without rerendering — keeps
+  // browser autofill and password managers happy.
+  const isPasswordField = type === 'password';
+  const [revealed, setRevealed] = React.useState(false);
+  const effectiveType = isPasswordField && revealed ? 'text' : type;
   const borderColor = error
     ? 'var(--color-red)'
     : focus
@@ -142,30 +148,61 @@ export function AuthField({
       >
         {label}
       </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange?.(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        autoComplete={autoComplete}
-        minLength={minLength}
-        maxLength={maxLength}
-        onFocus={() => setFocus(true)}
-        onBlur={() => setFocus(false)}
-        style={{
-          width: '100%',
-          padding: '11px 14px',
-          borderRadius: 8,
-          background: 'var(--color-surface)',
-          color: 'var(--color-text-1)',
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 14,
-          border: `1.5px solid ${borderColor}`,
-          outline: 'none',
-          transition: 'border-color 0.15s',
-        }}
-      />
+      <div style={{ position: 'relative' }}>
+        <input
+          type={effectiveType}
+          value={value}
+          onChange={(e) => onChange?.(e.target.value)}
+          placeholder={placeholder}
+          required={required}
+          autoComplete={autoComplete}
+          minLength={minLength}
+          maxLength={maxLength}
+          onFocus={() => setFocus(true)}
+          onBlur={() => setFocus(false)}
+          style={{
+            width: '100%',
+            padding: '11px 14px',
+            paddingRight: isPasswordField ? 56 : 14,
+            borderRadius: 8,
+            background: 'var(--color-surface)',
+            color: 'var(--color-text-1)',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            border: `1.5px solid ${borderColor}`,
+            outline: 'none',
+            transition: 'border-color 0.15s',
+          }}
+        />
+        {isPasswordField && (
+          <button
+            type="button"
+            onClick={() => setRevealed((r) => !r)}
+            aria-label={revealed ? 'Hide password' : 'Show password'}
+            aria-pressed={revealed}
+            tabIndex={-1}
+            style={{
+              position: 'absolute',
+              right: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              padding: '4px 8px',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-2)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              cursor: 'pointer',
+            }}
+          >
+            {revealed ? 'Hide' : 'Show'}
+          </button>
+        )}
+      </div>
       {helper && !error && (
         <div
           style={{

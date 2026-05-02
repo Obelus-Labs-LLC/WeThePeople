@@ -206,6 +206,11 @@ const App: React.FC = () => (
           <Route path="/finance/news" element={<MovedToResearchPage />} />
           <Route path="/finance/insider-trades" element={<MovedToResearchPage />} />
           <Route path="/finance/institutions" element={<FinanceLayout><InstitutionDirectoryPage /></FinanceLayout>} />
+          {/* Path alias — /finance/companies is what visitors guess from
+              the rest of the platform (defense/companies, health/companies
+              etc.). Without this it falls into the /:institution_id
+              wildcard below and renders "Institution not found." */}
+          <Route path="/finance/companies" element={<FinanceLayout><InstitutionDirectoryPage /></FinanceLayout>} />
           <Route path="/finance/compare" element={<FinanceLayout><FinanceComparePage /></FinanceLayout>} />
           <Route path="/finance/market-movers" element={<MovedToResearchPage />} />
           <Route path="/finance/lobbying" element={<FinanceLayout><SectorLobbyingPage /></FinanceLayout>} />

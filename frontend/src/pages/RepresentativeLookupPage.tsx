@@ -91,8 +91,14 @@ export default function RepresentativeLookupPage() {
     setSubmittedZip(cleaned);
 
     try {
+      // GET /lookup/{zip} returns the district-specific House rep + the
+      // two senators for that ZIP (3 reps total). The previous
+      // implementation called /representatives?zip= which falls back to
+      // *all* members of the state when district resolution isn't done
+      // — that produced the "15 reps for MI-2" bug. Now we hit the
+      // district-aware endpoint and adapt the shape.
       const res = await fetch(
-        `${getApiBaseUrl()}/representatives?zip=${encodeURIComponent(cleaned)}`,
+        `${getApiBaseUrl()}/lookup/${encodeURIComponent(cleaned)}`,
       );
       if (res.status === 404) {
         setDataUnavailable(true);
@@ -100,8 +106,20 @@ export default function RepresentativeLookupPage() {
         return;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: RepLookupResponse = await res.json();
-      setReps(data.representatives || []);
+      const data = await res.json();
+      const rawReps: any[] = Array.isArray(data?.representatives) ? data.representatives : [];
+      const adapted: Representative[] = rawReps.map((r) => ({
+        person_id: String(r.person_id || ''),
+        // /lookup returns `name`; the rest of the page expects `display_name`
+        display_name: String(r.display_name || r.name || ''),
+        party: String(r.party || ''),
+        chamber: String(r.chamber || ''),
+        state: String(r.state || data?.state || ''),
+        district: r.district ?? null,
+        photo_url: r.photo_url ?? null,
+        is_active: r.is_active !== false,
+      }));
+      setReps(adapted);
     } catch (err) {
       console.warn('[RepresentativeLookupPage] zip lookup failed:', err);
       const detail = err instanceof Error ? err.message : '';
@@ -454,30 +472,37 @@ export default function RepresentativeLookupPage() {
               {reps.length} representative{reps.length !== 1 ? 's' : ''} for {submittedZip}
             </p>
 
-            <div
-              style={{
-                marginBottom: 16,
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 10,
-                borderRadius: 10,
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-accent-dim)',
-                padding: '12px 16px',
-              }}
-            >
-              <AlertCircle size={15} style={{ marginTop: 2, color: 'var(--color-accent-text)', flexShrink: 0 }} />
-              <p
+            {/* State-level fallback banner — only render when the
+                /lookup/{zip} endpoint couldn't resolve to a single
+                House district and instead returned the full state
+                delegation. The district-aware path returns 3 reps
+                (1 House + 2 senators); anything more is a fallback. */}
+            {reps.length > 3 && (
+              <div
                 style={{
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 12,
-                  color: 'var(--color-text-2)',
-                  lineHeight: 1.55,
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  borderRadius: 10,
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-accent-dim)',
+                  padding: '12px 16px',
                 }}
               >
-                <span style={{ fontWeight: 600, color: 'var(--color-text-1)' }}>State-level lookup</span> — Showing all senators and House members for your state. District-level matching is not yet available, so some House members shown may not represent your specific congressional district.
-              </p>
-            </div>
+                <AlertCircle size={15} style={{ marginTop: 2, color: 'var(--color-accent-text)', flexShrink: 0 }} />
+                <p
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    color: 'var(--color-text-2)',
+                    lineHeight: 1.55,
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: 'var(--color-text-1)' }}>State-level lookup</span> — We couldn't resolve this ZIP to a single House district, so we're showing every member of the state delegation. Your specific House rep may not be in this list.
+                </p>
+              </div>
+            )}
 
             {/* State legislature link */}
             {reps.length > 0 && reps[0].state && (
