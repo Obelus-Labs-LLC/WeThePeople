@@ -51,16 +51,21 @@ log = logging.getLogger("backfill_company_logos")
 # 2026-05-02 — finance uses `tracked_institutions` (no website column),
 # every other sector uses `tracked_<sector>_companies` (each has a
 # website column).
+# Audited 2026-05-02: only `tracked_defense_companies` and
+# `tracked_transportation_companies` actually have a `website` column.
+# Every other sector lacks one. Setting has_website=True on a table
+# that doesn't carry the column produces
+# `sqlite3.OperationalError: no such column: website` mid-backfill.
 TARGET_TABLES = [
     ("tracked_institutions",                "institution_id", False),
-    ("tracked_tech_companies",              "company_id",     True),
+    ("tracked_tech_companies",              "company_id",     False),
     ("tracked_defense_companies",           "company_id",     True),
-    ("tracked_energy_companies",            "company_id",     True),
+    ("tracked_energy_companies",            "company_id",     False),
     ("tracked_transportation_companies",    "company_id",     True),
-    ("tracked_chemical_companies",          "company_id",     True),
-    ("tracked_agriculture_companies",       "company_id",     True),
-    ("tracked_education_companies",         "company_id",     True),
-    ("tracked_telecom_companies",           "company_id",     True),
+    ("tracked_chemical_companies",          "company_id",     False),
+    ("tracked_agriculture_companies",       "company_id",     False),
+    ("tracked_education_companies",         "company_id",     False),
+    ("tracked_telecom_companies",           "company_id",     False),
 ]
 
 
