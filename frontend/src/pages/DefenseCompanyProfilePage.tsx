@@ -13,7 +13,7 @@ import {
 } from '../components/sector/SectorProfileLayout';
 import { SECTOR_MAP } from '../components/sector/sectorConfig';
 import { getApiBaseUrl } from '../api/client';
-import { fmtDollar, fmtNum } from '../utils/format';
+import { fmtDollar, fmtNum , sanitizeContractTitle } from '../utils/format';
 import {
   getDefenseCompanyDetail,
   getDefenseCompanyContracts,
@@ -174,7 +174,7 @@ export default function DefenseCompanyProfilePage() {
               <ProfileRecordCard
                 key={ct.id}
                 accent={accent}
-                title={ct.description || 'Contract Award'}
+                title={sanitizeContractTitle(ct.description, 'Contract Award')}
                 amount={ct.award_amount != null ? fmtDollar(ct.award_amount) : undefined}
                 amountAccent="var(--color-green)"
                 meta={<ProfileRecordMeta items={[
