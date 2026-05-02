@@ -103,6 +103,11 @@ export function hasPressApiKey(): boolean {
  * server-provided detail string (FastAPI's `{detail: "..."}` shape)
  * before falling back to status text, so callers can render an
  * actionable message instead of "HTTP 500".
+ *
+ * Status-aware messages: 429 (rate limited) and 503 (upstream unavailable)
+ * get human-actionable text instead of raw HTTP framing. Rate-limit
+ * headers (RateLimit-Reset, Retry-After) are surfaced via err.retryAfter
+ * so callers can render a "try again in N seconds" affordance.
  */
 async function buildApiError(response: Response): Promise<Error> {
   let detail = '';
@@ -122,9 +127,42 @@ async function buildApiError(response: Response): Promise<Error> {
   } catch {
     // ignore body parse errors — fall through to status-only message
   }
-  const base = `HTTP ${response.status}${response.statusText ? ': ' + response.statusText : ''}`;
-  const err = new Error(detail ? `${base} — ${detail}` : base);
-  (err as Error & { status?: number }).status = response.status;
+
+  // Pull rate-limit metadata from response headers. The backend emits
+  // both standard (Retry-After, RateLimit-*) and non-standard variants;
+  // try the canonical names first.
+  let retryAfter: number | undefined;
+  const retryHdr =
+    response.headers.get('retry-after') ||
+    response.headers.get('ratelimit-reset') ||
+    response.headers.get('x-ratelimit-reset');
+  if (retryHdr) {
+    const n = parseInt(retryHdr, 10);
+    if (!Number.isNaN(n) && n > 0) retryAfter = n;
+  }
+
+  let message: string;
+  if (response.status === 429) {
+    message = retryAfter
+      ? `Too many requests. Try again in ${retryAfter}s.`
+      : "Too many requests. Wait a minute and try again.";
+  } else if (response.status === 503) {
+    message =
+      detail ||
+      "An upstream data source is temporarily unavailable. The page has cached results when possible; please retry in a moment for fresh data.";
+  } else if (response.status === 502) {
+    message =
+      detail ||
+      "Bad gateway — the request reached the API but an upstream service is failing. Try again in a moment.";
+  } else if (response.status === 504) {
+    message = "Request timed out at the gateway. Try again in a moment.";
+  } else {
+    const base = `HTTP ${response.status}${response.statusText ? ': ' + response.statusText : ''}`;
+    message = detail ? `${base} — ${detail}` : base;
+  }
+  const err = new Error(message);
+  (err as Error & { status?: number; retryAfter?: number }).status = response.status;
+  if (retryAfter) (err as Error & { retryAfter?: number }).retryAfter = retryAfter;
   return err;
 }
 

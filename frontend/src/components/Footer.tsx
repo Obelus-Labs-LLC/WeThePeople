@@ -157,6 +157,29 @@ export default function Footer() {
           </span>
           <div className="flex items-center gap-4">
             <a
+              href="/cite"
+              className="no-underline transition-colors text-[var(--color-text-3)] hover:text-[var(--color-text-2)]"
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 11,
+              }}
+            >
+              How to cite
+            </a>
+            <a
+              href="https://github.com/Obelus-Labs-LLC/WeThePeople/blob/main/LICENSE"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="no-underline transition-colors text-[var(--color-text-3)] hover:text-[var(--color-text-2)]"
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 11,
+              }}
+              title="Code licensed under GNU AGPL-3.0"
+            >
+              AGPL-3.0
+            </a>
+            <a
               href="https://github.com/Obelus-Labs-LLC/WeThePeople"
               target="_blank"
               rel="noopener noreferrer"
@@ -166,7 +189,7 @@ export default function Footer() {
                 fontSize: 11,
               }}
             >
-              Open Source on GitHub
+              Source on GitHub
             </a>
             <a
               href="https://x.com/WTPForUs"

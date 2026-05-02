@@ -125,6 +125,7 @@ const PrivacyPolicyPage = React.lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfUsePage = React.lazy(() => import("./pages/TermsOfUsePage"));
 const DisclaimerPage = React.lazy(() => import("./pages/DisclaimerPage"));
 const AboutPage = React.lazy(() => import("./pages/AboutPage"));
+const CitePage = React.lazy(() => import("./pages/CitePage"));
 const ApiAccessPage = React.lazy(() => import("./pages/ApiAccessPage"));
 const ApiDocsPage = React.lazy(() => import("./pages/ApiDocsPage"));
 const PricingPage = React.lazy(() => import("./pages/PricingPage"));
@@ -326,6 +327,9 @@ const App: React.FC = () => (
           <Route path="/terms" element={<TermsOfUsePage />} />
           <Route path="/disclaimer" element={<DisclaimerPage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/cite" element={<CitePage />} />
+          <Route path="/citation" element={<CitePage />} />
+          <Route path="/how-to-cite" element={<CitePage />} />
           <Route path="/api" element={<ApiAccessPage />} />
           <Route path="/api/docs" element={<ApiDocsPage />} />
           <Route path="/docs" element={<ApiDocsPage />} />

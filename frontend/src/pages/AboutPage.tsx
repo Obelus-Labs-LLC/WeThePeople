@@ -41,10 +41,34 @@ const SECTIONS: LongformSection[] = [
   },
   {
     num: 4,
+    id: 'what-this-is-not',
+    title: 'What WeThePeople is not',
+    body: [
+      "WeThePeople is a data platform. It is not a news outlet, not a political organization, and not making editorial claims about the entities it tracks. The numbers, dates, and source links are derived from primary government filings; the framing of any pattern as newsworthy or concerning is the reader's call, not ours.",
+      'When the platform does publish written analysis (under The Influence Journal subdomain), every story is built from the same primary sources, follows a public editorial standard, and carries an explicit verification label. The journal is currently in editorial review.',
+    ],
+  },
+  {
+    num: 5,
+    id: 'open-source',
+    title: 'Open source and data licensing',
+    body: [
+      'The WeThePeople codebase is published under the GNU AGPL-3.0 license. The license, the source repository, and a hash-stamped data manifest are public so anyone can inspect or reproduce the platform.',
+      "Aggregated data on the site is derived from public government records and is offered under each source's original license. We do not relicense or claim ownership over the underlying data.",
+    ],
+    callout: {
+      label: 'Code',
+      text: 'AGPL-3.0 · github.com/Obelus-Labs-LLC/WeThePeople',
+    },
+  },
+  {
+    num: 6,
     id: 'contact',
     title: 'Get in touch',
     body: [
-      'Contact: wethepeopleforus@gmail.com — security disclosures, press inquiries, data corrections, and general questions.',
+      'Press inquiries: press@wethepeopleforus.com (replies within 1 business day; faster if your deadline is tight).',
+      'Data corrections, security disclosures, and general questions: wethepeopleforus@gmail.com.',
+      'How to cite: see the citation guide at /cite for the recommended format and per-dataset attribution lines.',
     ],
   },
 ];
