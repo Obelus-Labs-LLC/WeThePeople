@@ -136,13 +136,28 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=3600,
         description="Sponsored + cosponsored bills per member (Congress.gov)",
     ),
-    # sync_emissions intentionally NOT scheduled (2026-05-02 audit):
-    # EPA Envirofacts removed the `parent_co` column from
-    # PUB_DIM_FACILITY, so the existing connector returns empty
-    # results for every tracked company and would just hammer the
-    # API without producing data. The connector needs to be
-    # rewritten against the current EPA schema before re-enabling
-    # this — tracked in the May 2 fix-batch summary.
+    JobDef(
+        # Re-enabled 2026-05-02 (afternoon) after `connectors/epa_ghgrp.py`
+        # was rewritten against EPA's new Envirofacts schema (parent_company
+        # column, /rows/0:N/JSON URL pattern, lowercase field names).
+        # Verified live: ExxonMobil → 3 facilities → Lisburne 2023 = 712,809
+        # tonnes CO2e. Weekly because EPA filings are annual.
+        name="sync_emissions",
+        script="jobs/sync_emissions.py",
+        interval_hours=168,  # weekly
+        timeout_sec=1800,
+        description="EPA GHGRP facility-level emissions for tracked energy companies",
+    ),
+    JobDef(
+        # OFAC SDN list updates several times a week; daily check is cheap
+        # (single ~5MB CSV download, in-memory match against ~1k tracked
+        # entities). Idempotent — no-ops once everything has been scored.
+        name="backfill_sanctions_status",
+        script="jobs/backfill_sanctions_status.py",
+        interval_hours=24,
+        timeout_sec=600,
+        description="OFAC SDN sanctions check for tracked politicians + companies",
+    ),
     # Quiver trade sync disabled - using House Clerk PDFs directly instead (more reliable, no API key needed)
     # JobDef(
     #     name="sync_congressional_trades",
