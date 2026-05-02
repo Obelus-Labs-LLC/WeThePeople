@@ -218,6 +218,51 @@ def _resolve_new_system_user(api_key: str, db: Session) -> Optional[dict]:
     return None
 
 
+def _auth_result_for_user(user, db: Session) -> dict:
+    """Translate a verified User row into the auth-dict shape the
+    `/claims/verify` endpoint expects, applying the role's daily quota
+    and consuming one slot from the rate-limit store.
+
+    Raises HTTPException(429) when the user is over their daily cap.
+
+    Extracted from the inline JWT branch so the new session-cookie
+    branch (added 2026-05-02) can reuse the same quota logic without
+    duplication."""
+    from services.rbac import get_daily_limit
+    limit = get_daily_limit(user.role)
+    tier = user.role if user.role != "admin" else "enterprise"
+    if limit == 0:
+        return {
+            "tier": tier, "rate_limited": False,
+            "daily_limit": 0, "remaining_today": -1,
+            "reset_seconds": 0, "user_id": user.id,
+        }
+    key_for_limit = f"user:{user.id}"
+    allowed, remaining, reset_time = check_rate_limit(
+        ip=key_for_limit,
+        endpoint="claims",
+        max_requests=limit,
+        window_seconds=_CLAIMS_WINDOW,
+        db=db,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limited",
+                "message": f"You've used today's {limit} {tier} verifications. Upgrade or wait for reset.",
+                "tier": tier,
+                "daily_limit": limit,
+                "reset_seconds": reset_time,
+            },
+        )
+    return {
+        "tier": tier, "rate_limited": True,
+        "daily_limit": limit, "remaining_today": remaining,
+        "reset_seconds": reset_time, "user_id": user.id,
+    }
+
+
 def require_enterprise_or_rate_limit(
     request: Request,
     x_wtp_api_key: str = Header(default=""),
@@ -230,6 +275,9 @@ def require_enterprise_or_rate_limit(
     As of the 2026-04-27 tier rollout, anonymous use is no longer
     permitted. Users must either:
       • Be authenticated via JWT bearer token (web/mobile session), OR
+      • Be authenticated via the cross-subdomain `wtp_session` cookie
+        (added 2026-05-02 — fixes "sign in to verify" wall on apex
+        users whose verify-subdomain localStorage is empty), OR
       • Send a valid X-WTP-API-KEY header (CI / scripts / partners)
 
     Checks in order:
@@ -237,6 +285,7 @@ def require_enterprise_or_rate_limit(
       2. New per-user API key system (role-based limits)
       3. Legacy WTP_PRESS_API_KEY (treated as pro tier)
       4. JWT bearer token from a logged-in session
+      5. wtp_session cookie (cross-subdomain), same JWT decode path
 
     If none of those identify the caller, raises 401 with a structured
     detail object the frontend can use to render the signup CTA.
@@ -317,45 +366,38 @@ def require_enterprise_or_rate_limit(
             user_id = int(payload.get("sub")) if payload.get("sub") else None
             user = db.query(User).filter(User.id == user_id, User.is_active == 1).first() if user_id else None
             if user:
-                from services.rbac import get_daily_limit
-                limit = get_daily_limit(user.role)
-                tier = user.role if user.role != "admin" else "enterprise"
-                if limit == 0:
-                    return {
-                        "tier": tier, "rate_limited": False,
-                        "daily_limit": 0, "remaining_today": -1,
-                        "reset_seconds": 0, "user_id": user.id,
-                    }
-                key_for_limit = f"user:{user.id}"
-                allowed, remaining, reset_time = check_rate_limit(
-                    ip=key_for_limit,
-                    endpoint="claims",
-                    max_requests=limit,
-                    window_seconds=_CLAIMS_WINDOW,
-                    db=db,
-                )
-                if not allowed:
-                    raise HTTPException(
-                        status_code=429,
-                        detail={
-                            "error": "rate_limited",
-                            "message": f"You've used today's {limit} {tier} verifications. Upgrade or wait for reset.",
-                            "tier": tier,
-                            "daily_limit": limit,
-                            "reset_seconds": reset_time,
-                        },
-                    )
-                return {
-                    "tier": tier, "rate_limited": True,
-                    "daily_limit": limit, "remaining_today": remaining,
-                    "reset_seconds": reset_time, "user_id": user.id,
-                }
+                return _auth_result_for_user(user, db)
         except HTTPException:
             raise
         except Exception:
-            # Token invalid / expired — fall through to the 401 below
-            # so the response is consistently structured.
+            # Token invalid / expired — fall through to the cookie
+            # check (and ultimately the 401 below) so the response is
+            # consistently structured.
             pass
+
+    # --- 5. wtp_session cookie (cross-subdomain) ---
+    # Users who logged in on wethepeopleforus.com get a Domain=
+    # .wethepeopleforus.com cookie that travels to verify/research/
+    # journal subdomains. The frontend sends `credentials: "include"`,
+    # so the cookie is in `request.cookies` here. Decode it the same
+    # way the Bearer branch decodes its JWT.
+    try:
+        from services.jwt_auth import SESSION_COOKIE_NAME, decode_access_token
+        cookie_token = request.cookies.get(SESSION_COOKIE_NAME) if request else None
+        if cookie_token:
+            from models.auth_models import User
+            payload = decode_access_token(cookie_token)
+            user_id = int(payload.get("sub")) if payload.get("sub") else None
+            user = db.query(User).filter(User.id == user_id, User.is_active == 1).first() if user_id else None
+            if user:
+                return _auth_result_for_user(user, db)
+    except HTTPException:
+        raise
+    except Exception:
+        # Same fall-through behavior as the Bearer branch — we'd rather
+        # 401 with the structured signup CTA than 500 on a malformed
+        # cookie value.
+        pass
 
     # --- No identity established — anonymous use is no longer permitted. ---
     # signup_url and login_url point at the React signup/login pages on the
