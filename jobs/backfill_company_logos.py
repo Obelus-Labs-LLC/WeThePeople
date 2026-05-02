@@ -154,15 +154,21 @@ def _ask_claude_for_domain(client, model: str, name: str) -> str:
         return ""
 
 
-def _iter_targets(conn, limit: int) -> Iterable[tuple[str, str, str, bool]]:
+def _iter_targets(conn, limit: int, restrict_table: str | None = None) -> Iterable[tuple[str, str, str, bool]]:
     """Yield (table, id_col, company_id, display_name, has_website) for
     rows missing logo_url, oldest-first. `limit` caps total across all
-    tables."""
+    tables. When `restrict_table` is set, only that table is queried —
+    so a `--table tracked_telecom_companies --limit 50` invocation
+    fills its budget from telecom rows instead of consuming it all
+    against earlier tables and then rejecting telecom rows in the
+    caller's filter."""
     cur = conn.cursor()
     yielded = 0
     for table, id_col, has_website in TARGET_TABLES:
         if yielded >= limit:
             break
+        if restrict_table and table != restrict_table:
+            continue
         try:
             sql = (
                 f"SELECT {id_col}, display_name FROM {table} "
@@ -212,9 +218,7 @@ def run(limit: int, dry_run: bool, restrict_table: str | None) -> int:
     no_logo = 0
     processed = 0
     t0 = time.time()
-    for table, id_col, company_id, name, has_website in _iter_targets(conn, limit):
-        if restrict_table and table != restrict_table:
-            continue
+    for table, id_col, company_id, name, has_website in _iter_targets(conn, limit, restrict_table):
         processed += 1
         if dry_run:
             log.info("DRY: would resolve %s/%s (%s)", table, company_id, name)
