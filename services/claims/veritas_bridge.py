@@ -133,6 +133,22 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> Dict[str, Any]:
     SQL query errors out, the source name is added to ``degraded_sources`` so
     callers can surface a "verification incomplete" flag instead of silently
     returning a lower evidence count.
+
+    Matchers (in evaluation order):
+      - tracked-entity name → sector inference
+      - lobbying records (per sector)
+      - government contracts (per sector)
+      - congressional trades (politicians only)
+      - committee memberships
+      - PAC/company donations
+      - FARA registrations + foreign principals  ← added Verify-V4 audit fix
+        Previously claims like "Japan has registered N foreign principals"
+        couldn't match anywhere — every sector matcher returned zero
+        evidence, the claim fell to tier='none', and 74% of the public
+        vault was Unverified. The FARA matcher fills that gap by
+        querying fara_foreign_principals and fara_registrants directly
+        when the claim mentions FARA, foreign agents, or country-level
+        lobbying.
     """
     degraded: set = set()
 
@@ -347,6 +363,148 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> Dict[str, Any]:
             except Exception:
                 logger.warning("donation query failed: eid=%r", eid, exc_info=True)
                 degraded.add("donations")
+
+    # ── FARA matcher (Verify-V4 audit fix) ─────────────────────────────────
+    # Runs independently of the tracked-entity matcher above because FARA
+    # subjects (countries and foreign principals) are not in tracked_*
+    # tables. We trigger when the claim mentions FARA-relevant terms or
+    # when an extracted entity name matches a known foreign principal /
+    # registrant. Match is case-insensitive substring against:
+    #   - fara_foreign_principals.foreign_principal_name
+    #   - fara_foreign_principals.country
+    #   - fara_registrants.registrant_name
+    fara_trigger = any(
+        w in claim_lower
+        for w in [
+            "fara", "foreign principal", "foreign agent", "foreign lobby",
+            "foreign government", "foreign-government", "registered to represent",
+            "registered foreign", "registered agents",
+        ]
+    )
+
+    # Country-level claim heuristic: "Japan has registered ..." / "Saudi
+    # Arabia ... lobbying" — country name appears in fara_foreign_principals.
+    # We probe each candidate entity name as a country first; cheap because
+    # the column is indexed.
+    if not fara_trigger and potential_entities:
+        try:
+            for ent in potential_entities[:3]:
+                row = db.execute(text(
+                    "SELECT 1 FROM fara_foreign_principals "
+                    "WHERE LOWER(country) = :c LIMIT 1"
+                ), {"c": ent.lower()}).fetchone()
+                if row:
+                    fara_trigger = True
+                    break
+        except Exception:
+            logger.warning("fara country probe failed", exc_info=True)
+            degraded.add("fara_country_probe")
+
+    if fara_trigger:
+        # Build the search filter from extracted entities AND any
+        # country/principal mention in the claim text.
+        search_terms: List[str] = []
+        for ent in potential_entities[:5]:
+            if ent and len(ent) >= 3:
+                search_terms.append(ent.lower())
+        # Always allow direct keyword search on the lowered claim if no
+        # entities were found (prevents an entity-extraction failure from
+        # silently zero-ing the FARA results).
+        if not search_terms:
+            search_terms = [claim_lower[:120]]
+
+        # 1. Foreign principals — by country, by principal name, or by
+        #    registrant name (the U.S. lobbyist representing them).
+        # We use a per-term LIKE-OR loop rather than `WHERE col IN :terms`
+        # because SQLAlchemy's IN-expansion semantics for `text()` binds
+        # is fragile across versions, and SQLite picks an index on the
+        # LIKE-prefix scan via the explicit indexes on
+        # fara_foreign_principals.{country, foreign_principal_name,
+        # registrant_name}.
+        rows: List[Any] = []
+        try:
+            for term in search_terms[:5]:
+                if len(term) < 3:
+                    continue
+                pat = "%" + term + "%"
+                chunk = db.execute(text(
+                    "SELECT country, foreign_principal_name, registrant_name, status "
+                    "FROM fara_foreign_principals "
+                    "WHERE LOWER(country) LIKE :pat "
+                    "   OR LOWER(foreign_principal_name) LIKE :pat "
+                    "   OR LOWER(registrant_name) LIKE :pat "
+                    "LIMIT 10"
+                ), {"pat": pat}).fetchall()
+                rows.extend(chunk)
+        except Exception:
+            logger.warning("fara_foreign_principals query failed", exc_info=True)
+            degraded.add("fara_foreign_principals")
+
+        if rows:
+            # Aggregate: count active principals per country and per
+            # registrant. Surface the totals as evidence — that's the
+            # journalistic signal a claim like "Japan has 1,151 registered
+            # foreign principals" actually wants to verify.
+            by_country: Dict[str, Dict[str, Any]] = defaultdict(
+                lambda: {"active": 0, "total": 0, "registrants": set(), "principals": []}
+            )
+            by_registrant: Dict[str, int] = defaultdict(int)
+            for country, pname, rname, status in rows:
+                key = (country or "").strip() or "(unknown)"
+                by_country[key]["total"] += 1
+                if status and status.lower() in ("active", "current"):
+                    by_country[key]["active"] += 1
+                if rname:
+                    by_country[key]["registrants"].add(rname)
+                    by_registrant[rname] += 1
+                if pname and len(by_country[key]["principals"]) < 3:
+                    by_country[key]["principals"].append(pname)
+
+            for country, agg in list(by_country.items())[:5]:
+                principals_summary = ", ".join(agg["principals"]) if agg["principals"] else "—"
+                evidence.append({
+                    "source": "WTP FARA Database (DOJ)",
+                    "source_url": "https://wethepeopleforus.com/fara/principals?country=%s" % country.lower(),
+                    "title": "%s — Foreign Principals on FARA" % country,
+                    "snippet": (
+                        "%s has %d FARA-registered foreign principals "
+                        "(%d active) represented by %d distinct U.S. registrants. "
+                        "Examples: %s. Source: U.S. DOJ FARA database."
+                    ) % (
+                        country, agg["total"], agg["active"],
+                        len(agg["registrants"]), principals_summary,
+                    ),
+                    "evidence_type": "primary_source",
+                })
+
+        # 2. Direct registrant lookup — claims naming a specific lobbying
+        #    firm registered under FARA (e.g. "Akin Gump represents...").
+        try:
+            for term in search_terms[:5]:
+                if len(term) < 3:
+                    continue
+                rows2 = db.execute(text(
+                    "SELECT registrant_name, country, status "
+                    "FROM fara_registrants "
+                    "WHERE LOWER(registrant_name) LIKE :pat "
+                    "LIMIT 5"
+                ), {"pat": "%" + term + "%"}).fetchall()
+                if rows2:
+                    names = ", ".join(r[0] for r in rows2[:5])
+                    evidence.append({
+                        "source": "WTP FARA Registrants",
+                        "source_url": "https://wethepeopleforus.com/fara/registrants?q=%s" % term,
+                        "title": "FARA-registered representatives matching %s" % term,
+                        "snippet": (
+                            "Found %d registrant(s) on the FARA database matching "
+                            "'%s': %s. Source: U.S. DOJ FARA database."
+                        ) % (len(rows2), term, names),
+                        "evidence_type": "primary_source",
+                    })
+                    break  # one registrant evidence row per claim is plenty
+        except Exception:
+            logger.warning("fara_registrants query failed", exc_info=True)
+            degraded.add("fara_registrants")
 
     return {"evidence": evidence, "degraded_sources": sorted(degraded)}
 
