@@ -65,8 +65,43 @@ export function getAccessToken(): string | null {
   }
 }
 
+/**
+ * Synchronous best-effort auth check. Returns true if a Bearer token
+ * exists in this origin's localStorage. Returns false if it doesn't,
+ * BUT note that the user may still have a valid cross-subdomain
+ * session cookie (set by the main site at login with
+ * Domain=.wethepeopleforus.com). The cookie is sent automatically on
+ * every API call now that apiFetch / apiPost include credentials, so
+ * a `false` here doesn't mean the API call will fail.
+ *
+ * For UI that needs to know "is the user logged in" reliably, use
+ * useSessionProbe() (which calls /auth/me with credentials).
+ */
 export function isAuthenticated(): boolean {
   return Boolean(getAccessToken());
+}
+
+/**
+ * Async cross-subdomain session probe. Hits /auth/me with the cookie
+ * attached and returns the user payload if the session is valid, or
+ * null otherwise. Cheap (cached on the API side) and authoritative.
+ * Use this for "is the user logged in" rather than isAuthenticated()
+ * when the UI is making a gating decision.
+ */
+export async function probeSession(signal?: AbortSignal): Promise<{ id: number; email: string; tier?: string } | null> {
+  try {
+    const base = getApiBase();
+    const url = new URL(`${base}/auth/me`, window.location.origin);
+    const res = await fetch(url.toString(), {
+      signal,
+      headers: { Accept: 'application/json' },
+      credentials: 'include',
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -133,6 +168,12 @@ export async function apiFetch<T>(path: string, opts?: FetchOptions): Promise<T>
   const res = await fetch(url.toString(), {
     signal: opts?.signal,
     headers,
+    // credentials:'include' so the cross-subdomain wtp_session cookie
+    // (Domain=.wethepeopleforus.com, set by the main site at login)
+    // travels on requests from verify.wethepeopleforus.com to the API.
+    // Without this, a user who logs in on the main site is treated as
+    // anonymous on verify even though their session is valid.
+    credentials: 'include',
   });
 
   if (!res.ok) {
@@ -159,6 +200,8 @@ export async function apiFetch<T>(path: string, opts?: FetchOptions): Promise<T>
  *
  * Auth: forwards the JWT bearer from localStorage when present so
  * /claims/verify can identify the user and apply their tier quota.
+ * Also forwards the cross-subdomain session cookie via
+ * credentials:'include' for users who logged in on the main site.
  */
 export async function apiPost<T>(path: string, body: unknown, opts?: FetchOptions): Promise<T> {
   const base = getApiBase();
@@ -184,6 +227,7 @@ export async function apiPost<T>(path: string, body: unknown, opts?: FetchOption
     signal: opts?.signal,
     headers,
     body: JSON.stringify(body),
+    credentials: 'include',
   });
 
   if (!res.ok) {

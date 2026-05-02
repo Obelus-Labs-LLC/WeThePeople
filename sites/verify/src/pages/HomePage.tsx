@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   apiPost, apiFetch, humanizeError, ApiError,
-  isAuthenticated, loginRedirectUrl,
+  isAuthenticated, probeSession, loginRedirectUrl,
 } from '../api/client';
 import QuotaBadge from '../components/QuotaBadge';
+import { TIER_LABEL, TIER_COLOR, asTier } from '../utils/tierLabels';
 
 /**
  * Verify (Veritas) home page — hero pill + URL/text submit form + recent
@@ -60,20 +61,10 @@ const BORDER = 'var(--color-border)';
 const BORDER_HOVER = 'var(--color-border-hover)';
 const BG = 'var(--color-bg)';
 
-// Color a tier badge — keyed off the backend's evaluation.tier field.
-// `null`/missing means we couldn't score it (yet) — render as muted.
-const TIER_LABEL: Record<string, string> = {
-  strong: 'Supported',
-  moderate: 'Mostly True',
-  weak: 'Mixed Evidence',
-  none: 'Unverified',
-};
-const TIER_COLOR: Record<string, string> = {
-  strong: '#10B981',
-  moderate: '#3DB87A',
-  weak: '#C5A028',
-  none: 'rgba(235,229,213,0.4)',
-};
+// Tier labels + colors come from utils/tierLabels.ts so HomePage,
+// VaultPage, and ResultsPage all render the same vocabulary for the
+// same backend value. Don't redefine local copies — extend the shared
+// module instead.
 
 const FONT_DISPLAY = "'Playfair Display', Georgia, serif";
 const FONT_BODY = "'Inter', sans-serif";
@@ -95,7 +86,17 @@ export default function HomePage() {
     message?: string;
   }>({ type: null });
 
-  const authed = isAuthenticated();
+  // Authoritative auth state — combines local Bearer token (set when the
+  // user logged in on this origin) with a cross-subdomain session probe
+  // (covers users who logged in on wethepeopleforus.com whose
+  // wtp_session cookie is now valid on .wethepeopleforus.com but
+  // whose localStorage on verify.wethepeopleforus.com is empty).
+  // Starts as null = unknown so the UI doesn't flash "Sign in to verify"
+  // before we know.
+  const [sessionAuthed, setSessionAuthed] = useState<boolean | null>(
+    isAuthenticated() ? true : null,
+  );
+  const authed = Boolean(sessionAuthed);
   const inputType = detectInputType(input);
 
   // Stats are non-fatal — log if they fail so we don't silently hide a
@@ -112,6 +113,19 @@ export default function HomePage() {
     return () => controller.abort();
   }, []);
 
+  // Probe the cross-subdomain session cookie on mount. If localStorage
+  // already has a Bearer token we skip the probe (user logged in on this
+  // origin). Otherwise we ask the API who they are; valid cookie -> true.
+  useEffect(() => {
+    if (sessionAuthed) return;
+    const controller = new AbortController();
+    probeSession(controller.signal).then((user) => {
+      if (controller.signal.aborted) return;
+      setSessionAuthed(Boolean(user));
+    });
+    return () => controller.abort();
+  }, [sessionAuthed]);
+
   const handleVerify = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed) {
@@ -126,10 +140,13 @@ export default function HomePage() {
     }
 
     // Hard auth gate — anonymous use of Veritas is no longer allowed.
-    // Show the inline auth wall before even calling the API so the
-    // failure mode is "click to sign up" rather than "click then see
-    // a 401 toast".
-    if (!isAuthenticated()) {
+    // We use the authoritative `sessionAuthed` state (which reflects
+    // BOTH localStorage Bearer and cross-subdomain wtp_session cookie),
+    // not the synchronous isAuthenticated() helper, so users who logged
+    // in on the main site aren't false-walled here. If sessionAuthed is
+    // null (probe still in flight) we let the API call decide rather
+    // than flash a wall — apiPost will surface the 401 case below.
+    if (sessionAuthed === false) {
       setAuthWall({
         type: 'auth',
         message: 'Verification requires a free account — get 5 verifications per day, no credit card.',
@@ -594,9 +611,9 @@ export default function HomePage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {recent.map((c) => {
-                const tierKey = (c.tier || 'none').toLowerCase();
-                const label = TIER_LABEL[tierKey] || 'Unverified';
-                const color = TIER_COLOR[tierKey] || TIER_COLOR.none;
+                const tierKey = asTier(c.tier);
+                const label = TIER_LABEL[tierKey];
+                const color = TIER_COLOR[tierKey];
                 // Date string — falls back to "—" if backend returned null.
                 const date = c.created_at
                   ? new Date(c.created_at).toLocaleDateString(undefined, {
