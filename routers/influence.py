@@ -88,9 +88,45 @@ def data_freshness(db: Session = Depends(get_db)):
             return _freshness_cache["data"]  # serve stale while another thread recomputes
         _freshness_cache["computing"] = True
 
+    # Future-dated rows poison the "as of" date — at least one row in
+    # production has created_at = 2030-06-29 (or similar) which used to
+    # render as "Data as of Jun 29, 2030" on every sector dashboard.
+    # Filter the MAX to dates <= now so the footer reflects the most
+    # recent _real_ activity.
+    from datetime import datetime, timezone, date as _date
+    _now_utc = datetime.now(timezone.utc)
+
+    def _is_clean_date(latest):
+        """Return True if `latest` is a usable past-or-now date."""
+        if latest is None:
+            return False
+        if isinstance(latest, str):
+            # SQLite often stores datetimes as strings; lexicographic
+            # compare against the ISO-formatted "now" works for any
+            # ISO-8601 representation.
+            return latest <= _now_utc.isoformat()
+        if isinstance(latest, _date) and not isinstance(latest, datetime):
+            return latest <= _now_utc.date()
+        try:
+            # Datetime comparison; treat naive datetimes as UTC.
+            if latest.tzinfo is None:
+                return latest <= _now_utc.replace(tzinfo=None)
+            return latest <= _now_utc
+        except Exception:
+            return False
+
     def _max_date_and_count(model, date_col):
-        """Return (max_date_str_or_None, count) for a model/date column."""
-        latest = db.query(func.max(date_col)).scalar()
+        """Return (max_date_str_or_None, count) for a model/date column.
+
+        Filters MAX to <= now so a single bad row with a future timestamp
+        doesn't poison the freshness banner.
+        """
+        latest = db.query(func.max(date_col)).filter(date_col <= _now_utc).scalar()
+        if not _is_clean_date(latest):
+            # Fall back to raw max, then validate before returning.
+            latest = db.query(func.max(date_col)).scalar()
+            if not _is_clean_date(latest):
+                latest = None
         count = db.query(func.count(model.id)).scalar() or 0
         date_str = str(latest) if latest else None
         return date_str, count
