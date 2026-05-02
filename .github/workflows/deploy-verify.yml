@@ -74,7 +74,7 @@ jobs:
         run: tar -czf /tmp/verify-dist.tar.gz -C dist .
 
       - name: Set up SSH agent with deploy key
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.HETZNER_DEPLOY_KEY }}
 
