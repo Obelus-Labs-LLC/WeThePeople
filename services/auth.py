@@ -358,12 +358,19 @@ def require_enterprise_or_rate_limit(
             pass
 
     # --- No identity established — anonymous use is no longer permitted. ---
+    # signup_url and login_url point at the React signup/login pages on the
+    # main site, NOT the FastAPI POST endpoints. The previous values
+    # ("/auth/register", "/auth/login") would 405-Method-Not-Allowed on a
+    # GET from the browser if a frontend ever followed them. pricing_url
+    # was likewise typo'd at "/api" (the API docs page) when it should
+    # point at "/pricing". Verify-V6 audit fix.
     raise HTTPException(
         status_code=401,
         detail={
             "error": "auth_required",
             "message": "Verification requires a free account. Sign up to get 5 verifications per day.",
-            "signup_url": "/auth/register",
-            "pricing_url": "https://wethepeopleforus.com/api",
+            "signup_url": "https://wethepeopleforus.com/signup",
+            "login_url": "https://wethepeopleforus.com/login",
+            "pricing_url": "https://wethepeopleforus.com/pricing",
         },
     )
