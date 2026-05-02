@@ -13,6 +13,18 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        // plotly.js (or one of its transitive deps) emits a side-effect
+        // `import "buffer/"` into the bundle. The browser has no
+        // resolver for that specifier and refuses the entire module
+        // graph with "Failed to resolve module specifier 'buffer/'.
+        // Relative references must start with either '/', './', or
+        // '../'." — black-screen. Shim it to an empty module so the
+        // import succeeds. We don't need a real Buffer at runtime; the
+        // code paths that would have used it aren't on the browser side.
+        // Both `buffer/` (with trailing slash) and `buffer` are aliased
+        // for safety against future esbuild output changes.
+        'buffer/': path.resolve(__dirname, './src/shims/empty-buffer.ts'),
+        'buffer': path.resolve(__dirname, './src/shims/empty-buffer.ts'),
       },
     },
     build: {
