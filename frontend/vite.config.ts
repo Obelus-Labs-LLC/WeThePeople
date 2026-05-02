@@ -32,68 +32,41 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       minify: 'esbuild',
-      // Charts chunk legitimately exceeds 500 KB (recharts + d3) but
-      // is not on any page's critical path. Bump the warning so the
-      // build log isn't yelling about expected chunks.
-      chunkSizeWarningLimit: 1200,
-      // Manual chunk splitting. Without this, Vite's default vendor
-      // strategy lumps all of node_modules into a single chunk that
-      // every lazy page depends on, so the user has to download the
-      // whole 4.9 MB vendor blob (force-graph + leaflet + recharts +
-      // d3 + framer-motion + ...) before *any* page can paint.
+      // Vendor chunk is now ~4-5 MB minified because everything in
+      // node_modules ships in one chunk (see comment below). Bump the
+      // warning so the build log doesn't yell about an intentional
+      // choice.
+      chunkSizeWarningLimit: 6000,
+
+      // NO manualChunks. Three custom-split iterations on 2026-05-02
+      // each produced a different vendor↔split-chunk ESM cycle and a
+      // black-screen outage:
       //
-      // The split below isolates the heavy graphics libs into their
-      // own chunks. PersonProfilePage doesn't use force-graph or
-      // leaflet, so it no longer pays for them. The libs only load
-      // when InfluenceNetworkPage / InfluenceMapPage mount.
-      rollupOptions: {
-        output: {
-          manualChunks(id: string) {
-            if (!id.includes('node_modules')) return undefined;
-            // SPLIT POLICY (post-2026-05-02 black-screen incident,
-            // iteration 3):
-            //
-            // Previous attempt collapsed recharts/d3/framer-motion/
-            // @tanstack into vendor and kept plotly/graph/leaflet
-            // split. That fixed the recharts→React cycle but the
-            // PLOTLY split STILL had a cycle with vendor (cause:
-            // `id.includes('plotly')` matched `@plotly/d3`, a
-            // separate npm package that recharts and other vendor
-            // libs depend on; vendor then had a back-edge into the
-            // plotly chunk and plotly's top-level evaluation read
-            // `Promise` off an undefined vendor binding ⇒ blank).
-            //
-            // Fix: match the npm package paths PRECISELY (trailing
-            // slash), so the plotly chunk only contains the actual
-            // `plotly.js` package and nothing else. `@plotly/d3`
-            // falls through to vendor where every other d3 lives.
-            //
-            // Same precision applied to leaflet and react-force-graph.
-            // Anything that doesn't match a leaf rule goes to vendor.
-            if (id.includes('node_modules/plotly.js/') ||
-                id.includes('node_modules/plotly.js-dist-min/')) {
-              return 'plotly';
-            }
-            // react-force-graph + three.js itself (NOT three-* helpers,
-            // some of which are also pulled in by other vendor libs).
-            if (id.includes('node_modules/react-force-graph') ||
-                id.includes('node_modules/three/')) {
-              return 'graph';
-            }
-            // leaflet + react-leaflet (NOT @react-leaflet sub-packages
-            // that vendor libs may share).
-            if (id.includes('node_modules/leaflet/') ||
-                id.includes('node_modules/react-leaflet/')) {
-              return 'map';
-            }
-            // Everything else (React, recharts, d3-*, @plotly/d3,
-            // framer-motion, @tanstack, three-* helpers, all
-            // transitive deps) stays in vendor so no cross-chunk
-            // cycles can form.
-            return 'vendor';
-          },
-        },
-      },
+      //   iter 1 (PR #84): aliased both `buffer/` and `buffer` to an
+      //                    empty shim. recharts couldn't read its
+      //                    legitimate `buffer` import and surfaced
+      //                    `Cannot read properties of undefined
+      //                    (reading 'forwardRef')` from the `charts`
+      //                    chunk.
+      //   iter 2 (PR #87): collapsed recharts/d3/framer-motion/@tanstack
+      //                    into vendor; kept plotly split.
+      //                    `id.includes('plotly')` also matched the
+      //                    separate npm package `@plotly/d3` (used by
+      //                    vendor libs), creating a vendor↔plotly
+      //                    cycle. plotly.js then read `Promise` off
+      //                    an undefined binding.
+      //   iter 3 (PR #89): precise leaf-package matching for
+      //                    plotly/graph/map. The `map` chunk hit the
+      //                    same cycle pattern through react-leaflet's
+      //                    `React.forwardRef` call.
+      //
+      // Shared root cause: any split chunk eventually gets imported
+      // back from vendor through some transitive npm dep we don't
+      // control, and ESM cycle init order leaves one side's exports
+      // `undefined` when the other reads them. Until we have time to
+      // audit each library's full import graph, Vite's default
+      // chunking (everything in node_modules in one vendor chunk) is
+      // the only safe choice. Bigger first paint, but the SPA mounts.
     },
     esbuild: {
       drop: ['console', 'debugger'],
