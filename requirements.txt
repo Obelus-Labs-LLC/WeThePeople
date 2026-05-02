@@ -45,7 +45,7 @@ tweepy>=4.14.0
 
 # Optional: API clients
 beautifulsoup4>=4.12.0
-lxml>=4.9.0
+lxml>=4.9.4
 
 # Testing
 pytest>=8.0.0
