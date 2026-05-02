@@ -217,12 +217,39 @@ def list_countries(
         .all()
     )
 
+    # Historical-name rollups. The DOJ FARA dataset preserves the
+    # country name as it was filed; old filings under "USSR",
+    # "Czechoslovakia", "Yugoslavia" etc. are still in the data.
+    # Showing them as separate top-10 countries in 2026 is misleading
+    # to a journalist scanning the page (USSR has been dissolved since
+    # 1991). Roll the dissolved-country counts into their successor
+    # state so the top-10 stays accurate; keep the cumulative count
+    # but don't render two duplicate-feeling rows.
+    HISTORICAL_ROLLUP = {
+        "USSR": "Russia",
+        "SOVIET UNION": "Russia",
+        "CZECHOSLOVAKIA": "Czech Republic",
+        "YUGOSLAVIA": "Serbia",
+        # Add more as needed; intentionally conservative.
+    }
+    aggregated: dict[str, int] = {}
+    for row in rows:
+        # Normalize for the rollup lookup but preserve display casing
+        # of the canonical country name when we hit one. The DB has a
+        # mix of "USSR" and "Russia"; normalizing to the successor's
+        # display name avoids "USSR (300)" surfacing in the UI.
+        key_upper = (row.country or "").upper().strip()
+        target = HISTORICAL_ROLLUP.get(key_upper, row.country)
+        aggregated[target] = aggregated.get(target, 0) + row.principal_count
+
+    countries = [
+        {"country": name, "principal_count": cnt}
+        for name, cnt in sorted(aggregated.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+
     return {
         "active_only": active_only,
-        "countries": [
-            {"country": row.country, "principal_count": row.principal_count}
-            for row in rows
-        ],
+        "countries": countries,
     }
 
 
