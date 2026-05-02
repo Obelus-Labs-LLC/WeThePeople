@@ -36,7 +36,7 @@ WeThePeople is an open-source civic transparency platform that tracks how corpor
 |----------|--------|-------------|
 | **[WeThePeople](https://wethepeopleforus.com)** | Live | The core lobbying and influence tracker. Congressional trades, money flows, enforcement actions, lobbying filings, government contracts. 1,000+ tracked entities across 11 sectors. |
 | **[WTP Research](https://research.wethepeopleforus.com)** | Live | 21 deep-dive research tools: patent explorer, drug lookup, clinical trials, insider trades, FDA recalls, toxic releases, foreign lobbying (FARA), revolving door tracker, campaign finance, government salaries, bill text analysis, market movers, regulatory news, earmarks tracker, college scorecard, FCC complaints, federal grants, food safety, spectrum search, student loans, treasury data. |
-| **[The Influence Journal](https://journal.wethepeopleforus.com)** | Live | AI-generated data investigations powered by 20 detection patterns. STOCK Act violations, committee-stock conflicts, enforcement immunity, penalty-to-contract ratios, FARA foreign lobbying, chemical enforcement, agriculture subsidies, cross-sector donors, enforcement decline. 25+ published stories with verification pipeline. |
+| **[The Influence Journal](https://journal.wethepeopleforus.com)** | In editorial review | AI-generated data investigations from 20 detection patterns. The journal subdomain serves an "in editorial review" placeholder while every published story is audited against [`research/EDITORIAL_STANDARDS.md`](research/EDITORIAL_STANDARDS.md) (the canonical 5-part editorial standard installed May 2026). The data pipeline, detectors, and Veritas verification continue to run; story regeneration under the new standards is in progress. Stories will return only after passing the regression audit and human review. |
 | **[Veritas Verify](https://verify.wethepeopleforus.com)** | Live | Public claim-verification interface. Submit any URL, transcript, or text — Veritas extracts every verifiable claim, scores each against 70+ authoritative evidence sources via BM25, and produces a structured verdict with linked evidence. Backed by automated daily ingestion of government RSS feeds (Federal Register, Congress, SEC, Treasury, GAO, etc.) and institutional sources. Zero AI hallucination — deterministic by design. |
 | **Mobile App** | Preview | iOS and Android via Expo SDK 54. 45+ screens covering all 11 sectors, congressional trades, ZIP lookup, stories, anomalies, state explorer, influence network, chat agent, account/auth, watchlists, and company comparison. Available via Expo Go preview channel. |
 
@@ -295,6 +295,15 @@ Some proprietary components (detection engine, claim verification pipeline / Ver
 WeThePeople is built and maintained by **[Obelus Labs LLC](https://github.com/Obelus-Labs-LLC)**, a US-registered LLC focused on civic transparency and accountability tooling. Solo-founded and currently self-funded.
 
 For commercial licensing, enterprise verification API access, custom data engagements, or partnership inquiries: **wethepeopleforus@gmail.com**.
+Press inquiries: **press@wethepeopleforus.com**.
+
+## Citing the platform
+
+Journalists and researchers should cite the underlying primary source first (Senate LDA, FEC, USASpending.gov, Congress.gov, etc.). When attribution to the platform is appropriate, see the [Citation Guide](https://wethepeopleforus.com/cite) for recommended formats and per-dataset attribution lines.
+
+## Editorial standards
+
+The Influence Journal's editorial standard is published at [`research/EDITORIAL_STANDARDS.md`](research/EDITORIAL_STANDARDS.md) and applies to every story. Story-generation rules, regression-audit machinery, and the human-review process are documented there.
 
 ---
 

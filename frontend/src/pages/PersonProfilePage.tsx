@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient, getApiBaseUrl } from '../api/client';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { ExternalLink, Heart, Share2 } from 'lucide-react';
+import CsvExportButton from '../components/CsvExportButton';
+import ReportErrorButton from '../components/ReportErrorButton';
 import { PoliticsSectorHeader } from '../components/SectorHeader';
 // TradeTimeline ships its own SVG renderer + date utilities; pulling
 // it into the main bundle adds bytes that most readers never see
@@ -2111,23 +2113,37 @@ function StockTradesTab({
         >
           Stock Trades
         </h3>
-        <a
-          href={capitolTradesUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 12,
-            color: 'var(--color-accent-text)',
-            textDecoration: 'none',
-          }}
-        >
-          View full history on Capitol Trades
-          <ExternalLink size={13} />
-        </a>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {/* CSV export — Audit item #8. Fetches the full filtered
+              trades dataset for this politician via /export, not just
+              the in-memory paginated slice the user is currently
+              viewing. */}
+          {personId && (
+            <CsvExportButton
+              table="congressional_trades"
+              filters={{ person_id: personId }}
+              filename={`${personId}-trades.csv`}
+              compact
+            />
+          )}
+          <a
+            href={capitolTradesUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              color: 'var(--color-accent-text)',
+              textDecoration: 'none',
+            }}
+          >
+            View full history on Capitol Trades
+            <ExternalLink size={13} />
+          </a>
+        </div>
       </div>
 
       {/* Timeline — lazy so the SVG renderer doesn't sit on the
@@ -2266,6 +2282,22 @@ function StockTradesTab({
                   >
                     <ExternalLink size={13} />
                   </a>
+                )}
+
+                {/* Per-row "report error" affordance. Audit item #9.
+                    Tiny flag icon; click opens an inline form. */}
+                {t.id != null && (
+                  <ReportErrorButton
+                    recordKind="trade"
+                    recordId={t.id}
+                    context={{
+                      ticker: t.ticker,
+                      transaction_type: t.transaction_type,
+                      transaction_date: t.transaction_date,
+                      amount_range: t.amount_range,
+                      person_id: personId,
+                    }}
+                  />
                 )}
               </div>
             );
