@@ -7,6 +7,7 @@ import { EcosystemNav } from './components/EcosystemNav';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ResultsPage = lazy(() => import('./pages/ResultsPage'));
 const VaultPage = lazy(() => import('./pages/VaultPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 // -- Loading fallback --
 
@@ -40,8 +41,10 @@ export default function App() {
         <Route path="/" element={<Layout><HomePage /></Layout>} />
         <Route path="/results/:id" element={<Layout><ResultsPage /></Layout>} />
         <Route path="/vault" element={<Layout><VaultPage /></Layout>} />
-        {/* Catch-all back to home */}
-        <Route path="*" element={<Layout><HomePage /></Layout>} />
+        {/* Branded 404 — previously this silently fell back to HomePage,
+            which made typos look like the home page and gave SEO/analytics
+            false-positive 200s on broken inbound links. */}
+        <Route path="*" element={<Layout><NotFoundPage /></Layout>} />
       </Routes>
     </BrowserRouter>
   );
