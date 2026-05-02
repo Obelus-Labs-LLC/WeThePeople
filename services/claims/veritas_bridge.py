@@ -401,38 +401,63 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> Dict[str, Any]:
             degraded.add("fara_country_probe")
 
     if fara_trigger:
-        # Build the search filter from extracted entities AND any
-        # country/principal mention in the claim text.
+        # Meta-terms that frequently appear as extracted "entities" but
+        # are not actual subjects we should search FARA for. "FARA"
+        # itself matches "Farage", "Farah", and similar substrings; we
+        # exclude it explicitly. Same for generic legal/category words.
+        _FARA_META_TERMS = {
+            "fara", "foreign", "principal", "principals", "registered",
+            "registrant", "registrants", "agent", "agents", "lobbying",
+            "department", "justice", "doj", "database", "filing", "filings",
+            "u.s", "us", "united states", "country", "countries",
+        }
+
+        # Build the search filter from extracted entities, dropping
+        # meta-terms. Each remaining term is tried against the country
+        # column with EQUALITY (cheap + indexed + precise) before we
+        # fall back to LIKE-substring on the name columns. That ordering
+        # prevents over-matching like "%fara%" hitting "Farage" /
+        # "Farah" / "Australia" (substring "alia") and crowding out
+        # the actual country match.
         search_terms: List[str] = []
-        for ent in potential_entities[:5]:
-            if ent and len(ent) >= 3:
-                search_terms.append(ent.lower())
-        # Always allow direct keyword search on the lowered claim if no
-        # entities were found (prevents an entity-extraction failure from
-        # silently zero-ing the FARA results).
+        for ent in potential_entities[:8]:
+            t = (ent or "").lower().strip()
+            if t and len(t) >= 3 and t not in _FARA_META_TERMS:
+                search_terms.append(t)
+
+        # Always allow a direct keyword search on the lowered claim if
+        # no clean entities were found (prevents an entity-extraction
+        # failure from silently zero-ing the FARA results).
         if not search_terms:
             search_terms = [claim_lower[:120]]
 
-        # 1. Foreign principals — by country, by principal name, or by
-        #    registrant name (the U.S. lobbyist representing them).
-        # We use a per-term LIKE-OR loop rather than `WHERE col IN :terms`
-        # because SQLAlchemy's IN-expansion semantics for `text()` binds
-        # is fragile across versions, and SQLite picks an index on the
-        # LIKE-prefix scan via the explicit indexes on
-        # fara_foreign_principals.{country, foreign_principal_name,
-        # registrant_name}.
+        # 1. Foreign principals — three-pass query. Pass 1 is exact
+        #    country equality (highest-precision, indexed). Pass 2 is
+        #    LIKE on principal name. Pass 3 is LIKE on registrant
+        #    name. We accumulate up to 25 rows total then aggregate.
         rows: List[Any] = []
         try:
-            for term in search_terms[:5]:
-                if len(term) < 3:
-                    continue
-                pat = "%" + term + "%"
+            for term in search_terms[:8]:
+                if len(rows) >= 25:
+                    break
+                # Pass 1: exact country match. Hits the country index.
                 chunk = db.execute(text(
                     "SELECT country, foreign_principal_name, registrant_name, status "
                     "FROM fara_foreign_principals "
-                    "WHERE LOWER(country) LIKE :pat "
-                    "   OR LOWER(foreign_principal_name) LIKE :pat "
-                    "   OR LOWER(registrant_name) LIKE :pat "
+                    "WHERE LOWER(country) = :term "
+                    "LIMIT 25"
+                ), {"term": term}).fetchall()
+                rows.extend(chunk)
+            for term in search_terms[:5]:
+                if len(rows) >= 25 or len(term) < 4:
+                    continue
+                pat = "%" + term + "%"
+                # Pass 2: LIKE on principal name. Min term length 4 to
+                # avoid super-broad substring sweeps.
+                chunk = db.execute(text(
+                    "SELECT country, foreign_principal_name, registrant_name, status "
+                    "FROM fara_foreign_principals "
+                    "WHERE LOWER(foreign_principal_name) LIKE :pat "
                     "LIMIT 10"
                 ), {"pat": pat}).fetchall()
                 rows.extend(chunk)
@@ -479,9 +504,11 @@ def _search_wtp_evidence(db: Session, claim_text: str) -> Dict[str, Any]:
 
         # 2. Direct registrant lookup — claims naming a specific lobbying
         #    firm registered under FARA (e.g. "Akin Gump represents...").
+        #    Min term length 4 (same rationale as principal-name LIKE)
+        #    to avoid sweeping the registrants table on noise terms.
         try:
             for term in search_terms[:5]:
-                if len(term) < 3:
+                if len(term) < 4:
                     continue
                 rows2 = db.execute(text(
                     "SELECT registrant_name, country, status "
