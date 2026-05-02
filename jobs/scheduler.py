@@ -158,6 +158,17 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=600,
         description="OFAC SDN sanctions check for tracked politicians + companies",
     ),
+    JobDef(
+        # Stooq snapshot for every entity with a ticker. Free, no API
+        # key. Runs once a day so the sidebar `latest_stock.price`
+        # tracks the most recent close. Fundamentals (market cap, P/E)
+        # come from Alpha Vantage when its 25-req/day budget allows.
+        name="backfill_stock_fundamentals",
+        script="jobs/backfill_stock_fundamentals.py",
+        interval_hours=24,
+        timeout_sec=1800,
+        description="Daily price + range snapshot for tracked tickers (Stooq)",
+    ),
     # Quiver trade sync disabled - using House Clerk PDFs directly instead (more reliable, no API key needed)
     # JobDef(
     #     name="sync_congressional_trades",
