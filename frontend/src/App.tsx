@@ -1,6 +1,7 @@
 import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { AuthProvider } from "./contexts/AuthContext";
 import PoliticsLayout from "./layouts/PoliticsLayout";
 import FinanceLayout from "./layouts/FinanceLayout";
@@ -347,6 +348,7 @@ const App: React.FC = () => (
         </Routes>
       </Suspense>
       <Analytics />
+      <SpeedInsights />
     </BrowserRouter>
     </AuthProvider>
   </ErrorBoundary>
