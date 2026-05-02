@@ -64,25 +64,51 @@ TARGET_TABLES = [
 ]
 
 
-CLEARBIT_LOGO_URL = "https://logo.clearbit.com/{domain}"
-CLEARBIT_VERIFY_TIMEOUT = 5  # seconds
+LOGO_VERIFY_TIMEOUT = 5  # seconds
+
+# Logo source candidates, in preference order. Each entry is
+# (template, name) where template has {domain}.
+LOGO_SOURCES = [
+    # Logo.dev free tier — high-quality color logos when available.
+    ("https://img.logo.dev/{domain}?token=pk_X-1ZO13ESDeZb2rJRvMnoQ", "logo.dev"),
+    # Clearbit Logo CDN — heavily rate-limited from data-center IPs but
+    # still tries; works for many top-1000 brands.
+    ("https://logo.clearbit.com/{domain}", "clearbit"),
+    # Google's favicon service is the always-on fallback. Quality is
+    # mediocre (often a tiny rounded icon) but it returns *something*
+    # for any registered domain, so a profile that would otherwise
+    # render with no logo at least gets a recognizable mark.
+    ("https://www.google.com/s2/favicons?domain={domain}&sz=128", "google-favicon"),
+]
 
 
-def _verify_clearbit(domain: str) -> bool:
-    """Return True iff Clearbit's logo CDN serves an image for this
-    domain. Stops us from persisting `logo.clearbit.com/foo.com` URLs
-    that 404 on render."""
+def _resolve_logo(domain: str) -> str | None:
+    """Try each LOGO_SOURCE in order. Return the first URL that
+    actually serves an image (HEAD/GET 200, image/* content-type, and
+    >300 bytes for the favicon fallback so we don't persist the 1x1
+    grey placeholder Google sends for non-registered domains).
+
+    Returns None when no source has a logo for this domain."""
     if not domain or " " in domain:
-        return False
-    try:
-        r = requests.head(
-            CLEARBIT_LOGO_URL.format(domain=domain),
-            timeout=CLEARBIT_VERIFY_TIMEOUT,
-            allow_redirects=True,
-        )
-        return r.status_code == 200 and r.headers.get("content-type", "").startswith("image/")
-    except Exception:
-        return False
+        return None
+    for template, name in LOGO_SOURCES:
+        url = template.format(domain=domain)
+        try:
+            r = requests.get(url, timeout=LOGO_VERIFY_TIMEOUT, allow_redirects=True, stream=True)
+            ct = r.headers.get("content-type", "")
+            # Read a chunk so we know there's actually a body
+            body = r.raw.read(2048, decode_content=True) if r.status_code == 200 else b""
+            r.close()
+            if r.status_code != 200 or not ct.startswith("image/"):
+                continue
+            # Google's favicon service returns a 200 even for unknown
+            # domains, with a tiny generic globe. Skip those.
+            if name == "google-favicon" and len(body) < 300:
+                continue
+            return url
+        except Exception:
+            continue
+    return None
 
 
 def _ask_claude_for_domain(client, model: str, name: str) -> str:
@@ -195,10 +221,11 @@ def run(limit: int, dry_run: bool, restrict_table: str | None) -> int:
             log.info("? no domain for %s (%s)", company_id, name)
             continue
 
-        if not _verify_clearbit(domain):
+        logo_url = _resolve_logo(domain)
+        if not logo_url:
             no_logo += 1
-            log.info(". %s -> %s (no Clearbit logo)", company_id, domain)
-            # Still save the website even if Clearbit doesn't have a logo
+            log.info(". %s -> %s (no logo from any source)", company_id, domain)
+            # Still save the website even if no logo source delivers
             if has_website:
                 conn.execute(
                     f"UPDATE {table} SET website = ? WHERE {id_col} = ?",
@@ -207,7 +234,6 @@ def run(limit: int, dry_run: bool, restrict_table: str | None) -> int:
                 conn.commit()
             continue
 
-        logo_url = CLEARBIT_LOGO_URL.format(domain=domain)
         if has_website:
             conn.execute(
                 f"UPDATE {table} SET logo_url = ?, website = ? WHERE {id_col} = ?",
