@@ -318,6 +318,17 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
             "created_at": claim.created_at.isoformat() if claim.created_at else None,
         })
 
+    # Recent-verifications window summary so the frontend can render
+    # "Latest verification: 2026-04-04" rather than letting an
+    # un-explained gap make the platform look dead. Verify-V5 audit fix.
+    most_recent_date = None
+    if recent_items:
+        # recent_items is ordered desc by created_at; first item is newest
+        for item in recent_items:
+            if item.get("created_at"):
+                most_recent_date = item["created_at"][:10]
+                break
+
     return {
         "total_claims": total_claims,
         "total_evaluated": total_evaluated,
@@ -325,6 +336,10 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         "category_distribution": category_distribution,
         "unique_entities": unique_entities,
         "recent": recent_items,
+        "recent_window_summary": {
+            "latest_verification_date": most_recent_date,
+            "displayed_count": len(recent_items),
+        },
     }
 
 

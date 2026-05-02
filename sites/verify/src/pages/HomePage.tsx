@@ -44,6 +44,10 @@ interface DashboardStats {
     tier?: string | null;
     created_at?: string | null;
   }>;
+  recent_window_summary?: {
+    latest_verification_date?: string | null;
+    displayed_count?: number;
+  };
 }
 
 // ── Tokens ──────────────────────────────────────────────────────────────
@@ -590,6 +594,29 @@ export default function HomePage() {
                 }}
               >
                 Recent Verifications
+                {stats?.recent_window_summary?.latest_verification_date && (
+                  <>
+                    {' '}
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 10,
+                        color: T3,
+                        textTransform: 'none',
+                        letterSpacing: 0,
+                      }}
+                    >
+                      · latest{' '}
+                      {new Date(
+                        stats.recent_window_summary.latest_verification_date,
+                      ).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </>
+                )}
               </div>
               <button
                 type="button"
