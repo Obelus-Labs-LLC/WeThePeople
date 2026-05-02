@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Search, HandCoins, Calendar, Building2 } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { ToolHeader } from '../components/ToolHeader';
@@ -109,6 +109,29 @@ export default function FederalGrantsPage() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSearch();
   };
+
+  // Audit item #26: pre-populate with the most recent grants on
+  // mount so the tool isn't an empty page until the user types.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setSearched(true);
+    apiFetch<{ total: number; grants: FederalGrant[] }>(
+      '/research/federal-grants',
+      { params: { limit: '25' } },
+    )
+      .then((d) => {
+        if (cancelled) return;
+        setResults(d.grants || []);
+        setTotal(d.total || 0);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setResults([]); setTotal(0);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
