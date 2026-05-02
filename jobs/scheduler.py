@@ -136,6 +136,19 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=3600,
         description="Sponsored + cosponsored bills per member (Congress.gov)",
     ),
+    JobDef(
+        # Same pattern as sync_member_actions: connector existed
+        # (`jobs/sync_emissions.py` → EPA GHGRP API) but no scheduler
+        # entry. The energy_emissions table was empty for all 89
+        # tracked energy companies; the Energy dashboard's "Emissions
+        # records: 0" tile was accurate but useless. Weekly cadence
+        # because EPA filings are annual.
+        name="sync_emissions",
+        script="jobs/sync_emissions.py",
+        interval_hours=168,  # weekly
+        timeout_sec=1800,
+        description="EPA GHGRP facility-level emissions for tracked energy companies",
+    ),
     # Quiver trade sync disabled - using House Clerk PDFs directly instead (more reliable, no API key needed)
     # JobDef(
     #     name="sync_congressional_trades",
@@ -359,6 +372,20 @@ JOB_REGISTRY: List[JobDef] = [
         interval_hours=24,
         timeout_sec=1800,  # 30 minutes
         description="Haiku summaries for new unsummarized votes, enforcement, contracts, lobbying (50/run cap)",
+    ),
+    JobDef(
+        # Politician + company ai_profile_summary backfill. Audit on May 2
+        # found 80%+ of companies had no AI summary. Separate JobDef from
+        # ai_summarize_daily so we can rate-limit it to a small batch
+        # (avoiding accidental burn of the full Anthropic budget) and
+        # control the cadence independently. 50 records per run × daily =
+        # whole roster covered in ~2 weeks while staying inexpensive.
+        name="ai_summarize_profiles",
+        script="jobs/ai_summarize.py",
+        args=["--profiles", "--limit", "50"],
+        interval_hours=24,
+        timeout_sec=1200,
+        description="Haiku profile summaries for politicians + companies (50/run)",
     ),
 
     # ── Weekly digest ──────────────────────────────────────────────

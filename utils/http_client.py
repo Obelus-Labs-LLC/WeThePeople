@@ -126,6 +126,22 @@ class HTTPClient:
 
                 # Handle specific status codes
                 if response.status_code == 429:
+                    # Honor a Retry-After header if the upstream sent one.
+                    # FEC's openFEC issues `Retry-After: <seconds>` when an
+                    # API key has busted its hourly quota. Sleeping
+                    # tenacity's max-10s backoff and immediately retrying
+                    # just guaranteed another 429; sleep the full
+                    # Retry-After window before letting tenacity raise.
+                    try:
+                        retry_after = response.headers.get("Retry-After")
+                        if retry_after:
+                            wait_secs = int(retry_after)
+                            # Clamp so a buggy upstream can't pin us for
+                            # an hour; tenacity will retry up to N times.
+                            if wait_secs > 0:
+                                time.sleep(min(wait_secs, 60))
+                    except (TypeError, ValueError):
+                        pass
                     raise RateLimitError(429, "Rate limit exceeded")
                 elif response.status_code in (401, 403):
                     raise AuthError(response.status_code, "Authentication failed")
@@ -146,20 +162,26 @@ class HTTPClient:
         url: str,
         params: Optional[dict] = None,
         use_cache: bool = True,
+        cache_ttl: Optional[int] = None,
         **kwargs
     ) -> dict:
         """
         GET request with caching.
-        
+
         Args:
             url: URL to request
             params: Query parameters
             use_cache: Whether to use cache (default True)
+            cache_ttl: Per-call TTL override in seconds. If None, falls
+                back to the client-wide default (CACHE_TTL=3600). Use a
+                longer TTL for stable upstream data (FEC totals,
+                committee membership) and a shorter one for fast-moving
+                feeds (FCC complaints, market quotes).
             **kwargs: Additional requests kwargs
-        
+
         Returns:
             JSON response as dict
-        
+
         Raises:
             HTTPError: On HTTP error
             AuthError: On authentication error (401/403)
@@ -171,18 +193,19 @@ class HTTPClient:
             cached = self.cache.get(cache_key)
             if cached is not None:
                 return cached
-        
+
         # Make request
         response = self._request_with_retry("GET", url, params=params, **kwargs)
         try:
             data = response.json()
         except (ValueError, requests.exceptions.JSONDecodeError) as e:
             raise HTTPError(response.status_code, f"Non-JSON response: {str(e)[:100]}")
-        
+
         # Store in cache
         if use_cache and self.cache_enabled:
-            self.cache.set(cache_key, data, expire=self.cache_ttl)
-        
+            ttl = cache_ttl if cache_ttl is not None else self.cache_ttl
+            self.cache.set(cache_key, data, expire=ttl)
+
         return data
     
     def get_congress_api(
@@ -244,21 +267,34 @@ class HTTPClient:
 
         return self.get(url, params=params, use_cache=use_cache)
 
+    # FEC data is filed quarterly and committee/donor totals don't move
+    # minute-to-minute. The default 1h client TTL was too aggressive —
+    # /people/{id}/full hits 4-5 FEC endpoints per request and 537
+    # politician profiles refreshing every hour easily blows the
+    # 1,000-req/hr quota (we observed FEC HTTP 429s in journalctl
+    # during the May 2 audit). 24h TTL gets us through the day on a
+    # single quota cycle.
+    FEC_CACHE_TTL = 86400  # 24 hours
+
     def get_fec(
         self,
         endpoint: str,
         params: Optional[dict] = None,
-        use_cache: bool = True
+        use_cache: bool = True,
+        cache_ttl: Optional[int] = None,
     ) -> dict:
         """
         GET request to FEC API (api.open.fec.gov).
 
-        Uses data.gov API key as query parameter.
+        Uses data.gov API key as query parameter. Defaults to a 24h
+        cache because FEC data is quarterly-filed.
 
         Args:
             endpoint: API endpoint (e.g., "candidates/")
             params: Query parameters
             use_cache: Whether to use cache
+            cache_ttl: Optional per-call TTL override. If None, uses
+                FEC_CACHE_TTL (24h).
 
         Returns:
             JSON response as dict
@@ -271,7 +307,12 @@ class HTTPClient:
         params = params or {}
         params["api_key"] = key
 
-        return self.get(url, params=params, use_cache=use_cache)
+        return self.get(
+            url,
+            params=params,
+            use_cache=use_cache,
+            cache_ttl=cache_ttl if cache_ttl is not None else self.FEC_CACHE_TTL,
+        )
 
     def get_datagov(
         self,
