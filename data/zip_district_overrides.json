@@ -1,0 +1,25 @@
+{
+  "_comment": "Override map for ZIP -> {state, house_person_id} when whoismyrepresentative.com returns stale data (pre-redistricting or retired reps). The lookup router consults this map first; if the ZIP is here we use the canonical TrackedMember.person_id directly, bypassing the broken upstream entirely. Senators are always added on top via state lookup. Sources: post-2022 Michigan redistricting maps; verified against current Congress.gov member directory and TrackedMember person_id slugs as of May 2026. Add other states' overrides as broken ZIPs are discovered.",
+  "_last_updated": "2026-05-02",
+  "overrides": {
+    "49001": { "state": "MI", "house_person_id": "bill_huizenga" },
+    "49002": { "state": "MI", "house_person_id": "bill_huizenga" },
+    "49004": { "state": "MI", "house_person_id": "bill_huizenga" },
+    "49006": { "state": "MI", "house_person_id": "bill_huizenga" },
+    "49007": { "state": "MI", "house_person_id": "bill_huizenga" },
+    "49008": { "state": "MI", "house_person_id": "bill_huizenga" },
+    "49009": { "state": "MI", "house_person_id": "bill_huizenga" },
+    "48501": { "state": "MI", "house_person_id": "kristen_mcdonald_rivet" },
+    "48502": { "state": "MI", "house_person_id": "kristen_mcdonald_rivet" },
+    "48503": { "state": "MI", "house_person_id": "kristen_mcdonald_rivet" },
+    "48504": { "state": "MI", "house_person_id": "kristen_mcdonald_rivet" },
+    "48505": { "state": "MI", "house_person_id": "kristen_mcdonald_rivet" },
+    "48506": { "state": "MI", "house_person_id": "kristen_mcdonald_rivet" },
+    "48507": { "state": "MI", "house_person_id": "kristen_mcdonald_rivet" },
+    "48060": { "state": "MI", "house_person_id": "lisa_c_mcclain" },
+    "48061": { "state": "MI", "house_person_id": "lisa_c_mcclain" },
+    "48062": { "state": "MI", "house_person_id": "lisa_c_mcclain" },
+    "48063": { "state": "MI", "house_person_id": "lisa_c_mcclain" },
+    "48064": { "state": "MI", "house_person_id": "lisa_c_mcclain" }
+  }
+}

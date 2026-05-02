@@ -131,10 +131,18 @@ def ingest_vote(congress: int, session: int, roll_number: int,
     """Ingest a single House vote with member positions."""
     db = SessionLocal()
     try:
-        # Skip if already exists
+        # Skip if already exists. The existence key MUST include
+        # vote_session: session 1 and session 2 share roll-number
+        # sequences (both start at 1), so a session-1 row with the
+        # same roll_number would otherwise block ingestion of the
+        # corresponding session-2 row. That's why House votes were
+        # stuck at 27 session-2 ingests when 155 were available —
+        # all 155 found "existing" matches against 2025 session-1
+        # rows. Filter by vote_session too.
         existing = db.query(Vote).filter(
             Vote.congress == congress,
             Vote.chamber == "house",
+            Vote.vote_session == session,
             Vote.roll_number == roll_number,
         ).first()
         if existing:

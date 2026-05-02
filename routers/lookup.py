@@ -2,17 +2,29 @@
 Zip Code Lookup — Rich representative profiles by zip code.
 
 GET /lookup/{zip_code}
-  Maps zip → district via whoismyrepresentative.com, finds matching
-  TrackedMembers (district rep + senators), returns trades, donors,
-  committees, anomalies, and votes for each — all in batch queries.
+  Maps zip → district via:
+    1. data/zip_district_overrides.json — local override file for ZIPs
+       where whoismyrepresentative.com returns stale data (pre-2022
+       redistricting, retired reps). Hand-curated; authoritative.
+    2. whoismyrepresentative.com — public lookup, but its dataset is
+       often years stale. We validate the returned name against
+       TrackedMember; if no current member matches, we fall back.
+    3. All active state members — graceful fallback so the user always
+       sees their senators even when the House district can't be
+       resolved precisely.
+
+  Returns trades, donors, committees, anomalies, and votes for each
+  matched member — all in batch queries.
 """
 
+import json
 import logging
 import threading
 import time
 import requests
 from datetime import date, timedelta, datetime, timezone
 from difflib import SequenceMatcher
+from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
 from cachetools import TTLCache
@@ -40,6 +52,27 @@ log = logging.getLogger("lookup")
 # ── District lookup cache (zip -> results, TTL 1 hour) ──
 _district_cache: TTLCache = TTLCache(maxsize=500, ttl=3600)
 _district_lock = threading.Lock()
+
+
+# ── ZIP override map ──
+# Loaded once at module import. Keys are zero-padded 5-digit ZIPs;
+# values are {"state": "MI", "district": "04"}. Used to bypass the
+# stale whoismyrepresentative.com lookup for ZIPs we know it gets
+# wrong. See data/zip_district_overrides.json.
+_OVERRIDE_PATH = Path(__file__).resolve().parent.parent / "data" / "zip_district_overrides.json"
+_zip_overrides: Dict[str, Dict[str, str]] = {}
+_overrides_log = logging.getLogger("lookup.overrides")
+try:
+    with open(_OVERRIDE_PATH, "r", encoding="utf-8") as _f:
+        _zip_overrides = json.load(_f).get("overrides", {}) or {}
+    _overrides_log.info(
+        "Loaded %d ZIP→district overrides from %s",
+        len(_zip_overrides), _OVERRIDE_PATH,
+    )
+except FileNotFoundError:
+    _overrides_log.info("No zip_district_overrides.json present; relying on upstream lookup")
+except Exception as _e:
+    _overrides_log.warning("Failed to load zip_district_overrides.json: %s", _e)
 
 
 def _cached_district_lookup(zip_code: str) -> Optional[list]:
@@ -136,7 +169,12 @@ def zip_lookup(zip_code: str, db: Session = Depends(get_db)):
     if len(cleaned) < 5:
         raise HTTPException(status_code=400, detail="Invalid zip code — must be 5 digits")
 
-    state = _zip_to_state(cleaned)
+    # Override file takes precedence — these ZIPs are known to return
+    # stale results from whoismyrepresentative.com. The override gives
+    # us the post-redistricting (state, district), and we match
+    # TrackedMember by (state, district) directly.
+    override = _zip_overrides.get(cleaned)
+    state = override.get("state") if override else _zip_to_state(cleaned)
     if not state:
         raise HTTPException(status_code=404, detail=f"No state mapping found for zip code {cleaned}")
 
@@ -148,16 +186,48 @@ def zip_lookup(zip_code: str, db: Session = Depends(get_db)):
         .all()
     )
 
-    # ── 1b. Try district-specific filtering via whoismyrepresentative.com ──
-    district_results = _cached_district_lookup(cleaned)
-    if district_results:
-        members = _filter_members_by_district(all_state_members, district_results)
-        if not members:
-            # If filtering produced nothing, fall back to all state members
-            log.warning("District filter returned 0 members for %s, falling back to state", cleaned)
+    # ── 1b. District-specific filtering ──
+    if override:
+        # Override path: senators always; House rep matched by canonical
+        # person_id from the override map. This bypasses
+        # whoismyrepresentative.com entirely for ZIPs we know it
+        # mishandles. TrackedMember has no district column, so we key
+        # on person_id directly.
+        house_pid = override.get("house_person_id")
+        members = []
+        for m in all_state_members:
+            if m.chamber and m.chamber.lower() == "senate":
+                members.append(m)
+                continue
+            if house_pid and m.person_id == house_pid:
+                members.append(m)
+        if not any(m.chamber and m.chamber.lower() == "house" for m in members):
+            # Override pointed at a person_id that isn't an active
+            # TrackedMember — likely a typo in the override file or the
+            # rep retired. Fall back so the user still sees senators.
+            log.warning(
+                "ZIP override %s -> %s/%s but no active House TrackedMember matches; falling back to state delegation",
+                cleaned, state, house_pid,
+            )
             members = all_state_members
     else:
-        members = all_state_members
+        district_results = _cached_district_lookup(cleaned)
+        if district_results:
+            members = _filter_members_by_district(all_state_members, district_results)
+            if not members:
+                # Upstream returned a name that doesn't match any current
+                # active TrackedMember. Almost always means the upstream
+                # is stale (returned a retired rep). Fall back to all
+                # state members so the user still sees their senators
+                # plus the full delegation list.
+                log.warning(
+                    "District filter returned 0 members for %s "
+                    "(upstream likely stale); falling back to state delegation",
+                    cleaned,
+                )
+                members = all_state_members
+        else:
+            members = all_state_members
 
     if not members:
         return {
