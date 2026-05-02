@@ -264,13 +264,27 @@ def build_url(path: str, campaign: str = "bot", source: str = "twitter",
 
 
 def build_profile_url(sector: str, entity_id: str, campaign: str = "bot") -> str:
-    """Build a tracked entity profile URL."""
+    """Build a tracked entity profile URL.
+
+    Path conventions (must match the SPA route table in
+    `frontend/src/App.tsx`):
+      politics      → /politics/people/{person_id}        (plural)
+      finance       → /finance/{institution_id}           (no /company segment)
+      health, tech, energy, transportation, defense,
+      chemicals, agriculture, telecom, education
+                    → /{sector}/{company_id}              (no /company segment)
+
+    The previous implementation used /politics/person/, /finance/company/,
+    and /{sector}/company/ — every one of those 404'd because the SPA
+    routes don't have those segments. Twitter posts that linked to a
+    politician profile sent users to the 404 page.
+    """
     if sector == "politics":
-        path = f"/politics/person/{entity_id}"
+        path = f"/politics/people/{entity_id}"
     elif sector == "finance":
-        path = f"/finance/company/{entity_id}"
+        path = f"/finance/{entity_id}"
     else:
-        path = f"/{sector}/company/{entity_id}"
+        path = f"/{sector}/{entity_id}"
     return build_url(path, campaign=campaign)
 
 

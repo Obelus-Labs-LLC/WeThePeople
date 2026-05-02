@@ -404,13 +404,18 @@ export default function PeoplePage() {
   // showed an unfiltered list of all members.
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
+  // `?state=MI` URL param — used to be silently ignored; now seeds the
+  // state filter so /politics/people?state=MI lands on the MI roster.
+  const initialState = (searchParams.get('state') || '').toUpperCase();
 
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(initialQuery);
   const [partyFilter, setPartyFilter] = useState<PartyFilter>('all');
   const [chamberFilter, setChamberFilter] = useState<ChamberFilter>('all');
-  const [stateFilter, setStateFilter] = useState<StateFilter>('all');
+  const [stateFilter, setStateFilter] = useState<StateFilter>(
+    (initialState && initialState.length === 2) ? (initialState as StateFilter) : 'all'
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [zipCode, setZipCode] = useState('');
   const [zipRepIds, setZipRepIds] = useState<string[]>([]);
@@ -470,13 +475,30 @@ export default function PeoplePage() {
 
   const PAGE_SIZE = 20;
 
+  // Recognise 2-letter US state codes typed into the search box and
+  // treat them as a state filter rather than a name substring. Without
+  // this, typing "MI" matched every name containing "mi" (Adam Smith,
+  // Adrian Smith, Ami Bera…) which the audit flagged as wrong-by-default.
+  const US_STATE_CODES = useMemo(() => new Set([
+    'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+    'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+    'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC','PR','VI','GU','AS','MP'
+  ]), []);
+
   const filtered = useMemo(() => {
     let result = people;
     if (search) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (p) => p.display_name.toLowerCase().includes(q) || (p.state || '').toLowerCase().includes(q)
-      );
+      const trimmed = search.trim();
+      const upper = trimmed.toUpperCase();
+      // Two-letter exact state code → state-only filter, no name match.
+      if (trimmed.length === 2 && US_STATE_CODES.has(upper)) {
+        result = result.filter((p) => (p.state || '').toUpperCase() === upper);
+      } else {
+        const q = trimmed.toLowerCase();
+        result = result.filter(
+          (p) => p.display_name.toLowerCase().includes(q) || (p.state || '').toLowerCase().includes(q)
+        );
+      }
     }
     if (partyFilter !== 'all') {
       result = result.filter((p) => (p.party || '').startsWith(partyFilter));
@@ -495,7 +517,7 @@ export default function PeoplePage() {
       result = result.filter((p) => zipRepIds.includes(p.person_id));
     }
     return result;
-  }, [people, search, partyFilter, chamberFilter, stateFilter, zipRepIds]);
+  }, [people, search, partyFilter, chamberFilter, stateFilter, zipRepIds, US_STATE_CODES]);
 
   const partyCounts = useMemo(() => {
     const counts = { D: 0, R: 0, I: 0 };
