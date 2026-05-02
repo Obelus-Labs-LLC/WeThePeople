@@ -429,6 +429,124 @@ def refresh(
     )
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Forgot / reset password
+# ─────────────────────────────────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr = Field(..., description="Email associated with the account")
+
+
+class ForgotPasswordResponse(BaseModel):
+    ok: bool = True
+    message: str = (
+        "If an account exists for that email, a reset link has been sent. "
+        "Check your inbox (and spam folder)."
+    )
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., description="Reset token from the emailed link")
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class ResetPasswordResponse(BaseModel):
+    ok: bool = True
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+@limiter.limit("5/hour")
+def forgot_password(
+    body: ForgotPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Send a password-reset email if the address matches an active account.
+
+    Always returns 200 with the same generic message, regardless of whether
+    the email exists. This prevents the endpoint from doubling as a
+    user-enumeration oracle.
+    """
+    email = body.email.lower().strip()
+    user = db.query(User).filter(User.email == email, User.is_active == 1).first()
+
+    if user:
+        # Mint a 30-min reset token. Sub is the user_id (str) so the
+        # consumer can look the user up without re-querying by email.
+        from services.jwt_auth import create_password_reset_token
+        token = create_password_reset_token(user.id, user.email)
+        reset_url = f"https://wethepeopleforus.com/reset-password?token={token}"
+
+        # Compose the email. Plain HTML, no template engine needed.
+        html = f"""
+        <p>Hi{(' ' + user.display_name) if user.display_name else ''},</p>
+        <p>You (or someone with your email) asked to reset your WeThePeople
+        password. Click the link below to set a new one. The link expires
+        in 30 minutes.</p>
+        <p><a href=\"{reset_url}\" style=\"display:inline-block;padding:10px 18px;background:#caa427;color:#000;text-decoration:none;border-radius:6px;font-weight:600;\">Reset password</a></p>
+        <p>Or copy this URL into your browser: <br><code>{reset_url}</code></p>
+        <p style=\"color:#666;font-size:13px;\">If you didn't ask for this,
+        you can safely ignore this email — your password won't change.</p>
+        <p style=\"color:#666;font-size:12px;\">— WeThePeople</p>
+        """
+        try:
+            from services.email import send_email
+            sent = send_email(
+                to=[user.email],
+                subject="Reset your WeThePeople password",
+                html=html,
+            )
+            log_from_request(
+                db, request,
+                action="password_reset_requested" if sent else "password_reset_email_failed",
+                user_id=user.id,
+                resource="users", resource_id=str(user.id),
+            )
+        except Exception as e:
+            logger.warning("forgot_password email send raised: %s", e)
+
+    # Same response either way to defeat enumeration.
+    return ForgotPasswordResponse()
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+@limiter.limit("10/hour")
+def reset_password(
+    body: ResetPasswordRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Consume a password-reset token and set a new password."""
+    from services.jwt_auth import decode_password_reset_token
+
+    payload = decode_password_reset_token(body.token)
+    user_id = int(payload.get("sub")) if payload.get("sub") else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = db.query(User).filter(User.id == user_id, User.is_active == 1).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Account not found")
+
+    user.hashed_password = pwd_context.hash(body.new_password)
+    db.add(user)
+    db.commit()
+
+    log_from_request(
+        db, request,
+        action="password_reset",
+        user_id=user.id,
+        resource="users", resource_id=str(user.id),
+    )
+
+    # Reset clears any session cookie the user might have had —
+    # they should log in again with the new password.
+    _clear_session_cookie(response)
+
+    return ResetPasswordResponse()
+
+
 @router.get("/me", response_model=UserInfoResponse)
 def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Return the authenticated user's profile."""

@@ -103,6 +103,40 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+PASSWORD_RESET_TTL_MINUTES = 30
+
+
+def create_password_reset_token(user_id: int, email: str) -> str:
+    """Mint a short-lived JWT used to verify a password-reset request.
+
+    The token carries a `purpose="password_reset"` claim so the consumer
+    on /auth/reset-password can refuse access tokens / refresh tokens
+    accidentally posted to it. 30-minute TTL — long enough for a slow
+    email flow, short enough that a leaked reset link is mostly harmless.
+    """
+    expire = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_TTL_MINUTES)
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "purpose": "password_reset",
+        "exp": expire,
+        "jti": uuid.uuid4().hex,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> dict:
+    """Decode + validate a password-reset token. Raises HTTPException(401)
+    on invalid signature, expiry, or wrong purpose."""
+    payload = verify_token(token)
+    if payload.get("purpose") != "password_reset":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+    return payload
+
+
 def verify_token(token: str) -> dict:
     """Decode and validate a JWT.  Returns the payload dict or raises.
 
