@@ -50,46 +50,46 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id: string) {
             if (!id.includes('node_modules')) return undefined;
-            // SPLIT POLICY (post-2026-05-02 black-screen incident):
+            // SPLIT POLICY (post-2026-05-02 black-screen incident,
+            // iteration 3):
             //
-            // The previous, more aggressive split (recharts / d3 /
-            // framer-motion / @tanstack each in their own chunk)
-            // produced a circular ESM edge between vendor and
-            // charts: vendor.js imported symbols from charts.js
-            // while charts.js imported React from vendor.js. The
-            // module that initialised second saw the first's
-            // exports as `undefined`, surfacing as
-            //   "Cannot read properties of undefined (reading
-            //    'forwardRef')"
-            // when recharts evaluated `g.forwardRef` at top level
-            // before vendor had finished setting up React. That was
-            // the actual root cause of the black-screen outage —
-            // the bare `buffer/` specifier was the FIRST visible
-            // crash, but fixing it just unmasked the cycle.
+            // Previous attempt collapsed recharts/d3/framer-motion/
+            // @tanstack into vendor and kept plotly/graph/leaflet
+            // split. That fixed the recharts→React cycle but the
+            // PLOTLY split STILL had a cycle with vendor (cause:
+            // `id.includes('plotly')` matched `@plotly/d3`, a
+            // separate npm package that recharts and other vendor
+            // libs depend on; vendor then had a back-edge into the
+            // plotly chunk and plotly's top-level evaluation read
+            // `Promise` off an undefined vendor binding ⇒ blank).
             //
-            // Rule: only split a chunk if it is (a) genuinely huge
-            // and (b) a leaf — nothing in vendor calls back into it.
-            // plotly, react-force-graph + three, and leaflet pass
-            // both. Recharts, d3, framer-motion, @tanstack all fail
-            // (b) and stay in vendor. The price is a fatter vendor
-            // chunk on first paint; the benefit is the site mounts.
-            if (id.includes('plotly')) {
+            // Fix: match the npm package paths PRECISELY (trailing
+            // slash), so the plotly chunk only contains the actual
+            // `plotly.js` package and nothing else. `@plotly/d3`
+            // falls through to vendor where every other d3 lives.
+            //
+            // Same precision applied to leaflet and react-force-graph.
+            // Anything that doesn't match a leaf rule goes to vendor.
+            if (id.includes('node_modules/plotly.js/') ||
+                id.includes('node_modules/plotly.js-dist-min/')) {
               return 'plotly';
             }
-            // Force-graph + three.js: dynamic-imported by InfluenceNetworkPage.
-            // d3-force is REMOVED from this rule — d3 modules are
-            // also pulled in by recharts (which now lives in vendor),
-            // so isolating any d3 module re-creates the cycle.
-            if (id.includes('react-force-graph') || id.includes('three-')) {
+            // react-force-graph + three.js itself (NOT three-* helpers,
+            // some of which are also pulled in by other vendor libs).
+            if (id.includes('node_modules/react-force-graph') ||
+                id.includes('node_modules/three/')) {
               return 'graph';
             }
-            // Leaflet + react-leaflet: ChoroplethMap on InfluenceMapPage.
-            if (id.includes('leaflet')) {
+            // leaflet + react-leaflet (NOT @react-leaflet sub-packages
+            // that vendor libs may share).
+            if (id.includes('node_modules/leaflet/') ||
+                id.includes('node_modules/react-leaflet/')) {
               return 'map';
             }
-            // Everything else (React, recharts, d3-*, framer-motion,
-            // @tanstack, and all transitive deps) stays in vendor so
-            // no cross-chunk cycles can form.
+            // Everything else (React, recharts, d3-*, @plotly/d3,
+            // framer-motion, @tanstack, three-* helpers, all
+            // transitive deps) stays in vendor so no cross-chunk
+            // cycles can form.
             return 'vendor';
           },
         },
