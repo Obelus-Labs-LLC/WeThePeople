@@ -11,6 +11,14 @@ import {
 import { categoryLabel } from '../utils/categoryLabels';
 
 // -- Verdict config --
+//
+// 'supported' / 'partial' / 'unknown' are the verdict buckets that
+// power the banner styling. Labels come from the editorial vocabulary
+// in utils/tierLabels so the result page reads the same words as
+// HomePage Recent and VaultPage. (Previously each page had its own
+// labels: SUPPORTED/PARTIAL/UNKNOWN here, STRONG/MODERATE here, and
+// Mostly True/Mixed Evidence on HomePage. Three views, three vocabs,
+// same data.)
 
 const VERDICT_CONFIG = {
   supported: {
@@ -21,14 +29,14 @@ const VERDICT_CONFIG = {
     icon: CheckCircle,
   },
   partial: {
-    label: 'PARTIAL',
+    label: 'MIXED EVIDENCE',
     bg: 'bg-amber-500/10',
     border: 'border-amber-500/30',
     text: 'text-amber-400',
     icon: AlertTriangle,
   },
   unknown: {
-    label: 'UNKNOWN',
+    label: 'UNVERIFIED',
     bg: 'bg-zinc-500/10',
     border: 'border-zinc-500/30',
     text: 'text-zinc-400',
