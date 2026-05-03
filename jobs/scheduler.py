@@ -786,7 +786,17 @@ def _build_scheduler(dry_run: bool = False) -> Any:
 
         # NOTE: hours == 168 falls into the weekly branch (7 days).
         # Anything < 168 uses raw hours; > 168 uses 30-day monthly.
-        if hours < 168:
+        # Sub-hour intervals (e.g. 0.5h for warm_politician_cache)
+        # MUST go through minutes — `scheduler.every(int(0.5)).hours`
+        # rounds to 0 and registers a zero-interval loop. Caught
+        # 2026-05-03: warm_politician_cache had run 2,469 times in a
+        # tight loop, hammering the DB and burning compute.
+        if hours < 1:
+            # Sub-hour: convert to whole minutes (>= 1 to avoid the
+            # same int-truncation foot-gun).
+            minutes = max(1, int(round(hours * 60)))
+            decorator = scheduler.every(minutes).minutes
+        elif hours < 168:
             # Use hours for daily / 48h / 72h intervals
             decorator = scheduler.every(int(hours)).hours
         elif hours == 168:
