@@ -125,13 +125,45 @@ def food_recalls(
 # ── OpenFDA Drug Recalls ───────────────────────────────────────────────────
 
 
+# OpenFDA recall responses get an in-process TTL cache. The dataset
+# updates daily at most; serving the same query within 30 min has zero
+# correctness cost and drops a 3.9s upstream call to <1ms. Threading
+# Lock so concurrent FastAPI workers don't race the dict.
+_OPENFDA_CACHE: dict[tuple, tuple[float, dict]] = {}
+_OPENFDA_CACHE_TTL = 1800  # 30 min
+_OPENFDA_CACHE_LOCK = threading.Lock()
+
+
+def _cached_openfda(product_type: str, search: str, limit: int) -> dict:
+    key = (product_type, search, limit)
+    now = _time.time()
+    with _OPENFDA_CACHE_LOCK:
+        cached = _OPENFDA_CACHE.get(key)
+        if cached and now - cached[0] < _OPENFDA_CACHE_TTL:
+            return cached[1]
+    # Fetch outside the lock — a slow upstream shouldn't block other
+    # cache reads. Two callers racing the same key would each do one
+    # upstream fetch; both winners write the same value.
+    result = search_enforcement(product_type=product_type, search=search, limit=limit)
+    if "error" not in result:
+        with _OPENFDA_CACHE_LOCK:
+            _OPENFDA_CACHE[key] = (now, result)
+    return result
+
+
 @router.get("/drug-recalls")
 def drug_recalls(
     search: str = Query("", description="Drug or company search term"),
     limit: int = Query(25, ge=1, le=100),
 ):
-    """Proxy to OpenFDA drug enforcement (recall) endpoint."""
-    result = search_enforcement(product_type="drug", search=search, limit=limit)
+    """Proxy to OpenFDA drug enforcement (recall) endpoint.
+
+    30-min in-process cache because OpenFDA is slow (3.9s on cold call
+    in the 2026-05-03 probe) and the underlying recall feed updates
+    weekly at best. Cache misses fall through to upstream; cache hits
+    serve in <1ms.
+    """
+    result = _cached_openfda("drug", search, limit)
     if "error" in result:
         raise HTTPException(502, "OpenFDA drug request failed")
     return result
@@ -143,7 +175,7 @@ def device_recalls(
     limit: int = Query(25, ge=1, le=100),
 ):
     """Proxy to OpenFDA device enforcement (recall) endpoint."""
-    result = search_enforcement(product_type="device", search=search, limit=limit)
+    result = _cached_openfda("device", search, limit)
     if "error" in result:
         raise HTTPException(502, "OpenFDA device request failed")
     return result

@@ -58,7 +58,14 @@ def list_committees(
     chamber: Optional[str] = Query(None, description="Filter by chamber: house, senate, joint"),
     include_subcommittees: bool = Query(False, description="Include subcommittees in listing"),
 ):
-    """List all congressional committees with member counts."""
+    """List all congressional committees with member counts.
+
+    Pre-2026-05-03 this endpoint had an N+1 query pattern: for every
+    top-level committee we ran a separate `WHERE parent_thomas_id = ?`
+    SELECT to fetch its subcommittees. With ~50 top-level committees
+    that's 50+ DB round trips. Probe measured 2.8s. Now uses a single
+    batched fetch + dict-grouping to drop it to one query for the
+    parent set + one for all subs."""
     db = SessionLocal()
     try:
         q = db.query(Committee)
@@ -71,7 +78,7 @@ def list_committees(
 
         committees = q.order_by(Committee.chamber, Committee.name).all()
 
-        # Bulk-fetch member counts
+        # Bulk-fetch member counts (1 query for all committees)
         count_rows = (
             db.query(
                 CommitteeMembership.committee_thomas_id,
@@ -82,26 +89,33 @@ def list_committees(
         )
         count_map = {row[0]: row[1] for row in count_rows}
 
+        # Bulk-fetch subcommittees in ONE query, group by parent_thomas_id.
+        # Replaces the previous N+1 loop that queried each parent's children
+        # individually. Skipped when include_subcommittees=True because the
+        # main query already returned them flat.
+        subs_by_parent: Dict[str, list] = {}
+        if not include_subcommittees and committees:
+            parent_ids = [c.thomas_id for c in committees]
+            sub_rows = (
+                db.query(Committee)
+                .filter(Committee.parent_thomas_id.in_(parent_ids))
+                .order_by(Committee.parent_thomas_id, Committee.name)
+                .all()
+            )
+            for s in sub_rows:
+                subs_by_parent.setdefault(s.parent_thomas_id, []).append(s)
+
         results = []
         for c in committees:
             member_count = count_map.get(c.thomas_id, 0)
             serialized = _serialize_committee(c, member_count)
 
-            # Include subcommittees inline if this is a top-level committee
             if not include_subcommittees and c.parent_thomas_id is None:
-                subs = (
-                    db.query(Committee)
-                    .filter(Committee.parent_thomas_id == c.thomas_id)
-                    .order_by(Committee.name)
-                    .all()
-                )
-                if subs:
-                    serialized["subcommittees"] = [
-                        _serialize_committee(s, count_map.get(s.thomas_id, 0))
-                        for s in subs
-                    ]
-                else:
-                    serialized["subcommittees"] = []
+                subs = subs_by_parent.get(c.thomas_id, [])
+                serialized["subcommittees"] = [
+                    _serialize_committee(s, count_map.get(s.thomas_id, 0))
+                    for s in subs
+                ]
 
             results.append(serialized)
 
