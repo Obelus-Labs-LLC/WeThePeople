@@ -22,7 +22,10 @@ const SECTIONS: LongformSection[] = [
       'Campaign finance — FEC (continuous)',
       'Federal contracts — USASpending.gov + FPDS',
       'Enforcement — EPA ECHO, OSHA, SEC EDGAR, FDA, FDIC, CFPB, NLRB',
+      'GHG emissions — EPA GHGRP (annual facility-level)',
+      'Sanctions — U.S. Treasury OFAC SDN + OpenSanctions consolidated (EU CFSP, UK OFSI, UN Security Council)',
       'Insider trades — STOCK Act disclosures via House/Senate clerks',
+      'Stock fundamentals — Yahoo Finance + Stooq + Finnhub (daily)',
       'Clinical trials — ClinicalTrials.gov',
       'Drug pricing — CMS NADAC, Medicare Part B/D',
     ],
@@ -45,7 +48,8 @@ const SECTIONS: LongformSection[] = [
     id: 'anomaly-detection',
     title: 'Anomaly detection',
     body: [
-      'We flag entities and politicians whose activity deviates \u22652\u03c3 from sector/cohort medians on lobbying, insider trading timing, or vote/contribution correlation. Flags are surfaced with confidence intervals, not as allegations.',
+      'We flag entities and politicians whose activity deviates \u22651.5\u03c3 from sector/cohort medians on lobbying spend, insider-trade timing relative to legislation, contract-windfall timing relative to PAC donations, or enforcement gap (expected actions given sector risk vs. observed). Flags are surfaced with confidence intervals, not as allegations.',
+      'Each anomaly carries a deterministic source-event chain: every flag links back to a specific filing, trade, contract, or vote that triggered it. We never assert wrongdoing \u2014 only that the pattern deviates from peers and warrants attention.',
     ],
   },
   {
@@ -71,7 +75,7 @@ export default function MethodologyPage() {
     <LongformDoc
       overline="Methodology"
       title="How we calculate what we publish."
-      lastUpdated="Mar 2026"
+      lastUpdated="May 2026"
       sections={SECTIONS}
     />
   );
