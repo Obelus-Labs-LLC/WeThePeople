@@ -41,6 +41,11 @@ config = SectorConfig(
         (SECEnergyFiling, "filing_count"),
         (EnergyEnforcement, "enforcement_count"),
         (EnergyLobbyingRecord, "lobbying_count"),
+        # Without this entry, /energy/companies returned emission_count=null
+        # for every company, and the EnergyCompaniesPage list rendered "0
+        # emissions" next to each entity even for the 65 companies with
+        # 12,100 EPA records actually persisted. Caught 2026-05-03.
+        (EnergyEmission, "emission_count"),
     ],
 )
 

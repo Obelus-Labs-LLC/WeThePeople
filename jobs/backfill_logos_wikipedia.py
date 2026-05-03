@@ -146,16 +146,25 @@ def _verify(url: str) -> bool:
         return False
 
 
-def _iter_targets(conn, limit: int):
+def _iter_targets(conn, limit: int, upgrade_favicons: bool = False):
+    """Same NULL-vs-favicon-upgrade flag as the Wikidata backfill.
+    See backfill_logos_wikidata.py for rationale."""
     cur = conn.cursor()
     yielded = 0
     for table, id_col in TARGET_TABLES:
         if limit and yielded >= limit:
             break
         try:
+            if upgrade_favicons:
+                where = (
+                    "(logo_url IS NULL OR logo_url = '' "
+                    "OR logo_url LIKE '%google.com/s2/favicons%')"
+                )
+            else:
+                where = "(logo_url IS NULL OR logo_url = '')"
             sql = (
                 f"SELECT {id_col}, display_name FROM {table} "
-                f"WHERE (logo_url IS NULL OR logo_url = '') "
+                f"WHERE {where} "
                 f"AND display_name IS NOT NULL ORDER BY id"
             )
             cur.execute(sql)
@@ -169,7 +178,7 @@ def _iter_targets(conn, limit: int):
                 break
 
 
-def run(limit: int, dry_run: bool) -> int:
+def run(limit: int, dry_run: bool, upgrade_favicons: bool = False) -> int:
     db_path = os.getenv("WTP_DB_PATH", str(ROOT / "wethepeople.db"))
     if not Path(db_path).exists():
         log.error("DB not found at %s", db_path)
@@ -178,7 +187,7 @@ def run(limit: int, dry_run: bool) -> int:
     conn.execute("PRAGMA journal_mode=WAL;")
 
     seen = found = failed = 0
-    for table, id_col, eid, name in _iter_targets(conn, limit):
+    for table, id_col, eid, name in _iter_targets(conn, limit, upgrade_favicons):
         seen += 1
         if dry_run:
             log.info("DRY: %s/%s (%s)", table, eid, name)
@@ -203,8 +212,14 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--limit", type=int, default=0)
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument(
+        "--upgrade-favicons",
+        action="store_true",
+        help="Also re-process entities whose current logo_url is a Google "
+        "favicon, replacing with a Wikipedia logo when found.",
+    )
     args = p.parse_args()
-    return run(limit=args.limit, dry_run=args.dry_run)
+    return run(limit=args.limit, dry_run=args.dry_run, upgrade_favicons=args.upgrade_favicons)
 
 
 if __name__ == "__main__":

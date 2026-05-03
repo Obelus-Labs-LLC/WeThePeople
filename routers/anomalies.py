@@ -42,21 +42,69 @@ def list_anomalies(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    """List anomalies with optional filters."""
-    q = db.query(Anomaly)
-    if pattern_type:
-        q = q.filter(Anomaly.pattern_type == pattern_type)
-    if entity_type:
-        q = q.filter(Anomaly.entity_type == entity_type)
-    if min_score > 0:
-        q = q.filter(Anomaly.score >= min_score)
+    """List anomalies with optional filters.
 
-    total = q.count()
-    rows = q.order_by(desc(Anomaly.score), desc(Anomaly.detected_at)).offset(offset).limit(limit).all()
+    De-duplicates server-side by (entity_id, pattern_type, description-prefix)
+    before paging. The underlying `dedupe_hash` column is keyed off the
+    source event (lobby_filing_id, trade_id, etc.), not the anomaly's
+    rendered text — so a single politician's "serves on committees
+    overseeing finance/tech" pattern can have 30+ copies (one per
+    detection-engine run × source events). Without this dedupe the
+    /anomalies feed showed 19/20 copies of the same Henry Schein row at
+    the top of the page. Caught 2026-05-03."""
+    # Use a window-function subquery to keep ONLY the highest-scored
+    # row per (entity_id, pattern_type) group. This is the canonical
+    # way to dedupe `wide` tables on SQLite 3.25+ (Hetzner's sqlite is
+    # 3.40+). A previous Python-side dedupe over a fixed-size superset
+    # collapsed the entire feed to 2 rows because Henry Schein and
+    # Josh Gottheimer occupied the top ~thousand of score-DESC.
+    from sqlalchemy import text as _sa_text
+    where_clauses = []
+    params: dict = {"limit": limit, "offset": offset}
+    if pattern_type:
+        where_clauses.append("pattern_type = :pattern_type")
+        params["pattern_type"] = pattern_type
+    if entity_type:
+        where_clauses.append("entity_type = :entity_type")
+        params["entity_type"] = entity_type
+    if min_score > 0:
+        where_clauses.append("score >= :min_score")
+        params["min_score"] = min_score
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    sql = _sa_text(f"""
+        SELECT id, score FROM (
+            SELECT id, score, ROW_NUMBER() OVER (
+                PARTITION BY entity_id, pattern_type
+                ORDER BY score DESC, detected_at DESC
+            ) AS rn
+            FROM anomalies
+            {where_sql}
+        )
+        WHERE rn = 1
+        ORDER BY score DESC, id DESC
+        LIMIT :limit OFFSET :offset
+    """)
+    id_rows = db.execute(sql, params).all()
+    ids = [r[0] for r in id_rows]
+
+    total_sql = _sa_text(f"""
+        SELECT COUNT(*) FROM (
+            SELECT 1 FROM anomalies
+            {where_sql}
+            GROUP BY entity_id, pattern_type
+        )
+    """)
+    total = db.execute(total_sql, {k: v for k, v in params.items() if k not in ("limit", "offset")}).scalar() or 0
+
+    # Re-fetch the rows by id, preserving order
+    rows = db.query(Anomaly).filter(Anomaly.id.in_(ids)).all() if ids else []
+    rows_by_id = {r.id: r for r in rows}
+    ordered = [rows_by_id[i] for i in ids if i in rows_by_id]
 
     return {
         "total": total,
-        "anomalies": [_serialize_anomaly(a) for a in rows],
+        "anomalies": [_serialize_anomaly(a) for a in ordered],
     }
 
 
