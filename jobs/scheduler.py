@@ -159,15 +159,40 @@ JOB_REGISTRY: List[JobDef] = [
         description="OFAC SDN sanctions check for tracked politicians + companies",
     ),
     JobDef(
-        # Stooq snapshot for every entity with a ticker. Free, no API
-        # key. Runs once a day so the sidebar `latest_stock.price`
-        # tracks the most recent close. Fundamentals (market cap, P/E)
-        # come from Alpha Vantage when its 25-req/day budget allows.
+        # Stock snapshot for every entity with a ticker. Free, no API
+        # key. yfinance gets full fundamentals (market_cap, P/E, EPS,
+        # dividends, sector) for ~96% of US tickers; Stooq is the
+        # fallback for the few yfinance can't resolve.
         name="backfill_stock_fundamentals",
         script="jobs/backfill_stock_fundamentals.py",
         interval_hours=24,
         timeout_sec=1800,
-        description="Daily price + range snapshot for tracked tickers (Stooq)",
+        description="Daily stock fundamentals for tracked tickers (yfinance + Stooq)",
+    ),
+    JobDef(
+        # OpenSanctions consolidated dataset adds EU CFSP, UK OFSI, UN
+        # Security Council on top of OFAC. Scheduled daily so EU/UK
+        # sanctions changes (which happen weekly) propagate quickly.
+        # Strict dataset filter excludes regulatory enforcement
+        # (ESMA delistings, FCA actions) to avoid false positives.
+        name="backfill_sanctions_global",
+        script="jobs/backfill_sanctions_global.py",
+        interval_hours=24,
+        timeout_sec=900,
+        description="EU+UK+UN sanctions check via OpenSanctions",
+    ),
+    JobDef(
+        # Wikidata P154 (logo image) is a 5th-tier fallback after the
+        # backfill_company_logos cascade misses. Picked up 33 logos
+        # for major brands (Comcast, Tractor Supply, Cox, etc.) whose
+        # SPA homepages set og:image via JS so the raw-HTML scrape
+        # missed them. Daily because new tracked companies might
+        # land on the list.
+        name="backfill_logos_wikidata",
+        script="jobs/backfill_logos_wikidata.py",
+        interval_hours=24,
+        timeout_sec=900,
+        description="Wikidata P154 logo backfill (5th-tier fallback)",
     ),
     # Quiver trade sync disabled - using House Clerk PDFs directly instead (more reliable, no API key needed)
     # JobDef(
