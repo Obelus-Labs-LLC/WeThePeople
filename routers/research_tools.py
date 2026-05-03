@@ -802,12 +802,20 @@ def treasury_data(
     ),
     year: Optional[int] = Query(None, description="Filter by fiscal year"),
 ):
-    """Fetch Treasury fiscal data (national debt, federal revenue, or spending)."""
+    """Fetch Treasury fiscal data (national debt, federal revenue, or spending).
+
+    Response shape is `{dataset, total, rows, as_of}` to match the research
+    site's TreasuryResponse TS interface. Pre-2026-05-03 the endpoint
+    returned `{dataset, data}` — the FE then crashed in
+    TreasuryDataPage.tsx with `Cannot read properties of undefined
+    (reading 'toLocaleString')` on `data.total` because that key didn't
+    exist. Symptom was a totally blank page on /treasury.
+    """
     try:
         from connectors import treasury_fiscal
     except ImportError:
         logger.warning("connectors.treasury_fiscal not available")
-        return {"dataset": dataset, "data": []}
+        return {"dataset": dataset, "total": 0, "rows": [], "as_of": None}
 
     cache_key = (dataset, year)
 
@@ -821,12 +829,67 @@ def treasury_data(
         return []
 
     try:
-        data = _upstream_cached("treasury-data", cache_key, _fetch)
+        raw = _upstream_cached("treasury-data", cache_key, _fetch) or []
     except Exception as exc:
         logger.warning("Treasury fiscal data error: %s", exc)
-        return {"dataset": dataset, "data": []}
+        return {"dataset": dataset, "total": 0, "rows": [], "as_of": None}
 
-    return {"dataset": dataset, "data": data}
+    # The Treasury Fiscal Service returns raw record-level fields that
+    # vary per dataset. The FE TreasuryRow shape expects a uniform
+    # {period, label, amount, category, change_pct}. Map per-dataset.
+    def _to_float(v):
+        try:
+            return float(v) if v not in (None, "", "null") else None
+        except (TypeError, ValueError):
+            return None
+
+    rows: list[dict] = []
+    if dataset == "debt":
+        for r in raw:
+            rows.append({
+                "period": r.get("record_date"),
+                "label": "Total Public Debt Outstanding",
+                "amount": _to_float(r.get("tot_pub_debt_out_amt")),
+                "category": None,
+                "change_pct": None,  # computed below
+            })
+    elif dataset == "revenue":
+        for r in raw:
+            rows.append({
+                "period": r.get("record_date") or r.get("record_calendar_year"),
+                "label": r.get("classification_desc") or r.get("revenue_source"),
+                "amount": _to_float(r.get("current_month_rcpt_outly_amt") or r.get("current_fytd_rcpt_outly_amt")),
+                "category": r.get("classification_desc"),
+                "change_pct": None,
+            })
+    elif dataset == "spending":
+        for r in raw:
+            rows.append({
+                "period": r.get("record_date"),
+                "label": r.get("classification_desc"),
+                "amount": _to_float(r.get("current_month_gross_outly_amt") or r.get("current_fytd_gross_outly_amt")),
+                "category": r.get("classification_desc"),
+                "change_pct": None,
+            })
+    else:
+        rows = []
+
+    # Sort newest-first and compute period-over-period change_pct
+    rows.sort(key=lambda r: r.get("period") or "", reverse=True)
+    for i in range(len(rows) - 1):
+        cur = rows[i]["amount"]
+        prev = rows[i + 1]["amount"]
+        if cur is not None and prev not in (None, 0):
+            rows[i]["change_pct"] = (cur - prev) / prev
+
+    as_of = rows[0].get("period") if rows else None
+
+    return {
+        "dataset": dataset,
+        "total": len(rows),
+        "rows": rows,
+        "as_of": as_of,
+    }
 
 
 # ── FCC ECFS Proceedings (Telecom Regulatory) ────────────────────────────────
