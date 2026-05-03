@@ -86,11 +86,74 @@ LOGO_SOURCES = [
     ("https://www.google.com/s2/favicons?domain={domain}&sz=128", "google-favicon"),
 ]
 
+# 4th-tier fallback: scrape the og:image from the company's homepage.
+# Catches small/private companies that 3rd-party logo CDNs don't
+# index but whose own marketing site has a usable hero image. Run
+# only after the CDN cascade has missed.
+import re as _re
+
+_OG_IMAGE_RE = _re.compile(
+    r'<meta\s+(?:[^>]*?\s+)?property=["\']og:image["\']\s+content=["\']([^"\']+)["\']',
+    _re.IGNORECASE,
+)
+_OG_IMAGE_RE_REVERSED = _re.compile(
+    r'<meta\s+(?:[^>]*?\s+)?content=["\']([^"\']+)["\']\s+(?:[^>]*?\s+)?property=["\']og:image["\']',
+    _re.IGNORECASE,
+)
+
+
+def _resolve_og_image(domain: str) -> str | None:
+    """Last-resort: GET https://{domain}, look for og:image meta tag.
+
+    The HTML spec doesn't enforce attribute order, so we check both
+    `property=...og:image content=...` and the reversed form. We
+    accept any absolute URL the page advertises as og:image, then
+    verify it actually serves a >300-byte image."""
+    if not domain or " " in domain:
+        return None
+    try:
+        r = requests.get(
+            f"https://{domain}",
+            timeout=LOGO_VERIFY_TIMEOUT,
+            allow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; WeThePeopleBot/1.0)"},
+        )
+        if r.status_code != 200:
+            return None
+        html = r.text[:200_000]  # cap; some sites ship megabyte-sized HTML
+    except Exception:  # noqa: BLE001
+        return None
+
+    m = _OG_IMAGE_RE.search(html) or _OG_IMAGE_RE_REVERSED.search(html)
+    if not m:
+        return None
+    candidate = m.group(1).strip()
+    # Resolve protocol-relative or path-relative URLs against the domain.
+    if candidate.startswith("//"):
+        candidate = "https:" + candidate
+    elif candidate.startswith("/"):
+        candidate = f"https://{domain}{candidate}"
+    elif not candidate.startswith("http"):
+        return None
+
+    # Verify it really serves an image of non-trivial size.
+    try:
+        v = requests.get(candidate, timeout=LOGO_VERIFY_TIMEOUT, stream=True, allow_redirects=True)
+        ct = v.headers.get("content-type", "")
+        body = v.raw.read(2048, decode_content=True) if v.status_code == 200 else b""
+        v.close()
+        if v.status_code != 200 or not ct.startswith("image/") or len(body) < 300:
+            return None
+    except Exception:  # noqa: BLE001
+        return None
+    return candidate
+
 
 def _resolve_logo(domain: str) -> str | None:
-    """Try each LOGO_SOURCE in order. Return the first URL that
-    actually serves an image (HEAD/GET 200, image/* content-type, and
-    >300 bytes for the favicon fallback so we don't persist the 1x1
+    """Try each LOGO_SOURCE in order, then fall back to scraping the
+    site's own og:image meta tag. Return the first URL that actually
+    serves an image (HEAD/GET 200, image/* content-type, and >300
+    bytes for the favicon fallback so we don't persist the 1x1
     grey placeholder Google sends for non-registered domains).
 
     Returns None when no source has a logo for this domain."""
@@ -113,7 +176,11 @@ def _resolve_logo(domain: str) -> str | None:
             return url
         except Exception:
             continue
-    return None
+    # 4th-tier fallback: scrape og:image from the homepage. This is
+    # what catches the small/private companies that none of the CDNs
+    # carry — most have a marketing site with a hero image tagged
+    # for social previews.
+    return _resolve_og_image(domain)
 
 
 def _ask_claude_for_domain(client, model: str, name: str) -> str:
