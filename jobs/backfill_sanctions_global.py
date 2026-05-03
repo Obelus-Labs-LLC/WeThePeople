@@ -166,13 +166,18 @@ def _ensure_csv(refresh: bool) -> bytes:
 
 def _list_kind(datasets: str, sanctions: str) -> str:
     """Classify which list family this entity is on.
-    Returns one of 'us', 'eu', 'uk', 'un', 'other'."""
-    blob = (datasets + " " + sanctions).lower()
-    if "ofac" in blob or "us " in blob or "us-" in blob.replace(" ", ""):
+    Returns one of 'us', 'eu', 'uk', 'un', 'other'.
+
+    Pad with leading/trailing spaces so word-boundary checks like
+    " uk " match start-of-string tokens too. Without padding,
+    "UN Security Council" wouldn't match because " un " needs a
+    leading space."""
+    blob = " " + (datasets + " " + sanctions).lower() + " "
+    if "ofac" in blob or " us " in blob or "us-" in blob.replace(" ", ""):
         return "us"
     if "ofsi" in blob or " uk " in blob or "uk-" in blob.replace(" ", "") or "british" in blob:
         return "uk"
-    if "cfsp" in blob or "eu " in blob or "european union" in blob or "eu-" in blob.replace(" ", ""):
+    if "cfsp" in blob or " eu " in blob or "european union" in blob or "eu-" in blob.replace(" ", ""):
         return "eu"
     if "united nations" in blob or " un " in blob or "un-" in blob.replace(" ", ""):
         return "un"

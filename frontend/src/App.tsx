@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -134,6 +134,22 @@ const ApiDocsPage = React.lazy(() => import("./pages/ApiDocsPage"));
 const PricingPage = React.lazy(() => import("./pages/PricingPage"));
 const MethodologyPage = React.lazy(() => import("./pages/MethodologyPage"));
 
+/**
+ * Redirect /<sector>/companies/<id> -> /<sector>/<id> (or /<sector>/institutions/<id>
+ * -> /<sector>/<id> for finance).
+ *
+ * The actual detail route uses /:companyId at the sector root, but most
+ * external links and Twitter-bot-built URLs use the longer /<sector>/companies/<id>
+ * form by analogy with the listing pages. Without these redirects those
+ * URLs hit NotFoundPage.
+ */
+function SectorRedirect({ to }: { to: string }) {
+  const params = useParams();
+  const id = params.id;
+  if (!id) return <Navigate to={to} replace />;
+  return <Navigate to={`${to}/${id}`} replace />;
+}
+
 // Landing page has its own SiteHeader with search + Log in/Sign up.
 // All other pages rely on the global floating overlays.
 //
@@ -167,6 +183,26 @@ const App: React.FC = () => (
         <Routes>
           {/* Sector selector */}
           <Route path="/" element={<HomePage />} />
+
+          {/*
+            Capture the natural /<sector>/companies/<id> guess that 404'd
+            because the actual entity-detail route is /<sector>/<id>. This
+            catches social-share links from external sites and Twitter
+            bot output that uses the longer form. Caught in the
+            2026-05-03 deep probe.
+          */}
+          <Route path="/health/companies/:id" element={<SectorRedirect to="/health" />} />
+          <Route path="/tech/companies/:id" element={<SectorRedirect to="/tech" />} />
+          <Route path="/energy/companies/:id" element={<SectorRedirect to="/energy" />} />
+          <Route path="/defense/companies/:id" element={<SectorRedirect to="/defense" />} />
+          <Route path="/transportation/companies/:id" element={<SectorRedirect to="/transportation" />} />
+          <Route path="/chemicals/companies/:id" element={<SectorRedirect to="/chemicals" />} />
+          <Route path="/agriculture/companies/:id" element={<SectorRedirect to="/agriculture" />} />
+          <Route path="/education/companies/:id" element={<SectorRedirect to="/education" />} />
+          <Route path="/telecom/companies/:id" element={<SectorRedirect to="/telecom" />} />
+          {/* /finance/institutions/<id> -> /finance/<id> (the canonical
+              detail route uses :institution_id directly under /finance/). */}
+          <Route path="/finance/institutions/:id" element={<SectorRedirect to="/finance" />} />
 
           {/* Politics section — all wrapped in PoliticsLayout (FloatingLines bg) */}
           <Route path="/politics" element={<PoliticsLayout><PoliticsDashboardPage /></PoliticsLayout>} />

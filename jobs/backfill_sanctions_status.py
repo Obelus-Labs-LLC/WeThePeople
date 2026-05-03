@@ -228,6 +228,65 @@ def _iter_company_names(conn: sqlite3.Connection):
             yield table, id_col, has_sanctions_data, id_value, display_name
 
 
+def _send_alert(matches: list[dict]) -> None:
+    """Email a one-shot summary of newly-flagged sanctions matches.
+
+    Triggers only when status flipped from clear/null to sdn. We
+    intentionally do NOT alert on every match — daily cron would
+    spam the same matches forever. The DB write of `sanctions_status='sdn'`
+    is the durable signal; this email is best-effort notification so
+    a human can review (the Triumph Group false-positive episode
+    proved we need a human-in-the-loop review channel).
+
+    Quiet on misconfig: if neither `WTP_SANCTIONS_ALERT_EMAIL` nor
+    `WTP_ADMIN_EMAIL` is set, we log and continue.
+    """
+    if not matches:
+        return
+    recipient = os.getenv("WTP_SANCTIONS_ALERT_EMAIL") or os.getenv("WTP_ADMIN_EMAIL")
+    if not recipient:
+        log.info("no alert recipient configured; skipping (matches=%d)", len(matches))
+        return
+    try:
+        # Reuse the existing transactional mailer (Resend API). Lazy
+        # import so --dry-run doesn't take the dep.
+        from services.email import send_email  # type: ignore
+    except Exception as exc:  # noqa: BLE001
+        log.warning("alert mailer not importable: %s", exc)
+        return
+
+    rows = "".join(
+        f"<tr><td><code>{m['table']}/{m['entity_id']}</code></td>"
+        f"<td>{m['display_name']}</td>"
+        f"<td>{m['sdn_name']}</td>"
+        f"<td>{m['program']}</td></tr>"
+        for m in matches
+    )
+    html = (
+        f"<h2>WeThePeople sanctions check — {len(matches)} new SDN match(es)</h2>"
+        f"<p>Run at: {datetime.now(timezone.utc).isoformat()}</p>"
+        "<p>Each match below transitioned from <code>sanctions_status=clear</code> "
+        "(or null) to <code>'sdn'</code>. Review individually — name-based matches "
+        "can collide on common company names (the Triumph Group false-positive "
+        "was a Russian SDN entity sharing the name with a US-listed aerospace co).</p>"
+        "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;font-family:monospace'>"
+        "<tr><th>entity</th><th>display name</th><th>matched SDN row</th><th>program(s)</th></tr>"
+        f"{rows}</table>"
+    )
+    try:
+        ok = send_email(
+            to=[recipient],
+            subject=f"[wtp] {len(matches)} new sanctions match(es)",
+            html=html,
+        )
+        if ok:
+            log.info("sent sanctions alert email to %s (n=%d)", recipient, len(matches))
+        else:
+            log.warning("sanctions alert email send returned False (mailer unconfigured)")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("sanctions alert email failed: %s", exc)
+
+
 def run(refresh_csv: bool, dry_run: bool, limit: int) -> int:
     db_path = os.getenv("WTP_DB_PATH", str(ROOT / "wethepeople.db"))
     if not Path(db_path).exists():
@@ -244,6 +303,7 @@ def run(refresh_csv: bool, dry_run: bool, limit: int) -> int:
     cleared = 0
     flagged = 0
     processed = 0
+    new_flags: list[dict] = []  # for one-shot alert email at end of run
     for table, id_col, has_data, id_value, display_name in _iter_company_names(conn):
         if limit and processed >= limit:
             break
@@ -271,6 +331,17 @@ def run(refresh_csv: bool, dry_run: bool, limit: int) -> int:
                     )
                 flagged += 1
                 log.warning("SDN MATCH: %s/%s (%s) — %s", table, id_value, display_name, match['program'])
+                # `_iter_company_names` only yields rows where status was
+                # NULL or '' before this run, so any match here is a NEW
+                # flag and gets the alert. Already-flagged entities don't
+                # come back through this loop.
+                new_flags.append({
+                    "table": table,
+                    "entity_id": id_value,
+                    "display_name": display_name,
+                    "sdn_name": match.get("sdn_name", ""),
+                    "program": match.get("program", ""),
+                })
             else:
                 if has_data:
                     conn.execute(
@@ -290,6 +361,10 @@ def run(refresh_csv: bool, dry_run: bool, limit: int) -> int:
 
     if not dry_run:
         conn.commit()
+        # Fire one-shot alert email for any new SDN matches. Best-effort —
+        # never fails the backfill run if email delivery hiccups.
+        if new_flags:
+            _send_alert(new_flags)
     log.info("done. processed=%d cleared=%d flagged=%d", processed, cleared, flagged)
     conn.close()
     return 0

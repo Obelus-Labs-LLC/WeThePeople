@@ -123,6 +123,66 @@ def _fetch_yfinance(ticker: str) -> Optional[dict]:
         return None
 
 
+def fetch_finnhub(ticker: str) -> Optional[dict]:
+    """Finnhub.io fallback for tickers yfinance can't resolve. Free
+    tier is 60 req/min, 30K/mo — plenty for our daily 600-entity
+    backfill, especially since this only fires on yfinance misses
+    (typically 5-10% of entities).
+
+    Activated only when `FINNHUB_API_KEY` env var is set; returns None
+    otherwise.
+
+    Combines two endpoints:
+      /stock/profile2  -> sector, industry, name, mcap (in M USD)
+      /quote           -> current price, OHLCV
+    """
+    import os
+    key = os.environ.get("FINNHUB_API_KEY", "")
+    if not key:
+        return None
+    try:
+        # Profile call — sector/industry/name/mcap. Returns {} when ticker unknown.
+        r = requests.get(
+            "https://finnhub.io/api/v1/stock/profile2",
+            params={"symbol": ticker, "token": key},
+            headers=_HEADERS,
+            timeout=15,
+        )
+        if r.status_code != 200:
+            return None
+        profile = r.json() or {}
+        if not profile.get("ticker") and not profile.get("name"):
+            return None
+
+        # Quote call — current price + 52w range.
+        rq = requests.get(
+            "https://finnhub.io/api/v1/quote",
+            params={"symbol": ticker, "token": key},
+            headers=_HEADERS,
+            timeout=15,
+        )
+        quote = rq.json() if rq.status_code == 200 else {}
+    except Exception as exc:  # noqa: BLE001
+        logger.info("finnhub %s err: %s", ticker, exc)
+        return None
+
+    # Finnhub `marketCapitalization` is in millions USD; convert to raw.
+    mcap = _safe_float(profile.get("marketCapitalization"))
+    if mcap is not None:
+        mcap = mcap * 1_000_000
+
+    return {
+        "marketCap": mcap,
+        "sector": profile.get("finnhubIndustry") or profile.get("gind"),
+        "industry": profile.get("finnhubIndustry"),
+        "longName": profile.get("name"),
+        # Finnhub /quote: c=current, h=high, l=low, o=open, pc=prev_close
+        "regularMarketPrice": _safe_float(quote.get("c")),
+        "fiftyTwoWeekHigh": _safe_float(profile.get("52WeekHigh")) or _safe_float(quote.get("h")),
+        "fiftyTwoWeekLow": _safe_float(profile.get("52WeekLow")) or _safe_float(quote.get("l")),
+    }
+
+
 def fetch_overview(ticker: str) -> Optional[dict]:
     """Compose a StockFundamentals-shaped dict.
 
@@ -131,8 +191,12 @@ def fetch_overview(ticker: str) -> Optional[dict]:
     EPS, dividends, sector, 52w range). Falls back to Stooq for the
     handful of tickers yfinance can't resolve.
 
-    Returns None only when both sources fail."""
+    Returns None only when all sources fail."""
+    # Tier 1: yfinance (rich US fundamentals)
     info = _fetch_yfinance(ticker)
+    # Tier 2: Finnhub for non-US / ADR-only tickers (key required)
+    if not info:
+        info = fetch_finnhub(ticker)
 
     today = date.today().isoformat()
     if info:
