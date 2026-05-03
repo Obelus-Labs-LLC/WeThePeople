@@ -14,8 +14,12 @@ export function partyColor(party: string): string {
   return PARTY_COLORS[party?.charAt(0)] || '#6B7280';
 }
 
-/** Format a number as a compact dollar string ($1.2B, $3.4M, $5K, $123). */
+/** Format a number as a compact dollar string ($1.2T, $3.4B, $5.6M, $123K, $42).
+ * The trillion threshold matters for site-wide aggregate stats — `total_contract_value`
+ * across all 9 sectors is ~$4T, so without the T branch the homepage ticker
+ * showed "$4155.0B" which most readers don't parse correctly. */
 export function formatMoney(n: number): string {
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(1)}T`;
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
   if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
