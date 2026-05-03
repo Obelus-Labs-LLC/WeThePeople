@@ -10,6 +10,7 @@ Usage:
 """
 
 import os
+import re
 import sys
 import time
 import hashlib
@@ -64,8 +65,15 @@ def md5(text: str) -> str:
 # Map display_name to likely EPA parent company search terms.
 # Some companies need adjusted search names (e.g., "ExxonMobil Corporation" -> "ExxonMobil").
 def _epa_search_name(display_name: str) -> str:
-    """Derive a search-friendly name for EPA parent company lookup."""
-    # Strip common suffixes
+    """Derive a search-friendly name for EPA parent company lookup.
+
+    Important: must NOT strip down to a fragment so short that EPA's
+    `parent_company CONTAINING ...` matches unrelated companies.
+    `Stem Inc.` -> `Stem` matched 25 unrelated coal/gas plants whose
+    parent_company strings just happened to contain "stem" (e.g.
+    "Berkshire Hathaway Energy Systems"). Refuse to return anything
+    shorter than 4 characters; the caller treats that as "search
+    with full name only"."""
     suffixes = [
         " Corporation", " Corp.", " Corp", " Inc.", " Inc",
         " LLC", " L.L.C.", " Ltd.", " Ltd", " LP", " L.P.",
@@ -76,7 +84,43 @@ def _epa_search_name(display_name: str) -> str:
     for suffix in suffixes:
         if name.endswith(suffix):
             name = name[: -len(suffix)]
-    return name.strip()
+    name = name.strip()
+    # Length guard against false-positive substring matches.
+    if len(name) < 4:
+        return display_name.strip()
+    return name
+
+
+def _post_filter_facilities(
+    facilities: list, search_name: str, display_name: str
+) -> list:
+    """Drop EPA results whose `parent_company` string doesn't actually
+    reference our company. EPA's CONTAINING match is too permissive
+    when the search term is a substring of an unrelated parent name
+    (the original "PPG" -> matched parents containing "PPL" via the
+    company-id slug bug; "Stem" -> matched "Berkshire Hathaway Energy
+    Systems"). We require the full search term as a word boundary in
+    the parent_company string."""
+    if not facilities:
+        return facilities
+
+    needle = search_name.lower()
+    full_needle = display_name.lower()
+    # Build short-name + full-name candidates for the boundary check.
+    needles = {needle, full_needle}
+    # Also accept the cleaned company name without ` Inc.` etc.
+    cleaned = re.sub(r",?\s*(inc|corporation|corp|ltd|llc|company|group|holdings|holding)\.?$", "", full_needle).strip()
+    if cleaned:
+        needles.add(cleaned)
+
+    kept = []
+    for f in facilities:
+        parent = (f.get("parent_company") or "").lower()
+        # Word-boundary match: name must appear surrounded by space,
+        # punctuation, or start/end. Prevents "Stem" matching "Systems".
+        if any(re.search(rf"(^|[^a-z]){re.escape(n)}([^a-z]|$)", parent) for n in needles if n):
+            kept.append(f)
+    return kept
 
 
 def sync_company_emissions(db_session, company: TrackedEnergyCompany) -> int:
@@ -87,11 +131,13 @@ def sync_company_emissions(db_session, company: TrackedEnergyCompany) -> int:
 
     log.info(f"[{company_id}] Searching EPA GHGRP for '{search_name}'...")
     facilities = search_facilities_by_parent(search_name, rows=200)
+    facilities = _post_filter_facilities(facilities, search_name, display_name)
 
     if not facilities:
         # Try with full display name
         log.info(f"[{company_id}] No results for '{search_name}', trying '{display_name}'...")
         facilities = search_facilities_by_parent(display_name, rows=200)
+        facilities = _post_filter_facilities(facilities, display_name, display_name)
 
     if not facilities:
         log.info(f"[{company_id}] No facilities found in EPA GHGRP.")
