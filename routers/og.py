@@ -30,6 +30,27 @@ from models.tech_models import (
 from models.energy_models import (
     TrackedEnergyCompany, EnergyLobbyingRecord, EnergyGovernmentContract, EnergyEnforcement,
 )
+from models.defense_models import (
+    TrackedDefenseCompany, DefenseLobbyingRecord, DefenseGovernmentContract, DefenseEnforcement,
+)
+from models.transportation_models import (
+    TrackedTransportationCompany, TransportationLobbyingRecord,
+    TransportationGovernmentContract, TransportationEnforcement,
+)
+from models.chemicals_models import (
+    TrackedChemicalCompany, ChemicalLobbyingRecord, ChemicalGovernmentContract, ChemicalEnforcement,
+)
+from models.agriculture_models import (
+    TrackedAgricultureCompany, AgricultureLobbyingRecord,
+    AgricultureGovernmentContract, AgricultureEnforcement,
+)
+from models.education_models import (
+    TrackedEducationCompany, EducationLobbyingRecord,
+    EducationGovernmentContract, EducationEnforcement,
+)
+from models.telecom_models import (
+    TrackedTelecomCompany, TelecomLobbyingRecord, TelecomGovernmentContract, TelecomEnforcement,
+)
 from utils.db_compat import lobby_spend as _lobby_spend_expr
 
 router = APIRouter(prefix="/og", tags=["og"])
@@ -40,6 +61,27 @@ SECTOR_COLORS = {
     "health": "#DC2626",
     "tech": "#8B5CF6",
     "energy": "#F97316",
+    "defense": "#475569",
+    "transportation": "#0EA5E9",
+    "chemicals": "#A16207",
+    "agriculture": "#65A30D",
+    "education": "#0891B2",
+    "telecom": "#7C3AED",
+}
+
+# Sector -> (TrackedCompany model, LobbyingRecord, GovernmentContract,
+# Enforcement, display label). Used by `/og/{entity_type}/{entity_id}`
+# to render the same SVG card layout for any of the 6 sectors that
+# previously fell through to the catch-all 400. Caught in the
+# 2026-05-03 audit — sharing a defense/transportation/chemicals/etc
+# company URL on social returned an unfurled error image.
+_GENERIC_SECTOR_CONFIG = {
+    "defense": (TrackedDefenseCompany, DefenseLobbyingRecord, DefenseGovernmentContract, DefenseEnforcement, "Defense"),
+    "transportation": (TrackedTransportationCompany, TransportationLobbyingRecord, TransportationGovernmentContract, TransportationEnforcement, "Transportation"),
+    "chemicals": (TrackedChemicalCompany, ChemicalLobbyingRecord, ChemicalGovernmentContract, ChemicalEnforcement, "Chemicals"),
+    "agriculture": (TrackedAgricultureCompany, AgricultureLobbyingRecord, AgricultureGovernmentContract, AgricultureEnforcement, "Agriculture"),
+    "education": (TrackedEducationCompany, EducationLobbyingRecord, EducationGovernmentContract, EducationEnforcement, "Education"),
+    "telecom": (TrackedTelecomCompany, TelecomLobbyingRecord, TelecomGovernmentContract, TelecomEnforcement, "Telecom"),
 }
 
 
@@ -244,6 +286,25 @@ def _generate_og_image(entity_type: str, entity_id: str) -> tuple[bytes, str]:
                 ("ENFORCEMENT", _fmt_num(enforcement)),
             ]
             return _svg_to_png(_build_svg(co.display_name, "Energy", stats, SECTOR_COLORS["energy"]))
+
+        elif entity_type in _GENERIC_SECTOR_CONFIG:
+            # Defense / transportation / chemicals / agriculture / education /
+            # telecom share the same SVG layout: lobbying $ + contract count +
+            # enforcement count. The model classes are imported up top.
+            co_model, lobby_model, contract_model, enforcement_model, label = _GENERIC_SECTOR_CONFIG[entity_type]
+            co = db.query(co_model).filter_by(company_id=entity_id).first()
+            if not co:
+                raise HTTPException(status_code=404, detail=f"{label} company not found")
+            lobby_spend = db.query(func.sum(_lobby_spend_expr(lobby_model))).filter_by(company_id=entity_id).scalar() or 0
+            contracts = db.query(func.count(contract_model.id)).filter_by(company_id=entity_id).scalar() or 0
+            enforcement = db.query(func.count(enforcement_model.id)).filter_by(company_id=entity_id).scalar() or 0
+            stats = [
+                ("SECTOR", (getattr(co, "sector_type", None) or label).upper()),
+                ("LOBBYING", _fmt_dollar(float(lobby_spend))),
+                ("CONTRACTS", _fmt_num(contracts)),
+                ("ENFORCEMENT", _fmt_num(enforcement)),
+            ]
+            return _svg_to_png(_build_svg(co.display_name, label, stats, SECTOR_COLORS[entity_type]))
 
         else:
             raise HTTPException(status_code=400, detail=f"Unknown entity_type: {entity_type}")
