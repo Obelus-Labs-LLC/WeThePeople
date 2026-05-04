@@ -854,11 +854,20 @@ def treasury_data(
                 "change_pct": None,  # computed below
             })
     elif dataset == "revenue":
+        # Treasury Fiscal Service revenue endpoint returns
+        # current_month_net_rcpt_amt (net of refunds). Pre-2026-05-04
+        # this code looked for `current_month_rcpt_outly_amt` which
+        # doesn't exist on this dataset → all amounts came back null
+        # and the FE rendered em-dashes for every row. Caught in the
+        # 2026-05-04 walkthrough (R-TR-4).
         for r in raw:
             rows.append({
                 "period": r.get("record_date") or r.get("record_calendar_year"),
-                "label": r.get("classification_desc") or r.get("revenue_source"),
-                "amount": _to_float(r.get("current_month_rcpt_outly_amt") or r.get("current_fytd_rcpt_outly_amt")),
+                "label": r.get("classification_desc"),
+                "amount": _to_float(
+                    r.get("current_month_net_rcpt_amt")
+                    or r.get("current_fytd_net_rcpt_amt")
+                ),
                 "category": r.get("classification_desc"),
                 "change_pct": None,
             })
@@ -867,7 +876,10 @@ def treasury_data(
             rows.append({
                 "period": r.get("record_date"),
                 "label": r.get("classification_desc"),
-                "amount": _to_float(r.get("current_month_gross_outly_amt") or r.get("current_fytd_gross_outly_amt")),
+                "amount": _to_float(
+                    r.get("current_month_net_outly_amt")
+                    or r.get("current_fytd_net_outly_amt")
+                ),
                 "category": r.get("classification_desc"),
                 "change_pct": None,
             })
