@@ -663,9 +663,9 @@ def earmarks_search(
     try:
         awards = _upstream_cached("earmarks", cache_key, _fetch)
     except Exception as e:
-        # Earmarks search is journalist-relevant (HIGH for Lauren's beat)
-        # so cache failures briefly but return them as 503 so the UI can
-        # offer a retry rather than treating it as terminal.
+        # Earmarks search is journalist-relevant (HIGH for state-capitol
+        # beats) so cache failures briefly but return them as 503 so the
+        # UI can offer a retry rather than treating it as terminal.
         raise HTTPException(503, f"USASpending earmarks search failed: {e}")
 
     return {"total": len(awards), "awards": awards}

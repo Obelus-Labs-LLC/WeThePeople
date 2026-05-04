@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from models.database import get_db, DATABASE_URL, engine
 from services.auth import require_press_key
-from utils.db_compat import is_sqlite, is_oracle, all_tables_sql, index_count_sql, table_row_count_sql
+from utils.db_compat import is_sqlite, all_tables_sql, index_count_sql, table_row_count_sql
 from utils.logging import get_logger
 
 router = APIRouter(prefix="/ops", tags=["ops"], dependencies=[Depends(require_press_key)])
@@ -438,15 +438,6 @@ def pipeline_quality(db: Session = Depends(get_db)):
              "SELECT CAST(julianday('now') - julianday(MAX(transaction_date)) AS INTEGER) FROM congressional_trades",
              14),
         ]
-    elif is_oracle():
-        stale_checks = [
-            ("votes_staleness_days",
-             "SELECT TRUNC(SYSDATE - MAX(\"date\")) FROM votes",
-             14),
-            ("congressional_trades_staleness_days",
-             "SELECT TRUNC(SYSDATE - MAX(transaction_date)) FROM congressional_trades",
-             14),
-        ]
     else:
         # PostgreSQL
         stale_checks = [
@@ -508,14 +499,6 @@ def db_stats(db: Session = Depends(get_db)):
             wal_path = db_path + "-wal"
             if os.path.exists(wal_path):
                 stats["wal_size_mb"] = round(os.path.getsize(wal_path) / (1024 * 1024), 1)
-    elif is_oracle():
-        try:
-            size_row = db.execute(text("SELECT SUM(bytes) FROM user_segments")).fetchone()
-            if size_row and size_row[0]:
-                stats["file_size_bytes"] = int(size_row[0])
-                stats["file_size_mb"] = round(int(size_row[0]) / (1024 * 1024), 1)
-        except Exception:
-            pass
 
     # Table row counts
     tables: List[Dict[str, Any]] = []

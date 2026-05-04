@@ -17,7 +17,7 @@ Pages and features that will migrate here from the main WeThePeople frontend:
 ```bash
 cd sites/journal
 npm install
-npm run dev    # http://localhost:5175
+npm run dev
 ```
 
 ## Stack

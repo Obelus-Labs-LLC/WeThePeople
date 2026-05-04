@@ -446,7 +446,7 @@ def generate_report(results: list[QueryResult]) -> str:
     lines.append("   Cache these results in-memory with short TTLs (see caching strategy).")
     lines.append("")
     lines.append("3. **SQLite locking**: Under concurrent load, WAL mode helps but does not")
-    lines.append("   eliminate reader-writer contention. PostgreSQL/Oracle migration will fix this.")
+    lines.append("   eliminate reader-writer contention. PostgreSQL migration will fix this.")
     lines.append("")
     lines.append("4. **Covering indexes**: For queries that only need a few columns,")
     lines.append("   consider covering indexes to avoid row lookups.")

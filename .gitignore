@@ -72,17 +72,27 @@ _sync_*.py
 _chain_*.py
 backups/
 
-# Session context (local only)
-CLAUDE.md
-SESSION_SUMMARY.md
+# ── Markdown policy ────────────────────────────────────────────────
+# Per the May 4 2026 cleanup: NO markdown files in this repo except
+# project-level README.md files. All planning docs, prompts, audits,
+# editorial standards, architecture notes, and bug logs stay LOCAL
+# only. They live on the operator's machine (preserved at
+# ../md-archive-local/ in the worktree). If a file is genuinely
+# needed in the repo, force-add with `git add -f` and update this
+# allowlist to be explicit.
+*.md
+!README.md
+!**/README.md
+# Specific READMEs that should ALSO stay local-only
+frontend/README.md
+frontend/src/api/README.md
+
+# Other local-only contexts
 .serena/
 
 # Internal docs & archive (local only)
 docs/
 _archive/
-deploy/SETUP.md
-frontend/README.md
-frontend/src/api/README.md
 
 # Seed/reference data (local only, too large or too volatile for git)
 data/
