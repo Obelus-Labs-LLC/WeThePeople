@@ -137,7 +137,7 @@ def _get_db_size_bytes() -> int:
                 db_path = db_path[2:]
             if os.path.exists(db_path):
                 return os.path.getsize(db_path)
-        # Oracle and PostgreSQL manage storage differently; return 0
+        # PostgreSQL manages storage differently; return 0
     except Exception:
         pass
     return 0

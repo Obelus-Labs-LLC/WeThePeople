@@ -191,7 +191,7 @@ uvicorn main:app --port 8006  # API at http://localhost:8006/docs
 ```bash
 cd frontend
 npm install
-npm run dev                   # http://localhost:5173
+npm run dev
 ```
 
 ### Seed Data
