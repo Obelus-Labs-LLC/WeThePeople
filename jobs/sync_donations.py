@@ -185,6 +185,45 @@ def _build_pac_search_name(display_name: str) -> str:
     return name.strip()
 
 
+def _pac_search_variants(display_name: str) -> list[str]:
+    """Yield a small ranked set of search-name variants for the FEC `committees`
+    endpoint. Some sectors (transportation, agriculture, telecom) have PACs
+    whose names don't include the legal suffix-stripped corporate name —
+    e.g., John Deere's PAC is "DEERE & COMPANY POLITICAL ACTION COMMITTEE",
+    UPS's is "UNITED PARCEL SERVICE INC. POLITICAL ACTION COMMITTEE", and
+    Tyson Foods is "TYSON FOODS, INC. POLITICAL ACTION COMMITTEE."
+
+    Returns the variants in order of decreasing specificity. Caller stops
+    at the first variant that returns committee hits to avoid duplicate
+    work and rate-limit pressure.
+    """
+    primary = _build_pac_search_name(display_name)
+    variants = [primary]
+
+    # Variant 2: full display name uppercased (preserves "& CO", "FOODS",
+    # "RAILROAD" etc. that are sometimes in the PAC name).
+    full_upper = display_name.upper().strip()
+    if full_upper and full_upper != primary:
+        variants.append(full_upper)
+
+    # Variant 3: just the first word of the cleaned name. Catches PACs
+    # named "Tyson PAC", "Cargill PAC", "Verizon Good Government Club"
+    # where only the brand survives in the committee name.
+    if primary:
+        first_token = primary.split()[0]
+        if first_token and first_token != primary:
+            variants.append(first_token)
+
+    # Dedupe while preserving order.
+    seen = set()
+    out = []
+    for v in variants:
+        if v and v not in seen:
+            out.append(v)
+            seen.add(v)
+    return out
+
+
 def search_committees(company_name: str) -> list[dict]:
     """
     Search FEC for committees (PACs) associated with a company name.
@@ -340,12 +379,25 @@ def main():
         log.info(f"[{i + 1}/{len(entities)}] {entity['display_name']} ({entity['entity_type']})")
 
         try:
-            # Search for PACs associated with this company
-            committees = search_committees(entity["pac_search_name"])
-            time.sleep(0.5)  # Rate limit between companies
+            # Search for PACs associated with this company. Try the
+            # cleaned-name variant first; if FEC returns nothing, fall
+            # back to the full display name (which may include the
+            # legal suffix the PAC kept in its registered name) and
+            # then to the first-word stem. This catches sector-PAC
+            # naming patterns the original 1-shot search missed —
+            # see `_pac_search_variants` for the list.
+            committees: list[dict] = []
+            tried_variants: list[str] = []
+            for variant in _pac_search_variants(entity["display_name"]):
+                tried_variants.append(variant)
+                committees = search_committees(variant)
+                time.sleep(0.5)  # Rate limit between FEC searches
+                if committees:
+                    break
 
             if not committees:
-                log.info(f"  No committees found for '{entity['pac_search_name']}'")
+                log.info(f"  No committees found for '{entity['display_name']}'"
+                         f" (tried variants: {tried_variants})")
                 continue
 
             total_committees += len(committees)
