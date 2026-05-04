@@ -69,14 +69,26 @@ function Layout({ children }: { children: React.ReactNode }) {
  *     analytics and gave bots a 200-OK on missing pages.
  */
 export default function App() {
-  // Review-mode short-circuit: every path renders the placeholder. Keeps
-  // EcosystemNav + Footer in place so the page still looks like the journal,
-  // but no story content, no personalization onboarding, no analytics events
-  // tied to story views.
+  // Review-mode short-circuit: every path renders the placeholder, EXCEPT
+  // for the accountability surfaces that should remain public DURING the
+  // review (the editorial standards page, the corrections page, the
+  // verification methodology, and the funding disclosure). Hiding stories
+  // is editorial caution; hiding the standards that govern them would
+  // defeat the purpose of being publicly accountable about the review.
+  // Keeps EcosystemNav + Footer in place so the page still looks like the
+  // journal, but no story content, no personalization onboarding, no
+  // analytics events tied to story views.
   if (REVIEW_MODE) {
     return (
       <BrowserRouter>
         <Routes>
+          <Route path="/standards" element={<Layout><StandardsPage /></Layout>} />
+          <Route path="/editorial-standards" element={<Layout><StandardsPage /></Layout>} />
+          <Route path="/corrections" element={<Layout><CorrectionsPage /></Layout>} />
+          <Route path="/verify-our-data" element={<Layout><VerifyDataPage /></Layout>} />
+          <Route path="/methodology" element={<Layout><MethodologyPage /></Layout>} />
+          <Route path="/methodology/:topic" element={<Layout><MethodologyPage /></Layout>} />
+          <Route path="/about/funding" element={<Layout><FundingPage /></Layout>} />
           <Route
             path="*"
             element={<Layout><EditorialReviewPage /></Layout>}
