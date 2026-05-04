@@ -109,22 +109,52 @@ def search_candidates_research(
     total = pagination.get("count", 0)
     results = data.get("results", [])
 
+    # /candidates/search/ returns metadata but no financial totals.
+    # Fetch totals per candidate from /candidates/totals/. Pre-2026-05-04
+    # the FE rendered $0 for every row of every search because we passed
+    # through `c.get("receipts")` from the search payload, which is
+    # always missing. Caught in the deep walkthrough (R-CF-1).
+    candidate_ids = [c.get("candidate_id") for c in results if c.get("candidate_id")]
+    totals_by_id: Dict[str, Dict[str, Any]] = {}
+    if candidate_ids:
+        try:
+            # The /candidates/totals/ endpoint accepts a multi-valued
+            # candidate_id param, so one call covers all hits.
+            totals_data = http_client.get_fec(
+                "candidates/totals/",
+                params={
+                    "candidate_id": candidate_ids,
+                    "cycle": cycle,
+                    "election_full": "false",
+                    "per_page": min(len(candidate_ids), 100),
+                },
+                use_cache=True,
+            )
+            for row in (totals_data or {}).get("results", []):
+                cid = row.get("candidate_id")
+                if cid:
+                    totals_by_id[cid] = row
+        except HTTPError as e:
+            logger.warning("FEC totals fetch failed: %s", e)
+
     candidates = []
     for c in results:
+        cid = c.get("candidate_id", "")
+        t = totals_by_id.get(cid, {})
         candidates.append({
-            "candidate_id": c.get("candidate_id", ""),
+            "candidate_id": cid,
             "name": c.get("name", ""),
             "party": c.get("party_full", c.get("party", "")),
             "office": c.get("office_full", c.get("office", "")),
             "state": c.get("state", ""),
             "district": c.get("district", ""),
             "incumbent_challenge": c.get("incumbent_challenge_full", ""),
-            "total_receipts": c.get("receipts", 0),
-            "total_disbursements": c.get("disbursements", 0),
-            "cash_on_hand": c.get("cash_on_hand_end_period", 0),
-            "debt": c.get("debt_owed_by_committee", 0),
+            "total_receipts": t.get("receipts") or 0,
+            "total_disbursements": t.get("disbursements") or 0,
+            "cash_on_hand": t.get("cash_on_hand_end_period") or 0,
+            "debt": t.get("debts_owed_by_committee") or 0,
             "cycle": cycle,
-            "fec_url": f"https://www.fec.gov/data/candidate/{c.get('candidate_id', '')}/" if c.get("candidate_id") else "",
+            "fec_url": f"https://www.fec.gov/data/candidate/{cid}/" if cid else "",
         })
 
     return {"total": total, "candidates": candidates}

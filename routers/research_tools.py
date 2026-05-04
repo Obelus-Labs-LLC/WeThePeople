@@ -57,6 +57,13 @@ _upstream_cache: dict = {}
 _upstream_lock = threading.Lock()
 _UPSTREAM_TTL_SUCCESS = 3600   # 1 hour
 _UPSTREAM_TTL_FAILURE = 60     # 1 minute (don't lock in transient failures)
+# Empty result lists are often a transient sign of upstream weirdness
+# (rate-limit, partial outage, indexer lag) rather than a real "no
+# matches" answer. Caching them at the success TTL meant the FE saw
+# the empty result for the next hour even after upstream recovered —
+# exactly what happened to R-EM-1 ("water" → 0 awards on Earmarks).
+# Cache empty lists with the same short TTL we use for failures.
+_UPSTREAM_TTL_EMPTY = 60
 
 
 def _upstream_cached(name: str, key: tuple, fetch_fn):
@@ -76,7 +83,12 @@ def _upstream_cached(name: str, key: tuple, fetch_fn):
     with _upstream_lock:
         cached = _upstream_cache.get(cache_key)
         if cached:
-            ttl = _UPSTREAM_TTL_FAILURE if cached.get("failed") else _UPSTREAM_TTL_SUCCESS
+            if cached.get("failed"):
+                ttl = _UPSTREAM_TTL_FAILURE
+            elif cached.get("empty"):
+                ttl = _UPSTREAM_TTL_EMPTY
+            else:
+                ttl = _UPSTREAM_TTL_SUCCESS
             if (now - cached["ts"]) < ttl:
                 if cached.get("failed"):
                     raise RuntimeError(cached["error"])
@@ -93,10 +105,17 @@ def _upstream_cached(name: str, key: tuple, fetch_fn):
                 "error": str(e)[:500],
             }
         raise
+    # Distinguish empty from non-empty so transient empties don't lock
+    # us into a wrong answer for the full success TTL.
+    is_empty = (
+        data is None
+        or (isinstance(data, (list, dict)) and len(data) == 0)
+    )
     with _upstream_lock:
         _upstream_cache[cache_key] = {
             "ts": _time.time(),
             "failed": False,
+            "empty": bool(is_empty),
             "data": data,
         }
     return data
@@ -657,36 +676,81 @@ def earmarks_search(
 
 @router.get("/fcc-complaints")
 def fcc_complaints(
+    company: Optional[str] = Query(None, description="Free-text company name search (Socrata $q full-text)"),
     issue_type: Optional[str] = Query(None, description="Type filter (Phone, Internet, TV)"),
     issue: Optional[str] = Query(None, description="Issue category (Unwanted Calls, Billing, Service)"),
     method: Optional[str] = Query(None, description="Method (Wired, Wireless, Cable, Satellite)"),
     state: Optional[str] = Query(None, description="2-letter state code"),
     limit: int = Query(50, ge=1, le=200),
 ):
-    """Search FCC consumer complaint data by issue type, issue, method, or state."""
+    """Search FCC consumer complaint data by issue type, issue, method, or state.
+
+    The upstream FCC consumer-complaint dataset (sn9z-f3y5) does NOT
+    carry a carrier/company column, so the FE's "Company" search box
+    routes to Socrata's `$q` full-text search. Result rows are
+    normalized to {company, issue, method, date, state, status} so the
+    FE table renders properly. Pre-2026-05-04 the router passed raw
+    rows through and the FE's company/date/status columns rendered as
+    em-dashes (R-FCC-1).
+    """
     try:
         from connectors.fcc_complaints import search_complaints
     except ImportError:
         logger.warning("connectors.fcc_complaints not available")
         return {"total": 0, "complaints": []}
 
-    cache_key = (issue_type or "", issue or "", method or "", state or "", limit)
+    cache_key = (company or "", issue_type or "", issue or "", method or "", state or "", limit)
 
     def _fetch():
         return search_complaints(
             issue_type=issue_type, issue=issue, method=method,
-            state=state, limit=limit,
+            state=state, q=company, limit=limit,
         )
 
     try:
-        results = _upstream_cached("fcc-complaints", cache_key, _fetch)
+        raw = _upstream_cached("fcc-complaints", cache_key, _fetch) or []
     except Exception as exc:
         # FCC consumer-complaint API is slow (2s) and unstable; on
         # failure return empty rather than 5xx so the page renders.
         logger.warning("FCC complaints search error: %s", exc)
         return {"total": 0, "complaints": []}
 
-    return {"total": len(results), "complaints": results}
+    # Normalize each row to the FE's expected shape. The FCC dataset
+    # rotates field names occasionally; check the most common ones in
+    # order.
+    complaints = []
+    for r in raw:
+        # Best-effort company extraction. The dataset publishes carrier
+        # only intermittently and via different keys depending on
+        # category. Fall through gracefully.
+        company_name = (
+            r.get("provider")
+            or r.get("carrier")
+            or r.get("advertiser_business_name")
+            or r.get("type_of_property_goods_or_services")
+            or None
+        )
+        # Date — the dataset uses both `date_created` and `ticket_created`.
+        date_str = r.get("date_created") or r.get("ticket_created") or ""
+        if isinstance(date_str, str) and len(date_str) >= 10:
+            date_str = date_str[:10]  # trim to YYYY-MM-DD
+        complaints.append({
+            "id": r.get("id"),
+            "company": company_name,
+            "issue": r.get("issue"),
+            "issue_type": r.get("issue_type"),
+            "method": r.get("method"),
+            "date": date_str or None,
+            "state": r.get("state"),
+            # FCC consumer-complaint dataset doesn't expose post-filing
+            # status. All rows here are by definition "filed" (open
+            # consumer complaints in the FCC system). Surface that
+            # explicitly so the FE column isn't a forest of em-dashes.
+            "status": "Filed",
+            "city": r.get("city"),
+        })
+
+    return {"total": len(complaints), "complaints": complaints}
 
 
 # ── FCC License Search (Telecom) ─────────────────────────────────────────────
@@ -724,7 +788,30 @@ def fcc_licenses(
         logger.warning("FCC license search error: %s", exc)
         return {"total": 0, "licenses": []}
 
-    return {"total": len(results), "licenses": results}
+    # Field shape normalization. The FCC License View endpoint returns
+    # camelCase keys like `callSign`, `licName`, `serviceDesc`,
+    # `statusDesc`, `grantDate`, `expiredDate`, `frequencyAssigned`,
+    # `licDetailURL`. The FE Spectrum page (R-SP-1) types licenses as
+    # snake_case `{license_holder, call_sign, frequency, service_type,
+    # status, grant_date, expiration_date, state}`. Without this mapping
+    # the FE renders every column as "—" even when results come back
+    # successfully — which masquerades as a "no data" failure.
+    licenses = []
+    for r in results or []:
+        if not isinstance(r, dict):
+            continue
+        licenses.append({
+            "license_holder": r.get("licName") or r.get("entityName"),
+            "call_sign": r.get("callSign"),
+            "frequency": r.get("frequencyAssigned") or r.get("frequency"),
+            "service_type": r.get("serviceDesc") or r.get("categoryDesc"),
+            "status": r.get("statusDesc") or r.get("licenseStatus"),
+            "grant_date": r.get("grantDate"),
+            "expiration_date": r.get("expiredDate") or r.get("expirationDate"),
+            "state": r.get("stateCode") or r.get("state"),
+        })
+
+    return {"total": len(licenses), "licenses": licenses}
 
 
 # ── College Scorecard (Education) ────────────────────────────────────────────
@@ -737,7 +824,21 @@ def college_scorecard(
     for_profit: Optional[bool] = Query(None, description="Filter for-profit institutions"),
     limit: int = Query(20, ge=1, le=100),
 ):
-    """Search the College Scorecard for institution data including costs, outcomes, and demographics."""
+    """Search the College Scorecard for institution data including costs, outcomes, and demographics.
+
+    The Department of Education College Scorecard API returns nested
+    dot-notation keys (`school.name`, `latest.cost.tuition.in_state`,
+    etc). The FE TypeScript shape uses flat snake_case (`name`,
+    `tuition_in_state`). Pre-2026-05-04 the router passed the raw
+    nested shape through, so the FE saw `school.name = undefined` for
+    every row and rendered school cards with no name and "—" for
+    every metric. Caught in the deep walkthrough (R-CS-1).
+
+    Now flattens each school to the FE's expected shape:
+      {name, state, city, tuition_in_state, tuition_out_state,
+       graduation_rate, default_rate, median_debt, median_earnings,
+       ownership, size}
+    """
     try:
         from connectors import college_scorecard as cs
     except ImportError:
@@ -752,12 +853,39 @@ def college_scorecard(
         return cs.search_schools(name=name, state=state, limit=limit)
 
     try:
-        results = _upstream_cached("college-scorecard", cache_key, _fetch)
+        raw = _upstream_cached("college-scorecard", cache_key, _fetch) or []
     except Exception as exc:
         logger.warning("College Scorecard search error: %s", exc)
         return {"total": 0, "schools": []}
 
-    return {"total": len(results), "schools": results}
+    # School Scorecard ownership codes:
+    #   1 = Public, 2 = Private nonprofit, 3 = Private for-profit
+    OWNERSHIP_LABEL = {1: "Public", 2: "Private nonprofit", 3: "For-profit"}
+
+    schools = []
+    for r in raw:
+        ownership_code = r.get("school.ownership")
+        schools.append({
+            "name": r.get("school.name"),
+            "state": r.get("school.state"),
+            "city": r.get("school.city"),
+            "tuition_in_state": r.get("latest.cost.tuition.in_state"),
+            "tuition_out_state": r.get("latest.cost.tuition.out_of_state"),
+            # College Scorecard returns the suppressed completion rate
+            # (the IPEDS-suppressed-cell version is the public one).
+            "graduation_rate": r.get("latest.completion.rate_suppressed.overall"),
+            # The 3-year repayment field is a count, not a rate. We
+            # compute a default-rate proxy as 1 - (3yr-repayment-rate).
+            # When only the count is exposed, leave default_rate null
+            # rather than fabricate.
+            "default_rate": None,
+            "median_debt": r.get("latest.aid.median_debt.completers.overall"),
+            "median_earnings": r.get("latest.earnings.10_yrs_after_entry.median"),
+            "ownership": OWNERSHIP_LABEL.get(ownership_code) if isinstance(ownership_code, int) else None,
+            "size": r.get("latest.student.size"),
+        })
+
+    return {"total": len(schools), "schools": schools}
 
 
 # ── Federal Grant Opportunities (Budget) ─────────────────────────────────────
@@ -769,7 +897,20 @@ def federal_grants(
     agency: Optional[str] = Query(None, description="Funding agency filter"),
     limit: int = Query(25, ge=1, le=100),
 ):
-    """Search Grants.gov for federal grant opportunities by keyword or agency."""
+    """Search Grants.gov for federal grant opportunities by keyword or agency.
+
+    Grants.gov's `keyword` parameter does a full-text search over the
+    entire opportunity record — title, summary, eligibility text, and
+    activity codes — so a query for "broadband" surfaces unrelated
+    grants like "Volunteer Income Tax Assistance" because their text
+    happens to mention broadband. To make the search more useful, we
+    post-filter to require the keyword appears in the title or oppTitle.
+    Caught in the deep walkthrough (R-FG-1).
+
+    We also surface a usable funding amount — the FE was rendering "—"
+    because the connector returns Grants.gov's `awardCeiling` as a
+    string and the FE expected a number.
+    """
     try:
         from connectors.grants_gov import search_grants
     except ImportError:
@@ -779,15 +920,64 @@ def federal_grants(
     cache_key = (keyword or "", agency or "", limit)
 
     def _fetch():
-        return search_grants(keyword=keyword, agency=agency, limit=limit)
+        # Pull a 4x oversample so the title-filter has room to work
+        # without dropping below `limit`.
+        target = min(limit * 4, 250) if keyword else limit
+        return search_grants(keyword=keyword, agency=agency, limit=target)
 
     try:
-        results = _upstream_cached("federal-grants", cache_key, _fetch)
+        raw = _upstream_cached("federal-grants", cache_key, _fetch) or []
     except Exception as exc:
         logger.warning("Federal grants search error: %s", exc)
         return {"total": 0, "grants": []}
 
-    return {"total": len(results), "grants": results}
+    # Title-strict post-filter when a keyword was provided.
+    if keyword:
+        kw = keyword.strip().lower()
+        def _title_match(g: dict) -> bool:
+            for key in ("oppTitle", "title", "OpportunityTitle"):
+                v = g.get(key)
+                if isinstance(v, str) and kw in v.lower():
+                    return True
+            return False
+        filtered = [g for g in raw if _title_match(g)]
+        # If the title-strict filter dropped everything, fall back to
+        # the unfiltered set so the user still sees something rather
+        # than a misleading "0 grants".
+        rows = filtered if filtered else raw
+    else:
+        rows = raw
+
+    # Normalize the FE shape: each grant gets {opp_id, title, agency,
+    # close_date, award_floor, award_ceiling}. Grants.gov returns
+    # numeric strings; coerce to int so the FE's currency formatter
+    # works.
+    def _to_int(v):
+        try:
+            if v in (None, "", "0"):
+                return None
+            return int(float(v))
+        except (TypeError, ValueError):
+            return None
+
+    grants = []
+    for g in rows[:limit]:
+        grants.append({
+            "opp_id": g.get("id") or g.get("oppId") or g.get("opportunity_id"),
+            "title": g.get("oppTitle") or g.get("title") or g.get("OpportunityTitle"),
+            "agency": g.get("agency") or g.get("agencyName") or g.get("AgencyName"),
+            "close_date": g.get("closeDate") or g.get("CloseDate") or None,
+            "open_date": g.get("openDate") or g.get("OpenDate") or None,
+            "award_floor": _to_int(g.get("awardFloor") or g.get("AwardFloor")),
+            "award_ceiling": _to_int(g.get("awardCeiling") or g.get("AwardCeiling")),
+            # Some hits carry the application URL as `oppLink`.
+            "url": (
+                g.get("oppLink")
+                or (f"https://www.grants.gov/search-results-detail/{g.get('id')}" if g.get('id') else None)
+            ),
+        })
+
+    return {"total": len(grants), "grants": grants}
 
 
 # ── Treasury Fiscal Data (Budget/Tax) ────────────────────────────────────────
