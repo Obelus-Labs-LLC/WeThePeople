@@ -197,10 +197,31 @@ npm run dev                   # http://localhost:5173
 ### Seed Data
 
 ```bash
-python jobs/seed_tracked_companies.py    # 1,000+ entities across all sectors
-python jobs/sync_votes.py                # House roll call votes
-python jobs/sync_senate_votes.py         # Senate roll call votes
-python jobs/sync_congressional_trades.py # Congressional stock trades
+python jobs/seed_tracked_companies.py        # 1,000+ entities across all sectors
+python jobs/sync_votes.py                    # House roll call votes
+python jobs/sync_senate_votes.py             # Senate roll call votes
+python jobs/sync_congressional_trades.py     # Congressional stock trades
+python jobs/sync_state_data_all.py           # State legislators + bills (50 states via OpenStates)
+python jobs/sync_donations.py --sector defense  # FEC PAC sweeps per sector
+```
+
+### Backfills
+
+```bash
+# Pre-warm Haiku summaries for bills missing CRS text (top-N most-active first):
+python jobs/backfill_bill_ai_summaries.py --limit 200
+
+# One-shot DB cleanup for legacy congress.gov URLs that used the broken
+# `{type}-bill/{number}` slug. Idempotent and dry-run-safe:
+python scripts/backfill_normalize_congress_urls.py --dry-run
+python scripts/backfill_normalize_congress_urls.py --apply
+```
+
+### Diagnostics
+
+```bash
+python scripts/diagnose_oracle_connection.py    # Wallet + connect probe
+python scripts/diagnose_usajobs_auth.py         # Tries every USAJobs header variant
 ```
 
 ### Mobile (Expo)
