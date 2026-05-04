@@ -9,11 +9,6 @@ from sqlalchemy.sql import func
 
 from utils.db_compat import DATABASE_URL  # canonical source in db_compat
 
-# If DATABASE_URL starts with "oracle", build the full connection URL from env vars
-if DATABASE_URL.startswith("oracle"):
-    from utils.db_compat import get_oracle_connection_url
-    DATABASE_URL = get_oracle_connection_url()
-
 from utils.logging import get_logger as _get_logger
 _db_logger = _get_logger(__name__)
 # Log DB URL but mask credentials
@@ -33,11 +28,6 @@ if DATABASE_URL.startswith("sqlite"):
     _engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60}
     _engine_kwargs["pool_size"] = 5
     _engine_kwargs["max_overflow"] = 10
-    _engine_kwargs["pool_pre_ping"] = True
-elif "oracle" in DATABASE_URL:
-    # Oracle: connection pooling + thick mode params
-    _engine_kwargs["pool_size"] = 10
-    _engine_kwargs["max_overflow"] = 20
     _engine_kwargs["pool_pre_ping"] = True
 else:
     # PostgreSQL: connection pooling
@@ -301,7 +291,7 @@ class Vote(Base):
     congress = Column(Integer, index=True, nullable=False)       # 118, 119, etc.
     chamber = Column(String, index=True, nullable=False)          # "house" or "senate"
     roll_number = Column(Integer, index=True, nullable=False)     # roll call number
-    vote_session = Column("vote_session", Integer, nullable=True)  # 1, 2, etc. — renamed from 'session' (Oracle reserved word)
+    vote_session = Column("vote_session", Integer, nullable=True)  # 1, 2, etc. (renamed from 'session' for portability)
     
     # Vote metadata
     question = Column(Text, nullable=True)                        # "On Passage", "On Agreeing to Amendment", etc.
@@ -684,6 +674,4 @@ import models.token_usage  # noqa: F401 — register token usage tracking table
 
 
 if __name__ == "__main__":
-    from utils.db_compat import patch_types_for_oracle
-    patch_types_for_oracle(Base.metadata)
     Base.metadata.create_all(bind=engine)

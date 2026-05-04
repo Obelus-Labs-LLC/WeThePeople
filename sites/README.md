@@ -26,14 +26,6 @@ All three sites use the same frontend stack:
 - React Router
 - Framer Motion
 
-## Dev Ports
-
-| Site | Port |
-|---|---|
-| WeThePeople (core) | 5173 |
-| WTP Research | 5174 |
-| The Influence Journal | 5175 |
-
 ## Deployment
 
 - **WeThePeople**: Vercel auto-deploy from `frontend/` on push to main

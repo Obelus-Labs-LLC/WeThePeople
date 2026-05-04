@@ -64,8 +64,7 @@ def health_check(db: Session = Depends(get_db)):
     db_ok = False
 
     try:
-        from utils.db_compat import is_oracle
-        db.execute(text("SELECT 1 FROM DUAL" if is_oracle() else "SELECT 1"))
+        db.execute(text("SELECT 1"))
         db_ok = True
     except Exception as e:
         status = "degraded"
