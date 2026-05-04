@@ -263,6 +263,51 @@ def list_entities(
         else:
             count_maps[count_key] = {}
 
+    # Build total $-amount maps for contracts, lobbying, enforcement
+    # penalties. The sector-list FE for student-loans / market-movers /
+    # similar tools needs `contract_total`, `lobbying_total`, and
+    # `enforcement_total_fines` per entity. Pre-2026-05-04 only counts
+    # were exposed, so the Student Loan Servicer Tracker rendered $0
+    # across the board (R-9). Cheap — one grouped sum per sector
+    # because we filter by entity_ids.
+    contract_total: Dict[str, float] = {}
+    lobbying_total: Dict[str, float] = {}
+    enforcement_total_fines: Dict[str, float] = {}
+    if entity_ids:
+        if config.contract_model is not None:
+            cm_col = getattr(config.contract_model, eid_field)
+            try:
+                contract_total = dict(
+                    db.query(cm_col, func.sum(config.contract_model.award_amount))
+                    .filter(cm_col.in_(entity_ids))
+                    .group_by(cm_col)
+                    .all()
+                )
+            except Exception:  # noqa: BLE001
+                contract_total = {}
+        if config.lobbying_model is not None:
+            lm_col = getattr(config.lobbying_model, eid_field)
+            try:
+                lobbying_total = dict(
+                    db.query(lm_col, func.sum(lobby_spend(config.lobbying_model)))
+                    .filter(lm_col.in_(entity_ids))
+                    .group_by(lm_col)
+                    .all()
+                )
+            except Exception:  # noqa: BLE001
+                lobbying_total = {}
+        if config.enforcement_model is not None:
+            em_col = getattr(config.enforcement_model, eid_field)
+            try:
+                enforcement_total_fines = dict(
+                    db.query(em_col, func.sum(config.enforcement_model.penalty_amount))
+                    .filter(em_col.in_(entity_ids))
+                    .group_by(em_col)
+                    .all()
+                )
+            except Exception:  # noqa: BLE001
+                enforcement_total_fines = {}
+
     entities = []
     for r in rows:
         eid = _entity_id_val(r, config)
@@ -273,6 +318,9 @@ def list_entities(
             "sector_type": r.sector_type,
             "headquarters": r.headquarters,
             "logo_url": r.logo_url,
+            "contract_total": float(contract_total.get(eid) or 0),
+            "lobbying_total": float(lobbying_total.get(eid) or 0),
+            "enforcement_total_fines": float(enforcement_total_fines.get(eid) or 0),
         }
         for count_key, cmap in count_maps.items():
             item[count_key] = cmap.get(eid, 0)

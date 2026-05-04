@@ -40,7 +40,16 @@ const STATE_NAMES: Record<string, string> = {
   VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',
 };
 
-const YEARS = Array.from({ length: 8 }, (_, i) => 2025 - i);
+// EPA TRI publishes Reporting Year data 12-18 months after the calendar
+// year ends (e.g. RY-2024 lands around March 2026). Build the year list
+// dynamically off "today" and default the picker to the most recent year
+// that's actually been published — currentYear - 2 — instead of
+// hard-coding 2025. The previous hard-coded default produced an
+// empty-state on first paint every January after the new calendar year
+// rolled over.
+const _CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 8 }, (_, i) => _CURRENT_YEAR - 1 - i);
+const DEFAULT_TRI_YEAR = _CURRENT_YEAR - 2;
 
 // ── Helpers ──
 
@@ -52,10 +61,12 @@ function fmtLbs(n: number | null | undefined): string {
 // ── Page ──
 
 export default function ToxicReleasePage() {
-  // Pre-fill the most recent reporting year so the page loads with
-  // data on first paint (audit item #26 / #10). Empty default
-  // produced a blank empty-state until the user typed in filters.
-  const DEFAULT_YEAR = String(YEARS[0]);
+  // Pre-fill the most recently PUBLISHED reporting year so the page
+  // loads with data on first paint. EPA TRI lags 12-18 months, so the
+  // "newest" year in the picker (currentYear - 1) is often unpublished
+  // and produces an empty result set; default to currentYear - 2 which
+  // is virtually guaranteed to have data.
+  const DEFAULT_YEAR = String(DEFAULT_TRI_YEAR);
   const [stateFilter, setStateFilter] = useState('');
   const [chemical, setChemical] = useState('');
   const [year, setYear] = useState<string>(DEFAULT_YEAR);

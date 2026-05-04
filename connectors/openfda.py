@@ -127,15 +127,35 @@ def search_enforcement(
     results = data.get("results", [])
     total = data.get("meta", {}).get("results", {}).get("total", len(results))
 
+    # OpenFDA returns dates as YYYYMMDD strings (e.g. "20210321") which
+    # the FE was parsing as ISO and rendering as "Invalid Date". Normalize
+    # to YYYY-MM-DD here so downstream consumers can use the standard
+    # `new Date(s)` path.
+    def _iso_date(s: Optional[str]) -> Optional[str]:
+        if not s or not isinstance(s, str) or len(s) != 8 or not s.isdigit():
+            return s
+        return f"{s[0:4]}-{s[4:6]}-{s[6:8]}"
+
+    # The same physical recall can arrive multiple times in the result
+    # set when the upstream record has been amended; dedupe on
+    # recall_number, keeping the first occurrence (which is the most
+    # recently amended row because the dataset is returned newest-first
+    # on default sort).
     recalls = []
+    seen: set = set()
     for r in results:
+        rn = r.get("recall_number")
+        if rn:
+            if rn in seen:
+                continue
+            seen.add(rn)
         recalls.append({
-            "recall_number": r.get("recall_number"),
+            "recall_number": rn,
             "classification": r.get("classification"),
             "status": r.get("status"),
             "product_description": r.get("product_description"),
             "reason_for_recall": r.get("reason_for_recall"),
-            "recall_initiation_date": r.get("recall_initiation_date"),
+            "recall_initiation_date": _iso_date(r.get("recall_initiation_date")),
             "recalling_firm": r.get("recalling_firm"),
             "city": r.get("city"),
             "state": r.get("state"),

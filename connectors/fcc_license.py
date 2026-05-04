@@ -45,17 +45,49 @@ def search_licenses(
         "limit": min(limit, 1000),
     }
 
-    try:
-        time.sleep(POLITE_DELAY)
-        resp = requests.get(LICENSE_BASE, params=params, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.exceptions.HTTPError as e:
-        status = e.response.status_code if e.response is not None else "unknown"
-        log.error("FCC License search failed (HTTP %s): %s", status, e)
-        return []
-    except Exception as e:
-        log.error("FCC License search failed: %s", e)
+    # The FCC License View endpoint at data.fcc.gov is notoriously slow
+    # (5-30s tail latency, occasional cold-start timeouts). The audit
+    # surfaced R-SP-1 because a single 30s timeout produced empty
+    # results during the morning warmup window. Retry up to 3 times
+    # with progressive backoff, and bump per-request timeout.
+    max_attempts = 3
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            time.sleep(POLITE_DELAY)
+            resp = requests.get(
+                LICENSE_BASE,
+                params=params,
+                timeout=(10, 60),  # (connect, read)
+                headers={"User-Agent": "WeThePeople-Research/1.0"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except requests.exceptions.HTTPError as e:
+            status = e.response.status_code if e.response is not None else "unknown"
+            log.error("FCC License search failed (HTTP %s): %s", status, e)
+            return []
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            last_exc = e
+            log.warning(
+                "FCC License attempt %d/%d timed out for query=%r: %s",
+                attempt, max_attempts, query, e,
+            )
+            if attempt == max_attempts:
+                log.error("FCC License search exhausted retries: %s", e)
+                return []
+            # Linear backoff: 1s, 2s, 3s.
+            time.sleep(attempt)
+            continue
+        except Exception as e:
+            log.error("FCC License search failed: %s", e)
+            return []
+    else:
+        # Loop exited via break-less path (shouldn't be reachable, but
+        # protects against future refactors).
+        if last_exc:
+            log.error("FCC License search loop fell through: %s", last_exc)
         return []
 
     # Response nests results under Licenses -> License
