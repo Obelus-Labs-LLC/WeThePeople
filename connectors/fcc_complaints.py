@@ -38,6 +38,7 @@ def search_complaints(
     issue: Optional[str] = None,
     method: Optional[str] = None,
     state: Optional[str] = None,
+    q: Optional[str] = None,
     limit: int = 100,
 ) -> List[Dict[str, Any]]:
     """
@@ -48,6 +49,14 @@ def search_complaints(
         issue: Issue category (e.g. 'Unwanted Calls', 'Billing', 'Service')
         method: Method (e.g. 'Wired', 'Wireless', 'Cable', 'Satellite')
         state: Two-letter state code (e.g. 'CA', 'NY')
+        q: Free-text full-text search over all fields. The FCC public
+            consumer-complaint dataset (sn9z-f3y5) does not carry a
+            carrier/company column so company-name search must use
+            Socrata's `$q` full-text token, which scans every text
+            column. Imperfect — "AT&T" hits any complaint mentioning
+            "AT&T" anywhere in the description-like fields — but it's
+            the best signal we have for a company filter from this
+            dataset.
         limit: Max results to return (default 100)
 
     Returns:
@@ -75,6 +84,11 @@ def search_complaints(
 
     if where_clauses:
         params["$where"] = " AND ".join(where_clauses)
+
+    if q:
+        # Socrata supports $q for full-text search across all string
+        # columns. Strip control characters but otherwise pass through.
+        params["$q"] = q.strip()[:120]
 
     try:
         time.sleep(POLITE_DELAY)

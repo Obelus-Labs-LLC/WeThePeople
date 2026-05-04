@@ -25,6 +25,62 @@ from models.response_schemas import FinanceDashboardStats
 router = APIRouter(prefix="/finance", tags=["finance"])
 
 
+def _format_filer_name(raw: Optional[str]) -> Optional[str]:
+    """Reformat SEC Form 4 filer names for display.
+
+    SEC Form 4 stores beneficial-owner names in uppercase, last-name-first
+    (e.g. "DIMON JAMES", "FRASER JANE"). Rendering that verbatim in a
+    journalist-facing UI looks like a database leak. Convert to a human
+    "Firstname Lastname" with title case while preserving suffixes
+    (JR, SR, II, III, IV) and quoted nicknames.
+    """
+    if not raw:
+        return raw
+    name = raw.strip()
+    if not name:
+        return raw
+
+    # If the name already has any lowercase characters, the upstream
+    # filer used mixed case; trust them and don't reformat.
+    if any(c.islower() for c in name):
+        return name
+
+    # Split on commas first ("LAST, FIRST MI" form).
+    if "," in name:
+        last, _, rest = name.partition(",")
+        parts = rest.strip().split() + [last.strip()]
+    else:
+        tokens = name.split()
+        if len(tokens) < 2:
+            return name.title()
+        # SEC Form 4 convention: LAST FIRST [MI [SUFFIX]].
+        last = tokens[0]
+        parts = tokens[1:] + [last]
+
+    SUFFIXES = {"JR", "JR.", "SR", "SR.", "II", "III", "IV", "V"}
+
+    def _cap(token: str) -> str:
+        if not token:
+            return token
+        upper = token.upper().rstrip(".")
+        if upper in SUFFIXES:
+            return token.upper()
+        # Mc/Mac handling: "MCDONALD" -> "McDonald"
+        if upper.startswith("MC") and len(upper) > 2:
+            return "Mc" + token[2:].capitalize()
+        if upper.startswith("MAC") and len(upper) > 3 and not upper[3].isdigit():
+            return "Mac" + token[3:].capitalize()
+        # O'Brien
+        if "'" in token:
+            return "'".join(p.capitalize() for p in token.split("'"))
+        # Hyphenated names: SMITH-JONES -> Smith-Jones
+        if "-" in token:
+            return "-".join(p.capitalize() for p in token.split("-"))
+        return token.capitalize()
+
+    return " ".join(_cap(p) for p in parts if p)
+
+
 @router.get("/dashboard/stats", response_model=FinanceDashboardStats)
 def get_finance_dashboard_stats(db: Session = Depends(get_db)):
     """Aggregate stats for the finance dashboard."""
@@ -169,7 +225,7 @@ def get_institution_insider_trades(institution_id: str, limit: int = Query(50, g
     if transaction_type: q = q.filter(SECInsiderTrade.transaction_type == transaction_type)
     total = q.count()
     trades = q.order_by(desc(SECInsiderTrade.transaction_date)).offset(offset).limit(limit).all()
-    return {"total": total, "limit": limit, "offset": offset, "trades": [{"id": t.id, "filer_name": t.filer_name, "filer_title": t.filer_title, "transaction_date": str(t.transaction_date) if t.transaction_date else None, "transaction_type": t.transaction_type, "shares": t.shares, "price_per_share": t.price_per_share, "total_value": t.total_value, "filing_url": t.filing_url, "accession_number": t.accession_number} for t in trades]}
+    return {"total": total, "limit": limit, "offset": offset, "trades": [{"id": t.id, "filer_name": _format_filer_name(t.filer_name), "filer_title": t.filer_title, "transaction_date": str(t.transaction_date) if t.transaction_date else None, "transaction_type": t.transaction_type, "shares": t.shares, "price_per_share": t.price_per_share, "total_value": t.total_value, "filing_url": t.filing_url, "accession_number": t.accession_number} for t in trades]}
 
 
 @router.get("/complaints")
@@ -223,7 +279,7 @@ def get_all_insider_trades(limit: int = Query(50, ge=1, le=200), offset: int = Q
     if transaction_type: q = q.filter(SECInsiderTrade.transaction_type == transaction_type)
     total = q.count()
     trades = q.order_by(desc(SECInsiderTrade.transaction_date)).offset(offset).limit(limit).all()
-    return {"total": total, "limit": limit, "offset": offset, "trades": [{"id": t.id, "institution_id": t.institution_id, "company_name": name, "ticker": ticker, "filer_name": t.filer_name, "filer_title": t.filer_title, "transaction_date": str(t.transaction_date) if t.transaction_date else None, "transaction_type": t.transaction_type, "shares": t.shares, "price_per_share": t.price_per_share, "total_value": t.total_value, "filing_url": t.filing_url} for t, name, ticker in trades]}
+    return {"total": total, "limit": limit, "offset": offset, "trades": [{"id": t.id, "institution_id": t.institution_id, "company_name": name, "ticker": ticker, "filer_name": _format_filer_name(t.filer_name), "filer_title": t.filer_title, "transaction_date": str(t.transaction_date) if t.transaction_date else None, "transaction_type": t.transaction_type, "shares": t.shares, "price_per_share": t.price_per_share, "total_value": t.total_value, "filing_url": t.filing_url} for t, name, ticker in trades]}
 
 
 @router.get("/compare")

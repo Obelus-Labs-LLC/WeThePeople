@@ -25,24 +25,81 @@ router = APIRouter(prefix="/fara", tags=["fara"])
 @router.get("/registrants")
 def list_registrants(
     search: Optional[str] = Query(None, description="Search by registrant name"),
-    country: Optional[str] = Query(None, description="Filter by country"),
+    country: Optional[str] = Query(None, description="Filter by country (the country the registrant lobbies for)"),
     status: Optional[str] = Query(None, description="Filter by status (Active/Terminated)"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    """List FARA registrants with optional filtering."""
+    """List FARA registrants with optional filtering.
+
+    The COUNTRY column in the FE represents the country the registrant
+    lobbies for (i.e. the country of its foreign principals), not the
+    registrant's own physical address. The vast majority of registrants
+    are US-based law/PR firms, so `FARARegistrant.country` is populated
+    with `United States` (or NULL) for most rows. That field is
+    informationally useless to a journalist scanning the table; what
+    they want is "Saudi Arabia" or "Japan" because that's the lobby
+    relationship.
+
+    We fix the long-standing R-FARA-1 "Country shows —" bug by
+    aggregating distinct countries from the foreign principals
+    associated with each registration_number and returning them as
+    `country` in the response. The first matching country is used as
+    the primary; the full list is exposed as `countries` for FE
+    enhancement.
+    """
     q = db.query(FARARegistrant)
 
     if search:
         q = q.filter(FARARegistrant.registrant_name.ilike(f"%{escape_like(search)}%", escape="\\"))
     if country:
-        q = q.filter(FARARegistrant.country.ilike(f"%{escape_like(country)}%", escape="\\"))
+        # Country filter applies to the foreign principal country, not
+        # registrant.country. Use a subquery on FARAForeignPrincipal.
+        like = f"%{escape_like(country)}%"
+        sub = (
+            db.query(FARAForeignPrincipal.registration_number)
+            .filter(FARAForeignPrincipal.country.ilike(like, escape="\\"))
+            .distinct()
+            .subquery()
+        )
+        q = q.filter(FARARegistrant.registration_number.in_(db.query(sub.c.registration_number)))
     if status:
         q = q.filter(FARARegistrant.status.ilike(f"%{escape_like(status)}%", escape="\\"))
 
     total = q.count()
     registrants = q.order_by(desc(FARARegistrant.registration_date)).offset(offset).limit(limit).all()
+
+    # Single batched query for represented countries to avoid N+1.
+    reg_numbers = [r.registration_number for r in registrants if r.registration_number]
+    countries_by_reg: dict[str, list[str]] = {}
+    if reg_numbers:
+        rows = (
+            db.query(
+                FARAForeignPrincipal.registration_number,
+                FARAForeignPrincipal.country,
+            )
+            .filter(
+                FARAForeignPrincipal.registration_number.in_(reg_numbers),
+                FARAForeignPrincipal.country.isnot(None),
+                FARAForeignPrincipal.country != "",
+            )
+            .all()
+        )
+        for reg_num, c in rows:
+            bucket = countries_by_reg.setdefault(reg_num, [])
+            if c not in bucket:
+                bucket.append(c)
+
+    def _country_for(r: FARARegistrant) -> Optional[str]:
+        # Prefer represented countries (foreign principal countries).
+        # Fall back to the registrant's own country, then to None so
+        # the FE renders an em-dash rather than a misleading "United States".
+        rep = countries_by_reg.get(r.registration_number) or []
+        rep = [c for c in rep if c and c.strip().upper() != "UNITED STATES"]
+        if rep:
+            return rep[0] if len(rep) == 1 else f"{rep[0]} (+{len(rep) - 1})"
+        return r.country if r.country and r.country.strip() else None
 
     return {
         "total": total,
@@ -54,7 +111,8 @@ def list_registrants(
                 "address": r.address,
                 "city": r.city,
                 "state": r.state,
-                "country": r.country,
+                "country": _country_for(r),
+                "countries_represented": countries_by_reg.get(r.registration_number, []),
                 "registration_date": r.registration_date,
                 "termination_date": r.termination_date,
                 "status": r.status,
