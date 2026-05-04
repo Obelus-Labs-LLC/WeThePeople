@@ -45,8 +45,12 @@ const SECTIONS: LongformSection[] = [
     title: 'What WeThePeople is not',
     body: [
       "WeThePeople is a data platform. It is not a news outlet, not a political organization, and not making editorial claims about the entities it tracks. The numbers, dates, and source links are derived from primary government filings; the framing of any pattern as newsworthy or concerning is the reader's call, not ours.",
-      'When the platform does publish written analysis (under The Influence Journal subdomain), every story is built from the same primary sources, follows a public editorial standard, and carries an explicit verification label. The journal is currently in editorial review.',
+      'When the platform does publish written analysis (under The Influence Journal subdomain), every story is built from the same primary sources, follows a public editorial standard mapped to the SPJ Code of Ethics and AP guidelines on generative AI, and carries an explicit verification label. The journal is currently in editorial review.',
     ],
+    callout: {
+      label: 'Editorial standards',
+      text: 'Public, dated, mapped to SPJ + AP. journal.wethepeopleforus.com/standards',
+    },
   },
   {
     num: 5,

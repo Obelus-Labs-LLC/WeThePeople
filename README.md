@@ -324,7 +324,9 @@ Journalists and researchers should cite the underlying primary source first (Sen
 
 ## Editorial standards
 
-The Influence Journal's editorial standard is published at [`research/EDITORIAL_STANDARDS.md`](research/EDITORIAL_STANDARDS.md) and applies to every story. Story-generation rules, regression-audit machinery, and the human-review process are documented there.
+The Influence Journal's editorial standards are published at [journal.wethepeopleforus.com/standards](https://journal.wethepeopleforus.com/standards) and apply to every story. The page maps each rule explicitly to the [SPJ Code of Ethics](https://www.spj.org/ethicscode.asp) and the [AP guidelines on generative AI](https://www.ap.org/about/news-values-and-principles/standards-around-generative-ai/). It covers what we publish, what we refuse, how we verify, how we correct, and how we stay independent.
+
+Veritas, our verification engine, is a deterministic source-matching layer (not a language model). The methodology is documented at [/verify-our-data](https://journal.wethepeopleforus.com/verify-our-data).
 
 ---
 

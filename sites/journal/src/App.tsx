@@ -101,6 +101,10 @@ export default function App() {
           <Route path="/verify-our-data" element={<Layout><VerifyDataPage /></Layout>} />
           <Route path="/corrections" element={<Layout><CorrectionsPage /></Layout>} />
           <Route path="/standards" element={<Layout><StandardsPage /></Layout>} />
+          {/* SEO-friendly alias. /standards is the canonical, but external
+              links and outreach are more likely to use the more descriptive
+              /editorial-standards path; both render the same component. */}
+          <Route path="/editorial-standards" element={<Layout><StandardsPage /></Layout>} />
           <Route path="/methodology" element={<Layout><MethodologyPage /></Layout>} />
           <Route path="/methodology/:topic" element={<Layout><MethodologyPage /></Layout>} />
           <Route path="/about/funding" element={<Layout><FundingPage /></Layout>} />
