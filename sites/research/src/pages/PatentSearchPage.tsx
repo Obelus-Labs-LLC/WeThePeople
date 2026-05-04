@@ -231,7 +231,11 @@ export default function PatentSearchPage() {
                   </div>
                   {p.patent_number && (
                     <a
-                      href={`https://patents.google.com/patent/US${p.patent_number.replace(/[^0-9A-Za-z]/g, '')}`}
+                      // patent_number is already stored as `US-11222043-B2` —
+                      // strip the hyphens and DON'T prepend another `US`.
+                      // Pre-2026-05-03 this prepended a literal "US" producing
+                      // "USUS11222043B2" which 404'd on every external lookup.
+                      href={`https://patents.google.com/patent/${p.patent_number.replace(/-/g, '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-800 transition-colors hover:bg-zinc-700"
