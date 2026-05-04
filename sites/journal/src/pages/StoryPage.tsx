@@ -1603,6 +1603,12 @@ export default function StoryPage() {
           >
             our methodology page
           </a>
+          . For how we decide what to publish, how we correct, and how we
+          stay independent (mapped to the SPJ Code of Ethics and AP
+          guidelines on generative AI), see our{' '}
+          <Link to="/standards" style={inlineLinkStyle}>
+            editorial standards
+          </Link>
           .
         </div>
 
