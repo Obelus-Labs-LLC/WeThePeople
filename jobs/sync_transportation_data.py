@@ -64,6 +64,34 @@ def md5(text: str) -> str:
     return hashlib.md5(text.encode()).hexdigest()
 
 
+def _strip_corp_suffix(name: Optional[str]) -> Optional[str]:
+    """Drop trailing legal-entity suffixes from a company name.
+
+    Used as a fallback when neither display_name nor
+    usaspending_recipient_name produces LDA hits because the LDA
+    registration uses a different suffix variant. Returns None when
+    the input is empty after stripping.
+    """
+    if not name:
+        return None
+    s = name.strip()
+    suffixes = [
+        ", INC.", ", INC", " INC.", " INC",
+        ", CORP.", ", CORP", " CORP.", " CORP", " CORPORATION",
+        ", LLC", " LLC",
+        ", LTD.", ", LTD", " LTD.", " LTD",
+        ", L.P.", ", LP", " L.P.", " LP",
+        " PLC", " GROUP", " HOLDINGS", " HOLDING",
+        " & CO.", " & CO", ", CO.", ", CO", " CO.", " CO",
+    ]
+    upper = s.upper()
+    for suf in suffixes:
+        if upper.endswith(suf):
+            s = s[: -len(suf)].rstrip(",.").rstrip()
+            break
+    return s or None
+
+
 def parse_date(val):
     """Parse YYYY-MM-DD string to date object, or return None."""
     if val is None:
@@ -219,80 +247,117 @@ def _safe_float(val):
 
 
 def fetch_lobbying(session, company: TrackedTransportationCompany):
-    """Fetch lobbying disclosures from Senate LDA with full pagination."""
-    search_name = company.display_name
+    """Fetch lobbying disclosures from Senate LDA with full pagination.
+
+    Pre-2026-05-04 this used `company.display_name` only as the LDA
+    `client_name` query, which scored 0 hits across the entire
+    transportation roster (project_backlog T3-#12). Senate LDA matches
+    `client_name` as a substring on the legal name on file —
+    "United Parcel Service, Inc." ≠ "UPS" — so a brand-name display_name
+    misses the actual filings.
+
+    The fix mirrors what `sync_tech_data.py` does: try the
+    `usaspending_recipient_name` (the legal name registered with the
+    federal contractor system, which usually matches the LDA legal name
+    closely) FIRST, falling back to the display_name. We also try a
+    suffix-stripped variant ("United Parcel Service" without "Inc.") as
+    the third attempt for sectors where neither field has a clean match.
+    """
+    variants: list[str] = []
+    seen: set[str] = set()
+    for candidate in (
+        getattr(company, "usaspending_recipient_name", None),
+        company.display_name,
+        # Suffix-stripped fallback: drop trailing INC/CORP/LLC variants
+        # that sometimes diverge between USASpending and LDA registrations.
+        _strip_corp_suffix(company.display_name),
+    ):
+        if candidate and candidate.strip() and candidate not in seen:
+            variants.append(candidate.strip())
+            seen.add(candidate)
+
     current_year = datetime.now().year
     years = list(range(current_year, 2019, -1))  # 2020-present
     count = 0
 
+    # If a more-specific variant returns hits for a given year, we
+    # accept those and skip the less-specific variants for that year
+    # to avoid duplicate work. The dedupe_hash on the row would skip
+    # duplicate inserts anyway, but skipping the round-trip saves time
+    # against the 2s-per-call LDA polite-delay.
     for year in years:
-        page_url = LDA_BASE
-        page_num = 0
-        headers = {"Accept": "application/json"}
-
-        while page_url:
-            params = {
-                "client_name": search_name,
-                "filing_year": year,
-                "page_size": 25,
-            }
-
-            try:
-                time.sleep(2)  # 2s delay to avoid Senate LDA rate limiting
-                if page_num == 0:
-                    resp = requests.get(page_url, params=params, headers=headers, timeout=30)
-                else:
-                    resp = requests.get(page_url, headers=headers, timeout=30)
-                resp.raise_for_status()
-                data = resp.json()
-            except Exception as e:
-                log.warning(f"  [{company.company_id}] Senate LDA error ({year}, page {page_num}): {e}")
+        year_count_before = count
+        for search_name in variants:
+            if count > year_count_before:
+                # Earlier variant already produced hits this year.
                 break
+            page_url = LDA_BASE
+            page_num = 0
+            headers = {"Accept": "application/json"}
 
-            results = data.get("results", [])
-            for r in results:
-                filing_uuid = r.get("filing_uuid", "")
-                dedupe = md5(f"{company.company_id}:lda:{filing_uuid}")
-                if session.query(TransportationLobbyingRecord).filter_by(dedupe_hash=dedupe).first():
-                    continue
+            while page_url:
+                params = {
+                    "client_name": search_name,
+                    "filing_year": year,
+                    "page_size": 25,
+                }
 
-                issues = []
-                gov_entities = set()
-                descriptions = []
-                for activity in (r.get("lobbying_activities") or []):
-                    issue_code = activity.get("general_issue_code_display")
-                    if issue_code:
-                        issues.append(issue_code)
-                    desc = activity.get("description") or ""
-                    if desc.strip():
-                        descriptions.append(desc.strip())
-                    for entity in (activity.get("government_entities") or []):
-                        name = entity.get("name") if isinstance(entity, dict) else str(entity)
-                        if name:
-                            gov_entities.add(name)
+                try:
+                    time.sleep(2)  # 2s delay to avoid Senate LDA rate limiting
+                    if page_num == 0:
+                        resp = requests.get(page_url, params=params, headers=headers, timeout=30)
+                    else:
+                        resp = requests.get(page_url, headers=headers, timeout=30)
+                    resp.raise_for_status()
+                    data = resp.json()
+                except Exception as e:
+                    log.warning(f"  [{company.company_id}] Senate LDA error ({year}, page {page_num}, variant={search_name!r}): {e}")
+                    break
 
-                session.add(TransportationLobbyingRecord(
-                    company_id=company.company_id,
-                    filing_uuid=filing_uuid,
-                    filing_year=r.get("filing_year", 0),
-                    filing_period=r.get("filing_period_display"),
-                    income=_safe_float(r.get("income")),
-                    expenses=_safe_float(r.get("expenses")),
-                    registrant_name=(r.get("registrant") or {}).get("name"),
-                    client_name=(r.get("client") or {}).get("name"),
-                    lobbying_issues=", ".join(sorted(set(issues))) if issues else None,
-                    government_entities=", ".join(sorted(gov_entities)) if gov_entities else None,
-                    specific_issues=" || ".join(descriptions) if descriptions else None,
-                    dedupe_hash=dedupe,
-                ))
-                count += 1
+                results = data.get("results", [])
+                for r in results:
+                    filing_uuid = r.get("filing_uuid", "")
+                    dedupe = md5(f"{company.company_id}:lda:{filing_uuid}")
+                    if session.query(TransportationLobbyingRecord).filter_by(dedupe_hash=dedupe).first():
+                        continue
 
-            # Commit after each page to avoid large transactions
-            if count > 0:
-                session.commit()
+                    issues = []
+                    gov_entities = set()
+                    descriptions = []
+                    for activity in (r.get("lobbying_activities") or []):
+                        issue_code = activity.get("general_issue_code_display")
+                        if issue_code:
+                            issues.append(issue_code)
+                        desc = activity.get("description") or ""
+                        if desc.strip():
+                            descriptions.append(desc.strip())
+                        for entity in (activity.get("government_entities") or []):
+                            name = entity.get("name") if isinstance(entity, dict) else str(entity)
+                            if name:
+                                gov_entities.add(name)
 
-            page_url = data.get("next")
-            page_num += 1
+                    session.add(TransportationLobbyingRecord(
+                        company_id=company.company_id,
+                        filing_uuid=filing_uuid,
+                        filing_year=r.get("filing_year", 0),
+                        filing_period=r.get("filing_period_display"),
+                        income=_safe_float(r.get("income")),
+                        expenses=_safe_float(r.get("expenses")),
+                        registrant_name=(r.get("registrant") or {}).get("name"),
+                        client_name=(r.get("client") or {}).get("name"),
+                        lobbying_issues=", ".join(sorted(set(issues))) if issues else None,
+                        government_entities=", ".join(sorted(gov_entities)) if gov_entities else None,
+                        specific_issues=" || ".join(descriptions) if descriptions else None,
+                        dedupe_hash=dedupe,
+                    ))
+                    count += 1
+
+                # Commit after each page to avoid large transactions
+                if count > 0:
+                    session.commit()
+
+                page_url = data.get("next")
+                page_num += 1
 
     session.commit()
     log.info(f"  [{company.company_id}] {count} new lobbying filings")
