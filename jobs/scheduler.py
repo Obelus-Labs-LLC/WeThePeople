@@ -362,6 +362,82 @@ JOB_REGISTRY: List[JobDef] = [
         timeout_sec=3600,
         description="FEC PAC donation data",
     ),
+    # ── Per-sector FEC sweeps for the historically-zero sectors ────
+    # These five sectors had 0 PAC donation rows as of the apr-30 audit
+    # (project_backlog T2-#7). The unified `sync_donations` job covered
+    # them but ran weekly across all 10 sectors, so the rate budget
+    # consistently ran out before the long tail finished. Splitting them
+    # into dedicated weekly slots staggered through the week guarantees
+    # each gets a full sweep with PAC name-variant matching enabled.
+    JobDef(
+        name="sync_donations_transportation",
+        script="jobs/sync_donations.py",
+        args=["--sector", "transportation"],
+        interval_hours=168,
+        timeout_sec=3600,
+        description="FEC PAC donations for transportation sector (zero-sector backfill)",
+    ),
+    JobDef(
+        name="sync_donations_chemicals",
+        script="jobs/sync_donations.py",
+        args=["--sector", "chemicals"],
+        interval_hours=168,
+        timeout_sec=3600,
+        description="FEC PAC donations for chemicals sector (zero-sector backfill)",
+    ),
+    JobDef(
+        name="sync_donations_agriculture",
+        script="jobs/sync_donations.py",
+        args=["--sector", "agriculture"],
+        interval_hours=168,
+        timeout_sec=3600,
+        description="FEC PAC donations for agriculture sector (zero-sector backfill)",
+    ),
+    JobDef(
+        name="sync_donations_telecom",
+        script="jobs/sync_donations.py",
+        args=["--sector", "telecom"],
+        interval_hours=168,
+        timeout_sec=3600,
+        description="FEC PAC donations for telecom sector (zero-sector backfill)",
+    ),
+    JobDef(
+        name="sync_donations_education",
+        script="jobs/sync_donations.py",
+        args=["--sector", "education"],
+        interval_hours=168,
+        timeout_sec=3600,
+        description="FEC PAC donations for education sector (zero-sector backfill)",
+    ),
+    JobDef(
+        # Defense had only 8 tracked companies as of apr-30, so the
+        # closed-loop page was dominated by Huntington Ingalls. Running
+        # sync_donations weekly with the broader name-variant matching
+        # picks up Lockheed / Northrop / RTX / Boeing / GD / L3Harris
+        # PAC families more reliably.
+        name="sync_donations_defense",
+        script="jobs/sync_donations.py",
+        args=["--sector", "defense"],
+        interval_hours=168,
+        timeout_sec=3600,
+        description="FEC PAC donations for defense sector (broader name-variant search)",
+    ),
+    JobDef(
+        # State legislators + bills across all 50 states via OpenStates.
+        # Filling the long-standing "/states/{code}/bills shows 'coming
+        # soon' placeholder" gap (project_backlog T2-#4). Weekly cadence
+        # because state legislatures move slower than Congress and we
+        # care about "what's pending" more than "what was filed an hour
+        # ago." `--max-pages 3` keeps each state at ~150 bills per pull
+        # so the full 50-state cycle stays under the 2-hour timeout.
+        # Idempotent — upserts on `bill_id` so re-runs don't duplicate.
+        name="sync_state_data_all",
+        script="jobs/sync_state_data_all.py",
+        args=["--max-pages", "3"],
+        interval_hours=168,  # weekly
+        timeout_sec=7200,
+        description="OpenStates legislators + bills for all 50 states",
+    ),
     JobDef(
         name="sync_nhtsa_data",
         script="jobs/sync_nhtsa_data.py",
@@ -431,6 +507,20 @@ JOB_REGISTRY: List[JobDef] = [
         interval_hours=24,
         timeout_sec=1200,
         description="Haiku profile summaries for politicians + companies (50/run)",
+    ),
+    JobDef(
+        # CRS-summary gap closer for bills. ~38% of bills have no CRS
+        # text yet (newly introduced ones especially); this pre-warms
+        # the on-demand Haiku summary so the first journalist landing
+        # on an unenriched bill page doesn't eat 1.5-3s cold latency.
+        # 100/run × nightly catches up the active-legislation tail
+        # quickly while staying well under the daily Anthropic budget.
+        name="backfill_bill_ai_summaries",
+        script="jobs/backfill_bill_ai_summaries.py",
+        args=["--limit", "100"],
+        interval_hours=24,
+        timeout_sec=1200,
+        description="Pre-generate Haiku summaries for top-N most-active bills missing CRS text",
     ),
 
     # ── Weekly digest ──────────────────────────────────────────────
