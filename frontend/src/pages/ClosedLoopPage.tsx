@@ -99,6 +99,11 @@ const YEAR_OPTIONS = Array.from(
 );
 
 function companyRoute(entityType: string, entityId: string): string {
+  // Map sector → URL prefix. Must match the SPA route table in App.tsx.
+  // Telecom routes live under /telecom (not /telecommunications) — the
+  // previous map sent every telecom company to /telecommunications/{id}
+  // which 404s, breaking every closed-loop row sourced from a telecom
+  // entity.
   const map: Record<string, string> = {
     finance: 'finance',
     health: 'health',
@@ -109,8 +114,8 @@ function companyRoute(entityType: string, entityId: string): string {
     transportation: 'transportation',
     chemicals: 'chemicals',
     agriculture: 'agriculture',
-    telecom: 'telecommunications',
-    telecommunications: 'telecommunications',
+    telecom: 'telecom',
+    telecommunications: 'telecom',
     education: 'education',
   };
   return `/${map[entityType] || 'politics'}/${entityId}`;

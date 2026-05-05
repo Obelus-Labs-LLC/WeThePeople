@@ -12,7 +12,11 @@ interface StoryStep {
   data: { label: string; value: number; color: string }[];
 }
 
-// Sector accent hexes align with --color-dem / --color-green / --color-ind / --color-accent / --color-red
+// Sector accent hexes align with --color-dem / --color-green / --color-ind / --color-accent / --color-red.
+// Pre-fix only 7 of the 11 tracked sectors had entries — companies in
+// chemicals/agriculture/telecom/education fell through to the gold
+// fallback so all four rendered with the same color, making the bar
+// chart unreadable when those sectors had data.
 const SECTOR_COLORS: Record<string, string> = {
   politics: '#4A7FDE',
   finance: '#3DB87A',
@@ -22,6 +26,11 @@ const SECTOR_COLORS: Record<string, string> = {
   energy: '#C5A028',
   transportation: '#4A7FDE',
   defense: '#E05555',
+  chemicals: '#84CC16',
+  agriculture: '#65A30D',
+  telecom: '#06B6D4',
+  telecommunications: '#06B6D4',
+  education: '#A855F7',
 };
 
 function formatMoney(n: number): string {
@@ -52,7 +61,7 @@ export default function DataStoryPage() {
         const storySteps: StoryStep[] = [
           {
             title: 'The Landscape',
-            description: `Across four sectors, corporations spent ${formatMoney(stats.total_lobbying_spend)} on lobbying and secured ${formatMoney(stats.total_contract_value)} in government contracts. ${stats.total_enforcement_actions} enforcement actions were filed.`,
+            description: `Across ${Object.keys(bySector).length} sectors, corporations spent ${formatMoney(stats.total_lobbying_spend)} on lobbying and secured ${formatMoney(stats.total_contract_value)} in government contracts. ${stats.total_enforcement_actions} enforcement actions were filed.`,
             chartType: 'bar',
             data: Object.entries(bySector as Record<string, Record<string, number>>).map(([sector, data]) => ({
               label: sector.charAt(0).toUpperCase() + sector.slice(1),
