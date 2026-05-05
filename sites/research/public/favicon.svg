@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Research favicon: violet "R" matching the research site's --color-accent. -->
+  <rect width="64" height="64" rx="10" fill="#0c0f1a"/>
+  <rect x="0" y="0" width="64" height="3" fill="#8B5CF6"/>
+  <text x="32" y="46" font-family="Georgia, serif" font-size="38" font-weight="900"
+        text-anchor="middle" fill="#A78BFA" font-style="italic">R</text>
+</svg>
