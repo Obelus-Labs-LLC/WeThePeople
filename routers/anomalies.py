@@ -4,11 +4,13 @@ Anomaly detection routes — suspicious patterns found in the data.
 
 import json
 import logging
+import threading
+import time
 
 from fastapi import APIRouter, Query, HTTPException, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
-from typing import Optional
+from typing import Optional, Tuple, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,16 @@ from models.database import get_db, Anomaly
 from models.response_schemas import AnomaliesListResponse
 
 router = APIRouter(prefix="/anomalies", tags=["anomalies"])
+
+# In-process TTL cache for the /anomalies list endpoint.
+# The underlying anomalies table is only refreshed by detect_anomalies.py
+# nightly, and the dedupe-via-window-function query is O(N log N) over
+# the full ~10K row table — measured at 4.94s on prod (May 2026
+# walkthrough). With a 10-minute cache, all but the first hit per
+# filter combo each window land in microseconds.
+_LIST_CACHE_TTL_SEC = 600
+_list_cache: Dict[Tuple, Tuple[float, dict]] = {}
+_list_cache_lock = threading.Lock()
 
 
 def _serialize_anomaly(a: Anomaly) -> dict:
@@ -52,6 +64,17 @@ def list_anomalies(
     detection-engine run × source events). Without this dedupe the
     /anomalies feed showed 19/20 copies of the same Henry Schein row at
     the top of the page. Caught 2026-05-03."""
+    # Cache check: identical filter combos hit the same dedupe SQL
+    # which costs ~5s on prod. Skip on cache hit.
+    cache_key = (pattern_type, entity_type, float(min_score), int(limit), int(offset))
+    now = time.monotonic()
+    with _list_cache_lock:
+        cached = _list_cache.get(cache_key)
+    if cached:
+        cached_time, cached_value = cached
+        if now - cached_time < _LIST_CACHE_TTL_SEC:
+            return cached_value
+
     # Use a window-function subquery to keep ONLY the highest-scored
     # row per (entity_id, pattern_type) group. This is the canonical
     # way to dedupe `wide` tables on SQLite 3.25+ (Hetzner's sqlite is
@@ -102,10 +125,13 @@ def list_anomalies(
     rows_by_id = {r.id: r for r in rows}
     ordered = [rows_by_id[i] for i in ids if i in rows_by_id]
 
-    return {
+    response = {
         "total": total,
         "anomalies": [_serialize_anomaly(a) for a in ordered],
     }
+    with _list_cache_lock:
+        _list_cache[cache_key] = (now, response)
+    return response
 
 
 @router.get("/top")

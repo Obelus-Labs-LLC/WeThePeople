@@ -36,7 +36,17 @@ from utils.db_compat import limit_sql
 # don't lose hot results.
 _cache: Dict[str, Tuple[float, Dict]] = {}
 _cache_lock = threading.Lock()
+# Hot TTL: how long before we consider a cached result fresh enough to
+# return without triggering a background refresh.
 _CACHE_TTL = 3600  # 1 hour — closed loops aggregate annual / multi-year data
+# Stale-while-revalidate window: if the entry is older than _CACHE_TTL
+# but younger than _CACHE_STALE_TTL, return it immediately AND fire a
+# background refresh. This way the user always gets a fast response,
+# and the data converges to fresh on the next request after the warmer
+# cron has run. Set to 24h: the closed-loops dataset is bounded by
+# weekly FEC + lobbying ingest, so a day-old result is acceptable as
+# a fallback while the recompute runs.
+_CACHE_STALE_TTL = 86400  # 24h hard ceiling; older than this = drop
 _CACHE_FILE = Path(os.environ.get(
     "CLOSED_LOOP_CACHE_PATH",
     str(Path(__file__).resolve().parent.parent / "data" / "closed_loop_cache.json"),
@@ -44,6 +54,11 @@ _CACHE_FILE = Path(os.environ.get(
 _CACHE_PERSIST_INTERVAL = 60  # snapshot to disk every minute when dirty
 _cache_dirty = False
 _persist_timer: Optional[threading.Timer] = None
+# Track which cache keys have an in-flight background refresh so we
+# don't pile up duplicate recomputes when many users hit the same stale
+# entry simultaneously.
+_revalidating_keys: set = set()
+_revalidating_lock = threading.Lock()
 
 
 def _load_cache_from_disk() -> None:
@@ -69,7 +84,9 @@ def _load_cache_from_disk() -> None:
                 if wall_ts is None or result is None:
                     continue
                 age = wall_now - float(wall_ts)
-                if age >= _CACHE_TTL:
+                # Keep entries up to the stale ceiling — stale-while-
+                # revalidate may still serve them on the next read.
+                if age >= _CACHE_STALE_TTL:
                     continue
                 _cache[key] = (now - age, result)
     except Exception:
@@ -103,7 +120,10 @@ def _persist_cache_to_disk() -> None:
         local_snapshot = {}
         for key, (mono_ts, result) in _cache.items():
             age = mono_now - mono_ts
-            if age >= _CACHE_TTL:
+            # Persist stale-but-still-revalidatable entries too. Without
+            # this, a process restart wipes any entry past _CACHE_TTL
+            # and the next visitor pays the full cold cost.
+            if age >= _CACHE_STALE_TTL:
                 continue
             local_snapshot[key] = {
                 "wall_ts": wall_now - age,
@@ -248,6 +268,76 @@ def _batched_in_query(db, query_fn, ids, batch_size=100):
     return results
 
 
+def _spawn_background_refresh(
+    cache_key: str,
+    entity_type: Optional[str],
+    entity_id: Optional[str],
+    person_id: Optional[str],
+    min_donation: float,
+    year_from: int,
+    year_to: int,
+    limit: int,
+    offset: int,
+    max_per_company: int,
+) -> None:
+    """Fire a background recompute for a stale cache entry.
+
+    Used by the stale-while-revalidate path: the user already got the
+    stale value back, so this thread's only job is to update the cache
+    for the next request. Skips the work if another thread is already
+    refreshing the same key (avoids thundering-herd recomputes when
+    many users hit the same stale entry at once).
+
+    Imports SessionLocal lazily to avoid a circular import at module
+    load (models.database imports nothing from this file, but keeping
+    the import here makes the dependency direction obvious).
+    """
+    with _revalidating_lock:
+        if cache_key in _revalidating_keys:
+            return
+        _revalidating_keys.add(cache_key)
+
+    def _run() -> None:
+        try:
+            from models.database import SessionLocal  # local import — see docstring
+        except Exception:
+            with _revalidating_lock:
+                _revalidating_keys.discard(cache_key)
+            return
+        session = SessionLocal()
+        try:
+            # Recompute. find_closed_loops will write fresh entry to
+            # _cache via its existing tail. We swallow exceptions here
+            # because a failed background refresh must not crash the
+            # worker — the user already got the stale result.
+            find_closed_loops(
+                db=session,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                person_id=person_id,
+                min_donation=min_donation,
+                year_from=year_from,
+                year_to=year_to,
+                limit=limit,
+                offset=offset,
+                max_per_company=max_per_company,
+                _bypass_cache_read=True,
+            )
+        except Exception:
+            # Best-effort. Next request will try again.
+            pass
+        finally:
+            try:
+                session.close()
+            except Exception:
+                pass
+            with _revalidating_lock:
+                _revalidating_keys.discard(cache_key)
+
+    t = threading.Thread(target=_run, daemon=True, name=f"swr-closed-loops-{cache_key[:8]}")
+    t.start()
+
+
 def find_closed_loops(
     db: Session,
     entity_type: Optional[str] = None,
@@ -259,23 +349,50 @@ def find_closed_loops(
     limit: int = 25,
     offset: int = 0,
     max_per_company: int = 0,
+    _bypass_cache_read: bool = False,
 ) -> Dict[str, Any]:
     """
     Find closed-loop influence chains using a SQL-first approach.
+
+    `_bypass_cache_read` is set to True by the stale-while-revalidate
+    background refresh so it skips the cache lookup and actually does
+    the recompute (otherwise it would just see the stale entry and
+    return early without ever updating the cache).
     """
-    # Check cache first (in-memory + disk-restored on import)
+    # Check cache first (in-memory + disk-restored on import).
+    # Stale-while-revalidate: fresh hits return immediately; stale
+    # hits return the cached value AND fire a background refresh so
+    # the next request sees fresh data without making the current
+    # user wait through the 5-15s cold path.
     cache_key = hashlib.md5(json.dumps({
         "et": entity_type, "eid": entity_id, "pid": person_id,
         "md": min_donation, "yf": year_from, "yt": year_to,
         "l": limit, "off": offset, "mpc": max_per_company,
     }, sort_keys=True).encode()).hexdigest()
     now = time.monotonic()
-    with _cache_lock:
-        cached = _cache.get(cache_key)
-    if cached:
-        cached_time, cached_result = cached
-        if now - cached_time < _CACHE_TTL:
-            return cached_result
+    if not _bypass_cache_read:
+        with _cache_lock:
+            cached = _cache.get(cache_key)
+        if cached:
+            cached_time, cached_result = cached
+            age = now - cached_time
+            if age < _CACHE_TTL:
+                return cached_result
+            if age < _CACHE_STALE_TTL:
+                # Serve stale, refresh in background. Tag the response so
+                # the frontend (and the warmer's logs) can see we returned
+                # a stale value — but importantly, return immediately.
+                _spawn_background_refresh(
+                    cache_key, entity_type, entity_id, person_id,
+                    min_donation, year_from, year_to, limit, offset,
+                    max_per_company,
+                )
+                stale_result = dict(cached_result)
+                stats = dict(stale_result.get("stats") or {})
+                stats["served_stale"] = True
+                stats["stale_age_seconds"] = int(age)
+                stale_result["stats"] = stats
+                return stale_result
 
     start_time = now
     is_partial = False

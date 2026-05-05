@@ -727,7 +727,16 @@ def get_trade_timeline(
 
 @router.get("/network")
 def get_influence_network(
-    entity_type: str = Query(..., pattern="^(person|finance|health|tech|energy|transportation|defense|chemicals|agriculture)$"),
+    # Pattern intentionally enumerates every sector the closed-loops
+    # service supports. Missing entries here surface as a 422 to the
+    # frontend even though the underlying network builder handles them
+    # fine — the May 2026 walkthrough caught telecom + education
+    # missing, which broke the influence graph for any entity in those
+    # sectors. Keep this list in sync with closed_loop_detection.lobby_configs.
+    entity_type: str = Query(
+        ...,
+        pattern="^(person|finance|health|tech|energy|transportation|defense|chemicals|agriculture|telecom|education)$",
+    ),
     entity_id: str = Query(..., min_length=1),
     depth: int = Query(1, ge=1, le=2),
     limit: int = Query(50, ge=1, le=100),
