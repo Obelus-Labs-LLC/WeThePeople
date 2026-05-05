@@ -153,11 +153,28 @@ export default function DrugLookupPage() {
         allTrials.push(...trialBatch.flat());
       }
 
-      const recallResults = [allRecalls];
-      const trialResults = [allTrials];
-
-      drugResults.recalls = recallResults.flat();
-      drugResults.trials = trialResults.flat();
+      // Dedupe recalls by `recall_number`. The same recall (e.g. a Class II
+      // Kombiglyze recall co-marketed by Bristol-Myers Squibb and AstraZeneca)
+      // appears in BOTH companies' per-company recall lists, so the fan-out
+      // surfaces visually-identical duplicate cards. Keep the first
+      // occurrence and merge subsequent companies into a `coCompanies` list
+      // (currently unused at render time but available for the FE to surface
+      // co-marketing relationships in the future).
+      const recallSeen = new Map<string, RecallItem & { companyId: string; companyName: string; coCompanies?: string[] }>();
+      for (const r of allRecalls) {
+        const key = r.recall_number || `${r.product_description || ''}|${r.recall_initiation_date || ''}`;
+        const existing = recallSeen.get(key);
+        if (!existing) {
+          recallSeen.set(key, r);
+        } else if (existing.companyId !== r.companyId) {
+          existing.coCompanies = existing.coCompanies || [];
+          if (!existing.coCompanies.includes(r.companyName)) {
+            existing.coCompanies.push(r.companyName);
+          }
+        }
+      }
+      drugResults.recalls = Array.from(recallSeen.values());
+      drugResults.trials = allTrials;
     } catch {
       // partial results still shown
     }
