@@ -51,6 +51,62 @@ _SENSITIVE_PREFIXES = (
 )
 
 
+# Tiered caching for public read-only endpoints. Browsers/CDNs serve
+# the cached response for `max-age` seconds without any network call,
+# then for the next `stale-while-revalidate` seconds they SERVE the
+# cached response and silently revalidate in the background. The user
+# perceives every repeat visit within the SWR window as instant.
+#
+# Aggressive numbers are safe because:
+#   * Underlying data changes on a daily-or-slower cadence (sync jobs
+#     run nightly or weekly).
+#   * SWR semantics mean stale-but-not-dead, with a backend round trip
+#     happening behind the user's back to refresh.
+#
+# Order matters — first match wins.
+_CACHE_TIERS = (
+    # Semi-static config + schema. OpenAPI changes per deploy; the
+    # browser will refetch on Cache-Control: max-age expiry.
+    ("/openapi.json", "public, max-age=600, stale-while-revalidate=86400"),
+    ("/docs", "public, max-age=600, stale-while-revalidate=86400"),
+    ("/redoc", "public, max-age=600, stale-while-revalidate=86400"),
+    # ZIP / state / lookups change essentially never (district maps
+    # update once per redistricting cycle).
+    ("/lookup/", "public, max-age=3600, stale-while-revalidate=86400"),
+    ("/states/", "public, max-age=600, stale-while-revalidate=3600"),
+    ("/representatives", "public, max-age=600, stale-while-revalidate=3600"),
+    # Dashboard + influence aggregates rebuild from sync jobs that run
+    # daily. 5-minute fresh window is plenty; SWR=10min means a casual
+    # browse never blocks on an API call.
+    ("/dashboard/", "public, max-age=300, stale-while-revalidate=600"),
+    ("/influence/", "public, max-age=300, stale-while-revalidate=600"),
+    ("/aggregate/", "public, max-age=300, stale-while-revalidate=600"),
+    ("/anomalies", "public, max-age=300, stale-while-revalidate=600"),
+    # Per-entity detail pages (most-visited): 2-min fresh, 10-min SWR.
+    # The vast majority of repeat visits within a session land on warm.
+    ("/finance/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/health/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/tech/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/energy/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/defense/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/transportation/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/agriculture/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/chemicals/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/telecom/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/education/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/people", "public, max-age=120, stale-while-revalidate=600"),
+    ("/bills", "public, max-age=120, stale-while-revalidate=600"),
+    ("/votes", "public, max-age=120, stale-while-revalidate=600"),
+    ("/committees", "public, max-age=300, stale-while-revalidate=3600"),
+    ("/stories", "public, max-age=120, stale-while-revalidate=600"),
+    ("/balance-of-power", "public, max-age=300, stale-while-revalidate=3600"),
+    ("/research/", "public, max-age=300, stale-while-revalidate=3600"),
+    ("/civic/", "public, max-age=120, stale-while-revalidate=600"),
+    ("/search", "public, max-age=60, stale-while-revalidate=300"),
+    ("/actions", "public, max-age=120, stale-while-revalidate=600"),
+)
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Injects security headers into every HTTP response."""
 
@@ -76,11 +132,30 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Cache-Control — no-store for sensitive endpoints to prevent
         # browser/proxy caching of auth tokens, user data, etc.
+        # Skip on non-GET so POST/PATCH responses don't get cached.
         if any(path.startswith(prefix) for prefix in _SENSITIVE_PREFIXES):
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
+        elif request.method != "GET":
+            # Mutations don't get cached.
+            if "Cache-Control" not in response.headers:
+                response.headers["Cache-Control"] = "no-store"
         elif "Cache-Control" not in response.headers:
-            # Default: allow short caching for public data endpoints
-            response.headers["Cache-Control"] = "public, max-age=60"
+            # Tier-matched stale-while-revalidate caching for public GETs.
+            # Falls back to the legacy 60-second value if no tier matches.
+            cache_value = "public, max-age=60, stale-while-revalidate=300"
+            for prefix, value in _CACHE_TIERS:
+                if path.startswith(prefix):
+                    cache_value = value
+                    break
+            response.headers["Cache-Control"] = cache_value
+            # `Vary: Accept-Encoding` so caches don't serve a brotli'd
+            # body to a client that only accepts gzip (or vice versa).
+            # The GZipMiddleware doesn't add this on its own.
+            existing_vary = response.headers.get("Vary", "")
+            if "Accept-Encoding" not in existing_vary:
+                response.headers["Vary"] = (
+                    f"{existing_vary}, Accept-Encoding".lstrip(", ")
+                )
 
         return response
