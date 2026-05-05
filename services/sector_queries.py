@@ -39,9 +39,18 @@ class SectorConfig:
     contract_model: Any            # ChemicalGovernmentContract
     enforcement_model: Any         # ChemicalEnforcement
     filing_model: Any = None       # SECChemicalFiling (optional)
-    # Sector-specific count models for the list endpoint enrichment
-    # List of (model_class, count_key_name) tuples
+    # Sector-specific count models for the list endpoint enrichment.
+    # List of (model_class, count_key_name) tuples.
     list_count_models: List = field(default_factory=list)
+    # Sector-specific count models surfaced on the dashboard stats payload.
+    # Each tuple is (stat_key, model_class). The factory adds one
+    # `total_<stat_key>` count per entry — used by sectors that have
+    # custom data tables (NHTSA recalls/complaints for transportation,
+    # EPA emissions for energy, FDA recalls for health, etc.) so the
+    # frontend dashboard cards aren't stuck at 0. The energy dashboard
+    # was rendering "Emissions records: 0" pre-fix even though the table
+    # had ~12k rows. Caught May 5 walkthrough.
+    extra_dashboard_counts: List = field(default_factory=list)
 
 
 def _entity_id_col(model, config: SectorConfig):
@@ -102,6 +111,20 @@ def get_dashboard_stats(db: Session, config: SectorConfig) -> Dict[str, Any]:
     em = config.enforcement_model
     result["total_enforcement"] = db.query(func.count(em.id)).scalar() or 0
     result["total_penalties"] = db.query(func.sum(em.penalty_amount)).scalar() or 0
+
+    # Sector-specific extras (NHTSA recalls/complaints for transportation,
+    # EPA emissions for energy, etc). Driven by config so each sector
+    # router declares its own without forking get_dashboard_stats.
+    for stat_key, extra_model in (config.extra_dashboard_counts or []):
+        try:
+            result[f"total_{stat_key}"] = (
+                db.query(func.count(extra_model.id)).scalar() or 0
+            )
+        except Exception:
+            # Defensive: a missing column / model name typo shouldn't
+            # take down the whole dashboard. Skip the bad entry, log
+            # nothing (dashboard hot path).
+            result[f"total_{stat_key}"] = 0
 
     by_sector = dict(
         db.query(entity_model.sector_type, func.count(entity_model.id))
