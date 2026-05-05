@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!--
+    Static high-level sitemap. Per-entity URLs (/finance/{id},
+    /politics/people/{id}, etc.) are not enumerated here because the
+    sets are large (~100s per sector + ~500 politicians) and the
+    journal's middleware-based sitemap.xml already covers the
+    discoverable story corpus. Crawlers find per-entity pages by
+    following nav links from these landing pages.
+  -->
+  <url><loc>https://wethepeopleforus.com/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://wethepeopleforus.com/about</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://wethepeopleforus.com/methodology</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://wethepeopleforus.com/disclaimer</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://wethepeopleforus.com/privacy</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://wethepeopleforus.com/terms</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://wethepeopleforus.com/cite</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://wethepeopleforus.com/api-docs</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://wethepeopleforus.com/pricing</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+
+  <!-- Politics hub -->
+  <url><loc>https://wethepeopleforus.com/politics</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://wethepeopleforus.com/politics/people</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/politics/legislation</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/politics/committees</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://wethepeopleforus.com/politics/states</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://wethepeopleforus.com/politics/find-rep</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://wethepeopleforus.com/politics/trades</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+
+  <!-- Influence hub -->
+  <url><loc>https://wethepeopleforus.com/influence</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://wethepeopleforus.com/influence/closed-loops</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/influence/network</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://wethepeopleforus.com/influence/money-flow</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://wethepeopleforus.com/influence/timeline</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://wethepeopleforus.com/influence/anomalies</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+
+  <!-- Sector dashboards -->
+  <url><loc>https://wethepeopleforus.com/finance</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/health</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/technology</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/energy</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/defense</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/transportation</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/agriculture</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/chemicals</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/telecom</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://wethepeopleforus.com/education</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+
+  <!-- Civic hub -->
+  <url><loc>https://wethepeopleforus.com/civic</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://wethepeopleforus.com/civic/verify</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+</urlset>

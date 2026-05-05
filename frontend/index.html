@@ -10,7 +10,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://wethepeopleforus.com" />
     <meta property="og:title" content="WeThePeople — Follow the Money from Industry to Politics" />
-    <meta property="og:description" content="Track lobbying, government contracts, enforcement actions, and political donations across Finance, Health, Tech, and Energy sectors." />
+    <meta property="og:description" content="Track lobbying, government contracts, enforcement actions, and political donations across 11 sectors: Finance, Health, Tech, Energy, Defense, Transportation, Agriculture, Chemicals, Telecom, and Education." />
     <meta property="og:image" content="https://wethepeopleforus.com/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -22,7 +22,12 @@
     <meta name="twitter:description" content="Track lobbying, government contracts, enforcement actions, and political donations across every major industry." />
     <meta name="twitter:image" content="https://wethepeopleforus.com/og-image.png" />
 
-    <link rel="icon" href="/favicon.ico" />
+    <!-- Prefer the SVG favicon (smaller, scalable). The .ico fallback
+         line is intentionally absent — favicon.ico isn't shipped, and
+         pointing browsers at a non-existent .ico made every page eat a
+         404 (which the SPA catch-all turned into the HTML index returned
+         with text/html, polluting devtools and the network tab). -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400;1,700;1,900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />

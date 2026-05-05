@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Verification results pages are user-specific transient artifacts;
+# don't waste crawler budget on /results/quick or /results/{id}.
+Disallow: /results/
+
+Sitemap: https://verify.wethepeopleforus.com/sitemap.xml
