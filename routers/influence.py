@@ -65,11 +65,25 @@ _STATS_TTL = 300  # 5 minutes — see top-lobbying/top-contracts caches
 # (one per sector). Cache the result by `limit` for 5 minutes; the
 # underlying numbers are aggregates over months/years and don't move
 # minute-to-minute, so this is safe.
+#
+# Stale-while-revalidate semantics: once `_TOP_TTL` elapses, return
+# the stale value IMMEDIATELY and spawn a background thread to
+# recompute. The first post-TTL caller no longer waits ~1s; everyone
+# gets an instant response while the cache transparently catches up.
+# `_TOP_STALE_TTL` is the hard ceiling — older than this and we
+# fall back to the synchronous compute path.
 _top_lobby_cache: dict = {}
 _top_lobby_lock = threading.Lock()
 _top_contract_cache: dict = {}
 _top_contract_lock = threading.Lock()
-_TOP_TTL = 300  # 5 minutes
+_TOP_TTL = 300        # 5 minutes — fresh window
+_TOP_STALE_TTL = 86400  # 24 hours — stale-but-still-revalidatable
+_top_lobby_revalidating = False
+_top_contract_revalidating = False
+# Stats SWR ceiling — same shape as the top-* caches. The existing
+# `_stats_cache` already keeps a `computing` flag we can reuse for
+# concurrency, but lacks an explicit stale ceiling.
+_STATS_STALE_TTL = 86400
 
 
 @router.get("/data-freshness")
@@ -231,17 +245,34 @@ def _compute_freshness(db: Session, _max_date_and_count):
 
 @router.get("/stats", response_model=InfluenceStatsResponse)
 def get_influence_stats(db: Session = Depends(get_db)):
-    """Aggregate influence stats across all sectors.
+    """Aggregate influence stats across all sectors. SWR cache:
+    fresh for `_STATS_TTL` seconds; older than that but still inside
+    `_STATS_STALE_TTL` is returned immediately while a background
+    thread recomputes. Older still falls back to synchronous compute.
 
     The `computing` flag is cleared in a `try/except` even on transient
     failure so a single DB error doesn't lock out future recomputes.
     """
     now = _time.time()
     with _stats_lock:
-        if _stats_cache["data"] is not None and (now - _stats_cache["ts"]) < _STATS_TTL:
-            return _stats_cache["data"]
+        cached = _stats_cache["data"]
+        cached_ts = _stats_cache["ts"]
+        is_computing = _stats_cache["computing"]
+    if cached is not None:
+        age = now - cached_ts
+        if age < _STATS_TTL:
+            return cached
+        if age < _STATS_STALE_TTL:
+            # Serve stale, kick off background refresh if not already
+            # in flight. The legacy `computing` flag is the signal.
+            if not is_computing:
+                _spawn_stats_refresh()
+            return cached
+
+    # Cache empty or expired beyond the stale ceiling — compute synchronously.
+    with _stats_lock:
         if _stats_cache["computing"] and _stats_cache["data"] is not None:
-            return _stats_cache["data"]  # serve stale while another thread recomputes
+            return _stats_cache["data"]
         _stats_cache["computing"] = True
 
     try:
@@ -250,6 +281,32 @@ def get_influence_stats(db: Session = Depends(get_db)):
         with _stats_lock:
             _stats_cache["computing"] = False
         raise
+
+
+def _spawn_stats_refresh() -> None:
+    """Background recompute of /influence/stats. Sets the `computing`
+    flag under lock so concurrent requests serve stale instead of
+    starting parallel recomputes."""
+    with _stats_lock:
+        if _stats_cache["computing"]:
+            return
+        _stats_cache["computing"] = True
+
+    def _run():
+        try:
+            from models.database import SessionLocal
+            session = SessionLocal()
+            try:
+                _compute_influence_stats(session)
+                # _compute_influence_stats clears computing on success.
+            finally:
+                session.close()
+        except Exception:
+            with _stats_lock:
+                _stats_cache["computing"] = False
+
+    t = threading.Thread(target=_run, daemon=True, name="swr-influence-stats")
+    t.start()
 
 
 def _compute_influence_stats(db: Session):
@@ -325,18 +382,59 @@ def _compute_influence_stats(db: Session):
 
 @router.get("/top-lobbying")
 def get_top_lobbying(limit: int = Query(10, ge=1, le=50), db: Session = Depends(get_db)):
-    """Top lobbying spenders across all sectors. Cached for 5 minutes."""
+    """Top lobbying spenders across all sectors. SWR cache: fresh for
+    5 minutes, then served stale while a background thread recomputes."""
     cache_key = limit
     now = _time.time()
     with _top_lobby_lock:
         cached = _top_lobby_cache.get(cache_key)
-        if cached and (now - cached["ts"]) < _TOP_TTL:
+    if cached:
+        age = now - cached["ts"]
+        if age < _TOP_TTL:
+            return cached["data"]
+        if age < _TOP_STALE_TTL:
+            # Serve stale + revalidate in background. Single in-flight
+            # check prevents duplicate background recomputes if many
+            # users hit the same stale cache simultaneously.
+            global _top_lobby_revalidating
+            should_kick = False
+            with _top_lobby_lock:
+                if not _top_lobby_revalidating:
+                    _top_lobby_revalidating = True
+                    should_kick = True
+            if should_kick:
+                _spawn_top_lobby_refresh(limit)
             return cached["data"]
 
     data = _compute_top_lobbying(db, limit)
     with _top_lobby_lock:
         _top_lobby_cache[cache_key] = {"ts": _time.time(), "data": data}
     return data
+
+
+def _spawn_top_lobby_refresh(limit: int) -> None:
+    """Background recompute for top-lobbying. Called by the SWR path
+    when the cache has aged past _TOP_TTL but is still inside the
+    stale ceiling. Uses a fresh DB session because the request's
+    session may be closed by the time this thread runs."""
+    def _run():
+        global _top_lobby_revalidating
+        try:
+            from models.database import SessionLocal
+            session = SessionLocal()
+            try:
+                data = _compute_top_lobbying(session, limit)
+                with _top_lobby_lock:
+                    _top_lobby_cache[limit] = {"ts": _time.time(), "data": data}
+            finally:
+                session.close()
+        except Exception:
+            pass
+        finally:
+            with _top_lobby_lock:
+                _top_lobby_revalidating = False
+    t = threading.Thread(target=_run, daemon=True, name=f"swr-top-lobbying-{limit}")
+    t.start()
 
 
 def _compute_top_lobbying(db: Session, limit: int):
@@ -586,18 +684,55 @@ def get_spending_by_state(
 
 @router.get("/top-contracts")
 def get_top_contracts(limit: int = Query(10, ge=1, le=50), db: Session = Depends(get_db)):
-    """Top government contract recipients across all sectors. Cached for 5 minutes."""
+    """Top government contract recipients across all sectors. SWR cache:
+    fresh for 5 minutes, then served stale while a background thread
+    recomputes."""
     cache_key = limit
     now = _time.time()
     with _top_contract_lock:
         cached = _top_contract_cache.get(cache_key)
-        if cached and (now - cached["ts"]) < _TOP_TTL:
+    if cached:
+        age = now - cached["ts"]
+        if age < _TOP_TTL:
+            return cached["data"]
+        if age < _TOP_STALE_TTL:
+            global _top_contract_revalidating
+            should_kick = False
+            with _top_contract_lock:
+                if not _top_contract_revalidating:
+                    _top_contract_revalidating = True
+                    should_kick = True
+            if should_kick:
+                _spawn_top_contract_refresh(limit)
             return cached["data"]
 
     data = _compute_top_contracts(db, limit)
     with _top_contract_lock:
         _top_contract_cache[cache_key] = {"ts": _time.time(), "data": data}
     return data
+
+
+def _spawn_top_contract_refresh(limit: int) -> None:
+    """Background recompute for top-contracts. Mirrors
+    _spawn_top_lobby_refresh — see that docstring."""
+    def _run():
+        global _top_contract_revalidating
+        try:
+            from models.database import SessionLocal
+            session = SessionLocal()
+            try:
+                data = _compute_top_contracts(session, limit)
+                with _top_contract_lock:
+                    _top_contract_cache[limit] = {"ts": _time.time(), "data": data}
+            finally:
+                session.close()
+        except Exception:
+            pass
+        finally:
+            with _top_contract_lock:
+                _top_contract_revalidating = False
+    t = threading.Thread(target=_run, daemon=True, name=f"swr-top-contracts-{limit}")
+    t.start()
 
 
 def _compute_top_contracts(db: Session, limit: int):
@@ -808,6 +943,43 @@ def get_closed_loops(
     )
 
 
+# Money-flow Sankey: each request joins ALL 11 sector lobbying tables
+# + the donations table to build the node/link graph. ~700 ms cold.
+# Same SWR strategy as the top-* and stats caches.
+_money_flow_cache: dict = {}
+_money_flow_lock = threading.Lock()
+_MONEY_FLOW_TTL = 300        # 5 min fresh
+_MONEY_FLOW_STALE_TTL = 86400  # 24 h stale ceiling
+_money_flow_revalidating: set = set()  # keyed by (sector, limit) tuples
+
+
+def _spawn_money_flow_refresh(sector: Optional[str], limit: int) -> None:
+    key = (sector or "", int(limit))
+    with _money_flow_lock:
+        if key in _money_flow_revalidating:
+            return
+        _money_flow_revalidating.add(key)
+
+    def _run():
+        try:
+            from models.database import SessionLocal
+            session = SessionLocal()
+            try:
+                data = _compute_money_flow(session, sector, limit)
+                with _money_flow_lock:
+                    _money_flow_cache[key] = {"ts": _time.time(), "data": data}
+            finally:
+                session.close()
+        except Exception:
+            pass
+        finally:
+            with _money_flow_lock:
+                _money_flow_revalidating.discard(key)
+
+    t = threading.Thread(target=_run, daemon=True, name=f"swr-money-flow-{key}")
+    t.start()
+
+
 @router.get("/money-flow")
 def get_money_flow(
     sector: Optional[str] = Query(None, description="Filter by sector: finance, health, tech, energy"),
@@ -816,8 +988,28 @@ def get_money_flow(
 ):
     """
     Build Sankey-style money flow data: Company -> Lobbying/Donations -> Politician.
-    Returns nodes and links for a Sankey diagram.
+    Returns nodes and links for a Sankey diagram. SWR cache: fresh for
+    5 minutes, then served stale while a background thread recomputes.
     """
+    cache_key = (sector or "", int(limit))
+    now = _time.time()
+    with _money_flow_lock:
+        cached = _money_flow_cache.get(cache_key)
+    if cached:
+        age = now - cached["ts"]
+        if age < _MONEY_FLOW_TTL:
+            return cached["data"]
+        if age < _MONEY_FLOW_STALE_TTL:
+            _spawn_money_flow_refresh(sector, limit)
+            return cached["data"]
+
+    data = _compute_money_flow(db, sector, limit)
+    with _money_flow_lock:
+        _money_flow_cache[cache_key] = {"ts": _time.time(), "data": data}
+    return data
+
+
+def _compute_money_flow(db: Session, sector: Optional[str], limit: int):
     nodes = []
     links = []
     node_map: dict[str, int] = {}
