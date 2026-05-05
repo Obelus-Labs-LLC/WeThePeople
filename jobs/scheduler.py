@@ -513,14 +513,34 @@ JOB_REGISTRY: List[JobDef] = [
         # text yet (newly introduced ones especially); this pre-warms
         # the on-demand Haiku summary so the first journalist landing
         # on an unenriched bill page doesn't eat 1.5-3s cold latency.
-        # 100/run × nightly catches up the active-legislation tail
-        # quickly while staying well under the daily Anthropic budget.
+        # Bumped from 100 → 250/run (May 2026 walkthrough): /bills/{id}
+        # for any 119th-Congress bill without CRS hits Haiku synchronously
+        # in the request handler. The handler now defers to a background
+        # thread (fast response, summary appears on next visit), but the
+        # backlog still needs to clear faster than 100/day so steady-state
+        # has fewer "first visit pays the cost" misses. 250/day at Haiku
+        # rates is still well under $0.50/day.
         name="backfill_bill_ai_summaries",
         script="jobs/backfill_bill_ai_summaries.py",
-        args=["--limit", "100"],
+        args=["--limit", "250"],
         interval_hours=24,
-        timeout_sec=1200,
+        timeout_sec=1800,
         description="Pre-generate Haiku summaries for top-N most-active bills missing CRS text",
+    ),
+    # Story simplified-summary backfill. /stories/{slug}/simplified
+    # generates a 60-second Haiku rewrite on demand and caches it on
+    # the row, but the first user landing on a published story without
+    # a cached summary eats a 5-6s cold cost. May 2026 walkthrough
+    # caught every untouched published story at 5-6s. 25/run nightly
+    # is enough to keep up with detect_stories' daily output and
+    # eventually paint over the older backlog.
+    JobDef(
+        name="backfill_story_simplified",
+        script="jobs/backfill_story_simplified.py",
+        args=["--limit", "25"],
+        interval_hours=24,
+        timeout_sec=900,
+        description="Pre-generate Haiku simplified summaries for published stories",
     ),
 
     # ── Weekly digest ──────────────────────────────────────────────

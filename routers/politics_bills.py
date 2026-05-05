@@ -5,6 +5,7 @@ timeline, enrichment stats).
 
 import json
 import re
+import threading
 from fastapi import APIRouter, Query, HTTPException
 from sqlalchemy import func, desc
 from typing import Optional, Dict, Any
@@ -24,6 +25,51 @@ from models.response_schemas import (
 )
 
 router = APIRouter(tags=["politics"])
+
+
+# In-flight bill_ids whose AI summary is being generated in a background
+# thread. Prevents thundering-herd duplicate generation when many
+# users hit the same un-summarized bill simultaneously.
+_summary_in_flight: set[str] = set()
+_summary_in_flight_lock = threading.Lock()
+
+
+def _spawn_background_bill_summary(bill_id: str) -> None:
+    """Generate + cache an AI summary for a bill in a daemon thread.
+
+    Used by the bill-detail handler so we don't block the request on
+    the Haiku call. Single in-flight per bill_id; subsequent attempts
+    while the first is still running are no-ops.
+    """
+    with _summary_in_flight_lock:
+        if bill_id in _summary_in_flight:
+            return
+        _summary_in_flight.add(bill_id)
+
+    def _run() -> None:
+        session = None
+        try:
+            session = SessionLocal()
+            bill = session.query(Bill).filter(Bill.bill_id == bill_id).first()
+            if bill is None:
+                return
+            from services.bill_ai_summary import generate_and_cache_summary
+            generate_and_cache_summary(bill, session)
+        except Exception:
+            # Best-effort; the next request will try again.
+            pass
+        finally:
+            if session is not None:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+            with _summary_in_flight_lock:
+                _summary_in_flight.discard(bill_id)
+
+    threading.Thread(
+        target=_run, daemon=True, name=f"bill-summary-{bill_id}"
+    ).start()
 
 
 # ── Helpers ──
@@ -201,8 +247,15 @@ def _bill_summary_with_fallback(bill: Bill, db_session=None) -> Optional[str]:
          published one.
       2. Cached AI-generated summary on metadata_json.ai_summary
          (Haiku-generated 2-3 sentence factual summary).
-      3. On-demand AI summary, generated and cached in
-         metadata_json.ai_summary. Requires db_session.
+      3. Background-only on-demand AI summary: when neither (1) nor
+         (2) is available, fire a background thread that generates +
+         caches the AI summary so the NEXT request hits step (2). The
+         current request returns the constitutional authority fallback
+         (step 4) or None instead of blocking 1.5-3s on Haiku.
+         (The previous synchronous version blocked the request handler
+         on the LLM call, which made every cold bill page slow. May
+         2026 walkthrough caught /bills/{id} consistently at 1.7-1.9s
+         on prod.)
       4. Constitutional authority statement from metadata_json,
          labeled as a stand-in.
       5. None.
@@ -226,20 +279,13 @@ def _bill_summary_with_fallback(bill: Bill, db_session=None) -> Optional[str]:
         logger = __import__("logging").getLogger(__name__)
         logger.debug("bill_ai_summary cache read failed: %s", e)
 
-    # 3. On-demand generation. Skipped when the API has no DB
-    #    session handle (e.g. pure-cache reads from offline tools).
+    # 3. Fire-and-forget background generation so the next request
+    #    sees a cache hit. Uses a fresh DB session — the request's
+    #    session may be closed by the time the thread runs. Single
+    #    in-flight per bill_id (no thundering-herd) is enforced by
+    #    the module-level set below.
     if db_session is not None:
-        try:
-            from services.bill_ai_summary import generate_and_cache_summary
-            generated = generate_and_cache_summary(bill, db_session)
-            if generated:
-                return (
-                    "AI-generated summary (no CRS summary published yet):\n\n"
-                    + generated
-                )
-        except Exception as e:
-            logger = __import__("logging").getLogger(__name__)
-            logger.debug("bill_ai_summary generation failed: %s", e)
+        _spawn_background_bill_summary(bill.bill_id)
 
     # 4. Constitutional authority statement.
     raw_meta = bill.metadata_json
