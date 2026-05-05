@@ -17,9 +17,33 @@ export default function LoginPage() {
   const { login, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Already-authenticated users have no business on /login. Redirect
-  // them to /account so the back button doesn't dead-end here.
+  // Already-authenticated users have no business on /login. Honor an
+  // explicit `?next=...` redirect so sibling sites (verify, journal,
+  // research) that deep-link a logged-in user back through /login can
+  // bounce them to the requested destination. Falls back to /account
+  // when no next is supplied. Reject absolute URLs that aren't on the
+  // wethepeopleforus.com domain — preventing open-redirect abuse where
+  // a phishing link sends users through /login → attacker.example.
   if (!authLoading && isAuthenticated) {
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get('next');
+    if (next) {
+      try {
+        const target = new URL(next, window.location.origin);
+        const sameOrigin = target.origin === window.location.origin;
+        const trustedSubdomain = /(^|\.)wethepeopleforus\.com$/i.test(target.hostname);
+        if (sameOrigin) {
+          // Internal route — use SPA navigation so we don't reload.
+          return <Navigate to={target.pathname + target.search + target.hash} replace />;
+        }
+        if (trustedSubdomain) {
+          window.location.replace(target.toString());
+          return null;
+        }
+      } catch {
+        // Malformed `next` — fall through to /account.
+      }
+    }
     return <Navigate to="/account" replace />;
   }
 
@@ -29,6 +53,28 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
+      // Same trust rules as the already-authed redirect above. A
+      // verify-subdomain `next` lands the freshly-logged-in user back
+      // where they came from instead of dumping them on the homepage.
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get('next');
+      if (next) {
+        try {
+          const target = new URL(next, window.location.origin);
+          const sameOrigin = target.origin === window.location.origin;
+          const trustedSubdomain = /(^|\.)wethepeopleforus\.com$/i.test(target.hostname);
+          if (sameOrigin) {
+            navigate(target.pathname + target.search + target.hash);
+            return;
+          }
+          if (trustedSubdomain) {
+            window.location.replace(target.toString());
+            return;
+          }
+        } catch {
+          // Malformed `next` — fall through to default.
+        }
+      }
       navigate('/');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');

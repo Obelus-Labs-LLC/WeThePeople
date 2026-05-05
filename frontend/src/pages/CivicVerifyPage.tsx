@@ -55,7 +55,15 @@ const eyebrowStyle: React.CSSProperties = {
 };
 
 const backLink: React.CSSProperties = {
-  display: 'inline-flex',
+  // `display: flex` with width: fit-content makes the link a block-level
+  // element (so the next sibling — the "Civic / Verification" eyebrow
+  // pill — drops onto its own line) without making the clickable target
+  // span the full row. Previously this was `inline-flex`, which left the
+  // back link and the eyebrow pill side-by-side on the same line; the
+  // pill's larger vertical padding then made the two look misaligned in
+  // the May 5 screenshot.
+  display: 'flex',
+  width: 'fit-content',
   alignItems: 'center',
   gap: '6px',
   fontFamily: 'var(--font-mono)',

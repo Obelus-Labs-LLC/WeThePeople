@@ -95,8 +95,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = localStorage.getItem(ACCESS_KEY);
     if (!token) { setLoading(false); return; }
 
+    // credentials: 'include' is required so the Set-Cookie response
+    // from /auth/me is honored — the API mints the cross-subdomain
+    // wtp_session cookie on every /me hit so journal / verify /
+    // research subdomains inherit auth state without needing a
+    // separate login. Without `include`, the browser silently drops
+    // the cookie on this cross-origin call (api.wethepeopleforus.com
+    // ≠ wethepeopleforus.com) and verify keeps showing the auth wall
+    // until the user logs out and back in.
     const callMe = async (bearer: string): Promise<Response> =>
-      fetch(`${API}/auth/me`, { headers: { Authorization: `Bearer ${bearer}` } });
+      fetch(`${API}/auth/me`, {
+        headers: { Authorization: `Bearer ${bearer}` },
+        credentials: 'include',
+      });
 
     try {
       let r = await callMe(token);

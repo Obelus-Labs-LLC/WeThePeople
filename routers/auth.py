@@ -35,6 +35,7 @@ from services.jwt_auth import (
     revoke_refresh_token,
     verify_token,
     get_current_user,
+    _resolve_token_from_request,
     ACCESS_TOKEN_EXPIRE_HOURS,
     SESSION_COOKIE_NAME,
     SESSION_COOKIE_DOMAIN,
@@ -548,8 +549,44 @@ def reset_password(
 
 
 @router.get("/me", response_model=UserInfoResponse)
-def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Return the authenticated user's profile."""
+def get_me(
+    request: Request,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the authenticated user's profile.
+
+    Side effect — refresh the cross-subdomain `wtp_session` cookie on
+    the way out. Users who logged in BEFORE the cookie wiring shipped
+    only have their JWT in localStorage on the main host; their
+    browser has no cookie scoped to .wethepeopleforus.com, so visits
+    to verify.wethepeopleforus.com / journal.wethepeopleforus.com
+    show the auth wall even though their main-site session is valid.
+    Re-minting the cookie here on every /auth/me call (idempotent —
+    same token, same domain, same expiry) heals those pre-existing
+    sessions on the next time the user opens the main site, with no
+    "log out and back in" prompt.
+    """
+    # Re-mint the cookie using whatever token authenticated this call.
+    # `_resolve_token_from_request` accepts the Authorization header
+    # OR the existing cookie — either way, refreshing back into the
+    # cookie store is idempotent and extends the cookie's max-age.
+    token = _resolve_token_from_request(None, request)
+    # `oauth2_scheme` already extracted the header token for the
+    # dependency injection above; if `_resolve_token_from_request`
+    # came up empty, fall back to reading the raw header so we don't
+    # silently skip the cookie refresh.
+    if token is None:
+        auth_header = request.headers.get("Authorization") or ""
+        if auth_header.lower().startswith("bearer "):
+            token = auth_header.split(" ", 1)[1].strip() or None
+    if token:
+        try:
+            _set_session_cookie(response, token)
+        except Exception as exc:
+            logger.debug("session cookie refresh skipped: %s", exc)
+
     key_count = db.query(APIKeyRecord).filter(
         APIKeyRecord.user_id == user.id, APIKeyRecord.is_active == 1
     ).count()
