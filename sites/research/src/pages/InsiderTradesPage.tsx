@@ -32,7 +32,32 @@ function fmtShares(n: number | null | undefined): string {
   return n.toLocaleString();
 }
 
-const TYPE_LABELS: Record<string, string> = { P: 'PURCHASE', S: 'SALE', A: 'AWARD' };
+// SEC Form 4 transaction codes. The previous version covered only
+// P / S / A and rendered raw single-letter codes (C, M, F, etc.) for
+// every other transaction. Journalists scanning the table couldn't
+// tell what those meant. Full code list per SEC Form 4 spec.
+// Caught in the May 5 walkthrough (R-IT-2).
+const TYPE_LABELS: Record<string, string> = {
+  P: 'PURCHASE',
+  S: 'SALE',
+  A: 'GRANT/AWARD',
+  M: 'OPTION EXERCISE',
+  C: 'CONVERSION',
+  F: 'TAX WITHHOLDING',
+  D: 'DISPOSITION',
+  G: 'GIFT',
+  H: 'EXPIRATION',
+  I: 'DISCRETIONARY',
+  J: 'OTHER ACQ/DISP',
+  K: 'EQUITY SWAP',
+  L: 'SMALL ACQUISITION',
+  O: 'OTC EXERCISE',
+  U: 'TENDER',
+  V: 'VOLUNTARY REPORT',
+  W: 'WILL/INHERITANCE',
+  X: 'OPTION EXERCISE',
+  Z: 'TRUST',
+};
 
 function typeBadgeClasses(t: string | null): string {
   if (t === 'P') return 'bg-emerald-500/10 text-emerald-400';

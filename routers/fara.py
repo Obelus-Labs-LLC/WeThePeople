@@ -20,6 +20,38 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/fara", tags=["fara"])
 
 
+# Historical-name rollups. The DOJ FARA dataset preserves the country
+# name as it was filed; old filings under "USSR", "Czechoslovakia",
+# "Yugoslavia" etc. are still in the data. Showing them as separate
+# top-10 countries in 2026 is misleading to a journalist scanning the
+# page. Roll dissolved-country counts into their successor state.
+# Used by both /fara/countries and /fara/stats — defining once at
+# module level keeps the two endpoints in sync (R-FARA-2 in the May 5
+# walkthrough caught /stats not applying the rollup).
+_HISTORICAL_ROLLUP: dict[str, str] = {
+    "USSR": "Russia",
+    "SOVIET UNION": "Russia",
+    "CZECHOSLOVAKIA": "Czech Republic",
+    "YUGOSLAVIA": "Serbia",
+    # Add more as needed; intentionally conservative.
+}
+
+
+def _rollup_country_counts(rows: list[tuple[str, int]]) -> list[tuple[str, int]]:
+    """Apply HISTORICAL_ROLLUP to a list of (country_name, count) tuples.
+
+    Returns a list sorted by count descending. Used by /fara/stats so its
+    top-countries lists match the rollup applied at /fara/countries.
+    """
+    aggregated: dict[str, int] = {}
+    for country, count in rows:
+        if not country:
+            continue
+        target = _HISTORICAL_ROLLUP.get(country.upper().strip(), country)
+        aggregated[target] = aggregated.get(target, 0) + count
+    return sorted(aggregated.items(), key=lambda kv: kv[1], reverse=True)
+
+
 # ── GET /fara/registrants ──────────────────────────────────────────────
 
 @router.get("/registrants")
@@ -283,26 +315,10 @@ def list_countries(
     # 1991). Roll the dissolved-country counts into their successor
     # state so the top-10 stays accurate; keep the cumulative count
     # but don't render two duplicate-feeling rows.
-    HISTORICAL_ROLLUP = {
-        "USSR": "Russia",
-        "SOVIET UNION": "Russia",
-        "CZECHOSLOVAKIA": "Czech Republic",
-        "YUGOSLAVIA": "Serbia",
-        # Add more as needed; intentionally conservative.
-    }
-    aggregated: dict[str, int] = {}
-    for row in rows:
-        # Normalize for the rollup lookup but preserve display casing
-        # of the canonical country name when we hit one. The DB has a
-        # mix of "USSR" and "Russia"; normalizing to the successor's
-        # display name avoids "USSR (300)" surfacing in the UI.
-        key_upper = (row.country or "").upper().strip()
-        target = HISTORICAL_ROLLUP.get(key_upper, row.country)
-        aggregated[target] = aggregated.get(target, 0) + row.principal_count
-
+    rolled = _rollup_country_counts([(row.country, row.principal_count) for row in rows])
     countries = [
         {"country": name, "principal_count": cnt}
-        for name, cnt in sorted(aggregated.items(), key=lambda kv: kv[1], reverse=True)
+        for name, cnt in rolled
     ]
 
     return {
@@ -375,6 +391,17 @@ def fara_stats(db: Session = Depends(get_db)):
         .all()
     )
 
+    # Apply the historical rollup so /stats matches /countries (R-FARA-2).
+    # We pull more rows than 10 so the rollup has data to merge — e.g.
+    # USSR + Russia could collapse into a single Russia row that bumps
+    # an 11th-place country into the top 10. Then re-trim to 10.
+    cumulative_rolled = _rollup_country_counts(
+        [(row.country, row.count) for row in top_countries]
+    )[:10]
+    active_rolled = _rollup_country_counts(
+        [(row.country, row.count) for row in top_countries_active]
+    )[:10]
+
     return {
         "total_registrants": total_registrants,
         "active_registrants": active_registrants,
@@ -383,12 +410,10 @@ def fara_stats(db: Session = Depends(get_db)):
         "active_foreign_principals": active_principals,
         "total_agents": total_agents,
         "top_countries": [
-            {"country": row.country, "count": row.count}
-            for row in top_countries
+            {"country": name, "count": cnt} for name, cnt in cumulative_rolled
         ],
         "top_countries_active": [
-            {"country": row.country, "count": row.count}
-            for row in top_countries_active
+            {"country": name, "count": cnt} for name, cnt in active_rolled
         ],
     }
 
