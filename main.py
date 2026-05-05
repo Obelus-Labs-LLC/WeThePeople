@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -88,6 +89,21 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --- Response Compression ---
+# Pre-fix the API served raw JSON regardless of the client's
+# Accept-Encoding header — the /anomalies?limit=100 response wired
+# 82 KB over the network even though gzip would have brought it
+# under 10 KB. JSON compresses 5-10x, and the worst-offender endpoints
+# (/anomalies, /people, /aggregate/*/contracts at 100-500 KB raw)
+# all dominate cold-load latency on slow connections.
+#
+# `minimum_size=1024` skips compression on small payloads where
+# the framing overhead would actually slow things down. `compresslevel=6`
+# is the standard balance — level 9 gains <2% size at ~10x CPU cost.
+# nginx in front of uvicorn could also do this, but doing it here
+# guarantees the behavior regardless of how prod is fronted.
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 # --- Request Tracing Middleware ---
 from middleware.tracing import TracingMiddleware

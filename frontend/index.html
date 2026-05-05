@@ -28,6 +28,16 @@
          404 (which the SPA catch-all turned into the HTML index returned
          with text/html, polluting devtools and the network tab). -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Open the TCP + TLS connection to the API the moment the HTML
+         lands. Without this, every page's first API request pays the
+         full ~150-300ms round trip to negotiate the connection AFTER
+         the JS bundle has parsed and decided to make a request — i.e.
+         the data fetch never overlaps with JS evaluation. With
+         preconnect the browser opens the connection in parallel with
+         JS download, so the first API call lands almost immediately
+         after the bundle finishes evaluating. -->
+    <link rel="preconnect" href="https://api.wethepeopleforus.com" crossorigin />
+    <link rel="dns-prefetch" href="https://api.wethepeopleforus.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400;1,700;1,900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
