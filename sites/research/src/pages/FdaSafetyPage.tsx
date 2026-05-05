@@ -116,7 +116,21 @@ export default function FdaSafetyPage() {
       .then((results) => {
         if (!results) return;
         const [recallArrays, aeArrays] = results;
-        setRecalls(recallArrays.flat().sort((a, b) => (b.recall_initiation_date || '').localeCompare(a.recall_initiation_date || '')));
+        // Dedupe recalls by recall_number across companies. The same
+        // physical recall (e.g. an AstraZeneca Class II Fasenra recall)
+        // can be filed under multiple co-marketing entities, so the
+        // fan-out across all 131 tracked health companies surfaces
+        // visually-identical duplicate cards. Keep the first hit.
+        // (R-FSS-2 in the May 5 walkthrough.)
+        const recallSeen = new Set<string>();
+        const deduped: RecallWithCompany[] = [];
+        for (const r of recallArrays.flat()) {
+          const key = r.recall_number || `${r.product_description || ''}|${r.recall_initiation_date || ''}`;
+          if (recallSeen.has(key)) continue;
+          recallSeen.add(key);
+          deduped.push(r);
+        }
+        setRecalls(deduped.sort((a, b) => (b.recall_initiation_date || '').localeCompare(a.recall_initiation_date || '')));
         setAdverseEvents(aeArrays.flat().sort((a, b) => (b.receive_date || '').localeCompare(a.receive_date || '')));
       })
       .catch((err) => {

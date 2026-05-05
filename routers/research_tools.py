@@ -283,13 +283,30 @@ def campaign_finance(
     cycle: int = Query(None, description="Election cycle year (defaults to current cycle)"),
     limit: int = Query(25, ge=1, le=100),
 ):
-    """Proxy to FEC API for candidate campaign finance data."""
-    return search_candidates_research(
+    """Proxy to FEC API for candidate campaign finance data.
+
+    The FEC stores names in "LAST, FIRST MI" uppercase form
+    (e.g. "SMITH, JASON T"). Rendering that verbatim in a journalist-
+    facing UI looks like a database leak. We pass each candidate's
+    name through the same normalizer used for SEC Form 4 filer names
+    and add a `display_name` field so the FE can render "Jason T. Smith"
+    while keeping the original `name` field intact for anyone who
+    needs the canonical FEC string. (R-CF-2 in the May 5 walkthrough.)
+    """
+    from routers.finance import _format_filer_name
+    result = search_candidates_research(
         candidate=candidate,
         state=state,
         cycle=cycle,
         limit=limit,
     )
+    candidates = result.get("candidates") if isinstance(result, dict) else None
+    if isinstance(candidates, list):
+        for c in candidates:
+            raw = c.get("name") if isinstance(c, dict) else None
+            if raw:
+                c["display_name"] = _format_filer_name(raw) or raw
+    return result
 
 
 # ── Congress.gov Bill Text Search + Lobbying Cross-Reference ────────────────
@@ -962,14 +979,34 @@ def federal_grants(
 
     grants = []
     for g in rows[:limit]:
+        award_floor = _to_int(g.get("awardFloor") or g.get("AwardFloor"))
+        award_ceiling = _to_int(g.get("awardCeiling") or g.get("AwardCeiling"))
+        # FE expects a single `amount` field for the headline display.
+        # Use ceiling first (the typical "up to $X" ask), then floor, then
+        # None. Without this the FE renders "—" on every card because its
+        # `FederalGrant.amount: number | null` field doesn't exist on the
+        # router payload (R-FG-2 in the May 5 walkthrough).
+        amount = award_ceiling if award_ceiling is not None else award_floor
+
+        # FE-friendly aliases. Some FE pages reference `deadline` instead
+        # of `close_date`, `category` instead of derivable fields, etc.
+        # We expose both shapes so the page renders correctly.
+        close_date = g.get("closeDate") or g.get("CloseDate") or None
         grants.append({
             "opp_id": g.get("id") or g.get("oppId") or g.get("opportunity_id"),
+            "grant_number": g.get("oppNumber") or g.get("opportunityNumber") or None,
             "title": g.get("oppTitle") or g.get("title") or g.get("OpportunityTitle"),
             "agency": g.get("agency") or g.get("agencyName") or g.get("AgencyName"),
-            "close_date": g.get("closeDate") or g.get("CloseDate") or None,
+            "close_date": close_date,
+            "deadline": close_date,  # FE alias for close_date
             "open_date": g.get("openDate") or g.get("OpenDate") or None,
-            "award_floor": _to_int(g.get("awardFloor") or g.get("AwardFloor")),
-            "award_ceiling": _to_int(g.get("awardCeiling") or g.get("AwardCeiling")),
+            "award_floor": award_floor,
+            "award_ceiling": award_ceiling,
+            "amount": amount,  # FE-headline single-number field
+            "category": g.get("oppCategory") or g.get("category") or None,
+            "status": g.get("oppStatus") or g.get("status") or None,
+            "description": g.get("synopsisDesc") or g.get("description") or None,
+            "eligibility": g.get("eligibilityDesc") or None,
             # Some hits carry the application URL as `oppLink`.
             "url": (
                 g.get("oppLink")

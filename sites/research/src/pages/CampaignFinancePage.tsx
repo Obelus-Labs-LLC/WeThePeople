@@ -8,6 +8,7 @@ import { ToolHeader } from '../components/ToolHeader';
 interface Candidate {
   candidate_id: string;
   name: string;
+  display_name?: string;  // Title-cased "Jason T. Smith" form (R-CF-2)
   party: string;
   office: string;
   state: string;
@@ -204,7 +205,7 @@ export default function CampaignFinancePage() {
                 {filteredCandidates.map((c) => (
                   <tr key={c.candidate_id} className="border-b border-zinc-800/50 transition-colors hover:bg-zinc-800/30">
                     <td className="px-4 py-3">
-                      <p className="text-sm font-bold text-white">{c.name || '\u2014'}</p>
+                      <p className="text-sm font-bold text-white">{c.display_name || c.name || '\u2014'}</p>
                       <p className="text-xs text-zinc-600 font-mono">
                         {c.state}{c.district ? `-${c.district}` : ''} {c.incumbent_challenge ? `\u00b7 ${c.incumbent_challenge}` : ''}
                       </p>

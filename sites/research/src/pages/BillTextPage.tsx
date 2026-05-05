@@ -52,8 +52,12 @@ export default function BillTextPage() {
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
 
-  const handleSearch = async () => {
-    const q = query.trim();
+  // Run a search using a specific term. Centralized so the suggestion
+  // pills can call it directly (R-BT-1: previously the pills only set
+  // the query text and did not trigger a search, leaving the user
+  // staring at an empty results pane and no clue why).
+  const runSearch = async (term: string) => {
+    const q = term.trim();
     if (!q) return;
 
     setLoading(true);
@@ -72,6 +76,8 @@ export default function BillTextPage() {
       setLoading(false);
     }
   };
+
+  const handleSearch = () => runSearch(query);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSearch();
@@ -310,7 +316,7 @@ export default function BillTextPage() {
             {['climate', 'data privacy', 'pharmaceutical', 'defense spending', 'artificial intelligence', 'trade'].map((term) => (
               <button
                 key={term}
-                onClick={() => { setQuery(term); }}
+                onClick={() => { setQuery(term); runSearch(term); }}
                 className="rounded-full px-3 py-1 text-xs font-mono bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-amber-500/30 hover:text-amber-300 transition-colors cursor-pointer"
               >
                 {term}

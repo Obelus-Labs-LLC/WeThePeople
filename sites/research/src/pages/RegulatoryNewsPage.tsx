@@ -55,6 +55,49 @@ function fmtDollar(n: number | null | undefined): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 }
 
+// HTML-entity decode + Latin-1-as-UTF-8 mojibake repair on display.
+// The FedPressRelease titles arrive from upstream with two distinct
+// problems: HTML entities like `&amp;` (Burke &amp; Herbert) and
+// double-encoded smart quotes / em-dashes that render as `\u00e2\u20ac\u2122`,
+// `Board\u00e2\u20ac\u2122s`, etc. The connector ingest didn't normalize either
+// case. Fix at the display layer so existing rows render cleanly
+// without a backfill. Caught in the May 5 walkthrough (R-RN-1, R-RN-2).
+const _MOJIBAKE_FIXUPS: ReadonlyArray<readonly [string, string]> = [
+  ['\u00e2\u20ac\u2122', '\u2019'],  // \u2019
+  ['\u00e2\u20ac\u02dc', '\u2018'],   // \u2018
+  ['\u00e2\u20ac\u201d', '\u201d'],  // \u201d
+  ['\u00e2\u20ac\u201c', '\u201c'],  // \u201c
+  ['\u00e2\u20ac\u201d', '\u2014'],  // \u2014 (em dash)
+  ['\u00e2\u20ac\u201c', '\u2013'],  // \u2013 (en dash)
+  ['\u00e2\u20ac\u00a6', '\u2026'],  // \u2026
+  ['\u00c2\u00a0', ' '],             // NBSP encoded as \u00c2<nbsp>
+  ['\u00e2\u200cs', '\u2019s'],           // \u201cBoard\u2019s\u201d
+];
+
+function fixMojibake(s: string): string {
+  if (!s) return s;
+  let out = s;
+  for (const [bad, good] of _MOJIBAKE_FIXUPS) {
+    if (out.includes(bad)) out = out.split(bad).join(good);
+  }
+  return out;
+}
+
+function decodeHtmlEntities(s: string): string {
+  if (!s || !s.includes('&')) return s;
+  // Browser-side decode via a textarea trick. Safe because we only
+  // decode and never re-render as HTML; the result goes into a text
+  // node.
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = s;
+  return textarea.value;
+}
+
+function cleanTitle(s: string | null | undefined): string {
+  if (!s) return '';
+  return fixMojibake(decodeHtmlEntities(s));
+}
+
 // ── Page ──
 
 export default function RegulatoryNewsPage() {
@@ -139,8 +182,8 @@ export default function RegulatoryNewsPage() {
     if (!search.trim()) return news;
     const q = search.toLowerCase();
     return news.filter((n) =>
-      n.title.toLowerCase().includes(q) ||
-      n.summary?.toLowerCase().includes(q) ||
+      cleanTitle(n.title).toLowerCase().includes(q) ||
+      cleanTitle(n.summary).toLowerCase().includes(q) ||
       n.category?.toLowerCase().includes(q)
     );
   }, [news, search]);
@@ -266,9 +309,9 @@ export default function RegulatoryNewsPage() {
                         rel="noopener noreferrer"
                         className="text-sm font-bold text-white hover:text-blue-400 transition-colors leading-snug"
                       >
-                        {n.title}
+                        {cleanTitle(n.title)}
                       </a>
-                      {n.summary && <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{n.summary}</p>}
+                      {n.summary && <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{cleanTitle(n.summary)}</p>}
                     </div>
                     {n.category && (
                       <span className="shrink-0 rounded px-2 py-0.5 text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30">

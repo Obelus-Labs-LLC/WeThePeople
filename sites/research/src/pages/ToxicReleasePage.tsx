@@ -49,7 +49,13 @@ const STATE_NAMES: Record<string, string> = {
 // rolled over.
 const _CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 8 }, (_, i) => _CURRENT_YEAR - 1 - i);
-const DEFAULT_TRI_YEAR = _CURRENT_YEAR - 2;
+// EPA TRI publishes Reporting Year data 12-18 months after the calendar
+// year ends. The previous default of currentYear-2 (2024 in May 2026)
+// was sometimes still empty because the EPA had not finished publishing
+// that reporting year. currentYear-3 (2023 in May 2026) is virtually
+// guaranteed to be published. Caught in the May 5 walkthrough (R-TR-2)
+// when 2024 returned 0 releases on first paint.
+const DEFAULT_TRI_YEAR = _CURRENT_YEAR - 3;
 
 // ── Helpers ──
 

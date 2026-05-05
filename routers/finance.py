@@ -25,6 +25,24 @@ from models.response_schemas import FinanceDashboardStats
 router = APIRouter(prefix="/finance", tags=["finance"])
 
 
+def _looks_like_name_token(token: str) -> bool:
+    """Return True if `token` plausibly belongs in a person's name.
+
+    Used by `_format_filer_name` to decide whether mixed-case input
+    matches the SEC Form 4 LAST FIRST [MI] pattern. We accept:
+      - Alphabetic words (Murtagh, Erdoes, Mary, Frank)
+      - Single letters with optional trailing period (J, J., E.)
+      - Hyphenated and apostrophe names (O'Brien, Smith-Jones)
+    Reject anything containing digits or punctuation other than . ' -.
+    """
+    if not token:
+        return False
+    stripped = token.strip(".'-")
+    if not stripped:
+        return False
+    return all(c.isalpha() or c in ".-'" for c in token)
+
+
 def _format_filer_name(raw: Optional[str]) -> Optional[str]:
     """Reformat SEC Form 4 filer names for display.
 
@@ -40,15 +58,27 @@ def _format_filer_name(raw: Optional[str]) -> Optional[str]:
     if not name:
         return raw
 
-    # If the name already has any lowercase characters, the upstream
-    # filer used mixed case; trust them and don't reformat.
-    if any(c.islower() for c in name):
-        return name
-
-    # Split on commas first ("LAST, FIRST MI" form).
+    # Comma form ("LAST, FIRST MI") is unambiguous and gets handled the
+    # same way regardless of casing.
     if "," in name:
         last, _, rest = name.partition(",")
         parts = rest.strip().split() + [last.strip()]
+    elif any(c.islower() for c in name):
+        # Mixed-case input. SEC Form 4 occasionally arrives pre-cased,
+        # but still in LAST FIRST [MI] order (e.g. "Murtagh Nigel J",
+        # "Erdoes Mary E.", "Keller Frank"). The earlier version
+        # bailed out and rendered these reversed. Apply the same
+        # last-first → first-last swap when the name has 2-4 tokens
+        # and looks like the SEC pattern: tokens are alphabetic words
+        # or single letters / single-letter-with-period (middle initials).
+        # A 1-token mixed-case name (just "Madonna") falls through
+        # unchanged.
+        tokens = name.split()
+        if 2 <= len(tokens) <= 4 and all(_looks_like_name_token(t) for t in tokens):
+            last = tokens[0]
+            parts = tokens[1:] + [last]
+        else:
+            return name
     else:
         tokens = name.split()
         if len(tokens) < 2:
