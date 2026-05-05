@@ -14,7 +14,13 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-ENVIROFACTS_BASE = "https://enviro.epa.gov/enviro/efservice"
+# EPA migrated EnviroFacts from `enviro.epa.gov/enviro/efservice` to
+# `data.epa.gov/efservice` (matches the migration we already applied to
+# epa_ghgrp.py + datagov.py). The old host now returns HTTP 301 with a
+# Location header pointing at the new URL, but the redirect doesn't
+# preserve some query parameters cleanly under our requests-lib usage.
+# Caught in the May 5 upstream-API audit.
+ENVIROFACTS_BASE = "https://data.epa.gov/efservice"
 TIMEOUT = 15
 
 

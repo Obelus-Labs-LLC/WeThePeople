@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, or_
 from typing import Optional, List
 
 logger = logging.getLogger(__name__)
@@ -165,9 +165,28 @@ def latest_stories(
     db: Session = Depends(get_db),
 ):
     """Get the N most recent published stories (for landing page, digest, Twitter).
-    Optionally filter by category or sector."""
+    Optionally filter by category or sector.
+
+    Per the published editorial standards
+    (https://journal.wethepeopleforus.com/standards), verification is
+    binary: either "verified" or "unverified". The legacy
+    "partially_verified" tier is retired by policy. Filter it out at
+    the public-API layer so any consumer (Twitter bot, digest, sitemap,
+    third-party readers) cannot surface a story tagged with the
+    forbidden label even if a stale row remains in the database
+    pending the regeneration sweep. (R-STORIES-1, May 5 audit.)
+    """
     try:
-        query = db.query(Story).filter(Story.status == "published")
+        query = (
+            db.query(Story)
+            .filter(Story.status == "published")
+            .filter(
+                or_(
+                    Story.verification_tier == "verified",
+                    Story.verification_tier.is_(None),
+                )
+            )
+        )
         if category:
             query = query.filter(Story.category == category)
         if sector:
