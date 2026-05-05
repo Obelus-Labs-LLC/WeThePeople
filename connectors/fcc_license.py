@@ -19,8 +19,17 @@ from typing import Optional, List, Dict, Any
 
 log = logging.getLogger(__name__)
 
-LICENSE_BASE = "https://data.fcc.gov/api/license-view/basicSearch/getLicenses"
-SPECTRUM_BASE = "https://data.fcc.gov/api/spectrum-view/services/advancedSearch/getSpectrumBands"
+# FCC moved these endpoints from `data.fcc.gov` to `www.fcc.gov` in May
+# 2026. The old hosts now return HTTP 301 redirects but the redirect
+# strips query parameters, so the search effectively returns nothing.
+# Caught in the May 5 walkthrough (R-SP-2 second pass).
+#
+# As of May 5 2026 the new endpoints are still slow / sometimes
+# unresponsive (FCC infrastructure issue, not ours). The retry logic
+# below handles timeouts gracefully — page renders empty rather than
+# crashing.
+LICENSE_BASE = "https://www.fcc.gov/api/license-view/basicSearch/getLicenses"
+SPECTRUM_BASE = "https://www.fcc.gov/api/spectrum-view/services/advancedSearch/getSpectrumBands"
 
 POLITE_DELAY = 0.5
 

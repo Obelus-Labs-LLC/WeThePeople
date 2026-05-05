@@ -87,8 +87,21 @@ def search_complaints(
 
     if q:
         # Socrata supports $q for full-text search across all string
-        # columns. Strip control characters but otherwise pass through.
-        params["$q"] = q.strip()[:120]
+        # columns. Two important sanitization steps:
+        #
+        # 1) Ampersands break $q silently. The `&` becomes a URL
+        #    parameter delimiter regardless of percent-encoding in the
+        #    request, so "AT&T" returns 0 rows. Strip them.
+        # 2) Other URL-special characters get the same treatment to
+        #    keep the parser happy.
+        # Hyphens like "T-Mobile" are safe and pass through.
+        # Caught in the May 5 walkthrough (R-FCC-3).
+        sanitized = q.strip()
+        for ch in ("&", "?", "#", "%", "$", "\\", '"', "'"):
+            sanitized = sanitized.replace(ch, " ")
+        sanitized = " ".join(sanitized.split())
+        if sanitized:
+            params["$q"] = sanitized[:120]
 
     try:
         time.sleep(POLITE_DELAY)
