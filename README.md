@@ -220,8 +220,53 @@ python scripts/backfill_normalize_congress_urls.py --apply
 ### Diagnostics
 
 ```bash
-python scripts/diagnose_oracle_connection.py    # Wallet + connect probe
 python scripts/diagnose_usajobs_auth.py         # Tries every USAJobs header variant
+```
+
+### USPTO patent ingest (replaces retired PatentsView)
+
+USPTO retired PatentsView in May 2026. Patent data now flows through
+the USPTO Open Data Portal at `api.uspto.gov`, which requires an
+X-API-Key header. The connector returns `[]` (and the Patent Explorer
+shows the existing DB cache) until a key is set:
+
+```bash
+# 1. Register: https://api.uspto.gov/portal/register  (self-service)
+# 2. Add to .env:
+#      USPTO_API_KEY=<your-key>
+# 3. Restart the API service.
+# 4. The next sync_tech_data run resumes patent ingest.
+```
+
+### Editorial-standards rebuild workflow
+
+Phase 0 audit + retraction-patch generation for the May 2026
+editorial-standards rebuild (see the journal `/standards` page for
+the canonical rules).
+
+```bash
+# 1. Dump current published+archived stories from the DB
+python scripts/dump_published_stories.py
+# → writes .planning/published_stories.json
+
+# 2. Run the regression audit against the editorial standards
+python scripts/audit_published_stories.py
+# → writes .planning/STORY_AUDIT_REPORT.md  (human review)
+# → writes .planning/STORY_AUDIT_REPORT.json (machine-readable)
+
+# 3. Convert audit findings into proposed retraction/revision patches
+python scripts/generate_retraction_patches.py
+# → writes .planning/STORY_RETRACTION_PATCHES.json
+
+# 4. Edit the patches file. Set `approved: true` on patches you agree with.
+#    Anything you don't approve stays approved=false and is skipped.
+
+# 5. Dry-run the apply step to confirm what will change
+python scripts/apply_retraction_patches.py --dry-run
+
+# 6. Apply approved patches. Each one writes a story_corrections log
+#    row in the same transaction as the status change.
+python scripts/apply_retraction_patches.py --apply
 ```
 
 ### Mobile (Expo)

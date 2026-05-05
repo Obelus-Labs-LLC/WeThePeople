@@ -29,7 +29,13 @@ from models.tech_models import (
 )
 from models.market_models import StockFundamentals
 from connectors.sec_edgar import fetch_company_submissions, extract_filings
-from connectors.patentsview import fetch_patents
+# Patent ingest migrated from PatentsView (retired by USPTO May 2026)
+# to the USPTO Open Data Portal. The new connector exposes the same
+# `fetch_patents(assignee_name, date_from, limit)` signature, so the
+# rest of the sync job is unchanged. The old connector still exists
+# as a deprecation shim that returns []; importing from there would
+# silently produce no data, hence the explicit switch here.
+from connectors.uspto_odp import fetch_patents
 from connectors.usaspending import fetch_contracts
 from connectors.alpha_vantage import fetch_company_overview
 from connectors.senate_lda import fetch_lobbying_filings
