@@ -514,6 +514,22 @@ def company_lookup(
             422,
             {"error": "query too short", "hint": "Enter 2 or more characters."},
         )
+    # Surface "data source not configured" instead of an indistinguishable
+    # "0 results" when the OpenCorporates API key isn't set on this
+    # deployment. The connector itself returns [] in either case, which
+    # left the FE rendering "no results" — implying the company doesn't
+    # exist — when really we just have no upstream credentials. Caught
+    # in the May 5 walkthrough probes.
+    if not os.getenv("OPENCORPORATES_API_KEY"):
+        return {
+            "total": 0,
+            "companies": [],
+            "provider_status": "unavailable",
+            "provider_reason": (
+                "OpenCorporates API key is not configured on this deployment. "
+                "Company-lookup data is unavailable until OPENCORPORATES_API_KEY is set."
+            ),
+        }
     from connectors.opencorporates import search_companies  # noqa: F401
 
     cache_key = (query.strip().lower(), jurisdiction or "")
@@ -554,6 +570,20 @@ def state_campaign_finance(
     office: Optional[str] = Query(None, description="Office filter"),
 ):
     """Search state-level campaign finance data via FollowTheMoney."""
+    # Same provider-unavailable surfacing as company-lookup so the FE
+    # can render an honest "FollowTheMoney is not configured" message
+    # rather than a misleading "no results found".
+    if not os.getenv("FOLLOWTHEMONEY_API_KEY"):
+        return {
+            "total": 0,
+            "candidates": [],
+            "provider_status": "unavailable",
+            "provider_reason": (
+                "FollowTheMoney API key is not configured on this deployment. "
+                "State campaign finance data is unavailable until "
+                "FOLLOWTHEMONEY_API_KEY is set."
+            ),
+        }
     from connectors.followthemoney import search_candidates
 
     candidates = search_candidates(state=state, year=year, office=office)
@@ -576,6 +606,16 @@ def state_donors(
     """Search state-level donor records via FollowTheMoney."""
     if not name.strip():
         return {"total": 0, "donors": []}
+    if not os.getenv("FOLLOWTHEMONEY_API_KEY"):
+        return {
+            "total": 0,
+            "donors": [],
+            "provider_status": "unavailable",
+            "provider_reason": (
+                "FollowTheMoney API key is not configured on this deployment. "
+                "State donor data is unavailable until FOLLOWTHEMONEY_API_KEY is set."
+            ),
+        }
     from connectors.followthemoney import search_donors
 
     donors = search_donors(name=name, state=state)
