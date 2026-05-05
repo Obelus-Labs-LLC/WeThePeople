@@ -567,6 +567,24 @@ JOB_REGISTRY: List[JobDef] = [
         description="Pre-warm /people/{id}/full LRU for all active politicians",
     ),
 
+    # Closed-loops cold path is 5-15 seconds even with the compound
+    # indexes + cached committee matching + 200-pair pool from PR #51.
+    # The endpoint maintains a 1h in-memory + disk-backed cache, so as
+    # long as the cache stays hot the user-visible latency is sub-100ms.
+    # Without a scheduled warmer, the post-deploy first-visitor and the
+    # TTL-eviction first-visitor both eat the full cold cost. May 2026
+    # walkthrough caught a live closed-loops response at 8.47s after
+    # the cache had aged past TTL, which was the trigger for wiring this
+    # warmer into the scheduler. Hourly, mirroring the 1h cache TTL.
+    JobDef(
+        name="warm_closed_loop_cache",
+        script="jobs/warm_closed_loop_cache.py",
+        args=["--quiet"],
+        interval_hours=1,
+        timeout_sec=900,
+        description="Pre-warm /influence/closed-loops cache for default sector x diversity matrix",
+    ),
+
     # ── Hourly search-index rebuild (Phase 3) ──────────────────────
     # FTS5 entity_search powers cross-table search in milliseconds
     # vs the previous 11-table ILIKE scan that was the dominant

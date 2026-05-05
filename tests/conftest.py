@@ -22,8 +22,22 @@ from models.database import Base
 
 @pytest.fixture(scope="session")
 def engine():
-    """Create an in-memory SQLite engine shared across the test session."""
-    eng = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    """Create an in-memory SQLite engine shared across the test session.
+
+    StaticPool is required so every connection issued by the engine reuses
+    the same underlying sqlite3.Connection. In-memory sqlite DBs are scoped
+    to a single connection — without StaticPool, every checkout from the
+    pool gets a fresh empty database, which surfaces as `no such table`
+    errors as soon as a test traverses any code path that opens its own
+    SessionLocal (e.g. /influence/stats, the influence stats router that
+    queries 11 sector lobbying tables in a single composed call).
+    """
+    from sqlalchemy.pool import StaticPool
+    eng = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
 
     @event.listens_for(eng, "connect")
     def _set_pragmas(dbapi_conn, _):

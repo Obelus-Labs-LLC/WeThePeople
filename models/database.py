@@ -26,9 +26,20 @@ _SLOW_QUERY_THRESHOLD_MS = 500
 _engine_kwargs = {}
 if DATABASE_URL.startswith("sqlite"):
     _engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60}
-    _engine_kwargs["pool_size"] = 5
-    _engine_kwargs["max_overflow"] = 10
-    _engine_kwargs["pool_pre_ping"] = True
+    # In-memory sqlite (`sqlite://` or `sqlite:///:memory:`) uses
+    # SingletonThreadPool by default, which does NOT accept pool_size
+    # / max_overflow. Passing them raised a TypeError that broke the
+    # test suite under the in-memory test fixture (caught May 2026).
+    # Only configure the pool for file-backed sqlite.
+    is_memory_sqlite = (
+        DATABASE_URL == "sqlite://"
+        or DATABASE_URL.endswith(":memory:")
+        or DATABASE_URL.endswith("sqlite:///:memory:")
+    )
+    if not is_memory_sqlite:
+        _engine_kwargs["pool_size"] = 5
+        _engine_kwargs["max_overflow"] = 10
+        _engine_kwargs["pool_pre_ping"] = True
 else:
     # PostgreSQL: connection pooling
     _engine_kwargs["pool_size"] = 10

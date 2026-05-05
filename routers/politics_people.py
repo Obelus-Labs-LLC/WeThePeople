@@ -1185,23 +1185,45 @@ _FULL_CACHE: "_OrderedDict[str, tuple[float, dict]]" = _OrderedDict()
 # (jobs/warm_politician_cache.py) refreshes hot politicians every
 # 30 minutes so the cache effectively stays warm during normal use.
 _FULL_CACHE_TTL_SEC = 3600
+# Stale-while-revalidate ceiling. A response older than _FULL_CACHE_TTL_SEC
+# but younger than this is returned immediately while a background thread
+# rebuilds the entry. The May 2026 walkthrough caught /people/adam_b_schiff/full
+# at 9.7s because the warmer hadn't reached that politician yet. With SWR the
+# user sees the previous response in milliseconds and the cache catches up
+# behind them.
+_FULL_CACHE_STALE_TTL_SEC = 86400
 _FULL_CACHE_MAX_SIZE = 1024     # bound memory; up to ~1K politicians cached
 _full_cache_lock = _threading.Lock()
+_full_revalidating: set = set()
+_full_revalidating_lock = _threading.Lock()
 
 
 def _full_cache_get(person_id: str) -> Optional[dict]:
+    """Fresh cache hit only. Returns None when the entry is missing,
+    expired beyond the stale window, or was never populated. Stale-but-
+    revalidatable entries are exposed via _full_cache_get_with_age."""
+    age, payload = _full_cache_get_with_age(person_id)
+    if payload is None or age is None or age > _FULL_CACHE_TTL_SEC:
+        return None
+    return payload
+
+
+def _full_cache_get_with_age(person_id: str) -> tuple[Optional[float], Optional[dict]]:
+    """Returns (age_seconds, payload). Both are None if the entry is
+    missing or has aged past the stale ceiling."""
     now = _time.time()
     with _full_cache_lock:
         hit = _FULL_CACHE.get(person_id)
         if hit is None:
-            return None
+            return None, None
         ts, payload = hit
-        if now - ts > _FULL_CACHE_TTL_SEC:
+        age = now - ts
+        if age > _FULL_CACHE_STALE_TTL_SEC:
             _FULL_CACHE.pop(person_id, None)
-            return None
+            return None, None
         # Move to end so LRU eviction skips hot entries.
         _FULL_CACHE.move_to_end(person_id)
-        return payload
+        return age, payload
 
 
 def _full_cache_put(person_id: str, payload: dict) -> None:
@@ -1263,12 +1285,51 @@ def get_person_full(person_id: str, response: Response):
       * HTTP Cache-Control: public, max-age=300. Browsers and CDNs
         will reuse a fresh response without revalidation.
     """
-    cached = _full_cache_get(person_id)
-    if cached is not None:
+    age, cached = _full_cache_get_with_age(person_id)
+    if cached is not None and age is not None and age <= _FULL_CACHE_TTL_SEC:
         response.headers["Cache-Control"] = "public, max-age=300"
         response.headers["X-WTP-Cache"] = "HIT"
         return cached
+    if cached is not None and age is not None and age <= _FULL_CACHE_STALE_TTL_SEC:
+        # Stale-while-revalidate. Return immediately, recompute behind.
+        # Caps at 1 in-flight refresh per politician to avoid stampedes.
+        with _full_revalidating_lock:
+            should_kick = person_id not in _full_revalidating
+            if should_kick:
+                _full_revalidating.add(person_id)
+        if should_kick:
+            def _refresh():
+                try:
+                    _recompose_full_payload(person_id)
+                except Exception:
+                    pass
+                finally:
+                    with _full_revalidating_lock:
+                        _full_revalidating.discard(person_id)
+            _t = _threading.Thread(target=_refresh, daemon=True,
+                                   name=f"swr-people-full-{person_id}")
+            _t.start()
+        response.headers["Cache-Control"] = "public, max-age=300"
+        response.headers["X-WTP-Cache"] = "STALE"
+        response.headers["X-WTP-Cache-Age"] = str(int(age))
+        return cached
 
+    results = _recompose_full_payload(person_id)
+    if results is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "person not found", "person_id": person_id},
+        )
+    response.headers["Cache-Control"] = "public, max-age=300"
+    response.headers["X-WTP-Cache"] = "MISS"
+    return results
+
+
+def _recompose_full_payload(person_id: str) -> Optional[dict]:
+    """Build the /people/{id}/full response by fanning out to every
+    sub-handler in parallel, then write the result to the LRU cache.
+    Returns the composed dict, or None if the directory entry was missing
+    (the synchronous handler converts that to a 404)."""
     import logging
 
     from routers.politics_votes import get_person_votes
@@ -1335,17 +1396,12 @@ def get_person_full(person_id: str, response: Response):
         results[key] = value
 
     # If the directory entry came back None, the politician doesn't
-    # exist. Return 404 like the underlying /people/{id} would.
+    # exist. Caller converts to 404. Don't cache empty results.
     if results.get("person") is None:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "person not found", "person_id": person_id},
-        )
+        return None
 
     # Cache the composed response for the LRU TTL. Cold caller pays the
     # one-time composition cost; everyone else inside that window reads
     # from memory.
     _full_cache_put(person_id, results)
-    response.headers["Cache-Control"] = "public, max-age=300"
-    response.headers["X-WTP-Cache"] = "MISS"
     return results
