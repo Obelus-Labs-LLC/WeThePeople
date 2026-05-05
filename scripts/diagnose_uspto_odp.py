@@ -27,7 +27,12 @@ from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
+# IMPORTANT: load .env BEFORE importing the connector. The connector
+# reads `os.environ.get("USPTO_API_KEY", "")` at module-load time, so
+# if dotenv hasn't populated the env yet, API_KEY ends up empty even
+# when .env is correct on disk.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+load_dotenv()
 
 from connectors.uspto_odp import (  # noqa: E402
     API_KEY,
@@ -37,8 +42,6 @@ from connectors.uspto_odp import (  # noqa: E402
     list_files_for_product,
     list_products,
 )
-
-load_dotenv()
 
 
 def _fmt_size(b: int) -> str:
