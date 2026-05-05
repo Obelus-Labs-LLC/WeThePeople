@@ -225,17 +225,23 @@ python scripts/diagnose_usajobs_auth.py         # Tries every USAJobs header var
 
 ### USPTO patent ingest (replaces retired PatentsView)
 
-USPTO retired PatentsView in May 2026. Patent data now flows through
-the USPTO Open Data Portal at `api.uspto.gov`, which requires an
-X-API-Key header. The connector returns `[]` (and the Patent Explorer
-shows the existing DB cache) until a key is set:
+USPTO retired PatentsView in May 2026. The replacement is the
+USPTO Open Data Portal at `api.uspto.gov`. Critical architecture
+change: ODP is **bulk-data only** — there is no per-patent search
+endpoint like PatentsView had. To resume patent ingest you download
+quarterly TSV files (the `PVGPATDIS` product is the direct successor),
+parse them, and filter by assignee in our DB.
 
 ```bash
-# 1. Register: https://api.uspto.gov/portal/register  (self-service)
+# 1. Register: https://api.uspto.gov  (self-service)
 # 2. Add to .env:
 #      USPTO_API_KEY=<your-key>
-# 3. Restart the API service.
-# 4. The next sync_tech_data run resumes patent ingest.
+# 3. Verify connectivity + dataset freshness:
+python scripts/diagnose_uspto_odp.py
+# 4. The bulk-ingest job (download → parse → filter → tech_patents
+#    table) is the next-PR work; the connector ships discovery
+#    helpers (list_products, find_patent_grant_products,
+#    get_product_detail, list_files_for_product) ready for it.
 ```
 
 ### Editorial-standards rebuild workflow
