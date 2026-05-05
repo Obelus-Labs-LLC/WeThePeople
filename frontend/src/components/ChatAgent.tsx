@@ -135,11 +135,12 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 // ── Chat bubble event bus (so GlobalSearch can open it) ──
-
-const chatEvents = new EventTarget();
-export function openChatAgent() {
-  chatEvents.dispatchEvent(new Event("open"));
-}
+// The bus itself lives in ./chatAgentBus so GlobalSearch can import the
+// `openChatAgent` trigger without pulling the entire ChatAgent module
+// (~30 KB minified) into the initial bundle. We re-export here so any
+// existing call sites that imported from this file keep working.
+export { openChatAgent } from "./chatAgentBus";
+import { subscribeToChatOpen } from "./chatAgentBus";
 
 // ── Component ──
 
@@ -165,12 +166,8 @@ export default function ChatAgent() {
     };
   }, []);
 
-  // Listen for external open events
-  useEffect(() => {
-    const handler = () => setOpen(true);
-    chatEvents.addEventListener("open", handler);
-    return () => chatEvents.removeEventListener("open", handler);
-  }, []);
+  // Listen for external open events (e.g. GlobalSearch click)
+  useEffect(() => subscribeToChatOpen(() => setOpen(true)), []);
 
   // Ctrl+K shortcut
   useEffect(() => {

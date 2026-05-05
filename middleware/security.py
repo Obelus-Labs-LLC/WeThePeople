@@ -143,9 +143,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         elif "Cache-Control" not in response.headers:
             # Tier-matched stale-while-revalidate caching for public GETs.
             # Falls back to the legacy 60-second value if no tier matches.
+            # `/v1/<path>` is the versioned mirror of every public route;
+            # strip the prefix so the v1 traffic gets the same tier as the
+            # canonical path (otherwise everything under /v1 would default
+            # to the 60-second floor).
+            tier_path = path
+            if tier_path.startswith("/v1/"):
+                tier_path = tier_path[3:]  # "/v1/aggregate/..." → "/aggregate/..."
             cache_value = "public, max-age=60, stale-while-revalidate=300"
             for prefix, value in _CACHE_TIERS:
-                if path.startswith(prefix):
+                if tier_path.startswith(prefix):
                     cache_value = value
                     break
             response.headers["Cache-Control"] = cache_value

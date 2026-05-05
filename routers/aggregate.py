@@ -6,15 +6,52 @@ requiring N individual per-company API calls from the frontend.
 
 Refactored: uses a SECTOR_MODELS dispatch table so each endpoint is a
 thin wrapper around a generic query helper.
+
+Caching note: each aggregate query touches a sector's full child
+table (lobbying / contracts / enforcement) and joins to the entity
+table for display names. Wire-time per request is ~0.7-1.1s and the
+underlying tables only update on the daily sync cadence, so this
+module wraps each query in a 5-minute in-process TTL cache. The first
+visitor pays the SQL cost; everyone in the next 5-minute window gets
+the response from a dict lookup. The HTTP-layer Cache-Control header
+(see middleware/security.py) covers browser-side reuse on top.
 """
 
 import logging
+import threading
+import time
 
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 
 logger = logging.getLogger(__name__)
+
+# In-process TTL cache. Key = (kind, sector, limit). Value = (timestamp, payload).
+_AGG_CACHE: dict = {}
+_AGG_CACHE_LOCK = threading.Lock()
+_AGG_CACHE_TTL = 300  # 5 minutes
+
+
+def _cached_or_compute(kind: str, sector: str, limit: int, compute):
+    """Generic in-process cache for the aggregate-router queries.
+
+    `kind` is "enforcement" / "lobbying" / "contracts". `compute` is a
+    zero-arg callable that runs the actual SQL and returns the response
+    dict. We take a snapshot of the cache under the lock, then run the
+    compute (potentially slow) OUTSIDE the lock so concurrent readers
+    of OTHER keys don't block each other.
+    """
+    key = (kind, sector, int(limit))
+    now = time.monotonic()
+    with _AGG_CACHE_LOCK:
+        hit = _AGG_CACHE.get(key)
+    if hit is not None and (now - hit[0]) < _AGG_CACHE_TTL:
+        return hit[1]
+    payload = compute()
+    with _AGG_CACHE_LOCK:
+        _AGG_CACHE[key] = (time.monotonic(), payload)
+    return payload
 
 from models.database import get_db
 from models.finance_models import (
@@ -149,104 +186,110 @@ def _get_join_condition(model, entity_model, id_col):
 # ── Generic query functions ──
 
 def _query_enforcement(sector: str, limit: int, db: Session):
-    """Generic enforcement query for any sector."""
-    cfg = SECTOR_MODELS[sector]
-    model = cfg["enforcement"]
-    entity = cfg["entity"]
-    id_col = cfg["entity_id_col"]
+    """Generic enforcement query for any sector. 5-min in-mem cache."""
+    def _compute():
+        cfg = SECTOR_MODELS[sector]
+        model = cfg["enforcement"]
+        entity = cfg["entity"]
+        id_col = cfg["entity_id_col"]
 
-    rows = (
-        db.query(model, entity.display_name)
-        .join(entity, _get_join_condition(model, entity, id_col))
-        .order_by(desc(model.case_date))
-        .limit(limit)
-        .all()
-    )
-    total = (
-        db.query(func.count(model.id))
-        .join(entity, _get_join_condition(model, entity, id_col))
-        .scalar()
-    )
-    return {
-        "total": total,
-        "actions": [{
-            "id": a.id, "case_title": a.case_title,
-            "case_date": _str_date(a.case_date), "case_url": a.case_url,
-            "enforcement_type": a.enforcement_type,
-            "penalty_amount": a.penalty_amount, "description": a.description,
-            "source": a.source, "entity_id": getattr(a, id_col),
-            "entity_name": name,
-        } for a, name in rows],
-    }
+        rows = (
+            db.query(model, entity.display_name)
+            .join(entity, _get_join_condition(model, entity, id_col))
+            .order_by(desc(model.case_date))
+            .limit(limit)
+            .all()
+        )
+        total = (
+            db.query(func.count(model.id))
+            .join(entity, _get_join_condition(model, entity, id_col))
+            .scalar()
+        )
+        return {
+            "total": total,
+            "actions": [{
+                "id": a.id, "case_title": a.case_title,
+                "case_date": _str_date(a.case_date), "case_url": a.case_url,
+                "enforcement_type": a.enforcement_type,
+                "penalty_amount": a.penalty_amount, "description": a.description,
+                "source": a.source, "entity_id": getattr(a, id_col),
+                "entity_name": name,
+            } for a, name in rows],
+        }
+    return _cached_or_compute("enforcement", sector, limit, _compute)
 
 
 def _query_lobbying(sector: str, limit: int, db: Session):
-    """Generic lobbying query for any sector."""
-    cfg = SECTOR_MODELS[sector]
-    model = cfg["lobbying"]
-    entity = cfg["entity"]
-    id_col = cfg["entity_id_col"]
+    """Generic lobbying query for any sector. 5-min in-mem cache."""
+    def _compute():
+        cfg = SECTOR_MODELS[sector]
+        model = cfg["lobbying"]
+        entity = cfg["entity"]
+        id_col = cfg["entity_id_col"]
 
-    rows = (
-        db.query(model, entity.display_name)
-        .join(entity, _get_join_condition(model, entity, id_col))
-        .order_by(desc(model.filing_year), model.filing_period)
-        .limit(limit)
-        .all()
-    )
-    total = (
-        db.query(func.count(model.id))
-        .join(entity, _get_join_condition(model, entity, id_col))
-        .scalar()
-    )
-    return {
-        "total": total,
-        "filings": [{
-            "id": a.id, "filing_uuid": a.filing_uuid,
-            "filing_year": a.filing_year, "filing_period": a.filing_period,
-            "income": a.income, "expenses": a.expenses,
-            "registrant_name": a.registrant_name, "client_name": a.client_name,
-            "lobbying_issues": a.lobbying_issues,
-            "government_entities": a.government_entities,
-            "entity_id": getattr(a, id_col),
-            "entity_name": name,
-        } for a, name in rows],
-    }
+        rows = (
+            db.query(model, entity.display_name)
+            .join(entity, _get_join_condition(model, entity, id_col))
+            .order_by(desc(model.filing_year), model.filing_period)
+            .limit(limit)
+            .all()
+        )
+        total = (
+            db.query(func.count(model.id))
+            .join(entity, _get_join_condition(model, entity, id_col))
+            .scalar()
+        )
+        return {
+            "total": total,
+            "filings": [{
+                "id": a.id, "filing_uuid": a.filing_uuid,
+                "filing_year": a.filing_year, "filing_period": a.filing_period,
+                "income": a.income, "expenses": a.expenses,
+                "registrant_name": a.registrant_name, "client_name": a.client_name,
+                "lobbying_issues": a.lobbying_issues,
+                "government_entities": a.government_entities,
+                "entity_id": getattr(a, id_col),
+                "entity_name": name,
+            } for a, name in rows],
+        }
+    return _cached_or_compute("lobbying", sector, limit, _compute)
 
 
 def _query_contracts(sector: str, limit: int, db: Session):
-    """Generic contracts query for any sector."""
-    cfg = SECTOR_MODELS[sector]
-    model = cfg["contracts"]
-    entity = cfg["entity"]
-    id_col = cfg["entity_id_col"]
+    """Generic contracts query for any sector. 5-min in-mem cache."""
+    def _compute():
+        cfg = SECTOR_MODELS[sector]
+        model = cfg["contracts"]
+        entity = cfg["entity"]
+        id_col = cfg["entity_id_col"]
 
-    rows = (
-        db.query(model, entity.display_name)
-        .join(entity, _get_join_condition(model, entity, id_col))
-        .order_by(desc(model.award_amount))
-        .limit(limit)
-        .all()
-    )
-    total = (
-        db.query(func.count(model.id))
-        .join(entity, _get_join_condition(model, entity, id_col))
-        .scalar()
-    )
-    return {
-        "total": total,
-        "contracts": [{
-            "id": a.id, "award_id": a.award_id,
-            "award_amount": a.award_amount,
-            "awarding_agency": a.awarding_agency,
-            "description": a.description,
-            "start_date": _str_date(a.start_date),
-            "end_date": _str_date(a.end_date),
-            "contract_type": a.contract_type,
-            "entity_id": getattr(a, id_col),
-            "entity_name": name,
-        } for a, name in rows],
-    }
+        rows = (
+            db.query(model, entity.display_name)
+            .join(entity, _get_join_condition(model, entity, id_col))
+            .order_by(desc(model.award_amount))
+            .limit(limit)
+            .all()
+        )
+        total = (
+            db.query(func.count(model.id))
+            .join(entity, _get_join_condition(model, entity, id_col))
+            .scalar()
+        )
+        return {
+            "total": total,
+            "contracts": [{
+                "id": a.id, "award_id": a.award_id,
+                "award_amount": a.award_amount,
+                "awarding_agency": a.awarding_agency,
+                "description": a.description,
+                "start_date": _str_date(a.start_date),
+                "end_date": _str_date(a.end_date),
+                "contract_type": a.contract_type,
+                "entity_id": getattr(a, id_col),
+                "entity_name": name,
+            } for a, name in rows],
+        }
+    return _cached_or_compute("contracts", sector, limit, _compute)
 
 
 # ── Enforcement endpoints ──

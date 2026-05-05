@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { globalSearch, type SearchResults, type PoliticianResult, type CompanyResult } from "../api/search";
-import { openChatAgent } from "./ChatAgent";
+// Import from the lightweight bus module instead of ChatAgent itself
+// so this click handler doesn't drag the chat component (~30 KB) into
+// the initial bundle. The full ChatAgent is React.lazy-loaded in App.tsx.
+import { openChatAgent } from "./chatAgentBus";
 
 const SECTOR_COLORS: Record<string, string> = {
   finance: "bg-blue-500/20 text-blue-300",

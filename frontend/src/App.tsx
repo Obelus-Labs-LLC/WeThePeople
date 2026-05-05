@@ -17,7 +17,13 @@ import EducationLayout from "./layouts/EducationLayout";
 // VerifyLayout removed — verification moved to verify.wethepeopleforus.com
 import DashboardLayout from "./layouts/DashboardLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
-import ChatAgent from "./components/ChatAgent";
+// ChatAgent is mounted on every non-landing page but its
+// implementation (~30 KB minified, including the JetBrains-Mono
+// monospace shenanigans + the suggestion list) is rarely used by the
+// average visitor. Lazy-load so the chunk only ships when the user
+// actually navigates somewhere it gets mounted, and even then the
+// initial bundle parse doesn't block on it.
+const ChatAgent = React.lazy(() => import("./components/ChatAgent"));
 import EcosystemNav from "./components/EcosystemNav";
 
 // ── Lazy-loaded pages ──
@@ -162,7 +168,15 @@ const GlobalOverlays: React.FC = () => {
   const { pathname } = useLocation();
   const isLanding = pathname === "/";
   if (isLanding) return null;
-  return <ChatAgent />;
+  // Null fallback: ChatAgent is a floating button that materializes
+  // once its chunk lands. There's nothing to paint while it's loading,
+  // and the spinner used for full-route Suspense would look out of place
+  // as a floating overlay.
+  return (
+    <Suspense fallback={null}>
+      <ChatAgent />
+    </Suspense>
+  );
 };
 
 const App: React.FC = () => (
