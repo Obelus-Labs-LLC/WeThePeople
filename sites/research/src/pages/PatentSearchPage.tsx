@@ -205,7 +205,11 @@ export default function PatentSearchPage() {
                     </p>
                     <div className="flex items-center gap-4 flex-wrap">
                       {p.patent_number && (
-                        <span className="text-xs text-amber-400 font-mono">US{p.patent_number}</span>
+                        // The DB already stores patent_number with a `US-`
+                        // prefix (e.g. `US-12443824-B2`). The previous render
+                        // prepended another literal `US`, producing
+                        // `USUS-12443824-B2` in every patent card. Render as-is.
+                        <span className="text-xs text-amber-400 font-mono">{p.patent_number}</span>
                       )}
                       <a
                         href={mainSiteUrl(`/technology/${p.company_id}`)}
