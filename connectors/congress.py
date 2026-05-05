@@ -155,15 +155,25 @@ def search_bills(query: str, congress: int = 119, limit: int = 25) -> Dict[str, 
     if not API_KEY:
         raise ValueError("Congress.gov API key not configured")
 
-    url = "https://api.congress.gov/v3/bill"
+    # Congress.gov's /bill?query=...&congress=119 form does NOT actually
+    # filter by congress — the API returns the same global result set
+    # regardless. The path-based form /bill/{congress} is the only
+    # filter the API honors. Caught in the May 5 walkthrough (R-BT-2):
+    # searching "climate" with 119th Congress selected returned 110th
+    # Congress (2007-2009) HCONRES resolutions about awareness days.
+    if congress:
+        url = f"https://api.congress.gov/v3/bill/{int(congress)}"
+    else:
+        url = "https://api.congress.gov/v3/bill"
     params = {
         "query": query.strip(),
         "limit": limit,
         "api_key": API_KEY,
         "format": "json",
+        # Surface most recently updated bills first; without this the
+        # API defaults to ascending bill number which is opaque order.
+        "sort": "updateDate+desc",
     }
-    if congress:
-        params["congress"] = congress
 
     try:
         r = robust_get(url, HEADERS, params=params)
@@ -182,6 +192,11 @@ def search_bills(query: str, congress: int = 119, limit: int = 25) -> Dict[str, 
         bill_type = b.get("type", "").lower()
         bill_number = b.get("number", "")
         bill_congress = b.get("congress", congress)
+        # Belt-and-suspenders: even with the path-based filter, drop
+        # any rows whose congress field disagrees with the request.
+        # Protects against API quirks and keeps the FE consistent.
+        if congress and bill_congress and int(bill_congress) != int(congress):
+            continue
         latest = b.get("latestAction", {})
 
         bills.append({

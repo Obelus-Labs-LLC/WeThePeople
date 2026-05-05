@@ -65,8 +65,22 @@ def search_earmarks(
     now = datetime.now()
     fy_start_year = now.year if now.month >= 10 else now.year - 1
     fy_start = f"{fy_start_year}-10-01"
+    # USASpending award type codes:
+    #   02 = Block Grant         (Medicaid, TANF, CDBG — ENTITLEMENT, not earmark)
+    #   03 = Formula Grant       (formula-driven, not earmark)
+    #   04 = Project Grant       (competitive, often earmarks)
+    #   05 = Cooperative Agreement (project-tied, often earmarks)
+    #   06 = Direct Payment for Specified Use (closest to a true earmark)
+    #   07 = Direct Payment Unrestricted (commonly named beneficiary)
+    #   08 = Insurance, Loan Guarantee, etc.
+    #
+    # The previous filter included 02 (Block Grants) which surfaced
+    # $100B Medicaid entitlement grants as if they were earmarks.
+    # Caught in the May 5 walkthrough (R-EM-2). Restrict to the
+    # award types most likely to represent actual congressionally
+    # directed spending.
     filters: Dict[str, Any] = {
-        "award_type_codes": ["02", "03", "04", "05"],  # Block grants, project grants, cooperative agreements
+        "award_type_codes": ["04", "05", "06", "07"],
         "time_period": [
             {"start_date": fy_start, "end_date": now.strftime('%Y-%m-%d')}
         ],
@@ -151,11 +165,30 @@ def search_earmarks(
 
     results_raw = data.get("results", [])
     results = []
+    # Earmarks come back from USASpending with occasional duplicate
+    # rows (the same Award ID surfaces twice when an award has been
+    # modified). Dedupe on Award ID, keep first occurrence. Caught in
+    # the May 5 walkthrough (R-EM-3).
+    seen_award_ids: set = set()
+    # Real earmarks (Congressionally Directed Spending) are typically
+    # under $50M for a single project. Awards above that cap are usually
+    # block-grant-shaped entitlements that slipped past the type filter
+    # (e.g. multi-state grants or large research-program rollups). Drop
+    # them to keep the tool focused on what a journalist actually wants.
+    EARMARK_MAX_AMOUNT = 50_000_000
 
     for award in results_raw:
+        award_id = award.get("Award ID") or ""
+        if award_id and award_id in seen_award_ids:
+            continue
+        if award_id:
+            seen_award_ids.add(award_id)
+        amount = _safe_float(award.get("Award Amount"))
+        if amount is not None and amount > EARMARK_MAX_AMOUNT:
+            continue
         results.append({
-            "award_id": award.get("Award ID", ""),
-            "award_amount": _safe_float(award.get("Award Amount")),
+            "award_id": award_id,
+            "award_amount": amount,
             "recipient_name": award.get("Recipient Name", ""),
             "awarding_agency": award.get("Awarding Agency", ""),
             "description": (award.get("Description") or "")[:500],
@@ -193,7 +226,10 @@ def fetch_member_earmarks(member_name: str, limit: int = 50) -> List[Dict[str, A
 
     payload = {
         "filters": {
-            "award_type_codes": ["02", "03", "04", "05", "07", "08"],
+            # Same restriction as search_earmarks: drop block grants
+            # (02) and formula grants (03) which are entitlements, not
+            # earmarks.
+            "award_type_codes": ["04", "05", "06", "07"],
             "keywords": [member_name.strip()],
         },
         "fields": [
@@ -229,11 +265,22 @@ def fetch_member_earmarks(member_name: str, limit: int = 50) -> List[Dict[str, A
 
     results_raw = data.get("results", [])
     results = []
+    # Same dedup + amount cap as search_earmarks (R-EM-3).
+    seen_award_ids: set = set()
+    EARMARK_MAX_AMOUNT = 50_000_000
 
     for award in results_raw:
+        award_id = award.get("Award ID") or ""
+        if award_id and award_id in seen_award_ids:
+            continue
+        if award_id:
+            seen_award_ids.add(award_id)
+        amount = _safe_float(award.get("Award Amount"))
+        if amount is not None and amount > EARMARK_MAX_AMOUNT:
+            continue
         results.append({
-            "award_id": award.get("Award ID", ""),
-            "award_amount": _safe_float(award.get("Award Amount")),
+            "award_id": award_id,
+            "award_amount": amount,
             "recipient_name": award.get("Recipient Name", ""),
             "awarding_agency": award.get("Awarding Agency", ""),
             "description": (award.get("Description") or "")[:500],
