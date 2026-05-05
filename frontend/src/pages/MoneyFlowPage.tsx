@@ -41,12 +41,22 @@ function resolveCssVar(varName: string): string {
   return v || '#6B7280';
 }
 
+// All 11 sectors WTP tracks. Pre-fix the picker only listed the
+// original four (Finance/Health/Tech/Energy), so 6 sectors had no
+// money-flow filter at all and any company in them silently disappeared
+// from the Sankey.
 const SECTOR_OPTIONS = [
   { value: '', label: 'All Sectors' },
   { value: 'finance', label: 'Finance' },
   { value: 'health', label: 'Health' },
   { value: 'tech', label: 'Technology' },
   { value: 'energy', label: 'Energy' },
+  { value: 'defense', label: 'Defense' },
+  { value: 'transportation', label: 'Transportation' },
+  { value: 'agriculture', label: 'Agriculture' },
+  { value: 'chemicals', label: 'Chemicals' },
+  { value: 'telecom', label: 'Telecom' },
+  { value: 'education', label: 'Education' },
 ];
 
 const LEGEND_ITEMS = [

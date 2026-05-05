@@ -9,7 +9,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
-from typing import Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -432,8 +432,22 @@ def _compute_top_lobbying(db: Session, limit: int):
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "telecom", "total_lobbying": total or 0})
 
-    results.sort(key=lambda x: x["total_lobbying"], reverse=True)
-    return {"leaders": results[:limit]}
+    # Dedupe by entity_id — same company can be tracked in multiple
+    # sector tables (Lockheed Martin shows up in tech, defense, AND
+    # transportation, each with its own LobbyingRecord rows). Without
+    # dedupe the leaderboard had Lockheed three times in the top 5,
+    # making it look like there were no other big spenders. Keep the
+    # row with the largest sector-specific spend so the leaderboard
+    # surfaces each entity's primary lobbying domain.
+    by_entity: Dict[str, dict] = {}
+    for row in results:
+        eid = row["entity_id"]
+        prev = by_entity.get(eid)
+        if prev is None or row["total_lobbying"] > prev["total_lobbying"]:
+            by_entity[eid] = row
+    deduped = list(by_entity.values())
+    deduped.sort(key=lambda x: x["total_lobbying"], reverse=True)
+    return {"leaders": deduped[:limit]}
 
 
 @router.get("/spending-by-state")
@@ -679,6 +693,16 @@ def _compute_top_contracts(db: Session, limit: int):
     for eid, name, total in rows:
         results.append({"entity_id": eid, "display_name": name, "sector": "telecom", "total_contracts": total or 0})
 
+    # Dedupe by entity_id — see _compute_top_lobbying for the same fix.
+    # Lockheed Martin sits in tech + defense + transportation tracked-
+    # company tables and was appearing 3x in the contracts leaderboard.
+    by_entity: Dict[str, dict] = {}
+    for row in results:
+        eid = row["entity_id"]
+        prev = by_entity.get(eid)
+        if prev is None or row["total_contracts"] > prev["total_contracts"]:
+            by_entity[eid] = row
+    results = list(by_entity.values())
     results.sort(key=lambda x: x["total_contracts"], reverse=True)
     return {"leaders": results[:limit]}
 
@@ -805,6 +829,13 @@ def get_money_flow(
             nodes.append({"name": name, "group": group})
         return node_map[key]
 
+    # All 11 sectors WTP tracks. Pre-fix only finance/health/tech/energy
+    # were wired in, so the Sankey omitted the 6 newer sectors entirely
+    # — defense / transportation / chemicals / agriculture / telecom /
+    # education companies never appeared as money-flow sources, even
+    # when the FE asked for "All Sectors" (or those individual sectors,
+    # which silently fell through to an empty config and produced an
+    # empty diagram). May 5 walkthrough.
     sector_configs = []
     if not sector or sector == "finance":
         sector_configs.append({
@@ -836,6 +867,54 @@ def get_money_flow(
             "entity_model": TrackedEnergyCompany,
             "id_field": "company_id",
             "lobby_model": EnergyLobbyingRecord,
+            "lobby_fk": "company_id",
+        })
+    if not sector or sector == "transportation":
+        sector_configs.append({
+            "label": "Transportation",
+            "entity_model": TrackedTransportationCompany,
+            "id_field": "company_id",
+            "lobby_model": TransportationLobbyingRecord,
+            "lobby_fk": "company_id",
+        })
+    if not sector or sector == "defense":
+        sector_configs.append({
+            "label": "Defense",
+            "entity_model": TrackedDefenseCompany,
+            "id_field": "company_id",
+            "lobby_model": DefenseLobbyingRecord,
+            "lobby_fk": "company_id",
+        })
+    if not sector or sector == "chemicals":
+        sector_configs.append({
+            "label": "Chemicals",
+            "entity_model": TrackedChemicalCompany,
+            "id_field": "company_id",
+            "lobby_model": ChemicalLobbyingRecord,
+            "lobby_fk": "company_id",
+        })
+    if not sector or sector == "agriculture":
+        sector_configs.append({
+            "label": "Agriculture",
+            "entity_model": TrackedAgricultureCompany,
+            "id_field": "company_id",
+            "lobby_model": AgricultureLobbyingRecord,
+            "lobby_fk": "company_id",
+        })
+    if not sector or sector == "telecom":
+        sector_configs.append({
+            "label": "Telecom",
+            "entity_model": TrackedTelecomCompany,
+            "id_field": "company_id",
+            "lobby_model": TelecomLobbyingRecord,
+            "lobby_fk": "company_id",
+        })
+    if not sector or sector == "education":
+        sector_configs.append({
+            "label": "Education",
+            "entity_model": TrackedEducationCompany,
+            "id_field": "company_id",
+            "lobby_model": EducationLobbyingRecord,
             "lobby_fk": "company_id",
         })
 

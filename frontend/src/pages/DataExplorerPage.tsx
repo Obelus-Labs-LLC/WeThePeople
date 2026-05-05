@@ -40,23 +40,39 @@ interface StatsData {
   by_sector: Record<string, SectorStats>;
 }
 
-// Sector → accent color for this page
+// Sector → accent color for this page. Pre-fix only 6 of the 11
+// tracked sectors had entries; the other 5 (chemicals, agriculture,
+// telecom, education, plus the technology synonym for tech) fell
+// back to undefined and rendered with no color in the by-sector
+// breakdown, leaving the bar invisible.
 const SECTOR_COLORS: Record<string, string> = {
   finance: DGR,
   health: DPR,
   tech: DBL,
+  technology: DBL,
   energy: GOLD,
   defense: DRD,
   transportation: GOLDT,
+  chemicals: '#84CC16',
+  agriculture: '#65A30D',
+  telecom: '#06B6D4',
+  telecommunications: '#06B6D4',
+  education: '#A855F7',
 };
 
 const SECTOR_LABELS: Record<string, string> = {
   finance: 'Finance',
   health: 'Health',
   tech: 'Tech',
+  technology: 'Tech',
   energy: 'Energy',
   defense: 'Defense',
   transportation: 'Transport',
+  chemicals: 'Chemicals',
+  agriculture: 'Agriculture',
+  telecom: 'Telecom',
+  telecommunications: 'Telecom',
+  education: 'Education',
 };
 
 const METRIC_LABELS: Record<'lobbying' | 'contracts' | 'enforcement', string> = {
@@ -74,13 +90,23 @@ function formatMoney(n: number): string {
 }
 
 function companyRoute(sector: string, entityId: string): string {
+  // Map sector → URL prefix. Must match the SPA route table in App.tsx.
+  // Pre-fix the 5 newer sectors (chemicals, agriculture, telecom,
+  // education, plus the `technology` synonym for tech) were missing,
+  // sending users to /politics/{id} which 404s on those entity slugs.
   const map: Record<string, string> = {
     finance: 'finance',
     health: 'health',
     tech: 'technology',
+    technology: 'technology',
     energy: 'energy',
     defense: 'defense',
     transportation: 'transportation',
+    chemicals: 'chemicals',
+    agriculture: 'agriculture',
+    telecom: 'telecom',
+    telecommunications: 'telecom',
+    education: 'education',
   };
   return `/${map[sector] || 'politics'}/${entityId}`;
 }

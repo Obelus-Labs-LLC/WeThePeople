@@ -27,12 +27,17 @@ const CATEGORY_TOKEN: Record<string, { token: string; hex: string; label: string
   bill: { token: 'var(--color-dem)', hex: '#6B95E8', label: 'Bill' },
 };
 
+// Person IDs use the canonical person_id slug ("nancy_pelosi"), not
+// the short last-name form ("pelosi") — `/people/pelosi` 404s and
+// `/influence/network?entity_type=person&entity_id=pelosi` returns
+// an empty graph. Same applies to the energy entry: the populated
+// dataset is keyed under `exxonmobil`, not `exxon-mobil`.
 const EXAMPLES: { type: string; id: string; name: string }[] = [
-  { type: 'person', id: 'pelosi', name: 'Nancy Pelosi' },
-  { type: 'person', id: 'cruz', name: 'Ted Cruz' },
+  { type: 'person', id: 'nancy_pelosi', name: 'Nancy Pelosi' },
+  { type: 'person', id: 'ted_cruz', name: 'Ted Cruz' },
   { type: 'finance', id: 'jpmorgan', name: 'JPMorgan Chase' },
   { type: 'tech', id: 'alphabet', name: 'Alphabet' },
-  { type: 'energy', id: 'exxon-mobil', name: 'ExxonMobil' },
+  { type: 'energy', id: 'exxonmobil', name: 'ExxonMobil' },
   { type: 'health', id: 'pfizer', name: 'Pfizer' },
 ];
 
