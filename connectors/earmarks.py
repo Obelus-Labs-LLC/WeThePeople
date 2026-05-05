@@ -65,22 +65,28 @@ def search_earmarks(
     now = datetime.now()
     fy_start_year = now.year if now.month >= 10 else now.year - 1
     fy_start = f"{fy_start_year}-10-01"
-    # USASpending award type codes:
-    #   02 = Block Grant         (Medicaid, TANF, CDBG — ENTITLEMENT, not earmark)
-    #   03 = Formula Grant       (formula-driven, not earmark)
+    # USASpending requires `award_type_codes` to come from a SINGLE group.
+    # Per USASpending's own /api/v2/references/award_types/ endpoint:
+    #   grants                    = 02, 03, 04, 05, F001, F002
+    #   other_financial_assistance = 06, 10, F006, F007
+    #   direct_payments           = 09, 11, -1, F005, F008, F009, F010
+    #   loans                     = 07, 08, F003, F004
+    #
+    # The previous filter mixed `["04", "05", "06", "07"]` (grants +
+    # other_financial_assistance + loans), which the API rejects with
+    # "must only contain types from one group". Every earmark search
+    # returned 0 results, silently — the connector swallows the error.
+    # Caught in the May 5 walkthrough (R-EM-4).
+    #
+    # We stick to the grants group:
     #   04 = Project Grant       (competitive, often earmarks)
     #   05 = Cooperative Agreement (project-tied, often earmarks)
-    #   06 = Direct Payment for Specified Use (closest to a true earmark)
-    #   07 = Direct Payment Unrestricted (commonly named beneficiary)
-    #   08 = Insurance, Loan Guarantee, etc.
-    #
-    # The previous filter included 02 (Block Grants) which surfaced
-    # $100B Medicaid entitlement grants as if they were earmarks.
-    # Caught in the May 5 walkthrough (R-EM-2). Restrict to the
-    # award types most likely to represent actual congressionally
-    # directed spending.
+    # 02 (Block Grant) and 03 (Formula Grant) are excluded because they
+    # surface $100B Medicaid / TANF entitlements that are not earmarks.
+    # The downstream EARMARK_MAX_AMOUNT cap also filters out anything
+    # over $50M for defense in depth.
     filters: Dict[str, Any] = {
-        "award_type_codes": ["04", "05", "06", "07"],
+        "award_type_codes": ["04", "05"],
         "time_period": [
             {"start_date": fy_start, "end_date": now.strftime('%Y-%m-%d')}
         ],
@@ -226,10 +232,11 @@ def fetch_member_earmarks(member_name: str, limit: int = 50) -> List[Dict[str, A
 
     payload = {
         "filters": {
-            # Same restriction as search_earmarks: drop block grants
-            # (02) and formula grants (03) which are entitlements, not
-            # earmarks.
-            "award_type_codes": ["04", "05", "06", "07"],
+            # Same restriction as search_earmarks: stick to the grants
+            # group (04, 05) — USASpending rejects mixed-group requests
+            # with a silent 4xx the connector swallows. See the long
+            # comment on search_earmarks for the full group breakdown.
+            "award_type_codes": ["04", "05"],
             "keywords": [member_name.strip()],
         },
         "fields": [
