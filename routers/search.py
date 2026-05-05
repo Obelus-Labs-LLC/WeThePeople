@@ -3,10 +3,11 @@ Global search endpoint — searches across politicians, companies (all sectors).
 """
 
 import logging
+import re as _re
 
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, text as _sa_text
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,145 @@ _search_cache: dict = {}
 _search_lock = threading.Lock()
 _SEARCH_TTL = 60  # seconds
 
+# Map FTS5 entity rows back to the SQLAlchemy tracked-* model + ID column
+# used by the legacy /search shape. Order matters only because we want to
+# pick the same sector identifier as the legacy code path. Sector names
+# match the values written by jobs/rebuild_search_index.py.
+_COMPANY_MODEL_BY_SECTOR = {
+    "finance": (TrackedInstitution, "institution_id"),
+    "health": (TrackedCompany, "company_id"),
+    "tech": (TrackedTechCompany, "company_id"),
+    # Frontend route map keys "tech" as "technology"; keep the FE-facing
+    # sector token the legacy code returned.
+    "technology": (TrackedTechCompany, "company_id"),
+    "energy": (TrackedEnergyCompany, "company_id"),
+    "transportation": (TrackedTransportationCompany, "company_id"),
+    "defense": (TrackedDefenseCompany, "company_id"),
+    "chemicals": (TrackedChemicalCompany, "company_id"),
+    "agriculture": (TrackedAgricultureCompany, "company_id"),
+    "telecom": (TrackedTelecomCompany, "company_id"),
+    "education": (TrackedEducationCompany, "company_id"),
+}
+
+
+def _build_fts_match(q: str) -> str | None:
+    """Convert a user query to an FTS5 MATCH expression with prefix
+    suffixes on every token. Strips FTS metacharacters so user input
+    can't break the MATCH parser. Returns None if the query has no
+    usable tokens (e.g. all special chars)."""
+    cleaned = _re.sub(r"[^a-zA-Z0-9\s]", " ", q).strip()
+    tokens = [t for t in cleaned.split() if len(t) >= 2]
+    if not tokens:
+        return None
+    return " ".join(t + "*" for t in tokens)
+
+
+def _try_fts_search(db: Session, q: str) -> dict | None:
+    """Fast-path FTS5 lookup. Returns the full /search response shape on
+    success, None when the FTS index is missing / errored (caller falls
+    through to the legacy ILIKE path)."""
+    match_expr = _build_fts_match(q)
+    if match_expr is None:
+        return None
+    try:
+        # Over-fetch then filter so we still have headroom after the
+        # politician + company split; the legacy endpoint returns at
+        # most 5 of each.
+        rows = db.execute(
+            _sa_text(
+                "SELECT entity_type, entity_id, sector, rank "
+                "FROM entity_search "
+                "WHERE entity_search MATCH :q AND entity_type IN ('politician','company') "
+                "ORDER BY rank LIMIT 50"
+            ),
+            {"q": match_expr},
+        ).fetchall()
+    except Exception as exc:
+        # FTS table missing (fresh deploy before rebuild_search_index ran)
+        # or invalid MATCH expression — fall back to the slow path.
+        logger.debug("FTS5 fast-path unavailable: %s", exc)
+        return None
+
+    politician_ids: list[str] = []
+    company_rows: list[tuple[str, str]] = []  # (entity_id, sector)
+    for r in rows:
+        et = r[0]
+        eid = r[1]
+        sector = (r[2] or "").lower()
+        if et == "politician":
+            if len(politician_ids) < 5:
+                politician_ids.append(eid)
+        elif et == "company":
+            if len(company_rows) < 5 * len(_COMPANY_MODEL_BY_SECTOR):
+                company_rows.append((eid, sector))
+
+    politicians: list[dict] = []
+    if politician_ids:
+        members = (
+            db.query(TrackedMember)
+            .filter(TrackedMember.person_id.in_(politician_ids))
+            .all()
+        )
+        # Preserve the FTS rank ordering rather than DB key order.
+        order = {pid: i for i, pid in enumerate(politician_ids)}
+        members.sort(key=lambda m: order.get(m.person_id, 1_000_000))
+        for m in members:
+            politicians.append({
+                "person_id": m.person_id,
+                "name": m.display_name,
+                "state": m.state,
+                "party": m.party,
+                "chamber": m.chamber,
+                "photo_url": m.photo_url,
+            })
+
+    companies: list[dict] = []
+    if company_rows:
+        # Bucket by sector so we can issue one query per tracked-* table
+        # instead of N+1 lookups.
+        by_sector: dict[str, list[str]] = {}
+        for eid, sector in company_rows:
+            by_sector.setdefault(sector, []).append(eid)
+
+        # Preserve overall rank ordering across sectors.
+        rank_order = {(eid, sector): i for i, (eid, sector) in enumerate(company_rows)}
+        unsorted: list[tuple[int, dict]] = []
+
+        for sector, eids in by_sector.items():
+            mapping = _COMPANY_MODEL_BY_SECTOR.get(sector)
+            if mapping is None:
+                continue
+            model, id_col_name = mapping
+            id_col = getattr(model, id_col_name)
+            rows_for_sector = (
+                db.query(model).filter(id_col.in_(eids)).all()
+            )
+            for co in rows_for_sector:
+                eid_val = getattr(co, id_col_name)
+                rank = rank_order.get((eid_val, sector), 1_000_000)
+                # Normalize sector token for the FE route map (the FE
+                # uses "tech" → /technology). Pass the FTS-row sector
+                # through unchanged; the FE has both keys mapped.
+                unsorted.append((rank, {
+                    "entity_id": eid_val,
+                    "name": co.display_name,
+                    "ticker": getattr(co, "ticker", None),
+                    "sector": sector,
+                }))
+            if len(unsorted) >= 10:
+                # Stop early — politicians + 5 companies is the legacy cap.
+                pass
+        unsorted.sort(key=lambda x: x[0])
+        companies = [item for _, item in unsorted[:5]]
+
+    # Sanitize query in response to prevent XSS if rendered as HTML.
+    import html as _html
+    return {
+        "politicians": politicians,
+        "companies": companies,
+        "query": _html.escape(q),
+    }
+
 
 @router.get("", response_model=SearchResponse)
 def global_search(
@@ -50,7 +190,20 @@ def global_search(
     ),
     db: Session = Depends(get_db),
 ):
-    """Search across politicians and companies in all sectors. Cached 60s."""
+    """Search across politicians and companies in all sectors. Cached 60s.
+
+    Fast path: query the `entity_search` FTS5 virtual table populated
+    hourly by jobs/rebuild_search_index.py, then enrich the matched IDs
+    by hydrating the corresponding tracked-* rows. FTS5 gives us prefix
+    matching ("mcco*" finds "McConnell") and ranks by relevance, both of
+    which the legacy ILIKE substring scan can't do.
+
+    Slow path: 11 sector tables ILIKE'd one column at a time. Used as a
+    fallback when the FTS index is unavailable (fresh deploy before the
+    rebuild_search_index hourly job runs) or when the fast query
+    returns zero rows (so a niche substring match the FTS index missed
+    still surfaces something for the user).
+    """
     logger.info("Global search: q=%r", q)
     cache_key = q.strip().lower()
     now = _time.time()
@@ -59,6 +212,14 @@ def global_search(
         if cached and (now - cached["ts"]) < _SEARCH_TTL:
             return cached["data"]
 
+    # ── Fast path: FTS5 lookup on the entity_search index. ──
+    fast_response = _try_fts_search(db, q)
+    if fast_response is not None and (fast_response["politicians"] or fast_response["companies"]):
+        with _search_lock:
+            _search_cache[cache_key] = {"ts": _time.time(), "data": fast_response}
+        return fast_response
+
+    # ── Slow path: legacy ILIKE scan across every sector table. ──
     # Escape LIKE wildcards so user input like '%' or '_' doesn't match everything
     pattern = f"%{escape_like(q)}%"
 

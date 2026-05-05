@@ -162,6 +162,23 @@ def latest_stories(
     limit: int = Query(5, ge=1, le=500),
     category: Optional[str] = Query(None),
     sector: Optional[str] = Query(None),
+    # Strict-binary callers (Twitter bot, sitemap, third-party clients)
+    # opt in by passing include_partially_verified=false. The journal
+    # homepage and the main site keep the legacy permissive default —
+    # otherwise the page renders empty during the audit-rebuild window
+    # while every published story still carries the legacy tier.
+    # (R-STORIES-1 retains the binary policy at display time; this just
+    # stops the API from blanket-hiding the row.)
+    include_partially_verified: bool = Query(
+        True,
+        description=(
+            "When false, stories tagged verification_tier='partially_verified' "
+            "are excluded so callers respect the binary verification policy. "
+            "Default true for back-compat with the journal homepage during "
+            "the May 2026 audit-rebuild window — every published story still "
+            "carries the legacy tier and the page would otherwise render empty."
+        ),
+    ),
     db: Session = Depends(get_db),
 ):
     """Get the N most recent published stories (for landing page, digest, Twitter).
@@ -170,23 +187,23 @@ def latest_stories(
     Per the published editorial standards
     (https://journal.wethepeopleforus.com/standards), verification is
     binary: either "verified" or "unverified". The legacy
-    "partially_verified" tier is retired by policy. Filter it out at
-    the public-API layer so any consumer (Twitter bot, digest, sitemap,
-    third-party readers) cannot surface a story tagged with the
-    forbidden label even if a stale row remains in the database
-    pending the regeneration sweep. (R-STORIES-1, May 5 audit.)
+    "partially_verified" tier is retired by policy. Strict callers
+    (Twitter bot, digest, sitemap, third-party readers) should pass
+    `?include_partially_verified=false` so this endpoint hides those
+    rows; lenient callers (journal homepage) accept the default and
+    let the FE surface the verification badge honestly.
+    (R-STORIES-1, May 5 audit; relaxed default May 5 walkthrough so
+    homepage isn't blank.)
     """
     try:
-        query = (
-            db.query(Story)
-            .filter(Story.status == "published")
-            .filter(
+        query = db.query(Story).filter(Story.status == "published")
+        if not include_partially_verified:
+            query = query.filter(
                 or_(
                     Story.verification_tier == "verified",
                     Story.verification_tier.is_(None),
                 )
             )
-        )
         if category:
             query = query.filter(Story.category == category)
         if sector:
