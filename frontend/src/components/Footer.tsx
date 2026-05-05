@@ -156,8 +156,12 @@ export default function Footer() {
             &copy; {new Date().getFullYear()} Obelus Labs LLC. All rights reserved.
           </span>
           <div className="flex items-center gap-4">
-            <a
-              href="/cite"
+            {/* Internal route — use Link so the SPA navigates without a
+                full page reload. The previous <a href="/cite"> dropped
+                React Router state on click and forced a re-fetch of
+                index.html / the JS bundle every time. */}
+            <Link
+              to="/cite"
               className="no-underline transition-colors text-[var(--color-text-3)] hover:text-[var(--color-text-2)]"
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
@@ -165,7 +169,7 @@ export default function Footer() {
               }}
             >
               How to cite
-            </a>
+            </Link>
             <a
               href="https://github.com/Obelus-Labs-LLC/WeThePeople/blob/main/LICENSE"
               target="_blank"

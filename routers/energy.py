@@ -47,6 +47,13 @@ config = SectorConfig(
         # 12,100 EPA records actually persisted. Caught 2026-05-03.
         (EnergyEmission, "emission_count"),
     ],
+    # The Energy dashboard's "Emissions records" stat card pulls
+    # `total_emissions_records` from /energy/dashboard/stats. Pre-fix
+    # the factory dashboard didn't surface it so the card always read
+    # "0" even with ~12k EPA rows in the table. Caught May 5 walkthrough.
+    extra_dashboard_counts=[
+        ("emissions_records", EnergyEmission),
+    ],
 )
 
 router = create_sector_router(config)

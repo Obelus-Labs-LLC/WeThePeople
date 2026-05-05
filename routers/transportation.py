@@ -46,6 +46,14 @@ config = SectorConfig(
         (TransportationEnforcement, "enforcement_count"),
         (TransportationLobbyingRecord, "lobbying_count"),
     ],
+    # NHTSA recall + complaint counts surfaced on the dashboard. The
+    # transportation FE TS interface declares both as optional and the
+    # stats panel can read them; without these the keys were absent
+    # from the API response, which also broke test_transportation_dashboard_stats_200.
+    extra_dashboard_counts=[
+        ("recalls", NHTSARecall),
+        ("complaints", NHTSAComplaint),
+    ],
 )
 
 router = create_sector_router(config)
